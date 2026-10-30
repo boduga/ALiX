@@ -8,6 +8,7 @@
  */
 
 import { ALIX_BUILTIN_EXECUTORS } from "../../agents/tool-manifest.js";
+import { approvalExpiryState } from "../../governance/approvals/approval-binding.js";
 import { buildOfferedExecutableTools, resolveExecutableToolName, ToolNotFoundError } from "../../agents/tool-name-resolver.js";
 import { TOOL_EVENT_TYPES, POLICY_EVENT_TYPES } from "../../runtime-state/events/types.js";
 import type { NormalizedMessage, ToolCall, ToolDef } from "../../models/providers/types.js";
@@ -674,7 +675,13 @@ async function waitForApproval(
       return "denied";
     }
     const status = record.status;
-    if (status === "approved") return "approved";
+    if (status === "approved") {
+      // A resolved record whose persisted expiry is missing, empty, or
+      // unparsable is corrupt authority: it may not authorize the re-dispatch
+      // below, so the caller sees a denial instead of a retry.
+      if (approvalExpiryState(record.expiresAt) !== "valid") return "denied";
+      return "approved";
+    }
     if (status === "denied" || status === "rejected") return "denied";
     if (status === "expired") return "expired";
     // Re-mark every poll tick: operator think-time is not execution

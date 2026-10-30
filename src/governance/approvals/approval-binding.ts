@@ -105,6 +105,23 @@ export function invocationMatches(
   return record.invocationFingerprint === computeInvocationFingerprint(identity);
 }
 
+export type ApprovalExpiryState = "valid" | "expired" | "invalid";
+
+/**
+ * Authority expiry is security-significant persisted data. Missing, empty, or
+ * unparsable values are corrupt authority and must never become "no expiry".
+ *
+ * Lives beside the binding rules (not in the protected approval store) so every
+ * authorization, reconciliation, and consumption path can share ONE verdict
+ * without opening a second store import.
+ */
+export function approvalExpiryState(expiresAt: unknown, now: Date = new Date()): ApprovalExpiryState {
+  if (typeof expiresAt !== "string" || expiresAt.trim().length === 0) return "invalid";
+  const expiryMs = Date.parse(expiresAt);
+  if (!Number.isFinite(expiryMs)) return "invalid";
+  return expiryMs <= now.getTime() ? "expired" : "valid";
+}
+
 const VALID_STATUSES: readonly string[] = ["pending", "approved", "denied", "consumed", "expired", "revoked", "invalidated"];
 const VALID_POLICIES: readonly string[] = ["single_use", "worker_attempt", "coordination_run", "session"];
 
@@ -143,7 +160,8 @@ export function normalizeApprovalRecord(
     ownershipClaims: Array.isArray(r.ownershipClaims) ? r.ownershipClaims : [],
     reason: typeof r.reason === "string" ? r.reason : "",
     createdAt,
-    // Calculate legacy expiry from createdAt, not from load time
-    expiresAt: typeof r.expiresAt === "string" ? r.expiresAt : new Date(new Date(createdAt).getTime() + 30 * 60_000).toISOString(),
+    // Missing legacy expiry is corrupt authority, not an implicit 30-minute grant.
+    // Preserve it as invalid so every authorization/consumption path fails closed.
+    expiresAt: typeof r.expiresAt === "string" ? r.expiresAt : "",
   };
 }

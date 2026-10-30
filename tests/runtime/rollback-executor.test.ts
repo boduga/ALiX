@@ -179,6 +179,37 @@ describe("RollbackExecutor approved-live mode", () => {
     assert.equal(existsSync(newFile), false);
   });
 
+  it("blocks a live rollback whose approved record has corrupt expiry", async () => {
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+    const storeDir = mkdtempSync(join(tmpdir(), "rollback-expiry-store-"));
+    try {
+      const isolated = new ApprovalStore(storeDir);
+      await isolated.load();
+      const diffSet = await diffStore.loadIndex(replayId);
+      assert.ok(diffSet);
+      const plan = buildRollbackPlan(replayId, diffSet!, "approved-live");
+
+      await executor.execute(plan, { approvalStore: isolated });
+      for (const a of isolated.listPending()) {
+        await isolated.resolve(a.id, "approved");
+      }
+      await isolated.mutate((approvals) => {
+        for (const a of approvals) delete (a as { expiresAt?: string }).expiresAt;
+      });
+
+      const before = readFileSync(join(tmpDir, "src/restore-test.txt"), "utf-8");
+      const result = await executor.execute(plan, { approvalStore: isolated });
+      for (const step of result.steps) {
+        if (step.action === "restore" || step.action === "delete-created") {
+          assert.equal(step.status, "blocked", "corrupt expiry must not authorize a live rollback");
+        }
+      }
+      assert.equal(readFileSync(join(tmpDir, "src/restore-test.txt"), "utf-8"), before);
+    } finally {
+      rmSync(storeDir, { recursive: true, force: true });
+    }
+  });
+
   it("returns rollbackId and replayId in result", async () => {
     const diffSet = await diffStore.loadIndex(replayId);
     assert.ok(diffSet);

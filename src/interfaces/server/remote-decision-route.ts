@@ -21,6 +21,7 @@
 import { createHash } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ApprovalStore } from "../../governance/approvals/approval-store.js";
+import { approvalExpiryState } from "../../governance/approvals/approval-binding.js";
 import { remoteDecisionRetryKey } from "../../governance/approvals/approval-types.js";
 import type { RemoteDecisionEvidence } from "../../governance/approvals/approval-types.js";
 import { projectRemoteDecisions } from "../../governance/audit/remote-decision-projection.js";
@@ -240,7 +241,9 @@ async function handleDecision(
       return;
     }
 
-    if (new Date(record.expiresAt).getTime() <= Date.now()) {
+    // Eligibility is "pending AND unexpired". Missing, empty, or unparsable
+    // expiry is corrupt authority, never an unbounded review window.
+    if (approvalExpiryState(record.expiresAt) !== "valid") {
       secure.error("expired", 409);
       return;
     }

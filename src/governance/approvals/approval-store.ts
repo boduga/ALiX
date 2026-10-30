@@ -14,27 +14,25 @@ import type { AuditStore } from "../audit/audit-store.js";
 import type { EventLog } from "../../runtime-state/events/event-log.js";
 import type { ApprovalRecord, ApprovalGroup, ConsumeResult, RemoteDecisionEvidence } from "./approval-types.js";
 import type { WorkerOwnershipClaim } from "../../coordination/kernel/coordination-types.js";
-import { normalizeApprovalRecord, computeInvocationFingerprint, invocationMatches } from "./approval-binding.js";
+import {
+  approvalExpiryState,
+  normalizeApprovalRecord,
+  computeInvocationFingerprint,
+  invocationMatches,
+  type ApprovalExpiryState,
+} from "./approval-binding.js";
 import type { InvocationIdentity } from "./approval-binding.js";
 import { ApprovalStoreLock } from "./approval-store-lock.js";
 import { APPROVAL_EVENT_TYPES } from "../../runtime-state/events/types.js";
 import { getSharedLedger, appendFact, currentEntityVersion, type LedgerFactCounters } from "../../runtime-state/storage/runtime-ledger.js";
 
+// Preserve the historical import surface; the classifier itself lives in
+// approval-binding.ts so non-store callers never need this protected store edge.
+export { approvalExpiryState };
+export type { ApprovalExpiryState };
+
 /** Compact the append-only journal once it reaches this many entries (#703). */
 const JOURNAL_COMPACT_THRESHOLD = 500;
-
-export type ApprovalExpiryState = "valid" | "expired" | "invalid";
-
-/**
- * Authority expiry is security-significant persisted data. Missing, empty, or
- * unparsable values are corrupt authority and must never become "no expiry".
- */
-export function approvalExpiryState(expiresAt: unknown, now: Date = new Date()): ApprovalExpiryState {
-  if (typeof expiresAt !== "string" || expiresAt.trim().length === 0) return "invalid";
-  const expiryMs = Date.parse(expiresAt);
-  if (!Number.isFinite(expiryMs)) return "invalid";
-  return expiryMs <= now.getTime() ? "expired" : "valid";
-}
 
 /** Trusted host context supplied by the restricted worker port, never request metadata.
  * Omitted scope is the existing privileged host path; an explicit empty scope
@@ -951,7 +949,9 @@ export class ApprovalStore {
     const expired: ApprovalRecord[] = [];
     await this.mutate((approvals) => {
       for (const r of approvals) {
-        if ((r.status === "pending" || r.status === "approved") && new Date(r.expiresAt) <= cutoff) {
+        // Corrupt expiry is terminal authority too: never leave a malformed
+        // record looking pending/approved forever because its date cannot parse.
+        if ((r.status === "pending" || r.status === "approved") && approvalExpiryState(r.expiresAt, cutoff) !== "valid") {
           r.status = "expired";
           expired.push({ ...r });
         }

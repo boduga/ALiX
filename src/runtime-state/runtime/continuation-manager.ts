@@ -6,6 +6,7 @@
  */
 
 import type { ApprovalStore } from "../../governance/approvals/approval-store.js";
+import { approvalExpiryState } from "../../governance/approvals/approval-binding.js";
 import type { ContinuationStore } from "./continuation-store.js";
 import type { EventLog } from "../events/event-log.js";
 
@@ -68,8 +69,13 @@ export class ContinuationManager {
       return { resumed: false, error: `Approval ${approvalId} status is '${approval.status}', not 'approved'` };
     }
     // R1.5: authorization must still be valid — an expired approval never
-    // resumes, even if its status was not re-derived yet.
-    if (approval.expiresAt && new Date(approval.expiresAt).getTime() <= Date.now()) {
+    // resumes, even if its status was not re-derived yet. Missing, empty, or
+    // unparsable expiry is corrupt authority, not "no expiry".
+    const expiryState = approvalExpiryState(approval.expiresAt);
+    if (expiryState === "invalid") {
+      return { resumed: false, error: `Approval ${approvalId} has invalid expiry metadata; refusing corrupt authority` };
+    }
+    if (expiryState === "expired") {
       return { resumed: false, error: `Approval ${approvalId} expired at ${approval.expiresAt}` };
     }
 

@@ -257,6 +257,38 @@ describe("ReplayExecutor approved-live mode", () => {
     assert.equal(content, "approved content");
   });
 
+  it("blocks a live step whose approved record has corrupt expiry", async () => {
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+    const storeDir = mkdtempSync(join(tmpdir(), "replay-expiry-store-"));
+    try {
+      const isolated = new ApprovalStore(storeDir);
+      await isolated.load();
+      const target = join(tmpDir, "expiry-replay.txt");
+      const events = [
+        makeEvent({ id: "e-expiry", eventType: "shell.run", label: "shell.run expiry", toolName: "shell.run",
+          toolCallId: "tc-expiry", rawEvent: { payload: { toolName: "shell.run", args: { command: "printf blocked > expiry-replay.txt" } } } }),
+      ];
+      const plan = buildReplayPlan(buildReplayPreview(events[0], events), events, "approved-live");
+
+      const first = await executor.execute(plan, { approvalStore: isolated });
+      assert.equal(first.steps.find(s => s.toolName === "shell.run")?.status, "blocked");
+      for (const a of isolated.listPending()) {
+        await isolated.resolve(a.id, "approved");
+      }
+      await isolated.mutate((approvals) => {
+        for (const a of approvals) {
+          if (a.toolId === "shell.run") delete (a as { expiresAt?: string }).expiresAt;
+        }
+      });
+
+      const second = await executor.execute(plan, { approvalStore: isolated });
+      assert.equal(second.steps.find(s => s.toolName === "shell.run")?.status, "blocked");
+      assert.equal(existsSync(target), false, "corrupt expiry must not authorize a live replay");
+    } finally {
+      rmSync(storeDir, { recursive: true, force: true });
+    }
+  });
+
   it("returns replayId in result for approved-live mode", async () => {
     const events = [
       makeEvent({ id: "e1", eventType: "file.read", label: "file.read", toolName: "file.read",

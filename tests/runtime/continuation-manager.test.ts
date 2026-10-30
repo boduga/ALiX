@@ -69,6 +69,45 @@ describe("ContinuationManager", () => {
     assert.equal(result.output, "executed");
   });
 
+  for (const badExpiry of [undefined, "", "not-a-date"] as const) {
+    const label = badExpiry === undefined ? "missing" : badExpiry === "" ? "empty" : "malformed";
+
+    it(`rejects an approved continuation with ${label} expiry`, async () => {
+      const approval = await approvalStore.request({ reason: `expiry ${label}`, capability: "shell.run" });
+      await approvalStore.resolve(approval.id, "approved", "expiry regression");
+      const record = approvalStore.get(approval.id)! as { expiresAt?: string };
+      if (badExpiry === undefined) delete record.expiresAt;
+      else record.expiresAt = badExpiry;
+
+      const args = { command: `echo ${label}` };
+      await continuationStore.persist({
+        approvalId: approval.id,
+        kind: "tool",
+        sessionId: "sess_expiry",
+        cwd: tmpDir,
+        toolCall: { toolCallId: `tc_expiry_${label}`, name: "shell.run", capability: "shell.run", args, argsHash: hashArgs(args) },
+        createdAt: new Date().toISOString(),
+      });
+
+      let executed = false;
+      const mgr = new ContinuationManager({
+        continuationStore, approvalStore,
+        executeTool: async () => {
+          executed = true;
+          return { kind: "success", output: "must not run" };
+        },
+      });
+      const result = await mgr.resumeApproved(approval.id);
+      assert.equal(result.resumed, false);
+      assert.match(result.error ?? "", /invalid expiry/i);
+      assert.equal(executed, false, "corrupt authority must not reach execution");
+      assert.ok(
+        continuationStore.findByApprovalId(approval.id),
+        "fail-closed refusal must not consume the one-shot continuation",
+      );
+    });
+  }
+
   it("rejects argsHash mismatch", async () => {
     const approval = await approvalStore.request({ reason: "test hash", capability: "file.read" });
     await approvalStore.resolve(approval.id, "approved", "Approved");

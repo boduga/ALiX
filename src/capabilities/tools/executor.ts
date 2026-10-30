@@ -1,5 +1,5 @@
 import type { InvocationIdentity } from "../../governance/approvals/approval-binding.js";
-import { approvalExpiryState } from "../../governance/approvals/approval-store.js";
+import { approvalExpiryState } from "../../governance/approvals/approval-binding.js";
 import "node:fs";
 import "node:fs/promises";
 import { resolve } from "node:path";
@@ -177,7 +177,7 @@ export class ToolExecutor {
    * "Access denied" and the model just retries, generating one new
    * approval per iteration.
    */
-  getApproval(id: string): { status?: string } | undefined {
+  getApproval(id: string): { status?: string; expiresAt?: string } | undefined {
     return this.approvalStore?.get?.(id);
   }
 
@@ -195,7 +195,7 @@ export class ToolExecutor {
    * error which this maps to `null` so the caller can keep waiting instead of
    * mistaking a broken read for a denial.
    */
-  async loadApprovalForWait(id: string): Promise<{ status?: string } | undefined | null> {
+  async loadApprovalForWait(id: string): Promise<{ status?: string; expiresAt?: string } | undefined | null> {
     if (!this.approvalStore?.loadFresh) return this.getApproval(id);
     try {
       return await this.approvalStore.loadFresh(id);

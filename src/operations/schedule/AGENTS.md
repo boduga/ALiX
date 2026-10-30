@@ -34,7 +34,9 @@ manages active jobs and `alix approvals` unions the global store.
 - **Idempotent materialization.** A job is keyed by `approvalId`; re-approval,
   restart, or a repeated tick never doubles a job.
 - **Bounded.** `every` ≥ 5 min, expiry required and ≤ 30 days, ≤ 20 active jobs.
-  Expired jobs are retired by `tick()`.
+  Expired jobs are retired by `tick()`. Materialization also refuses an approval
+  whose own `expiresAt` is not a valid future timestamp (`approvalExpiryState`);
+  it is reported in `skipped`, never turned into an active job.
 - **Fresh execution.** A scheduled run is enqueued as a normal daemon task
   (`TaskRegistry.create`), i.e. a new session with only the human-approved task
   text — it inherits no context from the session that proposed it.

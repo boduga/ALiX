@@ -307,6 +307,42 @@ for (const badExpiry of [undefined, "", "not-a-date"] as const) {
   });
 }
 
+test("an approved record with valid future expiry still authorizes dispatch", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-exec-expiry-valid-"));
+  try {
+    const log = new EventLog(dir);
+    await log.init();
+    const { ApprovalStore } = await import("../src/governance/approvals/approval-store.js");
+    const store = new ApprovalStore(dir);
+    await store.load();
+    const config = structuredClone(DEFAULT_CONFIG) as AlixConfig;
+    config.permissions.sessionMode = "ask";
+    config.permissions.tools["shell.run"] = "ask";
+    const executor = new ToolExecutor(config, log, dir, undefined, undefined, undefined, undefined, store);
+    const request = {
+      toolCallId: "expiry-valid-ordinary",
+      name: "shell.run",
+      args: { command: "printf allowed > expiry-valid.txt", cwd: dir, timeoutMs: 5000 },
+      agentId: "expiry-agent",
+      ...TEST_CORRELATION,
+    };
+
+    const first = await executor.execute(request);
+    assert.equal(first.kind, "denied");
+    const approvalId = (first as { approvalId?: string }).approvalId;
+    assert.ok(approvalId);
+    await store.resolve(approvalId, "approved", "expiry regression");
+    (store.get(approvalId)! as { expiresAt: string }).expiresAt =
+      new Date(Date.now() + 60 * 60_000).toISOString();
+
+    const retry = await executor.execute(request);
+    assert.equal(retry.kind, "success", JSON.stringify(retry));
+    assert.equal(existsSync(join(dir, "expiry-valid.txt")), true);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("ApprovalStore.consumeApproved rejects missing, empty, and malformed expiry", async () => {
   const { ApprovalStore } = await import("../src/governance/approvals/approval-store.js");
   for (const expiresAt of [undefined, "", "not-a-date"] as const) {

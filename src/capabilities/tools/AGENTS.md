@@ -52,6 +52,7 @@ reason about.
   `tool.failed`; `handleToolCall` waits up to five minutes for the durable
   decision and re-dispatches the same tool call after approval. Only a real
   denial, expiry, cancellation, or execution error terminalizes the tool card.
+- **A semantic approval observation is not authority unless the record is still valid.** `loadApprovalForWait`/`getApproval` return the raw durable record; the wait loop authorizes a re-dispatch only when `approvalExpiryState(record.expiresAt) === "valid"`, so an `approved` record with missing, empty, or unparsable expiry becomes a denial instead of a retry (missing evidence terminalizes as `denied`, never as an unbounded grant).
 - **Tool telemetry is fail-open (P0).** All EventLog writes on the tool path go
   through `telemetry.ts:emitToolTelemetry` (`ToolExecutor.logEvent`, the
   artifact-created notification, the `observability.metric` emissions, and the

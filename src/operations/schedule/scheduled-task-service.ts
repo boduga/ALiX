@@ -15,6 +15,7 @@ import { advanceNextRun, nextRunAfter, MAX_ACTIVE_JOBS } from "./schedule-spec.j
 import { SCHEDULE_CAPABILITY, validateProposal } from "./propose.js";
 import type { ScheduledTaskStore } from "./scheduled-task-store.js";
 import type { ApprovalStore } from "../../governance/approvals/approval-store.js";
+import { approvalExpiryState } from "../../governance/approvals/approval-binding.js";
 
 export type ScheduleServiceDeps = {
   approvals: ApprovalStore;
@@ -50,6 +51,14 @@ export class ScheduledTaskService {
       .filter((a) => a.status === "approved" && a.capabilities.includes(SCHEDULE_CAPABILITY));
 
     for (const approval of approved) {
+      // A schedule approval is review-window evidence: an expired or corrupt
+      // expiry never materializes a job. Evaluated against the injected clock
+      // so materialization stays deterministic, and reported as skipped rather
+      // than silently dropped from the inbox summary.
+      if (approvalExpiryState(approval.expiresAt, now) !== "valid") {
+        skipped.push(approval.id);
+        continue;
+      }
       if (this.deps.tasks.findByApprovalId(approval.id)) {
         skipped.push(approval.id);
         continue;

@@ -7,7 +7,8 @@
  */
 
 import type { AlixConfig, SessionMode } from "../../operations/config/schema.js";
-import { approvalExpiryState, type ApprovalStore } from "../approvals/approval-store.js";
+import { approvalExpiryState } from "../approvals/approval-binding.js";
+import type { ApprovalStore } from "../approvals/approval-store.js";
 import type { EventLog } from "../../runtime-state/events/event-log.js";
 import type { WorkerOwnershipClaim } from "../../coordination/kernel/coordination-types.js";
 import type { PolicySnapshot, PolicyRuleSnapshot } from "../../interfaces/tui/snapshot.js";

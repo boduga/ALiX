@@ -212,7 +212,9 @@ describe("handleToolCall unknown-tool guard", () => {
     const executor = {
       execute: vi.fn(),
       authorizeBoundTool: vi.fn().mockResolvedValue({ decision: "ask", approvalId: "apr-1", reason: "Pending approval: apr-1" }),
-      getApproval: vi.fn().mockReturnValue({ status: "approved" }),
+      // Durable authority must carry a valid expiry: a bare `approved` status is
+      // corrupt/legacy metadata (see the corrupt-expiry case below).
+      getApproval: vi.fn().mockReturnValue({ status: "approved", expiresAt: new Date(Date.now() + 60_000).toISOString() }),
     };
     const handler = vi.fn().mockResolvedValue("published");
     const name = "alix_collaboration_publish_finding";
@@ -225,6 +227,53 @@ describe("handleToolCall unknown-tool guard", () => {
     expect(result.message?.content).toContain("published");
     expect((deps.log.append as unknown as { mock: { calls: unknown[][] } }).mock.calls
       .some((c) => ((c[0] as { type?: string }).type === "approval.resolved"))).toBe(true);
+  });
+
+  it("does not run a bound tool whose approved record has corrupt expiry", async () => {
+    // A resolved record is not authority by itself: missing/empty/malformed
+    // `expiresAt` is corrupt expiry metadata, so the wait refuses to treat the
+    // approval as granted and the handler never runs.
+    for (const expiresAt of [undefined, "", "not-a-date"] as const) {
+      const label = expiresAt === undefined ? "missing" : expiresAt === "" ? "empty" : "malformed";
+      const executor = {
+        execute: vi.fn(),
+        authorizeBoundTool: vi.fn().mockResolvedValue({ decision: "ask", approvalId: "apr-1", reason: "Pending approval: apr-1" }),
+        getApproval: vi.fn().mockReturnValue({ status: "approved", expiresAt }),
+        loadApprovalForWait: vi.fn().mockResolvedValue({ status: "approved", expiresAt }),
+      };
+      const handler = vi.fn().mockResolvedValue("published");
+      const name = "alix_collaboration_publish_finding";
+      const deps = Object.assign(makeDeps(executor), {
+        offeredTools: [{ name }],
+        boundTools: [{ definition: { name, description: "Publish finding", inputSchema: { type: "object", properties: {} } }, handler }],
+      });
+      const result = await handleToolCall({ id: `collab-expiry-${label}`, name, args: { title: "Yes" } }, deps, [], []);
+      expect(handler).not.toHaveBeenCalled();
+      expect(result.succeeded).toBe(false);
+      expect(result.message?.content).toContain("Access denied");
+      const decisions = (deps.log.append as unknown as { mock: { calls: unknown[][] } }).mock.calls
+        .map((c) => c[0] as { type?: string; payload?: { decision?: string } })
+        .filter((e) => e.type === "approval.resolved");
+      expect(decisions.at(-1)?.payload?.decision).toBe("denied");
+    }
+  });
+
+  it("runs a bound tool whose approved record has a valid future expiry", async () => {
+    const executor = {
+      execute: vi.fn(),
+      authorizeBoundTool: vi.fn().mockResolvedValue({ decision: "ask", approvalId: "apr-1", reason: "Pending approval: apr-1" }),
+      getApproval: vi.fn().mockReturnValue({ status: "approved", expiresAt: new Date(Date.now() + 60_000).toISOString() }),
+      loadApprovalForWait: vi.fn().mockResolvedValue({ status: "approved", expiresAt: new Date(Date.now() + 60_000).toISOString() }),
+    };
+    const handler = vi.fn().mockResolvedValue("published");
+    const name = "alix_collaboration_publish_finding";
+    const deps = Object.assign(makeDeps(executor), {
+      offeredTools: [{ name }],
+      boundTools: [{ definition: { name, description: "Publish finding", inputSchema: { type: "object", properties: {} } }, handler }],
+    });
+    const result = await handleToolCall({ id: "collab-expiry-valid", name, args: { title: "Yes" } }, deps, [], []);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(result.message?.content).toContain("published");
   });
 
   it("short-circuits repeated identical read-only search calls", async () => {
