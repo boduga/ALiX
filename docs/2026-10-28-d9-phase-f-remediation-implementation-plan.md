@@ -27,7 +27,7 @@ Record these explicitly in this document or a linked ADR before implementation b
 
 The five decisions are now recorded in ADR-0017:
 
-1. **Supported platforms:** Linux x86-64 and ARM64 are required for first-release Phase F qualification per Master PRD Q10; macOS/Windows/container certification is deferred.
+1. **Supported platforms:** Superseded by operator-approved Master PRD v2.10 Q10/Q15 and ADR-0017 amendment (merged PR #1004, 2026-10-31). Linux x86-64 is the sole required first-release Phase F certification target. ARM64, macOS, Windows and containers are deferred and not certified; ARM64 native evidence is required before its future certification. This scope change does not relax any durability, security, or independent-verification invariant.
 2. **Durability target:** mandatory process-crash/restart safety; kernel/power-loss durability is not claimed unless separately qualified.
 3. **Threat model:** untrusted model/project/plugin/shell inputs, ALiX crashes/concurrency and ALiX-created races are in scope; an unrestricted hostile same-user process is not the Phase F integrity boundary.
 4. **Completion authority:** terminal success requires both unambiguous execution completion and durable `terminal_success` recording for the same effect identity.
