@@ -349,6 +349,7 @@
 
 ## Verification
 
+- `tests/stress/coordination-store-stress.test.ts` rejects null worker updates as failed operations before checking durable worker state at 10/50/100 concurrency. Stale revision CAS rejection remains an expected outcome. Fixtures close the shared ledger before removing their workspace.
 - `tests/kernel/graph-executor.test.ts` — executor, sorting, enforcement, rerun
 - `tests/kernel/graph-projection.test.ts` — projection reconstruction
 - `tests/kernel/graph-planner.test.ts` — plan generation, cap normalize, repair retry

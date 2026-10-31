@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
 import type { ApprovalRecord } from "../../src/governance/approvals/approval-types.js";
+import { closeSharedLedger } from "../../src/runtime-state/storage/runtime-ledger.js";
 import {
   runConcurrent,
   assertStressPasses,
@@ -23,7 +24,10 @@ const CONCURRENCY_LEVELS = [10, 50];
 function createStore(): { cwd: string; store: ApprovalStore; cleanup: () => void } {
   const cwd = mkdtempSync(join(tmpdir(), "appr-stress-"));
   const store = new ApprovalStore(cwd);
-  return { cwd, store, cleanup: () => rmSync(cwd, { recursive: true, force: true }) };
+  return { cwd, store, cleanup: () => {
+    closeSharedLedger(cwd);
+    rmSync(cwd, { recursive: true, force: true });
+  } };
 }
 
 // =========================================================================
@@ -77,12 +81,12 @@ for (const N of CONCURRENCY_LEVELS) {
         });
       });
 
-      assert.ok(result.passed > 0, `at least one request should succeed, got ${result.passed}`);
+      assertStressPasses(result);
       console.log(`  [N=${N}] ${stressSuiteSummary(result)}`);
 
       const all = store.list();
       const sameKey = all.filter(r => r.bindingKey === "bind-same");
-      assert.ok(sameKey.length <= 5, `expected <=5 same-key records under contention, got ${sameKey.length}`);
+      assert.equal(sameKey.length, 1, "all same-key requests must reuse one pending approval");
     } finally {
       cleanup();
     }

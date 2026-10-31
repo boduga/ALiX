@@ -210,3 +210,43 @@ test("ledger file is created on construction", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+// Schema creation runs as ONE transaction. Under `synchronous=FULL` each
+// implicit commit fsyncs, so a per-statement `db.exec(SCHEMA)` paid one fsync
+// per CREATE — the dominant cost of a fresh ledger open. This does NOT detect a
+// re-unwrapped batch (both forms pass); it pins the behaviour the optimisation
+// must preserve: one open yields a complete, immediately usable schema, and a
+// second open re-runs the idempotent batch without losing committed rows.
+test("one open installs the complete schema and is immediately appendable", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-ledger-schema-"));
+  try {
+    const dbPath = join(dir, ".alix", "runtime-ledger.db");
+    const ledger = new RuntimeLedger({ dbPath });
+    try {
+      const { journalMode, synchronous } = ledger.durabilitySettings();
+      assert.equal(journalMode, "wal");
+      assert.equal(synchronous, 2, "synchronous must stay FULL");
+
+      // Every table/index the append path depends on must exist after one open.
+      const res = await ledger.append({
+        expectedVersion: 0,
+        event: makeEvent({ eventId: "schema-probe", entityId: "schema-entity", entityVersion: 1 }),
+      });
+      assert.equal(res.ok, true);
+
+      // Idempotent: the DDL batch re-runs harmlessly on a second open.
+      ledger.close();
+      const reopened = new RuntimeLedger({ dbPath });
+      try {
+        const events = reopened.readEvents({ entityId: "schema-entity" });
+        assert.ok(events.length > 0, "reopening must not drop committed rows");
+      } finally {
+        reopened.close();
+      }
+    } finally {
+      ledger.close();
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

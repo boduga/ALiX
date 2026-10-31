@@ -105,6 +105,7 @@ File-backed approval queue management — create, resolve, list, and lookup pend
 
 ## Verification
 
+- `tests/stress/approval-store-stress.test.ts` requires every independent writer/consumer to succeed and every same-key request to reuse exactly one pending record. Fixtures close the shared ledger before removing their workspace.
 - `tests/security/live-step-approval.test.ts` — replay/rollback authority parity, changed steps and snapshot bytes, reuse refusal, concurrent fresh-process claims, and crash between claim and effect.
 - `tests/security/worker-approval-atomic-outcome-acceptance.vitest.ts` — outcome authorization parity across callers, states and legacy records; concurrent rebind and reporting; ledger reopen and trusted identity capture.
 - `tests/security/worker-approval-atomic-restart.test.ts` — fresh Node processes contend on persisted worker ownership after the creating store closes.

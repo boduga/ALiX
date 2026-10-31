@@ -127,7 +127,13 @@ function openDurableLedger(dbPath: string): Database.Database {
           `Runtime ledger durability unavailable: journal_mode=${journalMode}, synchronous=${synchronous}`,
         );
       }
-      db.exec(SCHEMA);
+      // One transaction for the whole DDL batch. Under `synchronous=FULL` every
+      // implicit commit fsyncs, so executing each CREATE separately costs one
+      // fsync per statement — ~450 ms on a rotational disk, paid on every fresh
+      // ledger open (a fixture that opens a workspace per test pays it per test).
+      // Wrapping is behaviour-preserving: `IF NOT EXISTS` makes the batch
+      // idempotent, and a partially applied schema can no longer be observed.
+      db.transaction(() => db.exec(SCHEMA))();
       return db;
     } catch (err) {
       db.close();

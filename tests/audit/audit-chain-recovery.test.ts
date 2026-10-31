@@ -274,6 +274,42 @@ describe("audit-chain crash recovery (P1)", () => {
     assert.ok(!v.ok, "corruption must remain detectable");
   });
 
+  it("an unpublished sidecar is fully recoverable, so publication needs no fsync", async () => {
+    // Guards the *contract* behind the cost fix in `writeHeadAtomic` (temp write
+    // + rename, no fsync): the sidecar is a recoverable fast path, and the
+    // fsynced JSONL chain is the durability barrier. This asserts every
+    // post-crash sidecar shape a non-fsynced publication can expose is
+    // re-derived onto the existing chain and the log still verifies.
+    //
+    // It does NOT detect a re-added sidecar fsync — label the intent honestly.
+    // Its value is that it fails if recovery ever stops tolerating these shapes,
+    // which is the safety condition that makes dropping the fsync permissible.
+    const writer = new AuditChainWriter({ auditDir: paths.dir, lock: { timeoutMs: 30_000 } });
+    const a1 = await writer.append({ action: "policy.allowed", actor: "user", details: {}, timestamp: 1_700_000_000_000 });
+    const a2 = await writer.append({ action: "policy.allowed", actor: "user", details: {}, timestamp: 1_700_000_000_500 });
+    const headAfterA2 = readFileSync(paths.headPath, "utf-8");
+    assert.equal(a1.seq, 1);
+    assert.equal(a2.seq, 2);
+
+    let tick = 0;
+    const nextTs = () => 1_700_000_001_000 + (tick += 1);
+    for (const [shape, write] of [
+      ["zero-length", (p: string) => writeFileSync(p, "", "utf-8")],
+      ["stale ancestor", (p: string) => writeFileSync(p, headAfterA2, "utf-8")],
+      ["garbage bytes", (p: string) => writeFileSync(p, "\u0000\u0000\u0000\u0000", "utf-8")],
+      ["missing", (p: string) => unlinkSync(p)],
+    ] as const) {
+      write(paths.headPath);
+      const appended = await writer.append({ action: "policy.allowed", actor: "user", details: {}, timestamp: nextTs() });
+      // Never reallocates a committed sequence, whatever shape the sidecar is in.
+      assert.equal(appended.seq, (await writer.readHead())!.seq, `${shape}: head must match the appended seq`);
+      assert.ok(appended.prevHash !== null, `${shape}: append must extend the chain, not restart it`);
+    }
+
+    const v = await new AuditStore(cwd).verifyIntegrity();
+    assert.ok(v.ok, `expected ok: ${JSON.stringify(v.findings)}`);
+  });
+
   it("recovered head preserves the verified tip's timestamp", async () => {
     const writer = new AuditChainWriter({ auditDir: paths.dir, lock: { timeoutMs: 30_000 } });
     await writer.append({ action: "policy.allowed", actor: "user", details: {}, timestamp: 1_700_000_000_000 });
