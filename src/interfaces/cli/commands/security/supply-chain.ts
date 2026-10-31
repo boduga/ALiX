@@ -118,7 +118,23 @@ export async function handleSupplyChainExceptions(args: string[]): Promise<void>
   }
 
   console.log(`\nAudit Exceptions — ${result.ok ? "OK" : "ISSUES FOUND"}\n`);
-  console.log(`Total exceptions: ${result.excepted.length}`);
+  if (listOnly) {
+    console.log(`Declared exceptions: ${result.excepted.length}`);
+    console.log();
+    if (result.excepted.length > 0) {
+      console.log("EXCEPTED:");
+      for (const e of result.excepted) {
+        console.log(`  - [${e.severity}] ${e.package}: ${e.title}`);
+      }
+      console.log();
+    }
+    process.exit(result.ok ? 0 : 1);
+  }
+
+  // In check mode these counts describe advisories, not declared exceptions —
+  // "Total exceptions: 11" for a 2-entry file was misleading.
+  console.log(`Advisories evaluated: ${result.excepted.length + result.unexcepted.length}`);
+  console.log(`Excepted advisories: ${result.excepted.length}`);
   console.log(`Unexcepted advisories: ${result.unexcepted.length}`);
   console.log(`Expired exceptions: ${result.expiredExceptions.length}`);
   console.log();

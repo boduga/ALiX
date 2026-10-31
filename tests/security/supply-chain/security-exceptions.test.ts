@@ -418,3 +418,39 @@ describe("runExceptionsCheck", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Unknown audit shapes must not pass silently
+// ---------------------------------------------------------------------------
+
+describe("parseAuditResult — unrecognised shapes", () => {
+  it("errors instead of reporting a clean graph for valid JSON with no known shape", () => {
+    // The pnpm-shape bug and an unknown future format are the same fail-open:
+    // zero findings with no error, which a policy check reads as "nothing found".
+    const { findings, error } = parseAuditResult(JSON.stringify({ metadata: { vulnerabilities: 0 } }));
+    assert.equal(findings.length, 0);
+    assert.equal(error?.code, EXCEPTION_ERROR_CODES.AUDIT_PARSE_FAILED);
+  });
+
+  it("rejects a non-object vulnerabilities value rather than iterating it", () => {
+    // A truthy non-object is the discriminating case: without the explicit
+    // shape check this falls through to Object.entries("abc"), which yields
+    // index entries and returns zero findings as a *successful* clean report.
+    const { findings, error } = parseAuditResult(JSON.stringify({ vulnerabilities: "abc" }));
+    assert.equal(findings.length, 0);
+    assert.equal(error?.code, EXCEPTION_ERROR_CODES.AUDIT_PARSE_FAILED);
+    assert.match(
+      String(error?.details),
+      /neither an 'advisories' nor a 'vulnerabilities' object/,
+      "the error must name the shape problem, not surface an incidental TypeError"
+    );
+  });
+
+  it("still accepts an explicitly empty advisories or vulnerabilities object", () => {
+    for (const raw of [JSON.stringify({ advisories: {} }), JSON.stringify({ vulnerabilities: {} })]) {
+      const { findings, error } = parseAuditResult(raw);
+      assert.equal(error, undefined, "an explicit empty report is a legitimate clean result");
+      assert.equal(findings.length, 0);
+    }
+  });
+});

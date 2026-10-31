@@ -153,7 +153,16 @@ export function parseAuditResult(raw: string): {
       return { findings: parseAdvisoryMap(parsed.advisories) };
     }
 
-    const vulns = parsed.vulnerabilities ?? {};
+    if (!parsed.vulnerabilities || typeof parsed.vulnerabilities !== "object") {
+      // Valid JSON with neither known shape. Reporting "no findings" here would
+      // be the same silent fail-open as the pnpm-shape bug: an unrecognised
+      // format would pass the gate forever. Surface it instead.
+      throw new Error(
+        "audit output has neither an 'advisories' nor a 'vulnerabilities' object"
+      );
+    }
+
+    const vulns = parsed.vulnerabilities;
 
     const findings: AdvisoryFinding[] = [];
     for (const [_id, vuln] of Object.entries(vulns)) {
