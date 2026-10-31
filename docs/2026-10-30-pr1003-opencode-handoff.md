@@ -106,6 +106,21 @@ A two-axis review of `git diff main...HEAD` (60 commits, 152 files) produced 3 h
 - Linux ARM64 native qualification is still absent; `docs/prd/evidence/lean-01/D9-phase-f-slice-g-governance-reconciliation-2026-10-29.md` records it as a Phase F blocker. It requires an ARM64 host, not a code change.
 - The Harness PRD v1.2 status/acceptance rewrite and the repeated expiry tri-state cascade across nine authorization sites remain judgement calls. The cascade is intentional: each site applies its own fail-closed outcome (deny / fresh request / allow), and collapsing them would touch nine security-critical decision paths for readability alone.
 
+**Found while fixing (not in either review)**
+- The new `alix effects` handler first imported the protected approval store directly, which the R1 boundary freeze rejects (`status-store-writes`). It now uses the sanctioned `openApprovalStores` CLI helper, so the command adds no direct status-store write edge. Caught by `tests/architecture/r1-boundary-freeze.test.ts`, not by either reviewer.
+- `check:dox` rejected two claims in the first draft of the AGENTS.md update: model-facing tool names must use the `alix_*` vocabulary (`alix_file_create` / `alix_patch_apply`, not executor IDs), and added paths only resolve once committed. Both fixed.
+
+## Verification after the review fixes
+
+Full qualification, run clean with nothing else on the machine:
+
+- `pnpm test:ci` → exit **0**. Node **9,153 passed, 0 failed, 0 cancelled, 4 skipped** (9,157 tests). Vitest **738 files passed, 2 skipped; 8,090 passed, 0 failed, 10 skipped** (8,100 tests). ~489 s. Log: `/tmp/opencode/final-full-qualification.log`.
+- Build, `pnpm typecheck`, `pnpm typecheck:unused`, `tsc -p tsconfig.tests.json --noEmit`, `pnpm check:dead`, `pnpm verify:deps` (24 pins), `pnpm check:dox` (8 AGENTS files, 40 tokens), `git diff --check` — all pass.
+- Architecture gates pass: `r1-boundary-freeze` and `layer-boundaries` (8/8).
+- `detect_changes --scope all` on a clean tree reports no changes; `--scope compare --base-ref main` reports 159 files / 12 affected processes / risk high for the **whole 61-commit branch**, not this change set. The per-symbol graph query returned `UNKNOWN` because the MCP index is stale, so callers were confirmed by text search (`claimLiveStep`, `executeWithEffectJournal`, `emitBlockedStepApprovalCreated`, `OWNERSHIP_EVENT_TYPES` — all bounded and exercised).
+
+Two commits: `3c94d5b0` (review findings) and `c6e1bb3b` (R1 boundary fix). Nothing pushed.
+
 ## Limitations
 
 - The measured per-append cost is a property of this host's rotational disk. The fixes remove redundant durability work and a missing budget rationale; they do not make the suite independent of disk speed. Anything that pays a real fsync per operation stays latency-bound here, so future budget decisions should cite a measured per-operation cost rather than a peak-run duration.
