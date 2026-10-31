@@ -5,10 +5,19 @@ import { join } from 'node:path';
 import { executeWithEffectJournal, reconcileEffectRecord, readEffectRecord } from '../../src/capabilities/tools/effect-journal.js';
 import type { ToolCallRequest } from '../../src/capabilities/tools/types.js';
 import { ApprovalStore } from '../../src/governance/approvals/approval-store.js';
+import { closeSharedLedger } from '../../src/runtime-state/storage/runtime-ledger.js';
 
 const roots: string[] = [];
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })));
+  // The reconciliation case opens an ApprovalStore, which retains a shared
+  // SQLite ledger connection for the workspace. Windows refuses to delete the
+  // database while that handle is open, so close it BEFORE rm() — the same
+  // cleanup order the stress fixtures use. POSIX unlinks silently, which is why
+  // only Windows surfaces the leak.
+  for (const root of roots.splice(0)) {
+    closeSharedLedger(root);
+    await rm(root, { recursive: true, force: true });
+  }
 });
 async function workspace() {
   const root = await mkdtemp(join(tmpdir(), 'alix-platform-durability-'));

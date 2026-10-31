@@ -12,9 +12,18 @@ import {
   type EffectReconciliationInput,
 } from '../../src/capabilities/tools/effect-journal.js';
 import type { ToolCallRequest } from '../../src/capabilities/tools/types.js';
+import { closeSharedLedger } from '../../src/runtime-state/storage/runtime-ledger.js';
 
 const roots: string[] = [];
-afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))));
+afterEach(async () => {
+  // `setup()` opens an ApprovalStore, which retains a shared SQLite ledger
+  // connection. Windows cannot delete the database while it is open, so close
+  // it BEFORE rm() (the stress-fixture cleanup order).
+  for (const root of roots.splice(0)) {
+    closeSharedLedger(root);
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), 'alix-effect-reconcile-'));

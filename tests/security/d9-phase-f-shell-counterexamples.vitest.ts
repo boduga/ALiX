@@ -38,11 +38,32 @@ describe('D9 Phase F shell counterexamples', () => {
     expect(existsSync(effect)).toBe(true);
   });
 
-  it('F2: signal termination is never classified as successful exit 0', { timeout: 30_000 }, async () => {
+  // POSIX-only: `kill -TERM $$` signals the shell itself, which POSIX spawn
+  // reports as `closeSignal`, and Node only sets that on platforms with real
+  // signal semantics. Windows has no equivalent here, so this case would assert
+  // a signal name that cannot be produced.
+  it.skipIf(process.platform === 'win32')('F2: signal termination is never classified as successful exit 0', { timeout: 30_000 }, async () => {
     const root = await tempRoot();
     const result = await runCommand({ command: 'printf EFFECT_OBSERVED; kill -TERM $$', cwd: root });
     expect(result.kind).toBe('error');
     if (result.kind === 'error') expect(result.message).toMatch(/signal|SIGTERM|terminated/i);
+  });
+
+  // Windows counterpart for the same safety property. This asserts only that a
+  // nonzero exit is never a success — it is NOT evidence of signal termination:
+  // `process.exit(143)` is a plain exit code, and 143's conventional meaning on
+  // POSIX (128+15) does not make Windows report a signal. The effect must also
+  // stay uncertain, because a non-zero exit cannot prove no mutation happened.
+  it.skipIf(process.platform !== 'win32')('F2 (Windows): a nonzero exit is never classified as success', { timeout: 30_000 }, async () => {
+    const root = await tempRoot();
+    const result = await runCommand({ command: 'node -e "process.exit(143)"', cwd: root });
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') {
+      expect(result.message).toMatch(/exited with code 143/i);
+      expect(result.message).not.toMatch(/signal/i);
+      expect(result.outcomeUnknown).toBe(true);
+      expect(result.retryable).toBe(false);
+    }
   });
 
   it('F4: git show output-writing syntax is not approval-exempt safe shell', () => {
