@@ -128,15 +128,15 @@ export class EmbeddingCache {
 
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
       const batch = files.slice(i, i + BATCH_SIZE);
+      const eligibleFiles = batch.filter((file): file is typeof file & { content: string } =>
+        Boolean(file.content)
+      );
       const embeddings = await Promise.all(
-        batch
-          .filter(f => f.content)
-          .map(f => this.getEmbedding(f.content!.slice(0, 2000)))
+        eligibleFiles.map(file => this.getEmbedding(file.content.slice(0, 2000)))
       );
 
-      for (let j = 0; j < batch.length; j++) {
-        const file = batch[j];
-        if (!file.content) continue;
+      for (let j = 0; j < eligibleFiles.length; j++) {
+        const file = eligibleFiles[j];
         const similarity = this.cosineSimilarity(queryEmbedding, embeddings[j]);
         results.push({
           path: file.path,
