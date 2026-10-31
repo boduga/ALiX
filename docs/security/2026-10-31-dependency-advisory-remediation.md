@@ -104,6 +104,22 @@ change, so it was verified behaviourally rather than assumed:
 After the override, `pnpm why` reports exactly one version of each:
 `glob@14.0.3`, `minimatch@11.0.3`, `brace-expansion@5.0.12`.
 
+### minimatch 10 → 11 behavioural parity
+
+`minimatch` is production code, not just tooling: `src/capabilities/tools/ignore.ts`,
+`file-tools.ts` and `repomap-lite.ts` use it to decide which workspace paths are
+ignored and which files a search touches. minimatch 11 changed `**` handling and
+added `@isaacs/nonrecursive-glob-match`, so a silent behavioural change could
+weaken ignore enforcement rather than merely break a test.
+
+Both versions were run side by side over 754 pattern/path/option comparisons:
+18 representative patterns (including `.env`, `.git`, `node_modules`, `**`,
+`a/**/b`, brace sets and `**/secrets/**`) against 21 paths, with `{ dot: true }`
+and default options, plus the exact `` `${p}/**` `` construction `ignore.ts`
+builds for directory patterns.
+
+**Result: 754 comparisons, 0 differences.**
+
 ## Exception removed
 
 `security/audit-exceptions.json` lost **one** entry — `vite` — because the
