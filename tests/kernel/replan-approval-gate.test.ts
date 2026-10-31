@@ -179,6 +179,31 @@ describe("ReplanApprovalGate", () => {
         cleanup();
       }
     });
+
+    for (const badExpiry of [undefined, "", "not-a-date"] as const) {
+      const label = badExpiry === undefined ? "missing" : badExpiry === "" ? "empty" : "malformed";
+
+      it(`does not approve a stored record with ${label} expiry`, async () => {
+        const { store, gate, cleanup } = freshEnvironment();
+        try {
+          await store.load();
+          const analysis = makeImpactAnalysis({ riskLevel: "critical" });
+          const created = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
+          await store.resolve(created.approvalId!, "approved", "Looks good");
+          await store.mutate((approvals) => {
+            const record = approvals.find((a) => a.id === created.approvalId)!;
+            if (badExpiry === undefined) delete (record as { expiresAt?: string }).expiresAt;
+            else record.expiresAt = badExpiry;
+          });
+
+          const checked = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
+          assert.equal(checked.approved, false, `${label} expiry must not approve`);
+          assert.match(checked.reason, /invalid expiry/i);
+        } finally {
+          cleanup();
+        }
+      });
+    }
   });
 
   describe("checkApproval", () => {

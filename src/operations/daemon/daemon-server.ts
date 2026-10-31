@@ -758,6 +758,7 @@ server.listen(socketPath, () => {
     pid: process.pid,
     startedAt: new Date().toISOString(),
     socketPath,
+    currentSessionId,
     status: "running" as const,
   };
   try {
@@ -776,16 +777,6 @@ server.listen(socketPath, () => {
     console.error("[daemon] schedule service failed to start:", err instanceof Error ? err.message : String(err));
   });
   startHeartbeat();
-  const statusPath = join(globalDir, "daemon.json");
-  if (existsSync(statusPath)) {
-    readFile(statusPath, "utf-8").then((raw) => {
-      try {
-        const status = JSON.parse(raw);
-        status.currentSessionId = currentSessionId;
-        writeFile(statusPath, JSON.stringify(status, null, 2), "utf-8").catch(() => {});
-      } catch {}
-    }).catch(() => {});
-  }
   console.error(`Daemon listening on ${socketPath}`);
 });
 

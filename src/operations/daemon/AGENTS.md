@@ -22,6 +22,7 @@ Persistent background daemon for task execution, lifecycle management, and local
 
 ## Local Contracts
 
+- Startup publishes the complete owner status, including `currentSessionId`, before readiness. Do not asynchronously rewrite that file in place after publication: readers may observe a truncated status. Heartbeat updates retain their temporary-file rename publication.
 - Daemon servers hold the global `daemon-lifecycle.lock` through process death using the fail-closed portable `ApprovalStoreLock` backend. This serializes every server metadata writer (including ping repair and heartbeat) with finishing manager stops, even for different explicit sockets under one HOME. The server leaves its record for proven-dead-owner reclamation; PID reuse or malformed/unprovable ownership blocks startup and requires operator recovery. After verified exit, `DaemonManager.stop` takes that same lock, rechecks PID/start/socket identity, and changes/removes only the stopped owner's status/PID projection. Lock contention leaves metadata untouched. Socket admission and socket cleanup remain server-owned.
 - Daemon binds to a Unix socket only (`.alix/alixd.sock`). No remote access.
 - Task queue is FIFO sequential (one task at a time). Queued tasks receive `queue.position`.

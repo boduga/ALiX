@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { OwnershipRegistry } from "../../src/coordination/ownership/ownership-registry.js";
@@ -148,6 +148,40 @@ describe("OwnershipRegistry", () => {
       mode: "exclusive-write",
     });
     assert.equal(rival.acquired, false, "a persisted exclusive claim must block another agent");
+  });
+
+  it("fails closed when persisted ownership state is malformed", async () => {
+    const storagePath = join(dir, ".alix", "ownership", "ownership.json");
+    writeFileSync(storagePath, "{not-json", "utf-8");
+
+    const decision = await reg.authorizeMutation({
+      agentId: "agent-2",
+      targets: [{ path: join(dir, "src", "x.ts"), origin: "test", confident: true }],
+      autoAcquire: true,
+    });
+    assert.equal(decision.allowed, false);
+    assert.match(decision.reason ?? "", /state unavailable/i);
+    assert.equal(existsSync(storagePath), true, "malformed authority state must not be overwritten");
+  });
+
+  it("fails closed when a persisted ownership record has invalid authority fields", async () => {
+    const storagePath = join(dir, ".alix", "ownership", "ownership.json");
+    writeFileSync(storagePath, JSON.stringify({ version: 1, revision: 4, records: [{}] }), "utf-8");
+
+    const decision = await reg.authorizeMutation({
+      agentId: "agent-2",
+      targets: [{ path: join(dir, "src", "y.ts"), origin: "test", confident: true }],
+      autoAcquire: true,
+    });
+    assert.equal(decision.allowed, false);
+    assert.match(decision.reason ?? "", /state unavailable/i);
+  });
+
+  it("fresh ownership queries reject malformed persisted state", async () => {
+    const storagePath = join(dir, ".alix", "ownership", "ownership.json");
+    writeFileSync(storagePath, JSON.stringify({ version: 1, revision: 4, records: "not-an-array" }), "utf-8");
+
+    await assert.rejects(() => reg.listActive(), /unreadable or malformed/i);
   });
 
   // ─── Renew ──────────────────────────────────────────────────────

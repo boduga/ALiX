@@ -59,6 +59,8 @@ export function taskForWorker(
     eventSessionId: sessionId,
     cwd,
     coordinationRunId: worker.coordinationRunId,
+    coordinationWorkerAttempt: worker.attempt,
+    coordinationOwnershipClaims: worker.ownershipClaims,
     assignedAgentId: worker.agentId,
     taskLabel: worker.taskLabel,
     deferTerminalLifecycle: true,

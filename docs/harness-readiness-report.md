@@ -5,9 +5,12 @@ plus working changes on `feat/phase0-master-prd`. Other source assessments retai
 their earlier `c0def71d` scope. No API spend or publication in this reconciliation.
 Requirements remain PRD v1.2 (filename v1.1).
 
+> **Agent-driven closeout amendment — 2026-10-28.** Harness PRD v1.2 now removes routine human-in-the-loop execution, grading, review, remediation, and readiness assessment. Historical signatures/approvals below remain provenance only. Active closeout evidence must come from independent verifier/critic agents and deterministic checks. Missing delegated authority yields durable `BLOCKED`; it is not converted into a human-review stage. Gate F is an agent-generated readiness handoff; actual publication/release remains outside the Harness loop unless pre-existing delegated release authority exists.
+
+
 The [32-requirement acceptance matrix](audits/2026-10-23-harness-acceptance-matrix.md)
 is the detailed assessment. It separates definitions, historical results,
-executed checks, independent qualification and operator acceptance. The previous
+executed checks and independent qualification. Historical operator acceptance is provenance, not a current Harness closeout criterion. The previous
 blanket claim that PRE-R015–R032 were all untouched was incorrect: several ask
 for designs that already exist. Their existence does not prove measurements.
 
@@ -15,12 +18,12 @@ for designs that already exist. Their existence does not prove measurements.
 
 | Gate | Verdict | Evidence / remaining acceptance |
 |---|---|---|
-| A — Inventory | Historical PASS with named unknowns; authorized to complete | Component/invariant maps exist. Current legacy inventory adds real consumers; graph lookup and dynamic/external consumer completeness remain unresolved. |
-| B — Baseline | **CLOSED-WITH-WAIVER** | 13 met, 1 waived, 0 missing. Oracle defects fixed and the retained collection re-derives with **0 verdict changes**; `36/45` and `$0.080520` per verified success stand ([review](audits/2026-10-24-gb01-oracle-review.md), [re-score](../benchmark/evidence/eval-runs/collection-2026-10-24-final/RESCORE.md)). GB-11 waived and signed (M-1 human, unmeasured); GB-14 accepted as a baseline with a waived operator-attention dimension. Closure is model-independent — no human independence, no Gate E clearance, Gate F/Q13 HOLD. See [pre-2.0 acceptance](audits/2026-10-24-pre-2.0-acceptance.md). |
+| A — Inventory | Historical PASS with named unknowns; current internal triage improved | Component/invariant maps exist. At `43d81e98`, all current compiler-project unresolved named/dynamic config-surface references are classified (5 genuine config consumers, 49 unrelated, 0 ambiguous; 0 dynamic unresolved). Graph/external/deep-import/reflection/runtime completeness remains unresolved. |
+| B — Baseline | **CLOSED-WITH-WAIVER (historical)** | Historical 13-met/1-waived closure and `36/45` / `$0.080520` evidence remain provenance. Under the 2026-10-28 amendment, the waived human-attention dimension is replaced by autonomous-review metrics that are still unmeasured; Gate B historical closure is not reopened solely for that reason, but PRE-R015–R019 remain open until agent-review evidence exists. |
 | C — Ablation | **RETAIN DISPOSITION RECORDED; no paired run** | No paired ablation executed. §9's "otherwise retain" branch is exercised in [`harness-gate-c-retain-disposition.md`](harness-gate-c-retain-disposition.md): both M2 candidates retained, none retired, and it is explicitly not a measured efficiency finding. PRE-R007/R008 remain unexecuted comparisons. |
-| D — Migration | **AUTHORIZED; not implemented** | Concrete reader/writer manifest and MP-01…MP-03 designs exist; implementation, parity evidence and Q04/Q05 owner review remain. |
+| D — Migration | **AUTHORIZED; not implemented** | Concrete reader/writer manifest and MP-01…MP-03 designs exist; implementation requires machine-verifiable delegated authority, parity evidence, and independent verifier/critic qualification. |
 | E — Execution/security | **HOLD — 0 of 5 clauses qualified** | An independent model-independent review ([Codex/gpt-6.1-sol](audits/evidence/2026-10-25-codex-gate-e-review.txt)) **rejected** the author-side qualification: authority and ownership are NOT QUALIFIED (hard deny bypassed in ask-mode safe-shell dispatch; `shell.run` escapes owned scope), F8b/crash-recovery/denied-action are partial. 2 of the 11 defects were in this gate's own validator and are fixed; the two authority holes (D1 deny bypass, D2 shell write escape) are **remediated** with mutation-checked tests, while D11 (deny-wins precedence) and five more remain open. See [Gate E qualification](audits/2026-10-24-gate-e-qualification.md). |
-| F — Release | **HOLD — computed** | Q13. `release-clearance-record.mjs` refuses the current artifact on three recorded facts: technical `partial`, no independent security clearance, no maintainer decision. Both absent items are authority, not measurement — no agent and no authorization can supply them, and Gate F has no waiver path. See [Gate F/Q13 enumeration](audits/2026-10-24-gate-f-q13-enumeration.md). |
+| F — Readiness handoff | **HOLD** | Harness-local Gate F now requires exact-artifact provenance, completed technical/security qualification, and an agent-generated readiness verdict. Actual Q13 publication/release remains outside this Harness loop unless pre-existing delegated release authority exists. Historical maintainer-decision absence remains release provenance, not an in-loop Harness acceptance task. |
 
 Authorization source: `docs/audits/2026-10-23-harness-authorization.md`.
 
@@ -61,6 +64,8 @@ Authorization source: `docs/audits/2026-10-23-harness-authorization.md`.
 
 ## Reproducibility and legacy inventory
 
+A new agent-driven closeout manifest now anchors subsequent evidence: `benchmark/evidence/harness-closeout-manifest-2026-10-28.json`. It pins source/tree/branch, clean tracked state, runtime/toolchain, machine profile, config-schema hash, lockfile and PRD hashes. Independent review keeps PRE-R001 partial because this cannot retroactively supply missing per-run provenance for historical model collections; each new measured run must bind its own inputs/outputs and before/after state to the manifest.
+
 [Baseline provenance](audits/2026-10-23-harness-baseline-provenance.md) replaces
 ambiguous counts of scripts with a record-by-record account. Table replay,
 arithmetic replay and scenario reproduction are different claims.
@@ -86,15 +91,33 @@ No missing capture has been invented or replayed against a model.
 projection owner, pre-normalization writes, runtime tier reader, loader/display
 consumers, behavior consumers, persistence boundary, distinct atomic writer,
 legacy aliases and regression constraints. `subagents.enabled/roles` are behavior
-and must remain. Unknown graph/dynamic/external consumers still block retirement.
+and must remain. Internal compiler-project unresolved-reference triage is closed at `43d81e98`; unknown graph/external/deep-import/reflection/runtime consumers still block retirement.
+
+## 2026-10-28 candidate-inventory reconciliation
+
+PRE-R002 is now **SUPPORTED for HC-01…HC-12 at current repository scope**. A first independent source/test audit rejected the stale historical table as incomplete; a current-HEAD reconciliation then supplied exact component identity, relevant internal consumers, authority boundaries, role/rationale, concrete tests/evidence, and corrected classifications. A second independent acceptance review found no blocking row and accepted PRE-R002. External/deep-import/reflection/runtime retirement completeness remains PRE-R010 work and no retirement authority follows.
+
+PRE-R010 is also **SUPPORTED as an inventory requirement** after independent review. The manifest/cutover evidence identifies readers, writers, aliases/legacy formats, persistence boundaries, supported surfaces and migration paths, while explicitly retaining deep-import/runtime/reflection uncertainty. Package metadata exposes the `alix` executable with no `main`/`exports`, but ships `dist/`; therefore deep imports are possible but not a declared stable module API. Compatibility disposition and retirement safety remain Gate D/Q04/Q05 work.
+
+**PRE-R005 corpus contract (2026-10-28): SUPPORTED.** A fresh deterministic scripted-provider requalification confirms all five explicitly scripted-only runtime-contract fixtures are repeatable and honestly scored; exact file guards cover both partial cases and observed metrics establish zero tool calls for the three no-effect negatives. This is corpus-contract evidence only and does not itself establish model-quality metrics.
+
+**PRE-R006 baseline metrics (2026-10-28): SUPPORTED at baseline-record scope.** The current reconciliation binds the final 45-run collection to model revision, config/corpus/tool/environment hashes, explicit sample sizes and producer commit while retaining verified success, tokens, proxy-priced cost, latency, tool/retry and intervention fields. The historical provider-retry dimension remains `null`/unobserved and is not fabricated as zero. Strata 6/8/9 are separately commit-bound at n=3 each. This is a baseline-record acceptance, not an improvement claim, Gate E clearance or release decision.
 
 ## Amendment work
 
 | Group | Supported work | Remaining evidence |
 |---|---|---|
-| R015–R019 attention/briefs | Metric definitions, read-only brief fields, governance and provenance rules | Human presentation comparison and measurements absent; owner review and any future renderer qualification remain open. No renderer authorized. |
+| R015–R019 autonomous review/briefs | **Metric/protocol contracts reconciled; public-fixture pilot executed 2026-10-28**. Deterministic scorer 5/5; text n=1 and diagram n=1 both exact with zero critical misses. | Pilot is mechanics-only because fixture/risks are public. Execute blinded multi-fixture verifier/critic trials; capture active effort/cost, repeated-agent disagreement, BLOCKED escalation and seeded-risk misses. Future renderer qualification remains open. |
 | R020–R026 Harness² | Historical demo result, component map, manifest, paired design, recursion/holdout rules and defer/reject recommendation | Demo logs/clone locally corroborated, not freshly executed or portable dependency-qualified; benchmark-specific isolation and independent authority review remain open. No adoption or model-backed probe. |
-| R027–R032 supervision | Contract inventory, eligibility schema, promotion evaluation design, downgrade triggers and non-bypass test specification | No review/sampling/risk measurements or executed supervision non-bypass demonstration. No promotion, sampling engine or automatic downgrade implementation authorized. |
+| R027–R032 autonomous verification | Authority map now separates permission modes from verification modes; eligibility schema defines pre-versioned thresholds and fail-closed downgrade to full verification/`BLOCKED`; non-bypass specification retained | No verifier/critic sampling/risk measurements or executed autonomous-mode qualification. No agent may self-promote authority; missing qualification or authority => `BLOCKED`. |
+
+## 2026-10-28 Harness² / verification-design acceptance
+
+Independent design audit and re-review now support **PRE-R021, R022, R023, R025, R026, R027, R028, R029 and R030** at their written design/recommendation scope. The audit first identified missing explicit Harness² concept mappings, budget/rollback authority rules, approval revocation/invalidation coverage, and the independent review required for R026; those were corrected and re-reviewed. This closes the design contracts only. PRE-R020 portability, PRE-R024 process/rubric isolation completion, PRE-R032 execution/non-bypass qualification, and all adoption/release gates remain separate. PRE-R031 now has bounded blinded offline measurements, but their safety result fails reduced-supervision eligibility. PRE-R024 now has a working per-arm S0 runner (44/44 mandatory negatives on its qualification-control record), but a committed negative probe proves `shell.run` can reach a grader outside `cwd`, so model-backed probes remain blocked.
+
+## 2026-10-28 contract/catalog acceptance reconciliation
+
+Independent acceptance review supports **PRE-R003, R009, R015, R016, R018, R019, R020 and R032** at their exact requirement scope. R015 required one repair before closure: disagreement rate is now defined over decision-bearing items with at least two eligible independent verdicts, with uncovered items excluded from the denominator rather than treated as agreement. R032 is supported only for the present structural authorization surface and does not pre-qualify a future supervision engine. Fresh current-branch execution of the two structural suites passed **28/28** (10 PRE-R032 + 18 protected-path parity). These closures do not supply Gate B/E qualification or measured PRE-R031 performance.
 
 ## Executed verification and limits
 
@@ -127,42 +150,18 @@ independence and the Gate F/Q13 signature blank. It now records Gate B
 It is not a pass, a qualification or a release authorization, and it authorizes
 no collection or spend.
 
-Remaining work for a full (non-waived) baseline:
+Remaining work under the agent-driven closeout:
 
-1. Complete source/consumer review and historical provenance disposition.
-2. Finish shim trigger/usage/retirement catalog and benchmark isolation protocol.
-3. Design the missing human-review comparisons and observe operator review
-   intervals. Tool/retry/repeat/intervention capture now runs inside the eval
-   producer (`eval-execution-metrics.ts`); provider retries and observed review
-   minutes remain `null`. Isolation qualification is 6/8
-   ([record](harness-pre-r024-isolation-qualification.md)); rubric containment and
-   per-arm negative execution still block model-backed probes.
-4. Collection proposal
-   [`audits/2026-10-23-gate-b-collection-proposal.md`](audits/2026-10-23-gate-b-collection-proposal.md)
-   was approved at proposal scope (operator Babasola, 2026-10-23). **Three
-   collections have since been run against it** — see the
-   [results](audits/2026-10-24-gate-b-collection-results.md), the
-   [denominator status](audits/2026-10-24-gate-b-denominator-status.md) and the
-   retained `collection-2026-10-24-final/` artifact set (45 runs, 36 verified,
-   `$2.8987` proxy-priced, `$0.080520` per verified success). The ceilings were
-   amended `$4.50` → `$6.75` → `$9.50` → `$15.00`; measured spend is a proxy
-   lower bound and the vendor bill stays unknown. **Do not run a fourth
-   collection** — the remaining `$1.66` of headroom is not authorization, and the
-   contract/oracle defects found by review were fixed and re-scored at zero spend
-   instead.
-5. **Baseline signature obtained; independent security review still absent.**
-   Gate B is `CLOSED-WITH-WAIVER` with the operator signature recorded
-   2026-10-24. What remains is not a signature: Gate E independence, the M-1
-   attention measurement, and the two Gate F/Q13 authorities (independent
-   security clearance, maintainer decision), which are computed to `HOLD` by
-   [`release-clearance-record.mjs`](../benchmark/evidence/release-clearance-record.mjs).
-   Gate E's five clauses were executed and recorded
-   ([qualification](audits/2026-10-24-gate-e-qualification.md)), and an independent
-   review **rejected** the result: 0 of 5 clauses qualified, two of them NOT
-   QUALIFIED. The gate is remediation work, not a missing second party.
+1. Complete source/consumer review and historical provenance disposition with independent verifier/critic agents.
+2. Finish shim trigger/usage/retirement evidence and benchmark isolation protocol.
+3. PRE-R031 bounded blinded measurement is complete and fails reduced-supervision eligibility; keep full verification. PRE-R017 presentation-effect qualification and any production-scale queue/BLOCKED study remain separate future evidence, not prerequisites to the PRE-R031 measurement clause.
+4. Complete PRE-R024 OS-level process isolation, per-benchmark rubric containment and model-arm replay reconstruction before any model-backed probe. The per-arm S0 negative runner is already qualified and remains mandatory.
+5. Continue Gate E/D9 remediation until independent security qualification no longer rejects the execution boundary.
+6. Produce exact-artifact agent readiness evidence for Gate F. Actual publication/release remains outside the Harness program unless machine-verifiable delegated release authority already exists; otherwise report `BLOCKED` without inserting a human review step.
 
-Full PRD completion remains open. Gate B closed at a labelled weaker standard. Gate E is `HOLD` — independence was
-obtained and it rejected the qualification, so the gap there is remediation, not
-authority. Gate F/Q13 is computed to `HOLD`: one partial qualification and two
-absent authorities (independent security clearance, maintainer decision).
-Nothing here may be silently waived — Gate F has no waiver path at all.
+Full PRD completion remains open. Gate B retains its historical labelled weaker closure. Gate E is `HOLD` because independent review rejected qualification; that gap is remediation and requalification. Harness Gate F is also `HOLD` until exact-artifact technical/security evidence and an agent readiness verdict exist. Q13 publication/release authority remains a separate external boundary and is not manufactured by agents.
+
+
+### PRE-R004 projection-fidelity closeout (2026-10-28)
+
+The canonical producer census found one presentation-only gap in the Workbench agent roster projection. `agent.state_changed` producer states are now explicitly mapped as `idle→queued`, `planning→thinking`, `repairing→thinking`, `summarizing→thinking`, dependency `blocked→waiting_dependency`, and hard-terminal `stopped→failed`; existing `executing→tool_running` remains unchanged. Targeted Workbench regression tests pass 16/16, and an independent semantic review accepted the mapping as narrowly scoped. This closes PRE-R004 at the inspected source/projection scope only; it does not alter execution authority, scheduler state, or completion semantics.

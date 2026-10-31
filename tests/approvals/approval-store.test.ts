@@ -16,6 +16,43 @@ function freshStore(): { store: ApprovalStore; cleanup: () => void } {
 }
 
 describe("ApprovalStore", () => {
+  it("selects newest exact binding even when the earlier record is approved", async () => {
+    const { store, cleanup } = freshStore();
+    try {
+      await store.load();
+      const input = { reason: "test", bindingKey: "shared", requestFingerprint: "fp", policyRevision: "v1", capabilities: ["file.write"] };
+      const older = await store.requestBound(input);
+      await store.resolve(older.id, "approved");
+      await new Promise(resolve => setTimeout(resolve, 10));
+      const newer = await store.requestBound(input);
+      await store.resolve(newer.id, "denied");
+      assert.equal(store.findExact("shared")?.id, newer.id);
+      assert.equal((await store.findExactFresh("shared"))?.id, newer.id);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      const pending = await store.requestBound(input);
+      assert.equal(store.findExact("shared")?.id, pending.id);
+      assert.equal(store.findPendingByBindingKey("shared")?.id, pending.id);
+    } finally { cleanup(); }
+  });
+  it("never reuses an older pending record after a newer denial", async () => {
+    const { store, cleanup } = freshStore();
+    try {
+      await store.load();
+      const input = { reason: "test", bindingKey: "latest-only", requestFingerprint: "fp", policyRevision: "v1", capabilities: ["file.write"] };
+      const older = await store.requestBound(input);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      const newer = await store.requestBound(input);
+      await store.resolve(newer.id, "denied");
+      assert.equal(store.findExact(input.bindingKey)?.id, newer.id);
+      assert.equal(store.findPendingByBindingKey(input.bindingKey), undefined);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      const fresh = await store.requestOrReusePending(input);
+      assert.notEqual(fresh.id, older.id);
+      assert.notEqual(fresh.id, newer.id);
+      assert.equal(store.findPendingByBindingKey(input.bindingKey)?.id, fresh.id);
+    } finally { cleanup(); }
+  });
+
   it("loads empty store when no file exists", async () => {
     const { store, cleanup } = freshStore();
     try {
@@ -268,5 +305,76 @@ describe("ApprovalStore", () => {
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
+  });
+
+  for (const badExpiry of [undefined, "", "not-a-date"] as const) {
+    const label = badExpiry === undefined ? "missing" : badExpiry === "" ? "empty" : "malformed";
+
+    it(`refuses to consume an approved record with ${label} expiry`, async () => {
+      const { store, cleanup } = freshStore();
+      try {
+        await store.load();
+        const record = await store.requestBound({
+          reason: "expiry", bindingKey: `bk-expiry-${label}`, requestFingerprint: "fp",
+          policyRevision: "rev", capabilities: ["filesystem.write"],
+        });
+        await store.resolve(record.id, "approved", "ok");
+        await store.mutate((approvals) => {
+          const r = approvals.find((a) => a.id === record.id)!;
+          if (badExpiry === undefined) delete (r as { expiresAt?: string }).expiresAt;
+          else r.expiresAt = badExpiry;
+        });
+
+        const result = await store.consumeApproved(record.id, `bk-expiry-${label}`, {});
+        assert.equal(result.consumed, false);
+        assert.equal((result as { reason?: string }).reason, "invalid expiry");
+        assert.equal(store.get(record.id)?.status, "approved", "corrupt authority is never consumed");
+      } finally { cleanup(); }
+    });
+  }
+
+  it("still consumes an approved record with a valid future expiry", async () => {
+    const { store, cleanup } = freshStore();
+    try {
+      await store.load();
+      const record = await store.requestBound({
+        reason: "expiry", bindingKey: "bk-expiry-valid", requestFingerprint: "fp",
+        policyRevision: "rev", capabilities: ["filesystem.write"],
+        expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+      });
+      await store.resolve(record.id, "approved", "ok");
+
+      const result = await store.consumeApproved(record.id, "bk-expiry-valid", {});
+      assert.equal(result.consumed, true);
+      assert.equal(store.get(record.id)?.status, "consumed");
+    } finally { cleanup(); }
+  });
+
+  it("expireDue retires corrupt expiry instead of leaving it approved forever", async () => {
+    const { store, cleanup } = freshStore();
+    try {
+      await store.load();
+      const missing = await store.requestBound({
+        reason: "missing expiry", bindingKey: "bk-missing", requestFingerprint: "fp",
+        policyRevision: "rev", capabilities: ["filesystem.write"],
+      });
+      await store.resolve(missing.id, "approved", "ok");
+      const malformed = await store.requestBound({
+        reason: "malformed expiry", bindingKey: "bk-malformed", requestFingerprint: "fp",
+        policyRevision: "rev", capabilities: ["filesystem.write"], expiresAt: "not-a-date",
+      });
+      await store.mutate((approvals) => {
+        const r = approvals.find((a) => a.id === missing.id)!;
+        delete (r as { expiresAt?: string }).expiresAt;
+      });
+
+      const expired = await store.expireDue(new Date());
+      assert.deepEqual(
+        expired.map((r) => r.id).sort(),
+        [missing.id, malformed.id].sort(),
+      );
+      assert.equal(store.get(missing.id)?.status, "expired");
+      assert.equal(store.get(malformed.id)?.status, "expired");
+    } finally { cleanup(); }
   });
 });

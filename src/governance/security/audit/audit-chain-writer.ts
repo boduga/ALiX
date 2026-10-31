@@ -243,15 +243,23 @@ function readHead(headPath: string): AuditHead | null {
   }
 }
 
+/**
+ * Atomically publish the head sidecar.
+ *
+ * The sidecar is a **recoverable fast path, not durable evidence**: the fsynced
+ * JSONL chain is the durability boundary (see `doAppend` step 10). `reconcileHead`
+ * re-derives the head from the verified chain whenever the sidecar is missing,
+ * zero-length, malformed, or stale, and fails closed on a corrupt chain. The
+ * temp-file `fsync` that used to precede this rename therefore bought no
+ * durability that the JSONL fsync does not already provide — it only doubled the
+ * per-append fsync count. Rename keeps publication atomic, so a reader never
+ * observes a partially written sidecar.
+ */
 function writeHeadAtomic(headPath: string, head: AuditHead): void {
   const dir = dirname(headPath);
   mkdirSync(dir, { recursive: true });
   const tmpPath = join(dir, `.head-${randomUUID()}.tmp`);
   writeFileSync(tmpPath, JSON.stringify(head), { encoding: "utf-8", flag: "wx" });
-  // fsync the temp file before rename for durability.
-  const fd = openSync(tmpPath, "r+");
-  fsyncSync(fd);
-  closeSync(fd);
   renameSync(tmpPath, headPath);
 }
 

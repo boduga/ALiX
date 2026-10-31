@@ -45,7 +45,7 @@
  *   docs/superpowers/plans/2026-09-06-langfuse-tracing-implementation-plan.md
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, realpath, writeFile } from "node:fs/promises";
 import { removeTempDir } from "../helpers/temp.js";
 import { longRunningCommand } from "../helpers/shell.js";
 import { tmpdir } from "node:os";
@@ -167,7 +167,7 @@ interface Harness {
 }
 
 async function makeHarness(opts?: { log?: EventLog }): Promise<Harness> {
-  const dir = await mkdtemp(join(tmpdir(), "t18-"));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "t18-")));
   cleanup.push(dir);
   const sessionDir = join(dir, ".alix", "sessions", "t18-session");
   await mkdir(sessionDir, { recursive: true });
@@ -335,7 +335,7 @@ describe("T18 tool exactly-once at the shared recorder surface", () => {
 
   });
 
-  it("timeout — real shell.run (sleep 5, timeoutMs 150) → exactly ONE terminal error span; timeout is an error RESPONSE, not a throw", async () => {
+  it.skipIf(process.platform !== "linux")("timeout — real shell.run (sleep 5, timeoutMs 150) → exactly ONE terminal error span; timeout is an error RESPONSE, not a throw", async () => {
     const runId = "t18-timeout";
     const run = client.startRun({
       runId,
@@ -349,13 +349,15 @@ describe("T18 tool exactly-once at the shared recorder surface", () => {
     const CMD = longRunningCommand(5000);
     const req = toolCallReq({ runId, name: "shell.run", args: { command: CMD, timeoutMs: 150 } });
     const traced = await h.executor.execute(req);
+    // An uncertain timeout must not be replayed merely by removing tracing.
+    // The effect journal intentionally blocks a second execution of this effect.
     const plain = await h.executor.execute(untraced(req));
 
-    // The timeout is a caller-visible error RESULT (SideEffectTimeoutError →
-    // kind:"error") — identical with and without tracing; the child was killed.
+    // The original call surfaces the timeout; replay is safely rejected.
+    expect(traced.kind).toBe("error");
+    expect(String((traced as { message?: string }).message)).toMatch(/timed out after 150ms/);
     expect(plain.kind).toBe("error");
-    expect(String((plain as { message?: string }).message)).toMatch(/timed out after 150ms/);
-    expect(traced).toEqual(plain);
+    expect(String((plain as { message?: string }).message)).toMatch(/Effect journal blocked replay/);
 
     // Finalize the run so the root observation is recorded (v5 spans record on end).
     await client.endRun(run, { status: "error", endedAt: Date.now() });

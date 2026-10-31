@@ -1,13 +1,13 @@
 # ALiX — Pre-2.0 Harness Rationalization PRD
 
-**Version:** 1.2 (supersedes v1.1; three amendments: §12 operator-attention, §13 Harness², §14 progressive supervision)  
+**Version:** 1.2 (supersedes v1.1; three amendments: §12 autonomous-review efficiency, §13 Harness², §14 progressive supervision)
 **Date:** 2026-10-20  
-**Status:** DRAFT — implementation not authorized by this document  
+**Status:** ACTIVE CLOSEOUT — agent-driven execution, grading, review, and readiness assessment; authority remains fail-closed and policy-bound
 **Parent:** ALiX Master PRD v2.8, Stage 0; Q01–Q15 unchanged  
 **Program:** Pre-2.0 harness complexity audit, measured simplification, and legacy cutover readiness  
 **Source baseline:** audit work performed against `4ac6df14` (tree `8bf5ac2b6dfaeccaa69567410e32e6f7a768a305`), the Gate 7 release candidate fast-forwarded onto `main`. PRE-R001 requires a pinned commit; this is that pin.
 
-**Evidence reconciliation (2026-10-23):** [PRE-R001–R032 acceptance matrix](audits/2026-10-23-harness-acceptance-matrix.md), [baseline provenance](audits/2026-10-23-harness-baseline-provenance.md), and [legacy consumer inventory](audits/2026-10-23-harness-legacy-inventory.md). Requirements and acceptance criteria are unchanged. These records distinguish design evidence from executed measurements and owner acceptance; they grant no new authority.
+**Evidence reconciliation (2026-10-23):** [PRE-R001–R032 acceptance matrix](audits/2026-10-23-harness-acceptance-matrix.md), [baseline provenance](audits/2026-10-23-harness-baseline-provenance.md), and [legacy consumer inventory](audits/2026-10-23-harness-legacy-inventory.md). Requirements and acceptance criteria are unchanged. These records distinguish design evidence from executed measurements and prior acceptance assumptions; they grant no new authority. The 2026-10-28 agent-driven amendment supersedes any Harness-local requirement for routine human review/signature while preserving external authorization boundaries.
 
 > **Version-identification record (resolved).** Two different documents previously
 > carried the string "v1.1" — this one (§1–§11 + §12–§14) and an audit-branch copy
@@ -22,11 +22,13 @@
 > Renaming would break 12+ inbound references across `docs/`; the version string
 > above is authoritative. Rename can be done as a separate mechanical change.
 
+> **Agent-driven operating model (2026-10-28).** Harness v1.2 is executed end-to-end by planner, executor, verifier, critic, evidence-reconciliation, and readiness agents plus deterministic checks. There is no routine human-in-the-loop planning, grading, review, approval, remediation, or gate promotion inside this program. Existing policy/approval authorities remain deterministic constraints rather than human workflow steps. Agents may consume authority already delegated to the run, but may not mint, widen, renew, or waive it. Any action that requires authority not already present must fail closed and park durably as `BLOCKED`; the program continues other independent work where safe. Human/legal/organizational actions outside ALiX remain external dependencies and are not modeled as an in-loop review stage.
+
 ## 1. Executive summary
 
 ALiX must enter its 2.0 baseline with deterministic security and recovery guarantees intact, while eliminating demonstrably obsolete model-facing scaffolding, duplicate decision points, and compatibility-only runtime paths. Smarter models can replace some behavioral prompting; they cannot replace authority, durable execution, or independent evidence. This PRD turns that distinction into a gated, measurable pre-release program.
 
-**Outcome:** a documented, canonical, testable ALiX runtime with an evidence-backed disposition for each model-facing shim and a migration-ready inventory of legacy paths. Do not confuse audit completion with approval to refactor, or test PASS with publication clearance.
+**Outcome:** a documented, canonical, testable ALiX runtime with an evidence-backed disposition for each model-facing shim and a migration-ready inventory of legacy paths, produced by agents and deterministic verifiers without routine human review. Do not confuse audit completion with authority to exceed the pre-authorized execution envelope, or test PASS with publication clearance.
 
 ## 2. Problem and goals
 
@@ -44,7 +46,7 @@ Non-goals:
 - Rebuild ALiX around a new framework or introduce a second agent loop.
 - Remove approvals, policy, audit, ownership, recovery, or independent verification.
 - Implement software factories, subscriptions, AFK or remote backends in Stage 0.
-- Publish, deploy, merge, or modify production behavior without separate approval.
+- Require a human-in-the-loop step for planning, implementation, grading, review, remediation, or readiness assessment. Work that exceeds already-delegated authority must park durably as `BLOCKED`; agents cannot manufacture new privilege.
 - Assume a heuristic is obsolete merely because frontier models improved.
 
 ## 3. Scope and classification
@@ -85,7 +87,7 @@ The source references below were inspected from GitHub `main` snapshot `e948e356
 | ID | Requirement | Priority | Acceptance |
 |---|---|---|---|
 | PRE-R001 | Pin source commit, dirty state, branch, runtime/config schema and Gate 7 differences | P0 | Reproducible baseline manifest; no accidental worktree mutation |
-| PRE-R002 | Inventory every candidate with symbol, callers, owner, reason, tests and classification | P0 | Source-referenced register reviewed by subsystem owners |
+| PRE-R002 | Inventory every candidate with symbol, callers, owner, reason, tests and classification | P0 | Source-referenced register independently reviewed by a verifier agent and deterministic source checks |
 | PRE-R003 | Publish protected S0 invariant map | P0 | Every invariant linked to a negative/fault test or tracked evidence gap |
 | PRE-R004 | Identify duplicated decisions and incompatible state transitions across agent/task/subagent/coordination loops | P1 | Decision ownership and state-transition map; no speculative deletion |
 | PRE-R005 | Define fixed, versioned task corpus and independently verified outcomes | P0 | Tasks, fixtures, environment and scoring repeatable |
@@ -96,7 +98,7 @@ The source references below were inspected from GitHub `main` snapshot `e948e356
 | PRE-R010 | Inventory legacy readers, aliases, wrappers, data formats, consumers and migration paths | P0 | Q04/Q05 migration/compatibility manifest |
 | PRE-R011 | Produce reversible consolidation proposals with affected contracts and tests | P1 | One change package per concern, rollback criteria |
 | PRE-R012 | Preserve independent authorization and approval across in-process and child-process workers | P0 | Gate 7/F8b security qualification remains independent release gate |
-| PRE-R013 | Enforce separation between audit, design, experimental branch, and production change | P0 | No production code changes without explicit operator authorization |
+| PRE-R013 | Enforce separation between audit, design, experimental branch, and production change | P0 | Production changes require an explicit machine-verifiable delegated-authority token/policy decision; absent authority yields durable `BLOCKED`, never agent self-approval |
 | PRE-R014 | Publish final readiness verdict with blockers and evidence links | P0 | PASS/HOLD per requirement; unknown remains unknown |
 
 ### 5.1 v1.1 amendment requirements (PRE-R015–R032)
@@ -107,7 +109,7 @@ its own row without desynchronising this table.
 
 | ID | Requirement | Priority | Defined in |
 |---|---|---|---|
-| PRE-R015 | Define operator-attention measurements for decision-bearing runs | P1 | §12.1 |
+| PRE-R015 | Define autonomous review-efficiency measurements for decision-bearing runs | P1 | §12.1 |
 | PRE-R016 | Define an evidence-linked decision brief contract | P1 | §12.1 |
 | PRE-R017 | Compare text, diagram and optional interactive presentations of the same evidence | P2 | §12.1 |
 | PRE-R018 | Preserve governance across representations | P0 | §12.1 |
@@ -121,9 +123,9 @@ its own row without desynchronising this table.
 | PRE-R026 | Produce a recommendation without modifying production harnesses | P0 | §13.1 |
 | PRE-R027 | Inventory current governance, approval and trace contracts for supervision gaps | P1 | §14.1 |
 | PRE-R028 | Define a node-level eligibility schema; treat unmeasured rates as unknown | P1 | §14.1 |
-| PRE-R029 | Design independent evaluation for promotion; thresholds require policy-owner approval | P0 | §14.1 |
+| PRE-R029 | Design independent evaluation for promotion; thresholds must be versioned in policy before execution and cannot be invented or changed by the evaluated agents | P0 | §14.1 |
 | PRE-R030 | Define automatic downgrade and suspension triggers | P0 | §14.1 |
-| PRE-R031 | Benchmark reviewer time, sampling quality and missed-risk rates as distinct measures | P1 | §14.1 |
+| PRE-R031 | Benchmark verifier/critic effort, sampling quality and missed-risk rates as distinct measures | P1 | §14.1 |
 | PRE-R032 | Demonstrate supervision policy never bypasses existing authorization | P0 | §14.1 |
 
 **Status is requirement-specific.** Metric/brief definitions, Harness² source
@@ -148,14 +150,9 @@ historical experiment, measurement and review gaps separately. None clears Gate 
 
 Task strata: (1) read-only factual inspection, (2) unfamiliar-code navigation, (3) single-file edit, (4) multi-file bug fix, (5) verification/repair, (6) four-worker coordination with ownership, (7) allow/ask/deny capability mixes, (8) crash/restart and outcome-unknown, (9) local CPU-only execution, (10) tool failure and malformed tool-call recovery.
 
-Primary measure: `total measured cost / independently verified successful tasks`. Report total tasks, verified successes, mean/median cost, p50/p95 latency, tokens, tool calls, repeated calls, retry count, and operator interventions. Count unsuccessful task cost in numerator. For local models report resource-time as well as monetary estimates, clearly labeled.
+Primary measure: `total measured cost / independently verified successful tasks`. Report total tasks, verified successes, mean/median cost, p50/p95 latency, tokens, tool calls, repeated calls, retry count, verifier/critic invocations, and durable BLOCKED outcomes. Count unsuccessful task cost in numerator. For local models report resource-time as well as monetary estimates, clearly labeled.
 
-**Operator attention is a separate measured dimension** (§12.3). Report
-`operatorActiveReviewMinutes / independentlyVerifiedSuccesses` **only when both
-terms are observed**; otherwise report `null` and the coverage. Never convert
-operator time into a guessed dollar figure. Keep active review distinct from
-waiting, interruptions and total elapsed time. A faster approval is **not**
-better if the reviewer missed a security, correctness or governance issue.
+**Autonomous review effort is a separate measured dimension** (§12.3). Report verifier/critic invocations, model/tool cost, review latency, disagreement rate, escalation-to-`BLOCKED` rate, and missed seeded risks. Never treat lower review cost as better when independent verification misses a security, correctness, or governance issue.
 
 **Unmeasured is not zero.** Cost and attention are `null` wherever no billable
 call or no observation occurred. A scripted-provider run emits no `model.usage`
@@ -171,22 +168,19 @@ Each ablation uses the same task set, model/version, provider policy, environmen
 |---|---|---|---|
 | P0-A | Read-only target and release-worktree inventory | None | PRE-R001–004, R010 |
 | P0-B | Protected invariant/evidence map | P0-A | PRE-R003, R012; gaps named |
-| P0-C | Benchmark design | P0-A/B | PRE-R005, scoring approved |
+| P0-C | Benchmark design | P0-A/B | PRE-R005, scoring contract versioned and independently verified |
 | P0-D | Baseline measurements | P0-C | PRE-R006, reproducible reports |
 | P0-E | Isolated prompt and heuristic ablations | P0-D | PRE-R007–009 |
 | P0-F | Consolidation and legacy migration design | P0-A/E | PRE-R010–011 |
 | P0-G | Gate 7/F8b qualification | Separate security track | Required for default governed worker release |
-| P0-H | Approved cutover and qualification | P0-F, P0-G, separate approval | Q04/Q05 and Stage 0 release evidence |
-| P0-I | Operator-attention measurement and decision-brief contract (§12) | P0-C/P0-D | PRE-R015–019; definitions versioned, measurements `not measured` until instrumented |
+| P0-H | Agent-driven cutover qualification package | P0-F, P0-G, delegated authority present | Q04/Q05 migration evidence plus machine-verifiable readiness recommendation; absent authority => `BLOCKED` |
+| P0-I | Autonomous review-efficiency measurement and evidence-brief contract (§12) | P0-C/P0-D | PRE-R015–019; definitions versioned, measurements `not measured` until instrumented |
 | P0-J | Harness² research qualification (§13) | P0-A, environment isolation | PRE-R020–026; reproducible demo or documented failure, contract map, safe experiment design |
 | P0-K | Progressive-supervision research (§14) | P0-C/P0-D, P0-I | PRE-R027–032; authority map, eligibility schema, evaluation plan, defer/reject recommendation |
 
 Read-only P0-A/B/C may proceed during Gate 7 HOLD. Experiments must use isolated fixtures and policy-approved providers; they do not clear security holds. Production cutover is explicitly outside this PRD's authorization.
 
-**P0-I/J/K are read-only research and design stages.** Their exits are documents
-and definitions, never production behaviour. None of them may clear Gate B, relax
-an approval rule, promote a task to less-supervised review, or authorise a
-model-backed probe without the isolation qualification in PRE-R024.
+**P0-I/J/K are agent-driven research and design stages.** Their exits are evidence packages and definitions, never self-granted production authority. None may clear Gate B, relax an authorization rule, promote itself to a less-constrained mode, or run a model-backed probe without the isolation qualification in PRE-R024 and machine-verifiable delegated authority.
 
 ## 9. Acceptance gates and stop conditions
 
@@ -195,7 +189,7 @@ model-backed probe without the isolation qualification in PRE-R024.
 **Gate C — Ablation:** demonstrable efficiency gain with no unaccepted correctness regression; otherwise retain.  
 **Gate D — Migration design:** Q04 historical-data migration and Q05 breaking-interface plan cover every supported reader/writer.  
 **Gate E — Execution/security:** F8b, authority, crash/recovery, ownership and denied-action negatives qualified independently.  
-**Gate F — Release:** technical evidence, independent security restriction clearance and explicit authorized maintainer approval tied to exact artifact (Q13).
+**Gate F — Readiness handoff:** technical evidence, independent security qualification, exact-artifact provenance, and an agent-generated readiness verdict. Actual publication/release remains outside this Harness PRD unless a pre-existing machine-verifiable delegated release authority permits it; otherwise the terminal state is durable `BLOCKED`, not a human review step inside the workflow.
 
 Stop on unauthorized execution, missing authoritative evidence, non-idempotent automatic retry after uncertain effects, unexpected data loss, approval reuse, unverifiable benchmark results, or attempt to publish during HOLD.
 
@@ -210,11 +204,11 @@ Stop on unauthorized execution, missing authoritative evidence, non-idempotent a
 
 ### 10.1 v1.1 amendment deliverables
 
-7. `harness-operator-attention-metrics.md` — versioned definitions for active review minutes per independently verified success, interruptions, approval touches and missed-evidence/reversal events (§12, PRE-R015).
+7. `harness-operator-attention-metrics.md` — retained filename; versioned autonomous-review metrics for verifier/critic cost, latency, disagreement, BLOCKED escalations, approval-boundary encounters and missed-evidence/reversal events (§12, PRE-R015).
 8. `harness-decision-brief-contract.md` — read-only projection fields, provenance rules and governance binding, including the untrusted-content posture for any generated view (§12, PRE-R016–R019).
 9. `harness2-source-review.md` — pinned upstream commit, licences, component inventory and contract map to ALiX (§13, PRE-R020–R021).
 10. `harness-optimization-experiment-spec.md` — paired fixtures, independent judge, contamination and egress restrictions, recursion budget, stop rules and uncertainty (§13, PRE-R022–R025).
-11. `harness-optimization-readiness.md` — evidence links, gaps and an explicit keep/defer/reject recommendation with authority review (§13, PRE-R026).
+11. `harness-optimization-readiness.md` — evidence links, gaps and an explicit keep/defer/reject recommendation independently reviewed by verifier/critic agents (§13, PRE-R026).
 12. `harness-supervision-authority-map.md` and `harness-supervision-eligibility-schema.md` — current governance/trace inventory, node-level eligibility contract, downgrade and exception test matrix, and an explicit reuse/defer/reject recommendation (§14, PRE-R027–R032).
 
 **Artifact presence:** all twelve deliverables have documents (13 files, because
@@ -228,12 +222,9 @@ Parent Master PRD: v2.8 Stage 0, §§5–8, 10, 14, 18–19, 22, 28, 31–32, an
 
 **Requirement status (reconciled 2026-10-23).** See the linked acceptance matrix
 for all 32 requirements. Written definitions and recommendations exist, while
-measurements, complete consumer/provenance review, independent qualification and
-operator acceptance remain partial. No requirement is waived by this assessment.
+measurements, complete consumer/provenance review and independent qualification remain partial. Human acceptance is not a Harness closeout requirement; missing external authority is represented as durable `BLOCKED`. No requirement is waived by this assessment.
 
-**Gate B status: AUTHORIZED; PARTIALLY MEASURED.** The operator authorized the
-remaining work on 2026-10-23 (`audits/2026-10-23-harness-authorization.md`); that
-clears permission, not evidence. The four real-model delegate cases were
+**Gate B status: AUTHORIZED; PARTIALLY MEASURED.** The 2026-10-23 authorization record (`audits/2026-10-23-harness-authorization.md`) is treated as the existing delegated authority envelope for this closeout; agents may not broaden it. It clears permission for the recorded scope, not evidence. The four real-model delegate cases were
 re-measured on the historical baseline model: **10/12 verified at $0.045688 per
 verified success**, against the earlier 7/12 at $0.067149. That is not a
 like-for-like improvement — a runtime fix postdates the historical sweep, so the
@@ -247,49 +238,46 @@ Six strata remain n=1. Historical records otherwise cover ten strata at differin
 evidence levels; the generator's legacy schema admits cost records in 9/10.
 Four-worker coordination now has two real-model runs with `workerCount: 4`; the
 earlier three-worker records did not meet the contract.
-Five delegate cases have scripted-only expectations. Repetition/uncertainty
-rationale, independent scoring and operator signature remain incomplete.
+Five delegate cases have scripted-only expectations. Repetition/uncertainty rationale and independent scoring remain incomplete; operator signature is no longer a Harness evidence requirement.
 
-**Decision:** continue authorized documentation and offline audit work. Production
-changes need their own explicit operator authorization. Merge, push, deployment,
-release and waiver of Gate 7 publication HOLD remain unauthorized.
+**Decision:** continue the agent-driven closeout within the existing delegated authority envelope. Production changes require machine-verifiable delegated authority and all normal policy/security gates; when absent, the workflow parks durably as `BLOCKED`. Merge, push, deployment, release and waiver of Gate 7 publication HOLD are not implicitly authorized by this PRD.
 
 
-## 12. Operator-attention efficiency amendment (v1.1; 2026-10-20)
+## 12. Autonomous review-efficiency amendment (v1.2 agent-driven revision)
 
 **Source and status:** Design implications from Ray Amjad, *Your Attention Is the REAL Bottleneck in Claude Code* (2026-10-20), supplied transcript, especially 0:37–1:07, 3:11–5:35 and 7:23–9:51. These are proposals, **not measured ALiX improvements**. The presenter demonstrates concise walkthroughs, diagrams, situational HTML review artifacts and optional explainer videos; he does not provide controlled ALiX-specific evidence of faster or safer review.
 
 ### 12.1 Stage 0 scope
 
-Human review time is a potentially scarce resource and should be measured alongside tokens, monetary cost, verified task outcomes and latency. This **extends benchmark design and evidence capture**, not the authorization boundary or the Stage 0 mandate. No interactive artifact implementation, HTML renderer, video generator or additional approval service is authorized by this PRD.
+Routine human review is removed from the Harness closeout loop. Review, critique, grading, evidence reconciliation, and readiness assessment are performed by independent agents and deterministic verifiers. This **extends benchmark design and evidence capture**, not the authorization boundary. Missing authority must produce durable `BLOCKED`; no evaluator or executor may grant itself additional capability.
 
 | ID | Requirement | Stage 0 acceptance |
 |---|---|---|
-| PRE-R015 | Define operator-attention measurements for decision-bearing runs | Versioned metric definitions: operator active review minutes per independently verified success, number of interruptions, approval touches, and consequential missed-evidence/reversal events where observable |
+| PRE-R015 | Define autonomous review-efficiency measurements for decision-bearing runs | Versioned metrics: verifier/critic invocations and cost, review latency, disagreement rate, BLOCKED escalations, approval-boundary encounters, and consequential missed-evidence/reversal events |
 | PRE-R016 | Define an evidence-linked decision brief contract for proposed future Workbench use | Read-only fields: objective, proposed action, scope, risk, changed artifacts, test/evaluation results, missing evidence, provenance, policy decision and approval binding |
-| PRE-R017 | Compare concise text, diagrams and optional interactive views as alternative presentations of the same underlying evidence | Paired or randomized review tasks; accuracy, time, confidence calibration, missed critical findings and operator effort reported; no invented performance thresholds |
-| PRE-R018 | Preserve governance across representations | All decisions use existing authenticated approval interfaces and binding/consume rules; generated briefs never approve, merge, mutate or grant capability themselves |
+| PRE-R017 | Compare concise text, diagrams and optional interactive views as alternative presentations of the same underlying evidence | Paired or randomized agent-review tasks; accuracy, latency, confidence calibration, disagreement and missed critical findings reported; no invented performance thresholds |
+| PRE-R018 | Preserve governance across representations | All effects use existing policy/approval binding and consume rules. Generated briefs, evaluators and critics never grant capability, broaden scope, or manufacture authority; missing authority yields `BLOCKED` |
 | PRE-R019 | Preserve evidence provenance and safety of generated views | Claims linked to immutable or versioned evidence; unverified claims labeled; generated HTML treated as untrusted, sandboxed content; secrets and sensitive data redacted according to policy |
 
 ### 12.2 Proposed decision brief, not a new authority
 
 A decision brief is a **projection** of existing run, policy, approval, test and artifact evidence. The format is chosen for the decision: concise text for routine cases; dependency/call diagrams for architectural changes; interactive HTML only when visual alternatives or UI state materially aid judgment. Videos are explicitly optional and deferred until simpler representations demonstrate value. An approval button, if ever offered, must call the existing governed approval path; it must not mutate an ApprovalStore or merge code directly.
 
-Minimum content: decision requested; why human authority is needed; impacted components and security domains; alternatives and consequences; authoritative outcome/evidence references; verification status; known unknowns; exact action scope; and the current approval binding and expiry where applicable. Missing evidence must be shown as missing, not inferred.
+Minimum content: decision or action under evaluation; impacted components and security domains; alternatives and consequences; authoritative outcome/evidence references; verification status; known unknowns; exact action scope; delegated-authority evidence; and current approval binding/expiry where applicable. Missing evidence or authority must be shown as missing/`BLOCKED`, not inferred.
 
 ### 12.3 Benchmark and validity rules
 
-- Primary optimization remains **total observed cost per independently verified success**, with task failures included in the cost numerator. Operator time is a **separate measured dimension**, not a guessed dollar conversion or a substitute for correctness.
-- Define `operatorActiveReviewMinutes / independentlyVerifiedSuccesses` only when both terms are observed; otherwise report `null` and coverage. Separate active review from waiting, interruptions and total elapsed time.
-- Faster approvals do **not** qualify as better if reviewers miss security, correctness, or governance issues. Include blinded seeded-risk or independently verified review-accuracy tasks where feasible.
-- Record baseline provenance, presentation format, task complexity, reviewer context, sample sizes and uncertainty. Do not assert causal improvement from anecdotes or self-reported convenience.
-- Do not generate expensive artifacts for every event; use decision significance, expected operator benefit and policy-approved budgets to choose the representation.
+- Primary optimization remains **total observed cost per independently verified success**, with task failures included in the cost numerator. Autonomous review effort is a separate measured dimension and never substitutes for correctness.
+- Report verifier/critic cost, latency, disagreement, retries, seeded-risk misses and escalation-to-`BLOCKED` coverage; missing measures remain `null`.
+- Faster or cheaper review does **not** qualify as better if security, correctness, or governance findings are missed. Use blinded seeded-risk and deterministic review-accuracy tasks where feasible.
+- Record baseline provenance, presentation format, task complexity, verifier configuration, sample sizes and uncertainty. Do not assert causal improvement from anecdotes or self-reported confidence.
+- Do not generate expensive artifacts for every event; use decision significance, expected verification value and policy-defined budgets to choose the representation.
 
 ### 12.4 Dependencies and gates
 
 **Pre-2.0:** add measurement definitions and a decision-brief contract to the P0-C/P0-D benchmark artifacts and candidate register; treat new measurements as `not measured` until instrumented. These additions **do not clear Gate B**, and they do not authorize P0-E ablations or production simplification.
 
-**ALiX 2.0:** the Master PRD v2.8 governs any later Workbench/decision-artifact implementation. It depends on canonical evidence projections, stable approval APIs, UI threat review, independent verification and operator-accuracy benchmarks. Existing F8b/R1 boundaries remain S0 safeguards.
+**ALiX 2.0:** the Master PRD v2.8 governs any later Workbench/decision-artifact implementation. It depends on canonical evidence projections, stable approval APIs, UI threat review, independent verification and agent-review accuracy benchmarks. Existing F8b/R1 boundaries remain S0 safeguards.
 
 **Reported audit state:** the acceptance/provenance records linked above supersede
 the old 1/10 cost snapshot. They retain Gate B HOLD and distinguish recorded
@@ -309,7 +297,7 @@ production simplification remain HOLD.
 | PRE-R020 | Reproduce the upstream **credential-free deterministic demo** in a disposable isolated environment; pin commit, Python/dependencies, command, inputs and outputs. Record inability to reproduce rather than infer success. |
 | PRE-R021 | Map upstream harness snapshots, editor/proposer, probes, composer and reflection outputs to ALiX A-series governed evolution, evidence, outcome ledger and learning owners; flag duplicate authority or incompatible contracts. |
 | PRE-R022 | Define a read-only **candidate manifest and probe evidence contract**: base version/hash, scoped diff, domain, model/executor, tools, permissions, fixture, scorer, budgets, seed, environment, provenance, observed outcomes and failure states. |
-| PRE-R023 | Specify a paired baseline-versus-candidate benchmark with fixed task selection, independent correctness/security scoring, full cost accounting, uncertainty and measured operator attention where available; use `null` for missing measures. |
+| PRE-R023 | Specify a paired baseline-versus-candidate benchmark with fixed task selection, independent correctness/security scoring, full cost accounting, uncertainty and autonomous review-effort measures where available; use `null` for missing measures. |
 | PRE-R024 | Qualify isolation before any ALiX model-backed probe: sandbox and filesystem boundary, restricted egress, no hidden rubrics, secret controls, prompt-injection defenses, side-effect policy, replay and negative tests. |
 | PRE-R025 | Document parallel and sequential recursion budgets, deterministic task ordering, incomplete-run accounting, provenance of domain-specific lessons, holdout validation and rollback criteria. |
 | PRE-R026 | Produce a recommendation **without** modifying production harnesses, automatically promoting candidates, relaxing approvals, or declaring Gate B/F1-E/Q13 cleared. |
@@ -324,7 +312,7 @@ production simplification remain HOLD.
 
 ### 13.3 Dependencies, hazards and governance
 
-Research may proceed after inventory and environment isolation are documented. Model-backed experiments depend on qualified sandbox/egress, independent grading and baseline coverage; production changes depend on separate A-series governance decisions. Upstream Harness² explicitly reports unrestricted executor network access and disabled Codex sandboxing, with benchmark rubric exposure risk: reject those settings for ALiX and block any uncontained probe. Domain/task lessons cannot alter global guardrails or tool authority without explicit scoped approval. Preserve dirty-root changes, use isolated worktrees, and do not merge/push/deploy as part of this documentation amendment.
+Research may proceed after inventory and environment isolation are documented. Model-backed experiments depend on qualified sandbox/egress, independent grading, baseline coverage, and machine-verifiable delegated authority. Upstream Harness² explicitly reports unrestricted executor network access and disabled Codex sandboxing, with benchmark rubric exposure risk: reject those settings for ALiX and block any uncontained probe. Domain/task lessons cannot alter global guardrails or tool authority; any requested authority expansion yields durable `BLOCKED`. Preserve dirty-root changes and use isolated worktrees.
 
 **Unchanged holds:** Gate B HOLD; F1-E has a historical 8/8 qualification report (`run-79feb4e0`) with retained-input gaps recorded in the provenance assessment; Q13 publication HOLD; production simplification HOLD.
 
@@ -339,13 +327,13 @@ Research may proceed after inventory and environment isolation are documented. M
 |---|---|
 | PRE-R027 | Inventory current ALiX governance, approvals, calibration, outcome, traces and coordination contracts for supervision modes, workflow-node checks, exception routing, escalation and revocation. Identify gaps before proposing new components. |
 | PRE-R028 | Define a **node-level eligibility schema** scoped to task class, capability, environment, model configuration, risk, policy revision, review mode, evidence references, expiry and responsible authority. Treat unmeasured confidence and failure rates as unknown. |
-| PRE-R029 | Design independent evaluation for full-to-sampled and sampled-to-exception promotion: representative repeated tasks, risk-weighted failure categories, sample-size/uncertainty rationale, blinded seeded-risk checks, holdouts and trace completeness. Thresholds require explicit policy-owner approval; do not invent default numbers. |
-| PRE-R030 | Define automatic downgrade/suspension triggers for material failure, changed policy/model/tools, distribution shift, missing traces, stale evidence and expired qualification; specify human fallback and auditable exception handling. |
-| PRE-R031 | Benchmark reviewer active time, sampling quality, missed-risk rates, exception volume, queue bottlenecks, verified outcomes, cost and latency as distinct measures. A faster workflow with worse safety fails. |
+| PRE-R029 | Design independent evaluation for autonomous-mode promotion: representative repeated tasks, risk-weighted failure categories, sample-size/uncertainty rationale, blinded seeded-risk checks, holdouts and trace completeness. Thresholds must be pre-versioned in policy or qualification configuration and cannot be created or changed by the evaluated agents. |
+| PRE-R030 | Define automatic downgrade/suspension triggers for material failure, changed policy/model/tools, distribution shift, missing traces, stale evidence and expired qualification; fallback is fail-closed `BLOCKED` or a previously authorized lower-risk mode, with auditable exception handling. |
+| PRE-R031 | Benchmark verifier/critic effort, sampling quality, missed-risk rates, exception volume, queue bottlenecks, verified outcomes, cost and latency as distinct measures. A faster workflow with worse safety fails. |
 | PRE-R032 | Demonstrate that supervision policy never bypasses existing authorization, approval binding, denial, security controls or Q08 bounded autonomy. Harness² optimization cannot promote itself into higher privilege. |
 
 ### 14.2 Research outputs and stop conditions
 
-Produce a read-only authority map, qualification/evidence schema proposal, independent evaluation plan, downgrade/exception test matrix and explicit **reuse/defer/reject** recommendation. Keep this within the existing P0-C/P0-D baseline and candidate register; record coverage and unknowns rather than inventing data. Do not implement a new autonomy engine, relax human approval rules, promote any task to sampled/exception-only review or assert production readiness. Real-provider experiments require separate isolation, qualification and authorization.
+Produce an authority map, qualification/evidence schema, independent evaluator/critic plan, downgrade/exception test matrix and explicit **reuse/defer/reject** recommendation. Keep this within the existing P0-C/P0-D baseline and candidate register; record coverage and unknowns rather than inventing data. Do not implement a second autonomy authority, relax authorization rules, let an agent self-promote privileges, or assert production readiness without evidence. Real-provider experiments require isolation, qualification, and machine-verifiable delegated authority.
 
 **Unchanged holds:** Gate B HOLD; F1-E QUALIFIED; Q13 publication HOLD; production simplification HOLD. Q01–Q15, existing approval authority and dirty-root preservation remain unchanged.

@@ -5,9 +5,8 @@
  * Each run is persisted as .alix/coordination/<runId>.json.
  * Workers are embedded within the run JSON, not stored separately.
  *
- * Lock coordination: no file locking (single-file-per-run avoids
- * cross-write corruption). Callers must not write the same run
- * concurrently from multiple processes.
+ * Lock-protected updates enter a process-local FIFO before acquiring the
+ * per-run cross-process lock and reloading authoritative state.
  */
 
 import { readFile, writeFile, mkdir, readdir, unlink, rename as renameFile } from "node:fs/promises";
@@ -18,6 +17,7 @@ import type { CoordinationRun, CoordinationRunOutcome, CoordinationRunStatus, Wo
 import { transitionWorkerStatus, recomputeRunStatus } from "./coordination-types.js";
 import { CoordinationRunLock } from "./coordination-run-lock.js";
 import { getSharedLedger, appendFact, type LedgerFactCounters } from "../../runtime-state/storage/runtime-ledger.js";
+import { serializeStoreMutation, StoreMutationQueueTimeoutError } from "../../runtime-state/storage/mutation-queue.js";
 
 /** Event types this domain writes to the R2 ledger (reconciliation vocabulary). */
 export const COORDINATION_LEDGER_EVENT_TYPES = [
@@ -356,6 +356,15 @@ export class CoordinationStore {
 
   // ── Lock-safe operations ─────────────────────────────────────────
 
+  private async serializeRunMutation<T>(runId: string, unavailable: T, mutation: () => Promise<T>): Promise<T> {
+    try {
+      return await serializeStoreMutation(this.runPath(runId), mutation);
+    } catch (error) {
+      if (error instanceof StoreMutationQueueTimeoutError) return unavailable;
+      throw error;
+    }
+  }
+
   /**
    * Update a run within a per-run lock. Acquires the lock, loads,
    * mutates, writes atomically, then releases the lock.
@@ -366,22 +375,24 @@ export class CoordinationStore {
     runId: string,
     mutate: (run: CoordinationRun) => void | Promise<void>,
   ): Promise<CoordinationRun | null> {
-    const lock = new CoordinationRunLock(this.cwd, runId);
-    const acquired = await lock.acquire();
-    if (!acquired) return null;
-    try {
-      const run = await this.loadWithRetry(runId);
-      if (!run) return null;
-      await mutate(run);
-      run.status = recomputeRunStatus(run);
-      run.updatedAt = new Date().toISOString();
-      // R2.3 authority: ledger append is the commit; JSON is projection.
-      this.commitToLedger(runId, "snapshot", runLedgerPayload(run), run.updatedAt);
-      await this.projectJson(runId, run);
-      return run;
-    } finally {
-      lock.release();
-    }
+    return this.serializeRunMutation<CoordinationRun | null>(runId, null, async () => {
+      const lock = new CoordinationRunLock(this.cwd, runId);
+      const acquired = await lock.acquire();
+      if (!acquired) return null;
+      try {
+        const run = await this.loadWithRetry(runId);
+        if (!run) return null;
+        await mutate(run);
+        run.status = recomputeRunStatus(run);
+        run.updatedAt = new Date().toISOString();
+        // R2.3 authority: ledger append is the commit; JSON is projection.
+        this.commitToLedger(runId, "snapshot", runLedgerPayload(run), run.updatedAt);
+        await this.projectJson(runId, run);
+        return run;
+      } finally {
+        lock.release();
+      }
+    });
   }
 
   /**
@@ -403,23 +414,25 @@ export class CoordinationStore {
     expectedPlanRevision: number,
     mutate: (run: CoordinationRun) => void | Promise<void>,
   ): Promise<CoordinationRun | null> {
-    const lock = new CoordinationRunLock(this.cwd, runId);
-    const acquired = await lock.acquire();
-    if (!acquired) return null;
-    try {
-      const run = await this.load(runId);
-      if (!run) return null;
-      // CAS guard: reject if planRevision has advanced
-      if (run.planRevision !== expectedPlanRevision) return null;
-      await mutate(run);
-      run.planRevision += 1;
-      run.updatedAt = new Date().toISOString();
-      this.commitToLedger(runId, "snapshot", runLedgerPayload(run), run.updatedAt);
-      await this.projectJson(runId, run);
-      return run;
-    } finally {
-      lock.release();
-    }
+    return this.serializeRunMutation<CoordinationRun | null>(runId, null, async () => {
+      const lock = new CoordinationRunLock(this.cwd, runId);
+      const acquired = await lock.acquire();
+      if (!acquired) return null;
+      try {
+        const run = await this.load(runId);
+        if (!run) return null;
+        // CAS guard: reject if planRevision has advanced
+        if (run.planRevision !== expectedPlanRevision) return null;
+        await mutate(run);
+        run.planRevision += 1;
+        run.updatedAt = new Date().toISOString();
+        this.commitToLedger(runId, "snapshot", runLedgerPayload(run), run.updatedAt);
+        await this.projectJson(runId, run);
+        return run;
+      } finally {
+        lock.release();
+      }
+    });
   }
 
   /** Atomically claim a pending worker for execution under the durable per-run lock.
@@ -431,24 +444,26 @@ export class CoordinationStore {
     expectedAttempt: number,
     patch: WorkerPatch,
   ): Promise<boolean> {
-    const lock = new CoordinationRunLock(this.cwd, runId);
-    if (!(await lock.acquire())) return false;
-    try {
-      const run = await this.loadWithRetry(runId);
-      if (!run) return false;
-      const worker = run.workers.find(w => w.id === workerId);
-      if (!worker || worker.status !== "pending" || worker.blockReason || worker.attempt !== expectedAttempt) {
-        return false; // No ledger event or JSON projection for rejected claims.
+    return this.serializeRunMutation<boolean>(runId, false, async () => {
+      const lock = new CoordinationRunLock(this.cwd, runId);
+      if (!(await lock.acquire())) return false;
+      try {
+        const run = await this.loadWithRetry(runId);
+        if (!run) return false;
+        const worker = run.workers.find(w => w.id === workerId);
+        if (!worker || worker.status !== "pending" || worker.blockReason || worker.attempt !== expectedAttempt) {
+          return false; // No ledger event or JSON projection for rejected claims.
+        }
+        Object.assign(worker, patch, { status: "running", attempt: expectedAttempt + 1 });
+        run.status = recomputeRunStatus(run);
+        run.updatedAt = new Date().toISOString();
+        this.commitToLedger(runId, "snapshot", runLedgerPayload(run), run.updatedAt);
+        await this.projectJson(runId, run);
+        return true;
+      } finally {
+        lock.release();
       }
-      Object.assign(worker, patch, { status: "running", attempt: expectedAttempt + 1 });
-      run.status = recomputeRunStatus(run);
-      run.updatedAt = new Date().toISOString();
-      this.commitToLedger(runId, "snapshot", runLedgerPayload(run), run.updatedAt);
-      await this.projectJson(runId, run);
-      return true;
-    } finally {
-      lock.release();
-    }
+    });
   }
 
   /** Update specific fields on a worker within a run. Uses lock-safe updateRun. */
@@ -501,30 +516,32 @@ export class CoordinationStore {
     aggregateSourceFingerprint: string;
     outcome: CoordinationRunOutcome;
   }): Promise<{ attached: boolean; run: CoordinationRun | null }> {
-    const lock = new CoordinationRunLock(this.cwd, runId);
-    const acquired = await lock.acquire();
-    if (!acquired) return { attached: false, run: null };
-    try {
-      const run = await this.loadWithRetry(runId);
-      if (!run) return { attached: false, run: null };
-      if (run.aggregateResultRef && run.aggregateSourceFingerprint === metadata.aggregateSourceFingerprint) {
-        return { attached: false, run };
+    return this.serializeRunMutation<{ attached: boolean; run: CoordinationRun | null }>(runId, { attached: false, run: null }, async () => {
+      const lock = new CoordinationRunLock(this.cwd, runId);
+      const acquired = await lock.acquire();
+      if (!acquired) return { attached: false, run: null };
+      try {
+        const run = await this.loadWithRetry(runId);
+        if (!run) return { attached: false, run: null };
+        if (run.aggregateResultRef && run.aggregateSourceFingerprint === metadata.aggregateSourceFingerprint) {
+          return { attached: false, run };
+        }
+        run.aggregateResultRef = metadata.aggregateResultRef;
+        run.aggregateGeneratedAt = metadata.aggregateGeneratedAt;
+        run.aggregateSourceFingerprint = metadata.aggregateSourceFingerprint;
+        run.outcome = metadata.outcome;
+        // A successful attach for this source supersedes any earlier failure
+        // marker, so clear it in the same locked write.
+        run.aggregationFailure = undefined;
+        run.status = recomputeRunStatus(run);
+        run.updatedAt = new Date().toISOString();
+        this.commitToLedger(runId, "snapshot", runLedgerPayload(run), run.updatedAt);
+        await this.projectJson(runId, run);
+        return { attached: true, run };
+      } finally {
+        lock.release();
       }
-      run.aggregateResultRef = metadata.aggregateResultRef;
-      run.aggregateGeneratedAt = metadata.aggregateGeneratedAt;
-      run.aggregateSourceFingerprint = metadata.aggregateSourceFingerprint;
-      run.outcome = metadata.outcome;
-      // A successful attach for this source supersedes any earlier failure
-      // marker, so clear it in the same locked write.
-      run.aggregationFailure = undefined;
-      run.status = recomputeRunStatus(run);
-      run.updatedAt = new Date().toISOString();
-      this.commitToLedger(runId, "snapshot", runLedgerPayload(run), run.updatedAt);
-      await this.projectJson(runId, run);
-      return { attached: true, run };
-    } finally {
-      lock.release();
-    }
+    });
   }
 
   /**

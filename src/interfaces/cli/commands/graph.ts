@@ -218,6 +218,22 @@ export async function handleGraphContinue(args: string[]): Promise<void> {
       process.exit(1);
     }
 
+    // A resolved record is not authority on its own: missing, empty, or
+    // unparsable expiry metadata is corrupt authority, and a genuinely expired
+    // approval is spent. Neither may be presented as an approval to continue.
+    const { approvalExpiryState } = await import("../../../governance/approvals/approval-binding.js");
+    const expiryState = approvalExpiryState(resolved.expiresAt);
+    if (expiryState === "invalid") {
+      console.log(`Approval ${resolved.id} has invalid expiry metadata; refusing corrupt authority.`);
+      console.log(`  alix graph rerun ${graphId} --node ${blockedNode.id} --force`);
+      process.exit(1);
+    }
+    if (expiryState === "expired") {
+      console.log(`Approval ${resolved.id} expired at ${resolved.expiresAt}.`);
+      console.log(`  alix graph rerun ${graphId} --node ${blockedNode.id} --force`);
+      process.exit(0);
+    }
+
     // Approved — rerun the graph
     console.log(`Approval ${resolved.id} is approved. Rerunning graph ${graphId}...`);
     const { AuditStore } = await import("../../../governance/audit/audit-store.js");

@@ -7,6 +7,7 @@
  */
 
 import type { AlixConfig, SessionMode } from "../../operations/config/schema.js";
+import { approvalExpiryState } from "../approvals/approval-binding.js";
 import type { ApprovalStore } from "../approvals/approval-store.js";
 import type { EventLog } from "../../runtime-state/events/event-log.js";
 import type { WorkerOwnershipClaim } from "../../coordination/kernel/coordination-types.js";
@@ -766,7 +767,15 @@ export class PolicyGate {
         };
       }
 
-      if (approved?.status === "approved" && new Date(approved.expiresAt) > new Date()) {
+      if (approved?.status === "approved" && approvalExpiryState(approved.expiresAt) === "invalid") {
+        return {
+          requestId, capability, decision: "deny",
+          reason: `Approval ${approved.id} has invalid expiry metadata; refusing corrupt authority`,
+          matchedRuleId: "invalid-approval-expiry", policyRevision, bindingKey,
+        };
+      }
+
+      if (approved?.status === "approved" && approvalExpiryState(approved.expiresAt) === "valid") {
         // Try to consume it
         const consumed = await store.consumeApproved(approved.id, bindingKey, {
           workerId: coordinationContext.workerId,
@@ -840,12 +849,15 @@ export class PolicyGate {
           // fingerprint — must NOT authorize. Fall through and ask again so a
           // fresh, exactly-bound approval is created. The capability-level path
           // (no tool invocation) keeps its prior reuse behavior.
-          const unexpired = !prior.expiresAt || new Date(prior.expiresAt).getTime() > Date.now();
+          const expiryState = approvalExpiryState(prior.expiresAt);
+          if (expiryState === "invalid") {
+            return { requestId, capability, decision: "deny", reason: `Approval ${prior.id} has invalid expiry metadata; refusing corrupt authority`, approvalId: prior.id, matchedRuleId: "invalid-approval-expiry", policyRevision };
+          }
           const bindingOk = invocation ? invocationMatches(prior, invocation) : true;
-          if (unexpired && bindingOk) {
+          if (expiryState === "valid" && bindingOk) {
             return { requestId, capability, decision: "allow", reason: `Already approved: ${prior.id}`, approvalId: prior.id, matchedRuleId: "prior-approval-approved", policyRevision };
           }
-          // else: fall through to create a fresh approval
+          // Expired or invocation-mismatched authority is not reused; create a fresh approval.
         } else if (prior.status === "denied") {
           return { requestId, capability, decision: "deny", reason: `Already denied: ${prior.id}`, approvalId: prior.id, matchedRuleId: "prior-approval-denied", policyRevision };
         } else if (prior.status === "consumed") {

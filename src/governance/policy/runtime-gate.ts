@@ -13,6 +13,7 @@ import type { CardRegistry } from "../../capabilities/registry/card-registry.js"
 import { resolveCapabilities, type CapabilityResolution } from "../../capabilities/registry/capability-resolver.js";
 import type { TaskNode } from "../../coordination/kernel/task-graph.js";
 import type { ApprovalStore } from "../approvals/approval-store.js";
+import { approvalExpiryState } from "../approvals/approval-binding.js";
 import type { AuditStore } from "../audit/audit-store.js";
 import type { PolicyGate } from "./policy-gate.js";
 import type { AlixConfig } from "../../operations/config/schema.js";
@@ -184,25 +185,45 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
       });
       if (resolved) {
         if (resolved.status === "approved") {
-          auditStore?.append({ action: "policy.allowed", actor: "policy", details: {
+          const expiryState = approvalExpiryState(resolved.expiresAt);
+          if (expiryState === "invalid") {
+            auditStore?.append({ action: "policy.denied", actor: "policy", details: {
+              graphId: node.graphId, nodeId: node.id,
+              capability: caps.join(","), approvalId: resolved.id,
+              policyDecision: "deny", reason: "Approval has invalid expiry metadata",
+            }}).catch(() => {});
+            return {
+              status: "blocked",
+              capabilityResolution: capResult,
+              policyDecision: "deny",
+              policyReason: "Invalid approval expiry metadata",
+              reason: `Approval ${resolved.id} has invalid expiry metadata; refusing corrupt authority`,
+            };
+          }
+          if (expiryState === "valid") {
+            auditStore?.append({ action: "policy.allowed", actor: "policy", details: {
+              graphId: node.graphId, nodeId: node.id,
+              capability: caps.join(","), approvalId: resolved.id,
+              policyDecision: "allow", reason: "Approved by prior approval",
+            }}).catch(() => {});
+            return { status: "ready", reason: `Approved by prior approval: ${resolved.id}` };
+          }
+          // A genuinely expired approval is spent authority, not a denial: fall
+          // through so the node gets a fresh request below.
+        } else {
+          auditStore?.append({ action: "policy.denied", actor: "policy", details: {
             graphId: node.graphId, nodeId: node.id,
             capability: caps.join(","), approvalId: resolved.id,
-            policyDecision: "allow", reason: "Approved by prior approval",
+            policyDecision: "deny", reason: `Prior approval was denied: ${resolved.id}`,
           }}).catch(() => {});
-          return { status: "ready", reason: `Approved by prior approval: ${resolved.id}` };
+          return {
+            status: "blocked",
+            capabilityResolution: capResult,
+            policyDecision: "deny",
+            policyReason: resolved.decisionReason,
+            reason: `Prior approval was denied: ${resolved.id}`,
+          };
         }
-        auditStore?.append({ action: "policy.denied", actor: "policy", details: {
-          graphId: node.graphId, nodeId: node.id,
-          capability: caps.join(","), approvalId: resolved.id,
-          policyDecision: "deny", reason: `Prior approval was denied: ${resolved.id}`,
-        }}).catch(() => {});
-        return {
-          status: "blocked",
-          capabilityResolution: capResult,
-          policyDecision: "deny",
-          policyReason: resolved.decisionReason,
-          reason: `Prior approval was denied: ${resolved.id}`,
-        };
       }
 
       // Check for existing pending approval — reuse rather than duplicate

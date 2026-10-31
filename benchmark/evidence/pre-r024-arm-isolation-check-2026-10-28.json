@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "kind": "pre-r024-arm-isolation-check",
+  "recordedAt": "2026-10-29T04:17:24.146Z",
+  "armId": "qualification-control",
+  "replayClass": "scenario-reproduction",
+  "source": {
+    "commit": "b52c77cf8b87ee25b8b1daa22bc610850709d974",
+    "tree": "acb752ba290380a5871a24f5466fb30f509d4238",
+    "trackedDirty": false
+  },
+  "checks": {
+    "build": {
+      "command": "pnpm build",
+      "exitCode": 0,
+      "durationMs": 20269,
+      "stdout": "",
+      "stderr": "$ tsc -p tsconfig.json && node scripts/copy-build-artifacts.mjs\n",
+      "passed": true
+    },
+    "nodeNegatives": {
+      "command": "node --test --test-concurrency=1 dist/tests/security/legacy-approval-single-use.test.js dist/tests/security/approval-crash-recovery.test.js dist/tests/architecture/r15-authorization.test.js",
+      "exitCode": 0,
+      "durationMs": 37424,
+      "stdout": "▶ R1.5 authorization containment\n  ✔ graph execution enforces capabilities by default (no opt-in) (1513.262423ms)\n  ✔ rerunNode requires fresh authorization before executing (782.00586ms)\n  ✔ continuation-resume without a durable approval is denied (fail closed) (28.462696ms)\n  ✔ continuation-resume with a valid durable approval passes the auth check (2243.869066ms)\n  ✔ file.delete honors declared ownership scope (router second net) (17.817439ms)\n  ✔ bound-tool authorization is governed by the PolicyGate, not ungoverned (R1.5) (22.728872ms)\n  ✔ synthesized approvals carry system authorization source, never operator (3.662542ms)\n✔ R1.5 authorization containment (4615.649194ms)\n▶ approval crash-after-consume recovery\n  ✔ marks a claimed-but-unreported approval unverified and denies the replay (1743.310024ms)\n  ✔ denies replay when an external effect happened but the receipt was lost (2259.006132ms)\n  ✔ reports a proven success and still refuses a replay (2229.360882ms)\n  ✔ reports a proven failure and still refuses a replay (2007.797788ms)\n  ✔ lists uncertain consumptions without a wall-clock sweep (2866.225847ms)\n  ✔ does not let a duplicate outcome report rewrite a resolved claim (2638.447549ms)\n  ✔ classifies a crashed claim at the continuation seam too (1658.86931ms)\n✔ approval crash-after-consume recovery (15409.599648ms)\n▶ legacy approval single-use (ordinary retry route)\n  ✔ executes exactly once and refuses a fresh-process replay (1720.195428ms)\n  ✔ runs the effect exactly once under concurrent duplicate execution (2056.955635ms)\n  ✔ a changed argument set does not reuse the approval (1219.707987ms)\n  ✔ a changed capability does not reuse the approval (1507.394486ms)\n  ✔ a changed agent identity does not reuse the approval (1736.434492ms)\n  ✔ a legacy approved record with no invocation binding is re-asked, never reused (1068.672646ms)\n  ✔ a consumed record is denied and never re-authorized (1394.130951ms)\n  ✔ the store refuses a second consume of the same approval (1380.412638ms)\n✔ legacy approval single-use (ordinary retry route) (12091.439629ms)\n▶ legacy approval single-use (continuation-resume route)\n  ✔ resumes exactly once and the continuation is one-shot (1766.080516ms)\n  ✔ resumes the effect exactly once under concurrent resumes (1919.399577ms)\n  ✔ refuses to resume a legacy approval with no invocation binding (1135.296292ms)\n✔ legacy approval single-use (continuation-resume route) (4822.863227ms)\nℹ tests 25\nℹ suites 4\nℹ pass 25\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 37378.824753\n",
+      "stderr": "",
+      "passed": true
+    },
+    "workerPort": {
+      "command": "pnpm exec vitest run tests/security/worker-approval-port.vitest.ts --reporter=dot",
+      "exitCode": 0,
+      "durationMs": 25714,
+      "stdout": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv5.0.3 \u001b[39m\u001b[90m/home/babasola/Projects/ALiX-d9-remediation-v2\u001b[39m\n\n\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\u001b[33m\u001b[39m\u001b[32m·\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m1 passed\u001b[39m\u001b[22m\u001b[90m (1)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m19 passed\u001b[39m\u001b[22m\u001b[90m (19)\u001b[39m\n\u001b[2m   Start at \u001b[22m 22:16:58\n\u001b[2m   Duration \u001b[22m 25.27s\u001b[2m (tests 99%, transform 1%)\u001b[22m\n\n",
+      "stderr": "",
+      "passed": true
+    }
+  },
+  "passed": true,
+  "note": "This proves the mandatory S0 negative set ran for this arm. It does not qualify OS-level shell/filesystem isolation or rubric unreachability."
+}

@@ -12,6 +12,7 @@ import type { ReplayAction } from "./replay-preview.js";
 import type { ReplayPlan, ReplayPlanStep, ReplayMode } from "./replay-plan.js";
 import { existsSync } from "node:fs";
 import type { ApprovalStore } from "../../governance/approvals/approval-store.js";
+import { claimLiveStep, emitBlockedStepApprovalCreated, liveStepInvocation } from "../../governance/approvals/live-step-approval.js";
 import type { ReplayDiffSet, ReplayDiffStore } from "./replay-diff-store.js";
 import { readFile, grepSearch, globMatch } from "../../capabilities/tools/file-tools.js";
 import type { ReplayStatusIndex } from "./replay-status-index.js";
@@ -66,7 +67,7 @@ async function replayToolStep(
   mode: ReplayMode,
   cwd: string,
   opts?: { replayId?: string; diffStore?: ReplayDiffStore },
-): Promise<Pick<ReplayStepResult, "status" | "output" | "error" | "blockReason">> {
+): Promise<Pick<ReplayStepResult, "status" | "output" | "error" | "blockReason"> & { outcomeUnknown?: boolean }> {
   const toolName = step.toolName || "";
   const args = step.args || {};
 
@@ -74,77 +75,97 @@ async function replayToolStep(
   if (toolName === "shell.run" && mode === "approved-live") {
     const command = String(args.command || "");
     const { runCommand } = await import("../../capabilities/tools/shell-tool.js");
-    const result = await runCommand({ command, cwd });
+    const { executeWithEffectJournal } = await import("../../capabilities/tools/effect-journal.js");
+    // Replay IDs and renewed approvals are not effect identities. The durable
+    // journal keys the actual shell command and workspace across replay runs.
+    const result = await executeWithEffectJournal(cwd, {
+      toolCallId: `replay-${step.index}`, name: "shell.run", args: { command, cwd },
+    }, (boundRequest) => runCommand({ command, cwd: String(boundRequest.args.cwd) }));
     if (result.kind === "error") {
-      return { status: "failed", error: result.message };
+      return { status: "failed", error: result.message, outcomeUnknown: result.outcomeUnknown === true };
     }
     return { status: "completed", output: result.output || "" };
   }
 
   // Approved-live file.create: execute for real with diff capture
   if (toolName === "file.create" && mode === "approved-live") {
-    const path = String(args.path || "");
-    const content = args.content !== undefined ? String(args.content) : "";
-    const { mkdir, writeFile } = await import("node:fs/promises");
-    const { dirname, resolve } = await import("node:path");
-    const resolvedPath = resolve(cwd, path);
+    const { executeWithEffectJournal } = await import("../../capabilities/tools/effect-journal.js");
+    const result = await executeWithEffectJournal(cwd, {
+      toolCallId: `replay-${step.index}`, name: "file.create", args,
+    }, async () => {
+      const path = String(args.path || "");
+      const content = args.content !== undefined ? String(args.content) : "";
+      const { mkdir, writeFile } = await import("node:fs/promises");
+      const { dirname, resolve } = await import("node:path");
+      const resolvedPath = resolve(cwd, path);
 
-    // Capture before (will be null for new file)
-    const beforePath = opts?.replayId && opts?.diffStore
-      ? await opts.diffStore.captureBefore(opts.replayId, path) : null;
+      // Capture before (will be null for new file)
+      const beforePath = opts?.replayId && opts?.diffStore
+        ? await opts.diffStore.captureBefore(opts.replayId, path) : null;
 
-    await mkdir(dirname(resolvedPath), { recursive: true });
-    await writeFile(resolvedPath, content, "utf8");
+      await mkdir(dirname(resolvedPath), { recursive: true });
+      await writeFile(resolvedPath, content, "utf8");
 
-    // Capture after
-    if (opts?.replayId && opts?.diffStore) {
-      const afterPath = await opts.diffStore.captureAfter(opts.replayId, path);
-      const diffOutput = await opts.diffStore.computeDiff(opts.replayId, path);
-      await opts.diffStore.appendRecord(opts.replayId, {
-        filePath: path,
-        changeType: "created",
-        beforeSnapshotPath: beforePath || undefined,
-        afterSnapshotPath: afterPath || undefined,
-        diffPreview: diffOutput.slice(0, 2000),
-        diffSize: diffOutput.length,
-        rollbackable: false,
-        timestamp: new Date().toISOString(),
-      });
+      // Capture after
+      if (opts?.replayId && opts?.diffStore) {
+        const afterPath = await opts.diffStore.captureAfter(opts.replayId, path);
+        const diffOutput = await opts.diffStore.computeDiff(opts.replayId, path);
+        await opts.diffStore.appendRecord(opts.replayId, {
+          filePath: path,
+          changeType: "created",
+          beforeSnapshotPath: beforePath || undefined,
+          afterSnapshotPath: afterPath || undefined,
+          diffPreview: diffOutput.slice(0, 2000),
+          diffSize: diffOutput.length,
+          rollbackable: false,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      return { kind: "success" as const, output: `File created: ${path}` };
+    });
+    // The journal owns uncertainty: an unknown outcome must stay non-retryable
+    // and reach the caller's blocked/unknown handling, not be smoothed to failed.
+    if (result.kind === "error") {
+      return { status: "failed", error: result.message, outcomeUnknown: result.outcomeUnknown === true };
     }
-
-    return { status: "completed", output: `File created: ${path}` };
+    return { status: "completed", output: result.output || `File created: ${String(args.path || "")}` };
   }
 
   // Approved-live file.delete: execute for real with diff capture
   if (toolName === "file.delete" && mode === "approved-live") {
-    const path = String(args.path || "");
-    const { rm } = await import("node:fs/promises");
-    const { resolve } = await import("node:path");
-    const resolvedPath = resolve(cwd, path);
+    const { executeWithEffectJournal } = await import("../../capabilities/tools/effect-journal.js");
+    const result = await executeWithEffectJournal(cwd, {
+      toolCallId: `replay-${step.index}`, name: "file.delete", args,
+    }, async () => {
+      const path = String(args.path || "");
+      const { rm } = await import("node:fs/promises");
+      const { resolve } = await import("node:path");
+      const resolvedPath = resolve(cwd, path);
+      const beforePath = opts?.replayId && opts?.diffStore
+        ? await opts.diffStore.captureBefore(opts.replayId, path) : null;
 
-    // Capture before
-    const beforePath = opts?.replayId && opts?.diffStore
-      ? await opts.diffStore.captureBefore(opts.replayId, path) : null;
+      await rm(resolvedPath);
 
-    await rm(resolvedPath);
-
-    // Capture after (will be null since file was deleted)
-    if (opts?.replayId && opts?.diffStore) {
-      const afterPath = await opts.diffStore.captureAfter(opts.replayId, path);
-      const diffOutput = await opts.diffStore.computeDiff(opts.replayId, path);
-      await opts.diffStore.appendRecord(opts.replayId, {
-        filePath: path,
-        changeType: "deleted",
-        beforeSnapshotPath: beforePath || undefined,
-        afterSnapshotPath: afterPath || undefined,
-        diffPreview: diffOutput.slice(0, 2000),
-        diffSize: diffOutput.length,
-        rollbackable: true,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    return { status: "completed", output: `File deleted: ${path}` };
+      if (opts?.replayId && opts?.diffStore) {
+        const afterPath = await opts.diffStore.captureAfter(opts.replayId, path);
+        const diffOutput = await opts.diffStore.computeDiff(opts.replayId, path);
+        await opts.diffStore.appendRecord(opts.replayId, {
+          filePath: path,
+          changeType: "deleted",
+          beforeSnapshotPath: beforePath || undefined,
+          afterSnapshotPath: afterPath || undefined,
+          diffPreview: diffOutput.slice(0, 2000),
+          diffSize: diffOutput.length,
+          rollbackable: true,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      return { kind: "success", output: `File deleted: ${path}` };
+    });
+    return result.kind === "error"
+      ? { status: "failed", error: result.message, outcomeUnknown: result.outcomeUnknown === true }
+      : { status: "completed", output: result.output };
   }
 
   // Approved-live patch.apply: execute for real with diff capture
@@ -165,8 +186,12 @@ async function replayToolStep(
       }
     }
 
-    // Execute the patch
-    try {
+    // Execute the patch inside the journal boundary: a patch that applies and
+    // then throws (or reports an unknown outcome) must not be replayed blindly.
+    const { executeWithEffectJournal } = await import("../../capabilities/tools/effect-journal.js");
+    const journaled = await executeWithEffectJournal(cwd, {
+      toolCallId: `replay-${step.index}`, name: "patch.apply", args,
+    }, async () => {
       const result = await applyPatch(cwd as string, format, patchText);
       if (result.status === "applied" && result.changedFiles) {
         // After capture + diff
@@ -186,12 +211,18 @@ async function replayToolStep(
             });
           }
         }
-        return { status: "completed", output: `Patch applied: ${result.changedFiles.join(", ")}` };
+        return { kind: "success" as const, output: `Patch applied: ${result.changedFiles.join(", ")}` };
       }
-      return { status: "failed", error: "Patch invalid" };
-    } catch (err: any) {
-      return { status: "failed", error: err.message };
+      // A patch that did not apply is a definite, non-mutating failure.
+      return { kind: "success" as const, output: `Patch invalid` };
+    });
+    if (journaled.kind === "error") {
+      return { status: "failed", error: journaled.message, outcomeUnknown: journaled.outcomeUnknown === true };
     }
+    const applied = journaled.output?.startsWith("Patch applied:");
+    return applied
+      ? { status: "completed", output: journaled.output }
+      : { status: "failed", error: "Patch invalid" };
   }
 
   // Approved-live network: execute for real (already gated by approval above)
@@ -380,6 +411,7 @@ export class ReplayExecutor {
   }
 
   async execute(plan: ReplayPlan, opts?: ReplayExecuteOptions): Promise<ReplayResult> {
+    plan = structuredClone(plan);
     const startedAt = new Date().toISOString();
     const startTime = Date.now();
 
@@ -395,7 +427,8 @@ export class ReplayExecutor {
     let skippedCount = 0;
     let failedCount = 0;
 
-    for (const step of plan.steps) {
+    for (const [position, step] of plan.steps.entries()) {
+      let claimedApprovalId: string | undefined;
       const stepStart = Date.now();
       const stepResult: ReplayStepResult = {
         index: step.index,
@@ -444,54 +477,37 @@ export class ReplayExecutor {
 
         if (sideEffect !== "read-only") {
           const store = opts?.approvalStore;
-          if (!store) {
+          if (!store || !plan.replayId?.trim()) {
             stepResult.status = "blocked";
-            stepResult.blockReason = "Approval store required for approved-live mode";
+            stepResult.blockReason = !store
+              ? "Approval store required for approved-live mode"
+              : "Replay identity required for approved-live mode";
             stepResult.durationMs = Date.now() - stepStart;
             blockedCount++;
             stepResults.push(stepResult);
             continue;
           }
 
-          // Check for an existing approved approval for this tool
-          const allApprovals = store.list();
-          const matching = allApprovals.find(a =>
-            a.toolId === toolName && a.status === "approved"
-          );
-
-          if (!matching) {
-            // Create a new pending approval
-            const created = await store.request({
-              reason: `Replay ${plan.replayId || "?"}: ${toolName}`,
-              capability: toolName,
-              sessionId: this.sessionId(),
-              toolId: toolName,
-            });
-
-            // Emit approval.created event with replayId
-            await this.logEvent("approval.created", {
-              approvalId: created.id,
-              replayId: plan.replayId,
-              capability: toolName,
-              toolName,
-              status: "pending",
-            });
-
-            stepResult.status = "blocked";
-            stepResult.blockReason = `Approval required: ${created.id}`;
-            stepResult.durationMs = Date.now() - stepStart;
-            blockedCount++;
-            stepResults.push(stepResult);
-            continue;
-          }
-
-          // Approval exists and was approved — emit resolution
-          await this.logEvent("approval.resolved", {
-            approvalId: matching.id,
-            replayId: plan.replayId,
-            status: "approved",
-            reason: "Replay approval granted",
+          const invocation = liveStepInvocation(this.cwd, this.sessionId(), toolName, toolName, {
+            operation: "replay", replayId: plan.replayId, sourceSessionId: plan.sessionId,
+            position, step,
           });
+          const claim = await claimLiveStep(store, invocation,
+            `Replay ${plan.replayId || "?"} step ${step.index}: ${toolName}`,
+            { replayId: plan.replayId, position, step });
+          if (!claim.claimed) {
+            await emitBlockedStepApprovalCreated(store, claim, {
+              replayId: plan.replayId,
+              capability: toolName, toolName,
+            }, (eventType, data) => this.logEvent(eventType, data));
+            stepResult.status = "blocked";
+            stepResult.blockReason = claim.reason;
+            stepResult.durationMs = Date.now() - stepStart;
+            blockedCount++;
+            stepResults.push(stepResult);
+            continue;
+          }
+          claimedApprovalId = claim.approvalId;
         }
       }
 
@@ -500,6 +516,10 @@ export class ReplayExecutor {
           replayId: plan.replayId,
           diffStore: opts?.diffStore,
         });
+        if (claimedApprovalId && !toolResult.outcomeUnknown) {
+          await opts!.approvalStore!.recordExecutionOutcome(claimedApprovalId,
+            toolResult.status === "completed" ? "succeeded" : "failed");
+        }
         await this.logEvent(REPLAY_EVENT_TYPES.STEP_COMPLETED, {
           stepIndex: step.index, traceId: step.traceId, action: step.replayAction,
           toolName: step.toolName, status: toolResult.status, outputPreview: (toolResult.output || "").slice(0, 200),
@@ -518,6 +538,7 @@ export class ReplayExecutor {
         else if (toolResult.status === "skipped") skippedCount++;
         else failedCount++;
       } catch (err: any) {
+        // A thrown adapter can have applied an effect; leave the consumed approval pending.
         await this.logEvent(REPLAY_EVENT_TYPES.STEP_BLOCKED, {
           stepIndex: step.index, traceId: step.traceId, action: step.replayAction,
           toolName: step.toolName, error: err.message,
@@ -544,7 +565,7 @@ export class ReplayExecutor {
     // Set status to "completed" for approved-live replays that ran without critical failures
     if (plan.replayId && plan.mode === "approved-live" && opts?.statusIndex) {
       // Only set completed if at least one step succeeded and no fatal errors
-      if (successCount > 0 && failedCount === 0) {
+      if (successCount > 0 && failedCount === 0 && blockedCount === 0) {
         await opts.statusIndex.ensureReplay(plan.replayId, "approved-live");
         await opts.statusIndex.setStatus(plan.replayId, "completed", "approved-live");
       }

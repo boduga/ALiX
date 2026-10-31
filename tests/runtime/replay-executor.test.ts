@@ -257,6 +257,95 @@ describe("ReplayExecutor approved-live mode", () => {
     assert.equal(content, "approved content");
   });
 
+  it("journals an approved-live patch.apply so a partially applied patch blocks replay", async () => {
+    // patch.apply is high-risk, so the replay route must enter the same durable
+    // journal boundary as the ordinary dispatch path. Without it, a patch that
+    // mutates and then fails could be replayed blindly. Prove the record exists
+    // (state started_unknown/terminal_*) after the first approved-live attempt,
+    // and that a second attempt on the same exact effect is refused.
+    const { readEffectRecord } = await import("../../src/capabilities/tools/effect-journal.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+    const storeDir = mkdtempSync(join(tmpdir(), "replay-journal-store-"));
+    try {
+      const store = new ApprovalStore(storeDir);
+      await store.load();
+      const target = join(tmpDir, "journaled.txt");
+      writeFileSync(target, "before\n", "utf-8");
+      const patchText = [
+        "*** Begin Patch",
+        "*** Update File: journaled.txt",
+        "@@",
+        "-before",
+        "+after",
+        "*** End Patch",
+      ].join("\n");
+      const events = [
+        makeEvent({ id: "e1", eventType: "patch.apply", label: "patch.apply", toolName: "patch.apply",
+          toolCallId: "tc1", rawEvent: { payload: { toolName: "patch.apply", args: { format: "aider", patchText } } } }),
+      ];
+      const preview = buildReplayPreview(events[0], events);
+      const plan = buildReplayPlan(preview, events, "approved-live");
+
+      await executor.execute(plan, { approvalStore: store });
+      for (const a of store.listPending()) await store.resolve(a.id, "approved");
+      const first = await executor.execute(plan, { approvalStore: store });
+      const firstStep = first.steps.find(s => s.toolName === "patch.apply");
+      assert.ok(firstStep);
+
+      const request = { toolCallId: "tc1", name: "patch.apply", args: { format: "aider", patchText } };
+      const record = readEffectRecord(tmpDir, request);
+      // patch.apply is high-risk, so the replay route MUST have journaled it.
+      // An absent record means the replay dispatch bypassed the durable effect
+      // boundary, which is exactly the route-specific gap this pins.
+      assert.ok(record, "approved-live patch.apply must create a durable effect journal record");
+      assert.ok(
+        ["started_unknown", "terminal_success", "terminal_failure"].includes(record!.state),
+        `unexpected journal state ${record!.state}`,
+      );
+      // A second approved-live attempt must not re-apply an unresolved effect.
+      if (record!.state !== "terminal_success") {
+        const second = await executor.execute(plan, { approvalStore: store });
+        const secondStep = second.steps.find(s => s.toolName === "patch.apply");
+        assert.ok(secondStep);
+        assert.notEqual(secondStep.status, "completed");
+      }
+    } finally {
+      rmSync(storeDir, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks a live step whose approved record has corrupt expiry", async () => {
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+    const storeDir = mkdtempSync(join(tmpdir(), "replay-expiry-store-"));
+    try {
+      const isolated = new ApprovalStore(storeDir);
+      await isolated.load();
+      const target = join(tmpDir, "expiry-replay.txt");
+      const events = [
+        makeEvent({ id: "e-expiry", eventType: "shell.run", label: "shell.run expiry", toolName: "shell.run",
+          toolCallId: "tc-expiry", rawEvent: { payload: { toolName: "shell.run", args: { command: "printf blocked > expiry-replay.txt" } } } }),
+      ];
+      const plan = buildReplayPlan(buildReplayPreview(events[0], events), events, "approved-live");
+
+      const first = await executor.execute(plan, { approvalStore: isolated });
+      assert.equal(first.steps.find(s => s.toolName === "shell.run")?.status, "blocked");
+      for (const a of isolated.listPending()) {
+        await isolated.resolve(a.id, "approved");
+      }
+      await isolated.mutate((approvals) => {
+        for (const a of approvals) {
+          if (a.toolId === "shell.run") delete (a as { expiresAt?: string }).expiresAt;
+        }
+      });
+
+      const second = await executor.execute(plan, { approvalStore: isolated });
+      assert.equal(second.steps.find(s => s.toolName === "shell.run")?.status, "blocked");
+      assert.equal(existsSync(target), false, "corrupt expiry must not authorize a live replay");
+    } finally {
+      rmSync(storeDir, { recursive: true, force: true });
+    }
+  });
+
   it("returns replayId in result for approved-live mode", async () => {
     const events = [
       makeEvent({ id: "e1", eventType: "file.read", label: "file.read", toolName: "file.read",
@@ -279,6 +368,8 @@ describe("ReplayExecutor approved-live mode", () => {
     ];
     const preview = buildReplayPreview(events[0], events);
     const plan = buildReplayPlan(preview, events, "approved-live");
+
+    await executor.execute(plan, { approvalStore, diffStore });
 
     // Resolve any pending approvals
     const pending = approvalStore.listPending();

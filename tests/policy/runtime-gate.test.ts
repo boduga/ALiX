@@ -257,6 +257,77 @@ describe("RuntimeGate", () => {
     }
   });
 
+  for (const badExpiry of [undefined, "", "not-a-date"] as const) {
+    const label = badExpiry === undefined ? "missing" : badExpiry === "" ? "empty" : "malformed";
+
+    it(`returns blocked when the prior approval has ${label} expiry`, async () => {
+      const { mkdtempSync, rmSync } = await import("node:fs");
+      const { join } = await import("node:path");
+      const { tmpdir } = await import("node:os");
+      const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+      const tmpDir = mkdtempSync(join(tmpdir(), `runtime-gate-expiry-${label}-`));
+      try {
+        const store = new ApprovalStore(tmpDir);
+        await store.load();
+        const rec = await store.request({
+          reason: "prior", graphId: "test_graph", nodeId: "test_node", capability: "shell.exec",
+        });
+        await store.resolve(rec.id, "approved");
+        const record = store.get(rec.id)! as { expiresAt?: string };
+        if (badExpiry === undefined) delete record.expiresAt;
+        else record.expiresAt = badExpiry;
+
+        const registry = makeRegistry();
+        const policyGate = makePolicyGate({
+          id: "ask-shell", description: "Ask shell",
+          match: { capability: "shell.exec" }, decision: "ask", enabled: true,
+        });
+        const result = await evaluateRuntimeGate({
+          node: makeNode({ requiredCapabilities: ["shell.exec"], riskLevel: "high" }),
+          registry, policyGate, approvalStore: store, config: mockConfig,
+        });
+        assert.equal(result.status, "blocked", JSON.stringify(result));
+        assert.equal(result.policyDecision, "deny");
+        assert.match(result.reason, /invalid expiry/i);
+        assert.equal(store.get(rec.id)?.status, "approved", "corrupt authority must not be consumed");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+  }
+
+  it("requires a fresh approval when the prior approval genuinely expired", async () => {
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+    const tmpDir = mkdtempSync(join(tmpdir(), "runtime-gate-expired-"));
+    try {
+      const store = new ApprovalStore(tmpDir);
+      await store.load();
+      const rec = await store.request({
+        reason: "prior", graphId: "test_graph", nodeId: "test_node", capability: "shell.exec",
+      });
+      await store.resolve(rec.id, "approved");
+      (store.get(rec.id)! as { expiresAt: string }).expiresAt = new Date(Date.now() - 60_000).toISOString();
+
+      const registry = makeRegistry();
+      const policyGate = makePolicyGate({
+        id: "ask-shell", description: "Ask shell",
+        match: { capability: "shell.exec" }, decision: "ask", enabled: true,
+      });
+      const result = await evaluateRuntimeGate({
+        node: makeNode({ requiredCapabilities: ["shell.exec"], riskLevel: "high" }),
+        registry, policyGate, approvalStore: store, config: mockConfig,
+      });
+      assert.equal(result.status, "needs_approval", JSON.stringify(result));
+      assert.ok(result.approvalId);
+      assert.notEqual(result.approvalId, rec.id, "expired authority must not be reused");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it("returns blocked when the prior approval was denied (no new approval)", async () => {
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { join } = await import("node:path");

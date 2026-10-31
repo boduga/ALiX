@@ -19,7 +19,13 @@ plus the path-scope arithmetic both enforcement points share.
   holds which paths, with lease ids.
 - `ownership-types.ts` — `PathScope`, `OwnershipScope`, `OwnershipMode`, `OwnershipStatus`, `OwnershipRecord`, `AcquireResult`, `OwnershipStore`, `OwnershipEventSink`.
 - `ownership-lock.ts` — Cross-process locking around claim mutation, so two
-  schedulers cannot grant the same path concurrently.
+  schedulers cannot grant the same path concurrently. Delegates to the
+  repository's qualified `ApprovalStoreLock` (at `.alix/ownership/ownership.lock`)
+  rather than keeping a second stale-lock algorithm: on Linux the lock is
+  kernel-owned `flock`, released automatically on process death, so there is no
+  PID probe and **no age-based reclaim**; where flock is unavailable the shared
+  fail-closed `mkdir` backend reclaims only provably dead owners. Do not
+  reintroduce an age ceiling here — age cannot establish owner death.
 - `ownership-gate.ts` — Pre-dispatch check that a write falls inside the
   caller's declared scope.
 - `mutation-targets.ts` — Derives the paths a tool call will actually write, so

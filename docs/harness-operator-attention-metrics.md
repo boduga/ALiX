@@ -1,33 +1,31 @@
-# Operator-attention metrics (deliverable 7, PRE-R015)
+# Autonomous-review metrics (deliverable 7, PRE-R015)
 
 **Status:** DEFINITIONS ONLY. **Every measure is `not measured`.**
 **Artifact:** branch `main`, commit `63532d7594f8f806c04571a4ac49d5fe8258c9ce`.
 **Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` §12.1 (PRE-R015), §12.3.
 **Publication / simplification:** HOLD (Q13).
 
-The PRD is explicit that operator attention is measured **alongside** cost, tokens,
-verified outcomes and latency — as a separate dimension, never converted to a
-guessed dollar figure and never a substitute for correctness. This document fixes
-the definitions so a future implementation cannot redefine them after seeing
-results.
+The PRD now requires autonomous review effort to be measured **alongside** cost, tokens, verified outcomes and latency — as a separate dimension and never a substitute for correctness. This retained filename is historical; the contract below defines verifier/critic metrics for the agent-driven Harness closeout.
 
 **Nothing here is instrumented.** No event type is added, no metric is emitted, and
 no number in this document comes from a measurement.
 
 ---
 
-## 1. Primary definition — `operatorActiveReviewMinutes / independentlyVerifiedSuccesses`
+## 1. Primary definition — autonomous review effort per independently verified success
 
 | Element | Definition | Why |
 |---|---|---|
-| `operatorActiveReviewMinutes` | Sum of intervals in which a human is **actively reviewing** decision-bearing evidence — reading, comparing, deciding | Excludes waiting, idle time, and elapsed wall-clock |
-| `independentlyVerifiedSuccesses` | Count of tasks where the **evaluator** confirmed the objective landed **and** the reported status was honest | Reuses `harness-benchmark-spec.md` §2.1; never ALiX's own claim |
-| Quotient | Defined **only** when both terms are observed | Otherwise `null` with a coverage count — never zero, never imputed |
+| `autonomousReviewCost` | Model/tool/resource cost consumed by independent verifier/critic passes | Separate from executor task cost |
+| `autonomousReviewLatencyMs` | Wall-clock latency attributable to verifier/critic work | Separate from task execution and queue wait |
+| `reviewInvocations` | Count of independent verifier/critic calls | Includes retries; configuration/version recorded |
+| `independentlyVerifiedSuccesses` | Count of tasks where independent verification confirmed objective and status honesty | Reuses `harness-benchmark-spec.md` §2.1; never executor self-claim |
+| Ratios | Defined only when numerator and denominator are observed | Otherwise `null` with coverage — never imputed |
 
 This mirrors the existing `CostCompleteness` discipline in
 `src/operations/observability/cost-attribution.ts` (`complete` / `partial` /
 `non_billable` / `none`), so an unmeasured dimension cannot be mistaken for a
-measured zero. The same rule that governs cost governs attention.
+measured zero. The same rule that governs cost governs autonomous review metrics.
 
 ---
 
@@ -35,22 +33,19 @@ measured zero. The same rule that governs cost governs attention.
 
 | ID | Measure | Definition | Status |
 |---|---|---|---|
-| M-1 | Active review minutes per verified success | §1 | **not measured** |
-| M-2 | Interruptions | Events where a review in progress was preempted and resumed, counted per decision | **not measured** |
-| M-3 | Approval touches | Interactions with an approval record through the **existing** governed path (`ApprovalStore.resolve`/`resolveWithEvidence` via CLI or the SRAP-1 remote-decision route) | **not measured** |
-| M-4 | Missed-evidence events | A decision made while a known-missing-evidence marker was present and unacknowledged | **not measured** |
-| M-5 | Reversal events | A consequence of the decision reversed after the fact (re-run, revert, re-approval) | **not measured** |
+| M-1 | Review cost per verified success | Verifier/critic model/tool/resource cost divided by independently verified successes | **not measured** |
+| M-2 | Review latency | Verifier/critic elapsed latency, separate from executor and queue wait | **not measured** |
+| M-3 | Review disagreement rate / retry | **Disagreement rate = decision-bearing review items with at least two eligible independent verdicts whose normalized verdicts conflict / decision-bearing review items with at least two eligible independent verdicts observed.** An eligible verdict is one produced under the run's recorded verifier/critic configuration before seeing the other verdict; retries/arbitration passes are counted separately. Items with fewer than two eligible verdicts are excluded from the denominator and reported as uncovered, never agreement. | **not measured** |
+| M-4 | Seeded-risk miss / missed-evidence event | Independent review fails to catch a seeded or known critical issue | **not measured** |
+| M-5 | BLOCKED/reversal event | Durable authority/qualification block or later reversal caused by failed evidence | **not measured** |
 
 ### 2.1 Deliberate separations
 
 These distinctions are part of the metric definition, not analysis choices:
 
-- **Active review ≠ waiting.** Time spent blocked on an agent run is not review.
-- **Interruptions ≠ approval touches.** One review may contain several touches;
-  one touch may require no review.
-- **Faster ≠ better.** Per §12.3, a workflow that saves review minutes while
-  increasing missed-risk events **fails**. M-4/M-5 are disqualifying measures, not
-  tiebreakers.
+- **Review ≠ execution or waiting.** Verifier/critic effort is measured separately from executor work and queue time.
+- **Disagreement ≠ failure.** It is a quality/cost signal that may trigger deterministic arbitration or durable `BLOCKED`.
+- **Faster ≠ better.** Per §12.3, a workflow that reduces review cost/latency while increasing missed-risk events **fails**. M-4/M-5 are disqualifying measures, not tiebreakers.
 
 ---
 
@@ -58,16 +53,16 @@ These distinctions are part of the metric definition, not analysis choices:
 
 | Capability | Location | Reusable for |
 |---|---|---|
-| Approval lifecycle events (`approval.created` / `reused` / `resolved` / `consumed` / `expired` / `revoked` / `invalidated`) | `src/runtime-state/events/types.ts` (`APPROVAL_EVENT_TYPES`) | M-3 approval touches, and the timestamps for review intervals |
-| Wait measurement | `approvalWaitMs` in `src/operations/evals/event-metrics-projection.ts` | **Elapsed** wait only — this is *not* active review, and must not be relabelled as such |
+| Model/tool invocation and usage events | runtime/session/eval events | M-1/M-2/M-3 cost, latency, invocation and retry projection |
+| Approval lifecycle events (`approval.created` / `reused` / `resolved` / `consumed` / `expired` / `revoked` / `invalidated`) | `src/runtime-state/events/types.ts` (`APPROVAL_EVENT_TYPES`) | M-5 approval-boundary/BLOCKED context only; not a human-review metric |
+| Wait measurement | `approvalWaitMs` in `src/operations/evals/event-metrics-projection.ts` | Elapsed wait only; never relabel as review effort |
 | Cost attribution + completeness | `src/operations/observability/cost-attribution.ts` | The companion dimension and the `null`-not-zero discipline |
 | Metric registry / store / trend analyzer | `src/operations/observability/{metric-registry,metrics-store,trend-analyzer}.ts` | Emitting and trending new measures once defined |
 | Trace/projection pipeline | `src/interfaces/tui/runtime/*` projections | A read-only attention projection without a new authority |
 
 **Important:** `approvalWaitMs` measures **wall-clock** wait and returns `absent`
 when there is no resolution — that is the correct behaviour and it is what the
-cost baseline already reports. Active review minutes are a **different** quantity
-that does not exist yet.
+cost baseline already reports. Autonomous review effort is a different quantity that is not yet projected as a first-class metric.
 
 ---
 
@@ -75,14 +70,13 @@ that does not exist yet.
 
 Not implemented. Recorded so the shape is constrained before code exists.
 
-1. **No new authority.** Attention is a **projection** over existing evidence, in
+1. **No new authority.** Review metrics are a **projection** over existing evidence, in
    the same sense as the TUI runtime projections. It must not write to the
    authoritative ledger or the approval store.
 2. **No telemetry flooding.** Per PRE-R009, instrumentation must not flood the
-   authoritative event log. Attention sampling belongs in the metrics store, not
+   authoritative event log. Review-effort sampling belongs in the metrics store, not
    as high-frequency durable events.
-3. **Provenance per measure.** Each number carries its source event ids, so a
-   reviewer can audit how a review-minute total was derived.
+3. **Provenance per measure.** Each number carries its source event ids, so an independent verifier can audit how each metric was derived.
 4. **`null` over imputation.** An unobserved interval is `null` with coverage,
    never a zero and never an estimate from elapsed time.
 5. **Redaction.** Review content may contain secrets; any projection reuses the
@@ -94,23 +88,17 @@ Not implemented. Recorded so the shape is constrained before code exists.
 
 When a run reports cost per verified success, it must also report:
 
-- **Coverage:** how many of the scored tasks had attention observed at all.
+- **Coverage:** how many scored tasks had verifier/critic metrics observed.
 - **`null` count:** how many measures were unobservable and why.
-- **n:** how many observations per measure (today: zero).
+- **n:** how many review observations per measure (today: zero).
+- **Configuration provenance:** verifier/critic model, version, rubric, tool surface and policy revision.
 
-A report that shows only the cost quotient and omits attention coverage would
-reproduce exactly the gap §12 was written to close.
+A report that shows executor cost but omits autonomous-review coverage reproduces the gap §12 is meant to close.
 
 ---
 
 ## 6. Verdict
 
-**PRE-R015: definitions published; measurement NOT started.** All five measures
-are `not measured`. This satisfies the "define" half of the acceptance criterion
-("versioned metric definitions") and none of the measurement half.
+**PRE-R015: definition requirement satisfied; measurements NOT started.** All five measures remain `not measured`. PRE-R015 requires versioned definitions, including the disagreement-rate population and denominator above; observing those measures is downstream benchmark evidence, not a second half of this definition requirement.
 
-**Blocked by:** nothing technical — this is unstarted work, not blocked work. It is
-not scheduled because it is P1 and downstream of a Gate B baseline that is HOLD.
-
-**What would change this:** instrumenting M-1..M-3 over an existing scored run. That
-requires an operator, so it is an operator-scheduled task, not an autonomous one.
+**PRE-R031 measurement update (2026-10-28):** a separate bounded blinded offline study now records the dimensions PRE-R031 names: verifier/critic tokens and model-eval effort, sampling coverage, missed/critical risks, disagreement exceptions, queue backlog/wait, deterministic fixture outcomes, local non-billable cost and latency. Its safety result fails reduced-supervision eligibility. This does not silently mark the narrower M-1..M-5 table above as fully measured: for example, M-1 cost per independently verified success and durable M-5 BLOCKED/reversal events remain governed by their own observation contracts.

@@ -38,6 +38,30 @@ import { createCredentialStore } from "./credentials.js";
 // ---------------------------------------------------------------------------
 
 
+export type SecurityExceptionValidation =
+  | { ok: true; expiredCount: number }
+  | { ok: false; reason: "schema" | "invalid_expiry" };
+
+export function validateSecurityExceptionsDocument(value: unknown, now = new Date()): SecurityExceptionValidation {
+  if (!value || typeof value !== "object" || !Array.isArray((value as { advisories?: unknown }).advisories)) {
+    return { ok: false, reason: "schema" };
+  }
+  let expiredCount = 0;
+  for (const advisory of (value as { advisories: unknown[] }).advisories) {
+    if (!advisory || typeof advisory !== "object") return { ok: false, reason: "schema" };
+    const id = (advisory as { id?: unknown }).id;
+    if (typeof id !== "string" || id.trim().length === 0) return { ok: false, reason: "schema" };
+    const expiry = (advisory as { expiry?: unknown }).expiry;
+    if (expiry === undefined) continue;
+    if (typeof expiry !== "string" || expiry.trim().length === 0) return { ok: false, reason: "invalid_expiry" };
+    const parsed = new Date(expiry);
+    if (Number.isNaN(parsed.getTime())) return { ok: false, reason: "invalid_expiry" };
+    if (now >= parsed) expiredCount++;
+  }
+  return { ok: true, expiredCount };
+}
+
+
 /**
  * alix security doctor — Comprehensive passive security diagnosis.
  *
@@ -264,25 +288,25 @@ export async function handleSecurityDoctorComprehensive(args: string[]): Promise
     try {
       const raw = await readFile(exceptionsPath, "utf-8");
       const exceptions = JSON.parse(raw);
-      const now = new Date();
-      if (exceptions && Array.isArray(exceptions.items)) {
-        const expired = exceptions.items.filter(
-          (e: { expires?: string }) => e.expires && new Date(e.expires) < now,
-        );
+      const validation = validateSecurityExceptionsDocument(exceptions, new Date());
+      if (!validation.ok) {
         checks.push({
           id: "supplychain.exceptions",
           category: "supplychain",
-          status: expired.length > 0 ? "warn" : "pass",
-          message: expired.length > 0
-            ? `${exceptions.items.length} supply-chain exception(s), ${expired.length} expired.`
-            : `${exceptions.items.length} supply-chain exception(s), none expired.`,
+          status: "error",
+          message: validation.reason === "invalid_expiry"
+            ? "Supply-chain exception file contains an invalid expiry value."
+            : "Supply-chain exception file has an invalid advisory schema.",
         });
       } else {
+        const total = (exceptions as { advisories: unknown[] }).advisories.length;
         checks.push({
           id: "supplychain.exceptions",
           category: "supplychain",
-          status: "pass",
-          message: "Supply-chain exception file present.",
+          status: validation.expiredCount > 0 ? "warn" : "pass",
+          message: validation.expiredCount > 0
+            ? `${total} supply-chain exception(s), ${validation.expiredCount} expired.`
+            : `${total} supply-chain exception(s), none expired.`,
         });
       }
     } catch {
@@ -399,10 +423,11 @@ interface GateReport {
  * - Auth store exists
  * - At least one active token
  * - No expired security exceptions
- * - Audit chain is verifiable
+ * - Audit log presence (production requires it; integrity verification is separate)
+ * - Host binding is loopback or remote TLS is required
  *
  * Returns structured ok/fail with details.
- * Exit codes: 0=pass, 1=fail, 2=error, 3=invalid invocation
+ * Exit codes: 0=pass, 1=one or more failed checks.
  */
 interface GateCheckResult {
   /** Stable check identifier. */
@@ -490,18 +515,22 @@ export async function handleSecurityGate(args: string[]): Promise<void> {
   if (existsSync(exceptionsPath)) {
     try {
       const raw = await readFile(exceptionsPath, "utf-8");
-      const exceptions = JSON.parse(raw);
-      const now = new Date();
-      if (exceptions && Array.isArray(exceptions.items)) {
-        const expired = exceptions.items.filter(
-          (e: { expires?: string }) => e.expires && new Date(e.expires) < now,
-        );
+      const validation = validateSecurityExceptionsDocument(JSON.parse(raw), new Date());
+      if (!validation.ok) {
+        checks.push({
+          id: "supplychain.exceptions_schema",
+          ok: false,
+          message: validation.reason === "invalid_expiry"
+            ? "Security exceptions file contains an invalid expiry value."
+            : "Security exceptions file must contain an advisories array of exception objects with ids.",
+        });
+      } else {
         checks.push({
           id: "supplychain.expired_exceptions",
-          ok: expired.length === 0,
-          message: expired.length === 0
+          ok: validation.expiredCount === 0,
+          message: validation.expiredCount === 0
             ? "No expired security exceptions."
-            : `${expired.length} expired security exception(s) found.`,
+            : `${validation.expiredCount} expired security exception(s) found.`,
         });
       }
     } catch {
@@ -519,7 +548,7 @@ export async function handleSecurityGate(args: string[]): Promise<void> {
     });
   }
 
-  // ── Audit chain verifiable ──────────────────────────────────────
+  // ── Audit log presence (integrity verification is a separate command) ──
   const auditLogPath = join(paths.authStateDir, "audit.jsonl");
   if (existsSync(auditLogPath)) {
     checks.push({

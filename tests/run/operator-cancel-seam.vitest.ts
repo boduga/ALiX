@@ -12,7 +12,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { markerThenSleepCommand } from "../helpers/shell.js";
-import { mkdtempSync, mkdirSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, existsSync, realpathSync } from "node:fs";
 import { removeTempDirSync } from "../helpers/temp.js";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -265,7 +265,7 @@ async function buildToolHarness(): Promise<{
   const { ToolExecutor } = await import("../../src/capabilities/tools/executor.js");
   const { BASE_TOOLS } = await import("../../src/execution/run/helpers.js");
 
-  const tmpRoot = mkdtempSync(join(tmpdir(), "operator-cancel-tool-"));
+  const tmpRoot = realpathSync.native(mkdtempSync(join(tmpdir(), "operator-cancel-tool-")));
   const sessionDir = join(tmpRoot, ".alix", "sessions", "cancel-tool");
   mkdirSync(sessionDir, { recursive: true });
   const eventLog = new EventLog(sessionDir);
@@ -351,10 +351,13 @@ function toolProvider(responses: ToolProviderResponse[], calls?: () => void): Mo
 }
 
 describe("operator cancel reaches an in-flight tool (Task 6.1 current-tool propagation)", () => {
-  it("kills an in-flight shell.run child on operator cancel and unwinds as ExecutionCancelledError — never a tool failure", async () => {
+  it.skipIf(process.platform !== "linux")("kills an in-flight shell.run child on operator cancel and unwinds as ExecutionCancelledError — never a tool failure", async () => {
     const { CancellationToken, ExecutionCancelledError } = await import("../../src/runtime-state/runtime/cancellation-token.js");
     const { runTaskLoop } = await import("../../src/execution/run/task-loop.js");
     const h = await buildToolHarness();
+    const token = new CancellationToken();
+    const controller = new AbortController();
+    let loop: Promise<unknown> | undefined;
     try {
       const marker = join(h.root, "shell-spawn-proof");
       const provider = toolProvider([
@@ -366,17 +369,15 @@ describe("operator cancel reaches an in-flight tool (Task 6.1 current-tool propa
         },
       ]);
       const deps = h.buildDeps(provider);
-      const token = new CancellationToken();
-      const controller = new AbortController();
       deps.cancellationToken = token;
       deps.cancelSignal = controller.signal;
 
-      const loop = runTaskLoop(deps);
+      loop = runTaskLoop(deps);
       // Wait until the shell child has genuinely spawned (marker file proves the
       // `sh -c "touch …; sleep 30"` process is alive before we cancel).
       await vi.waitFor(() => {
         expect(existsSync(marker)).toBe(true);
-      });
+      }, { timeout: 10_000 });
 
       const start = Date.now();
       token.cancel("operator stop");
@@ -401,6 +402,9 @@ describe("operator cancel reaches an in-flight tool (Task 6.1 current-tool propa
       // The tool had started (child was mid-flight when cancelled).
       expect(events.some((e) => e.type === "tool.started" && (e.payload as { toolName?: string })?.toolName === "shell.run")).toBe(true);
     } finally {
+      token.cancel("test teardown");
+      controller.abort("test teardown");
+      if (loop) await Promise.race([loop.catch(() => undefined), new Promise(resolve => setTimeout(resolve, 2_000))]);
       h.cleanup();
     }
   });

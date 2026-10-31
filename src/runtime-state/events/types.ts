@@ -251,6 +251,8 @@ export const OWNERSHIP_EVENT_TYPES = {
   REVOKED: "ownership.revoked",
   DENIED: "ownership.denied",
   LOCK_FAILED: "ownership.lock_failed",
+  /** Durable ownership state was unreadable/malformed while under the lock. */
+  STATE_INVALID: "ownership.state_invalid",
 } as const;
 
 export const COORDINATION_EVENT_TYPES = {

@@ -1,63 +1,35 @@
 # D9 Phase F — bounded ambiguous-effect replay control
 
-This implementation adds a pre-adapter durable claim to `ToolExecutor` ordinary
-dispatch and continuation resume. It does not approve Phase F, Phase G, D9 or
-LEAN-G01, revise an independent verdict, or establish global exactly-once effects.
+**Current status (reconciled 2026-10-29):** implemented through Slice F at the exact-effect boundary. This record does not approve Phase F, D9, Harness Gate E, or LEAN-G01 and does not establish global exactly-once semantics. The current authority is ADR-0017 plus `src/capabilities/tools/effect-journal.ts`; earlier `effect-replay-guard` descriptions below are retained only as historical implementation context.
 
 ## Enforced boundary
 
-`src/capabilities/tools/effect-replay-guard.ts` uses trusted registry metadata to
-cover high/critical mutating routed tools, including shell and dynamic MCP.
-Only conservatively classified safe-shell reads and lower-risk/idempotent file
-creation keep their existing retry behavior. Ripgrep is entirely excluded from
-the read-only exemption: quoted `--pre` can pass shell admission while still
-executing a preprocessor. Successful rg calls still release their claims. Policy
-and ownership checks remain authoritative and precede the effect guard. Auto/bypass modes and a fresh explicit approval cannot override
-an unresolved effect claim.
+`src/capabilities/tools/effect-journal.ts` covers routed tools whose registry metadata is both mutating and high/critical risk, including dynamic `mcp.*`. Conservatively classified safe-shell reads remain outside the journal. Authorization, ownership and policy checks remain separate authorities; the journal neither grants permission nor substitutes for first-attempt authorization.
 
-The identity hashes canonical workspace, routed tool and stable repaired inputs,
-excluding invocation, session, agent, worker and approval identities. Shell
-identity uses command and execution cwd; timeout and persistent-pool controls do
-not change it. The safe-shell branch always executes at the router workspace
-root, so request cwd is excluded from its identity. The non-safe-shell branch now shares canonical workspace-relative directory
-resolution with the router; persistent pools enforce their initial directory.
-See the persistent-cwd correction below for the tightened execution contract. MCP
-uses exact tool and argument identity; it cannot infer a provider's business transaction identity from arbitrary input.
+Before adapter entry, ALiX snapshots effect-bearing request arguments, derives a stable exact-effect identity from canonical workspace/tool/arguments, takes an OS-managed per-effect lock, and durably records the journal claim and `started_unknown`. For non-safe shell execution the canonical execution cwd is part of both the identity and the request actually dispatched. Invocation/session/agent/approval IDs do not silently make the same exact effect a new operation.
 
-An exclusive create plus file/directory fsync precedes adapter entry. Only a
-normal success releases the claim. Returned errors, including ordinary errors
-without an adapter uncertainty flag, become non-retryable unknown outcomes;
-throws, cancellation and host death leave the claim unresolved. Existing or
-malformed claims and persistence failures prevent dispatch. Claims contain no
-raw command or plugin inputs. There is no age/PID sweep or automatic recovery.
+The execution path keeps the exact-effect lock across adapter completion. Success becomes durable `terminal_success`; definite returned failure becomes `terminal_failure`; timeout, signal, cancellation-after-entry, lost response, thrown transport/provider errors, and explicit `outcomeUnknown` remain non-retryable uncertainty unless stronger evidence exists. A persistence failure after the external effect is treated as unknown, never as success. Existing unresolved/reconciled-success records block exact replay.
 
-For manual reconciliation, stop competing hosts, determine the external outcome
-from authoritative provider/target evidence, and retain the claim and evidence.
-Do not remove an unresolved claim based on age, absent process, a new approval,
-or model prose. This slice supplies no clearing API or audited reconciliation
-workflow; implementing and qualifying that workflow remains release work.
+## Audited reconciliation
+
+Slice F adds `effect.reconcile` as a distinct, evidence-bound authority. Reconciliation is permitted only with a single-use approved binding to the current effect key **and journal generation**, requested `applied`/`not_applied` outcome, evidence hash/reference, actor identity and policy revision. Reconciliation snapshots its inputs before awaits, re-reads state while holding the same exact-effect lock after approval-store awaits, and serializes competing reconcilers.
+
+- `applied` → durable `reconciled_success`; replay remains blocked.
+- `not_applied` → durable `reconciled_not_applied`; only this state may be archived to release the exact effect for a fresh attempt.
+- Age, PID, a different invocation id, model prose, or a new unrelated approval never clears uncertainty.
+- Append/fsync reconciliation history records generation, actor, approval, policy and evidence identity.
+- An implementation/reviewer agent cannot self-authorize reconciliation or clear the D9 technical gate; missing delegated authority remains fail-closed.
+
+Qualification packet: `docs/prd/evidence/lean-01/D9-phase-f-slice-f-reconciliation-qualification-2026-10-29.md` (implementation `db9bf877`, 48/48 targeted tests PASS, independent post-fix review ACCEPT).
 
 ## Remaining release blockers and limitations
 
-- `RISK-REPLAY-01` remains OPEN. Equivalent commands/arguments with a different
-  representation, changed tool names, different workspaces, existing pre-upgrade
-  uncertain operations, direct provider/plugin effects and adapter-internal
-  retry paths are not globally deduplicated. Adapter-level verified idempotency
-  keys/reconciliation protocols are still required for broader coverage.
-- Claims can conservatively block an operation that never reached its adapter,
-  including crash-after-claim and pre-effect validation failure. Human recovery
-  needs a separately designed, audited protocol; repeated approval is insufficient.
-- A tool that returns success dishonestly or before an asynchronous effect is
-  settled can defeat the success boundary. Adapter outcome contracts require
-  independent qualification. Cancellation after adapter entry remains cooperative.
-- Process-kill tests do not qualify power loss, filesystem corruption, network
-  filesystems, Windows directory fsync or external-provider transactions. An
-  unsupported/unwritable claim store fails closed rather than silently replaying.
-- Independent security clearance, operator risk disposition and release
-  authorization remain absent. Existing portable-lock ambiguity, same-user
-  socket impersonation/PID identity limits and Windows daemon named-pipe
-  qualification remain separate blockers/limitations as recorded in the D9
-  evidence packet. This code does not dispose of those risks.
+- `RISK-REPLAY-01` / risk-register `R-014` remains **OPEN**. The exact-effect journal does not globally deduplicate semantically equivalent commands/arguments represented differently, different routed tools/workspaces, pre-upgrade uncertain operations, direct provider/plugin effects, or adapter/provider internal retries. Adapter/provider idempotency keys or authoritative reconciliation protocols are required for broader guarantees.
+- A claim can conservatively block an operation that never reached its adapter. Release requires evidence-bound reconciliation; repeated approval alone is insufficient.
+- A dishonest/premature adapter success can still defeat the external semantic boundary. Adapter/provider outcome contracts require their own qualification.
+- Process-crash tests do not establish kernel-crash, storage-controller, power-loss, network-filesystem, or external-provider transaction guarantees. Unsupported durability conditions fail closed rather than becoming replay permission.
+- Linux x86-64 native process-crash/process-tree evidence is qualified at its pinned packet. **Linux ARM64 native qualification remains required** for first-release Phase F under Q10. macOS/Windows/container certification is deferred by ADR-0017.
+- Slice G governance/evidence reconciliation and final D9/Harness gate reconciliation remain separate. Phase F remains HOLD.
 
 ## P1 corrections and verification (2026-10-28)
 

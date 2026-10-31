@@ -524,6 +524,8 @@ export class SubagentCLI {
         "input-paths": { type: "string" },
         output: { type: "string" },
         "coordination-run-id": { type: "string" },
+        "worker-attempt": { type: "string" },
+        "ownership-claims-json": { type: "string" },
         "credential-fd": { type: "string" },
         "assigned-objective": { type: "string" },
       },
@@ -549,10 +551,30 @@ export class SubagentCLI {
     const modelOverride = args.values.model;
     const outputFormat = args.values.output === "text" ? "text" : "json";
     const coordinationRunId = args.values["coordination-run-id"];
+    const workerAttemptRaw = args.values["worker-attempt"];
+    const workerAttempt = workerAttemptRaw === undefined ? undefined : Number(workerAttemptRaw);
+    let coordinationOwnershipClaims: Array<{ path: string; recursive: boolean; sourcePattern?: string }> | undefined;
+    if (args.values["ownership-claims-json"] !== undefined) {
+      try {
+        const parsed: unknown = JSON.parse(args.values["ownership-claims-json"]!);
+        if (!Array.isArray(parsed) || !parsed.every((claim) => claim && typeof claim === "object" &&
+          typeof (claim as any).path === "string" && typeof (claim as any).recursive === "boolean")) {
+          throw new Error("invalid ownership claims");
+        }
+        coordinationOwnershipClaims = parsed as Array<{ path: string; recursive: boolean; sourcePattern?: string }>;
+      } catch {
+        console.error("Invalid --ownership-claims-json for coordination worker");
+        process.exit(1);
+      }
+    }
     const credentialFd = Number(args.values["credential-fd"]);
 
     if (!taskId || !sessionId || !prompt) {
       console.error("Missing required args: --task-id, --session-id, --prompt");
+      process.exit(1);
+    }
+    if (coordinationRunId && (!Number.isInteger(workerAttempt) || (workerAttempt ?? -1) < 0)) {
+      console.error("Coordination workers require a non-negative --worker-attempt");
       process.exit(1);
     }
 
@@ -708,7 +730,9 @@ export class SubagentCLI {
     let approvalPort: WorkerApprovalPort | undefined;
     try {
       const { openWorkerApprovalPort } = await import("../governance/approvals/worker-approval-port.js");
-      approvalPort = await openWorkerApprovalPort(projectRoot, { eventLog, workerId: taskId });
+      approvalPort = await openWorkerApprovalPort(projectRoot, {
+        eventLog, workerId: taskId, workerAttempt: coordinationRunId ? workerAttempt : undefined,
+      });
     } catch (err) {
       // Readable, actionable evidence — never a silent downgrade.
       try {
@@ -744,6 +768,12 @@ export class SubagentCLI {
       // suppressed type checking for no benefit and implied the port needed
       // widening, which is the opposite of its purpose.
       ...(approvalPort ? { approvalStore: approvalPort } : {}),
+      ...(coordinationRunId && workerAttempt !== undefined ? {
+        coordinationContext: {
+          coordinationRunId, workerId: taskId, workerAttempt,
+          ownershipClaims: coordinationOwnershipClaims,
+        },
+      } : {}),
     });
 
     // Build system prompt with role instructions and context

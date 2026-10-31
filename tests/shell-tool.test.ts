@@ -58,6 +58,25 @@ test("runCommand timeout kills detached descendants", async () => {
   }
 });
 
+
+test("runCommand operator cancellation kills detached descendants", async () => {
+  if (process.platform === "win32") return;
+  const dir = mkdtempSync(join(tmpdir(), "alix-shell-cancel-tree-"));
+  const marker = join(dir, "orphaned");
+  const controller = new AbortController();
+  try {
+    const running = runCommand({
+      command: `sh -c 'sleep 0.4; touch "${marker}"' & wait`, cwd: dir, timeoutMs: 5000, signal: controller.signal,
+    });
+    setTimeout(() => controller.abort("native-cancel-probe"), 50);
+    await assert.rejects(running, /native-cancel-probe|cancel/i);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    assert.equal(existsSync(marker), false, "descendant survived operator cancellation");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("runCommand exposes only allowlisted environment variables", async () => {
   process.env.ALIX_TEST_SECRET = "must-not-leak";
   try {

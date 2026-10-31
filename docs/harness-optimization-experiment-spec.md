@@ -80,30 +80,22 @@ qualified.**
 
 | Control | Requirement | Current ALiX state |
 |---|---|---|
-| Sandbox / filesystem boundary | Workspace containment enforced; no writes outside the isolated root | Exists (`WorkspacePathResolver`, workspace containment contract) |
+| Sandbox / filesystem boundary | Workspace containment enforced; probe processes cannot read/write outside the isolated root | **PARTIAL** — file tools enforce `WorkspacePathResolver`, but committed PRE-R024 probe shows `shell.run` can read a sibling path outside `cwd` |
 | **Restricted egress** | Domain allowlist, DNS validation, private/link-local rejection — **including shell clients** | Exists (root contract: network policy applies to shell clients) |
 | No hidden rubrics | Benchmark answers/graders unreachable from the probe environment | **Must be verified per benchmark** — upstream warns rubrics may be online |
 | Secret controls | Credentials from the store only; never in env files or argv | Exists (store-only key resolution) |
 | Prompt-injection defenses | Fetched/retrieved content treated as data, never instructions | Exists (root contract) |
 | Side-effect policy | Approval-gated execution; no new write path | Exists (`ExecutionAuthorization` → `PolicyGate`) |
-| Replay | Runs reproducible from recorded evidence | Partial — table/arithmetic replay and scenario reproduction differ; see `audits/2026-10-23-harness-baseline-provenance.md` |
-| Negative tests | S0 negatives run **per arm**, a bypass is never a success | Exists; must be wired per arm |
+| Replay | Runs reproducible from recorded evidence | Partial — runner now requires a replay class and source pin; model-backed scenario reconstruction is still unproved |
+| Negative tests | S0 negatives run **per arm**, a bypass is never a success | **Mechanism qualified** — `pre-r024-arm-isolation-check.mjs` executes all four mandatory suites and fails the arm on any nonzero result |
 
 **Explicitly rejected from upstream:** unrestricted executor network access and
 disabled Codex sandboxing. PRD §13.3 pre-authorizes this rejection; the source
 review records why (§4.1 there).
 
-**Blocker:** "No hidden rubrics" is unqualified for every upstream benchmark
-(JobBench/LAB/WorkBuddy are public, and upstream itself warns graders may be
-fetched). Until that is closed, a model-backed probe would measure contamination
-as much as capability.
+**Blocker:** process isolation and hidden-rubric containment are not qualified. The committed shell-boundary probe demonstrates that a grader placed outside the workspace remains readable through `shell.run`; `cwd` is not a filesystem sandbox. Public upstream benchmarks add a second risk because graders may also be reachable remotely. Until both the process boundary and per-benchmark grader unreachability are proved, a model-backed probe is inadmissible.
 
-**Qualification status (2026-10-23):** six of eight controls now have executable
-adversarial evidence rather than an "exists" claim — see
-[isolation qualification record](harness-pre-r024-isolation-qualification.md) and
-`tests/security/pre-r024-isolation-qualification.vitest.ts`. The blocker above is
-unchanged, and per-arm execution of the S0 negative suites remains a runner
-obligation. Two rows still hold this gate shut.
+**Qualification status (requalified 2026-10-28):** five controls are qualified, sandbox/process isolation and replay are partial, and hidden-rubric containment is unqualified. The per-arm S0 runner mechanism is now executable and has a committed passing qualification-control record (44/44 mandatory negatives). See [isolation qualification record](harness-pre-r024-isolation-qualification.md), `benchmark/evidence/pre-r024-arm-isolation-check-2026-10-28.json`, and `benchmark/evidence/pre-r024-shell-boundary-probe-2026-10-28.json`.
 
 ---
 
@@ -119,13 +111,11 @@ obligation. Two rows still hold this gate shut.
 | **Holdout validation** | A portion of tasks is held out from proposal and used only for scoring, or the result is explicitly marked optimistic |
 | Rollback criteria | Every adopted candidate must be revertible in one commit; no candidate implies data migration (per `harness-cutover-plan.md` §3) |
 
-### 4.1 Cost ceiling
+### 4.1 Cost ceiling and budget authority
 
-Not defined. PRD §13 forbids inventing one; the operator sets it. For scale, a
-future paired run needs a valid task set, repetitions, arms, deliberate priced
-model and retry budget before a spend ceiling can be quoted. A Harness²-style
-recursion adds its explicit candidate/step multiplier. No earlier rough dollar
-estimate is an approved budget.
+No numeric default is defined; PRD §13 forbids inventing one. Every model-backed probe must resolve a **pre-existing immutable budget reference** from versioned policy/qualification configuration or from the signed run manifest before execution. The reference binds at least model/provider class, maximum candidate/step count, retry ceiling, and spend/resource ceiling. The evaluated/proposing agents may read this budget but may not create, raise, renew, or reinterpret it. If a required ceiling or its provenance cannot be resolved, the probe is durably **`BLOCKED`** before any billable/model-backed execution. Local/non-billable resource experiments still require an explicit resource-time/recursion budget rather than treating missing dollar cost as unlimited authority.
+
+A Harness²-style recursion multiplies the declared candidate/step budget explicitly. Historical rough estimates and unused headroom are evidence only, never execution authority.
 
 ---
 
@@ -142,6 +132,10 @@ A probe halts immediately on any of:
 6. **Secret exposure** — any credential appears in evidence or logs.
 
 Halt means: stop, record the failure state, do not report a comparison.
+
+### 5.1 Rollback / candidate invalidation criteria
+
+For any candidate that has progressed beyond a disposable probe into a governed adoption candidate, rollback or invalidation is mandatory when: (a) an S0/security negative fails; (b) an independently verified correctness regression breaches its pre-versioned acceptance rule; (c) evidence/provenance cannot be reproduced or is discovered contaminated; (d) the bound policy, model, tool surface, isolation profile, or scorer changes such that qualification no longer applies; or (e) a material side effect/outcome becomes unknown. The candidate change must remain revertible as the isolated change package described above; rollback restores the last independently qualified baseline and invalidates the candidate's qualification/evidence binding. If rollback cannot be proven safe or the candidate involved irreversible external effects, automation stops at durable `BLOCKED` and the candidate is not promoted. No agent may redefine these triggers after observing results.
 
 ---
 

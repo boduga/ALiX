@@ -340,6 +340,10 @@ export class SubagentManager {
           "--model", name,
           "--session-mode", sessionMode,
           ...(task.coordinationRunId ? ["--coordination-run-id", task.coordinationRunId] : []),
+          ...(task.coordinationRunId && task.coordinationWorkerAttempt !== undefined
+            ? ["--worker-attempt", String(task.coordinationWorkerAttempt)] : []),
+          ...(task.coordinationRunId && task.coordinationOwnershipClaims
+            ? ["--ownership-claims-json", JSON.stringify(task.coordinationOwnershipClaims)] : []),
           ...(task.coordinationRunId ? ["--credential-fd", "3"] : []),
           ...(task.ownedPaths?.length ? ["--owned-paths", task.ownedPaths.join(",")] : []),
           ...(task.inputPaths?.length ? ["--input-paths", JSON.stringify(task.inputPaths)] : []),

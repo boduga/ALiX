@@ -9,6 +9,8 @@ Every row below was verified against the pinned commit, not the PRD's earlier
 `e948e356` snapshot. Where a claim could not be verified it stays explicitly
 **UNKNOWN** rather than being inferred.
 
+> **Current-HEAD reconciliation (2026-10-28).** The table below remains the historical Gate 7-baseline inventory. Current candidate identity/consumer/owner/test/classification fields are reconciled in `docs/audits/2026-10-28-pre-r002-candidate-reconciliation.md`, after an independent source/test audit at `3638376c`. Current line/import counts must come from that reconciliation rather than the historical table.
+
 ---
 
 ## 1. Method

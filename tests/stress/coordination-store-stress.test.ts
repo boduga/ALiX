@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
 import { createCoordinationRun, createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
+import { closeSharedLedger } from "../../src/runtime-state/storage/runtime-ledger.js";
 import {
   runConcurrent,
   assertStressPasses,
@@ -27,7 +28,10 @@ const CONCURRENCY_LEVELS = [10, 50, 100];
 function createStore(): { cwd: string; store: CoordinationStore; cleanup: () => void } {
   const cwd = mkdtempSync(join(tmpdir(), "coord-stress-"));
   const store = new CoordinationStore(cwd);
-  return { cwd, store, cleanup: () => rmSync(cwd, { recursive: true, force: true }) };
+  return { cwd, store, cleanup: () => {
+    closeSharedLedger(cwd);
+    rmSync(cwd, { recursive: true, force: true });
+  } };
 }
 
 async function createRun(store: CoordinationStore): Promise<string> {
@@ -54,7 +58,10 @@ function makeWorker(runId: string, label: string) {
 // =========================================================================
 
 for (const N of CONCURRENCY_LEVELS) {
-  test(`parallel worker completions (N=${N})`, async () => {
+  // Setup persists N workers before N durable updates contend. Scale the test
+  // budget for that work while the production lock/idle limits stay unchanged.
+  const timeout = 30_000 + N * 500;
+  test(`parallel worker completions (N=${N})`, { timeout }, async () => {
     const { store, cleanup, cwd } = createStore();
     try {
       const runId = await createRun(store);
@@ -65,12 +72,14 @@ for (const N of CONCURRENCY_LEVELS) {
       }
 
       // Complete all workers in parallel
-      const result = await runConcurrent(N, (i) =>
-        store.patchWorker(runId, workers[i].id, {
+      const result = await runConcurrent(N, async (i) => {
+        const updated = await store.patchWorker(runId, workers[i].id, {
           status: "completed",
           resultRef: `result-${i}.json`,
-        }),
-      );
+        });
+        assert.ok(updated, `worker ${i} completion update was rejected`);
+        return updated;
+      });
 
       assertStressPasses(result);
       console.log(`  [N=${N}] ${stressSuiteSummary(result)}`);
@@ -86,7 +95,7 @@ for (const N of CONCURRENCY_LEVELS) {
     }
   });
 
-  test(`parallel worker failures (N=${N})`, async () => {
+  test(`parallel worker failures (N=${N})`, { timeout }, async () => {
     const { store, cleanup } = createStore();
     try {
       const runId = await createRun(store);
@@ -95,12 +104,14 @@ for (const N of CONCURRENCY_LEVELS) {
         await store.addWorker(runId, w);
       }
 
-      const result = await runConcurrent(N, (i) =>
-        store.patchWorker(runId, workers[i].id, {
+      const result = await runConcurrent(N, async (i) => {
+        const updated = await store.patchWorker(runId, workers[i].id, {
           status: "failed",
           error: `error-${i}`,
-        }),
-      );
+        });
+        assert.ok(updated, `worker ${i} failure update was rejected`);
+        return updated;
+      });
 
       assertStressPasses(result);
       console.log(`  [N=${N}] ${stressSuiteSummary(result)}`);
@@ -114,7 +125,7 @@ for (const N of CONCURRENCY_LEVELS) {
     }
   });
 
-  test(`CAS revision increments (N=${N})`, async () => {
+  test(`CAS revision increments (N=${N})`, { timeout }, async () => {
     const { store, cleanup, cwd } = createStore();
     try {
       const runId = await createRun(store);
@@ -150,7 +161,7 @@ for (const N of CONCURRENCY_LEVELS) {
     }
   });
 
-  test(`mixed read/write contention (N=${N})`, async () => {
+  test(`mixed read/write contention (N=${N})`, { timeout }, async () => {
     const { store, cleanup } = createStore();
     try {
       const runId = await createRun(store);
@@ -166,9 +177,11 @@ for (const N of CONCURRENCY_LEVELS) {
         const worker = run.workers.find(w => w.id === workers[i]?.id);
         if (!worker) throw new Error(`worker ${i} not found`);
 
-        return store.patchWorker(runId, workers[i].id, {
+        const updated = await store.patchWorker(runId, workers[i].id, {
           status: "running",
         });
+        assert.ok(updated, `worker ${i} running update was rejected`);
+        return updated;
       });
 
       assertStressPasses(result);

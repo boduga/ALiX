@@ -22,6 +22,7 @@ This directory contains ALiX's Architecture Decision Records (ADRs).
 | [ADR-0014](ADR-0014-naming-convention-milestone-vs-domain.md) | Naming Convention: Milestone vs Domain Identifiers | Accepted |
 | [ADR-0015](ADR-0015-srap-one-ledger-decision-evidence.md) | SRAP: One-Ledger Decision Evidence | Accepted |
 | [ADR-0016](ADR-0016-runtime-ledger-latency-budget.md) | Runtime-Ledger Latency Budget under `synchronous=FULL` | Accepted |
+| [ADR-0017](ADR-0017-d9-phase-f-effect-execution-contract.md) | D9 Phase F Effect Execution and Replay Contract | Proposed |
 
 ## What is an ADR?
 

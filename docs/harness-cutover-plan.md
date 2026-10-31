@@ -30,7 +30,7 @@ P0-A inventory ──────────────► P0-B invariants ─
                     P0-F migration design (PRE-R010/R011)
                               │
                               ▼
-                    P0-H approved cutover (Q04/Q05 + Gate E/F approval)
+                    P0-H agent-driven cutover qualification (Q04/Q05 + Gate E/F evidence)
 ```
 
 **Current position: between P0-D and P0-E.** Gate B is HOLD, so nothing downstream
@@ -44,7 +44,7 @@ is schedulable. This is the single most important fact in this document.
 
 | ID | Item | Reader inventory | Status |
 |---|---|---|---|
-| HC-11 | `config.model` / `config.subagents` compatibility projections, single writer `normalizeModelConfig` (`src/operations/config/loader.ts:40-77`) | **PARTIAL** — concrete reader/writer manifest in `audits/2026-10-23-harness-legacy-inventory.md`; dynamic/external/graph completeness unresolved | **blocked on PRE-R010** |
+| HC-11 | `config.model` / `config.subagents` compatibility projections, single writer `normalizeModelConfig` (`src/operations/config/loader.ts:40-77`) | **PRE-R010 inventory SUPPORTED** — concrete reader/writer manifest plus current-HEAD compiler triage; deep-import/runtime/reflection compatibility disposition and retirement qualification remain open | **blocked on PRE-R011 / Gate D / Q04-Q05, not PRE-R010 inventory** |
 
 This is the one genuine L0 candidate and it is **not ready to touch**. The
 final projections have a loader owner and identified live readers; pre-normalization
@@ -78,7 +78,7 @@ not a simplification, and needs its own S0 review.
 
 ## 3. Per-step plan shape
 
-Each schedulable step must carry all six fields before it can be approved. This is
+Each schedulable step must carry all six fields before it can be admitted by policy and independent verification. This is
 the template a future P0-H step must satisfy:
 
 | Field | Requirement |
@@ -93,7 +93,7 @@ the template a future P0-H step must satisfy:
 **Parity rule carried in from the root contract:** any change to what an
 allow/deny/owned decision *authorizes* needs an expected-outcome table broader
 than the implementation (`tests/ownership/path-scope.test.ts`), never a spot check.
-A cutover step that touches authorization without that table is unapprovable.
+A cutover step that touches authorization without that table is inadmissible and must remain `BLOCKED`.
 
 ---
 
@@ -102,7 +102,7 @@ A cutover step that touches authorization without that table is unapprovable.
 These are proposals, not execution approval. Supported surfaces to qualify are
 packaged CLI, daemon, Inspector and user/project configuration files. External
 deep-import consumers remain **unknown**; this document does not declare them
-unsupported. Graph-qualified completeness and owner review remain prerequisites.
+unsupported. Graph-qualified completeness and independent verifier/critic review remain prerequisites.
 No compatibility promise is withdrawn here. Loading historical input must remain
 non-mutating, and legacy input support is distinct from runtime output removal.
 
@@ -115,10 +115,8 @@ only design text; no runtime symbol or interface was changed.
 
 ### MP-01 — Runtime reader parity
 
-**Owner role:** configuration maintainer, with worker/runtime and CLI reviewers.
-**Dependency:** reviewed PRE-R010 manifest and repaired graph coverage before
-implementation; baseline/gates plus separate cutover authorization before any
-runtime change. Keep final projector throughout this package.
+**Responsible subsystem:** configuration; independent verifier/critic coverage must include worker/runtime and CLI behavior.
+**Dependency:** independently verified PRE-R010 manifest and repaired graph coverage before implementation; baseline/gates plus machine-verifiable delegated authority before any runtime change. Keep final projector throughout this package.
 
 **Input → output:** normalized configuration and role/style requests → existing
 model-selection/display return shapes sourced from canonical `models` via
@@ -161,16 +159,12 @@ assignments; those additional cases are proposed, not claimed as existing tests.
 **Stop / rollback:** any changed selected model, fallback error, behavior,
 redaction, restart result or new boundary violation stops adoption. Revert reader
 commit and its fixtures together. Projector and disk input remain intact, so no
-down-migration is required. Record before/after fixture parity for reviewer.
+down-migration is required. Record before/after fixture parity for independent verifier comparison.
 
 ### MP-02 — Runtime output-interface retirement
 
-**Owner role:** configuration/API maintainer; CLI, daemon and Inspector owners
-sign supported-surface inventory; compatibility owner resolves external users.
-**Dependency:** MP-01 parity, complete owner-reviewed consumers including dynamic
-and serialization paths, approved Q05 compatibility/version policy and explicit
-P0-H authorization. External deep-import uncertainty blocks removal unless an
-owner approves a documented treatment; silence is not consent.
+**Responsible subsystem:** configuration/API. CLI, daemon and Inspector supported-surface inventory must be independently verified; unresolved external consumers keep the package `BLOCKED`.
+**Dependency:** MP-01 parity, complete independently verified consumers including dynamic and serialization paths, versioned Q05 compatibility/version policy, and machine-verifiable P0-H delegated authority. External deep-import uncertainty blocks removal until evidence resolves it; silence is not consent.
 
 **Input → output:** canonical runtime config → runtime type/object without
 top-level `model` or six derived `subagents.<tier>` outputs. Historical JSON
@@ -187,10 +181,7 @@ serializer/plugin consumer must be added to manifest before removal. Keep
 does not authorize previously forbidden mutation paths.
 
 **Q05 delivery:** publish proposed old/new object examples and affected packaged
-CLI/daemon/Inspector/config-file behavior for owner review; declare transition
-version and deprecation interval only after owners choose them (none invented
-here). Require exact release/consumer inventory and documented external-consumer
-decision. Retain compatibility output until that decision is approved. Config
+CLI/daemon/Inspector/config-file behavior for independent verifier/critic review; declare transition version and deprecation interval only from versioned compatibility policy (none invented here). Require exact release/consumer inventory and a machine-verifiable external-consumer disposition. Retain compatibility output until that evidence exists. Config
 file aliases are governed by MP-03, not removed with output fields.
 
 **Verification proposal:** `tests/config-loader.test.ts`,
@@ -212,10 +203,7 @@ loads over unchanged historical fixtures before accepting rollback.
 
 ### MP-03 — Opt-in historical JSON migration protocol
 
-**Owner role:** config persistence maintainer; signing/trust and credential-store
-security reviewers approve data handling. **Dependency:** historical sample
-inventory, selected target/old release compatibility policy, reviewed transaction
-and recovery design, independent security qualification, explicit P0-H approval.
+**Responsible subsystem:** config persistence; signing/trust and credential-store behavior require independent security verification. **Dependency:** historical sample inventory, selected target/old release compatibility policy, verified transaction/recovery design, independent security qualification, and machine-verifiable P0-H delegated authority.
 Can be designed independently of MP-02; must not be used to force input removal.
 
 **Input → output:** explicitly selected user/project JSON containing legacy
@@ -268,8 +256,7 @@ write today: do not claim it already provides a multi-file migration transaction
 5. Secrets: credential-store entries and `cred://` references remain unchanged.
    Never resolve/copy keys into reports, repository files, argv or environment.
    Treat original config backups as secrets when historical input contains
-   literals; keep them private outside repo with restrictive permissions and an
-   operator-approved retention policy. Legacy secret relocation is a separate
+   literals; keep them private outside repo with restrictive permissions and a versioned retention policy. Legacy secret relocation is a separate
    credential migration, never an incidental model-field edit.
 6. Idempotence: content/generation-bound manifest identifies completed migration;
    second run reports no change and does not create another signature, provenance
@@ -285,7 +272,7 @@ representation from backup and sign an authorized new generation, preserving
 current trust rules. Stop if old release cannot read representation, current
 canonical data cannot be represented losslessly, post-migration edits conflict,
 backup/key unavailable, or signing authority absent. Never overwrite newer user
-changes with backup. Exact target-version decision remains owner approval input.
+changes with backup. Exact target-version decision must come from versioned compatibility policy or remain `BLOCKED`.
 
 **Verification proposal:** extend `tests/config-loader.test.ts`,
 `tests/config/model-invariant.test.ts`, `tests/config/persistence.test.ts`,
@@ -301,9 +288,8 @@ These protocol tests and migration utility are **not implemented** by this doc.
 ### Package acceptance / outstanding approval
 
 Q04/Q05 now have concrete proposals, affected files, parity cases, recovery and
-stop criteria. Gate D remains **NOT MET**: graph/dynamic/external completeness,
-target-version compatibility decisions, owner review, executable transaction
-qualification and security approval are unresolved. No package may be executed,
+stop criteria. Gate D remains **NOT MET**: graph/external/deep-import/reflection/runtime completeness,
+target-version compatibility decisions, independent verifier/critic review, executable transaction qualification, and security qualification are unresolved. No package may be executed,
 no alias removed, and no sign-off inferred from this design.
 
 ---
@@ -323,9 +309,8 @@ no alias removed, and no sign-off inferred from this design.
 ## 6. Explicit non-decisions
 
 - **No retirement is approved.** HC-11 is blocked, HC-01/HC-03 are unmeasured.
-- **Migration packages are proposed, not approved or implemented.** Q04/Q05
-  completeness and owner review remain open.
-- **No production change is authorized.** §12.4 and Q13 both stand.
+- **Migration packages are proposed, not approved or implemented.** Q04/Q05 completeness and independent verification remain open.
+- **No production change may exceed delegated authority.** Missing machine-verifiable authority yields durable `BLOCKED`; §12.4 and Q13 external release boundaries still stand.
 - **No dates.** Duration estimates would be invented; the PRD forbids fabricated
   numeric targets, and a schedule derived from nothing is the same defect.
 
@@ -333,10 +318,7 @@ no alias removed, and no sign-off inferred from this design.
 
 ## 7. Verdict
 
-**Gate D: NOT MET.** PRE-R010 is partially met (the one L0 candidate is
-characterised and its concrete readers are enumerated, but supported-interface
-completeness remains unresolved); PRE-R011 now has three concrete design-only
-packages, not an approved or qualified complete cutover plan.
+**Gate D: NOT MET.** PRE-R010 inventory is supported: the L0 compatibility surface, known readers/writers, legacy formats/aliases, supported surfaces, and migration paths are inventoried, with external/deep-import uncertainty explicitly retained. PRE-R011 still has three concrete design-only packages rather than a qualified cutover; Q04/Q05 compatibility policy, parity, recovery, and retirement safety remain unresolved.
 
 The plan's value today is the ordering constraint it records: **nothing downstream
 of P0-D is schedulable while Gate B is HOLD**, and the first real step is a reader

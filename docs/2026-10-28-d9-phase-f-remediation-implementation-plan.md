@@ -1,21 +1,39 @@
 # D9 R4.2 Phase F — Coordinated Remediation Implementation Plan
 
-**Status:** implementation-ready plan / code freeze remains until contract decisions are recorded  
+**Status:** implementation-ready plan / §0 contract decisions recorded in ADR-0017; test-first implementation may proceed  
 **Date:** 2026-10-28  
 **Scope:** F1–F7 from `/tmp/alix-d9-consolidated-design-audit-20261028.log`  
 **Primary objective:** remove replay/authorization/completion ambiguity as one execution-boundary change, then qualify supported platforms and reconcile governance evidence.
+
+## Authority and scoped-freeze boundary
+
+This plan is an **already-active D9 dependency-resolution lane**, not authorization to resume the broader PRE-2.0 program. Its requirement chain is:
+
+```text
+ALiX Master PRD v2.9
+├─ PRE-2.0 Master PRD v1.1
+│  └─ D9 / LEAN-R006 / LEAN-G01 dependency constraints
+└─ Harness PRD v1.2
+   └─ Gate E execution/security + uncertain-effect stop rules
+        ↓
+ADR-0017 → this remediation plan → implementation → independent qualification
+```
+
+The PRE-2.0 Master PRD is frozen for **new** work while Harness v1.2 closeout and D9 are reconciled. Permitted under the D9 exception: Phase F remediation, tests, native-platform qualification, evidence reconciliation, and the minimum contract/document changes required to close D9. Not permitted under this exception: unrelated LEAN optimization/cutover, new capability expansion, new milestone execution, or treating D9 progress as LEAN-G01 PASS. Harness PRE-R001–PRE-R032 and Gate F remain independently controlled until their own closeout evidence is accepted.
 
 ## 0. Non-negotiable design decisions before code changes
 
 Record these explicitly in this document or a linked ADR before implementation begins:
 
-1. **Supported platforms:** Linux / macOS / Windows: required, conditional, or unsupported for Phase F.
-2. **Durability target:** distinguish process crash, kernel crash, and power-loss guarantees per supported filesystem.
-3. **Threat model:** whether a hostile same-user local process is in scope in addition to untrusted model/project/plugin content.
-4. **Completion authority:** a tool effect is not terminal-success until both execution completion and durable outcome recording satisfy the chosen contract.
-5. **Risk authority:** name the role allowed to approve platform exclusions, residual risk, and Phase F clearance.
+The five decisions are now recorded in ADR-0017:
 
-Until those are recorded, no implementation PR should claim Phase F readiness.
+1. **Supported platforms:** Linux x86-64 and ARM64 are required for first-release Phase F qualification per Master PRD Q10; macOS/Windows/container certification is deferred.
+2. **Durability target:** mandatory process-crash/restart safety; kernel/power-loss durability is not claimed unless separately qualified.
+3. **Threat model:** untrusted model/project/plugin/shell inputs, ALiX crashes/concurrency and ALiX-created races are in scope; an unrestricted hostile same-user process is not the Phase F integrity boundary.
+4. **Completion authority:** terminal success requires both unambiguous execution completion and durable `terminal_success` recording for the same effect identity.
+5. **Risk authority:** the technical gate is agent-driven with independent verifier/critic separation and deterministic/native evidence. There is **no residual-risk waiver path** inside D9: unresolved risk or missing evidence means `HOLD`. Q13 release authority remains external and unchanged.
+
+These decisions authorize test-first remediation work; they do not claim Phase F readiness.
 
 ## 1. Architectural target
 
@@ -164,15 +182,14 @@ Prove guard/journal behavior across:
 
 For each declared supported platform, implement/qualify persistence and process-tree behavior.
 
-**Linux:** ext4/xfs scope recorded; directory durability behavior tested.  
-**macOS:** APFS behavior and durability target recorded; do not claim power-loss durability from ordinary fsync without evidence.  
-**Windows:** native NTFS implementation; do not assume POSIX directory-open/fsync semantics; qualify process-tree cancellation independently of `/bin/bash`.
+**Linux x86-64 / ARM64 (required):** qualify the selected supported filesystem assumptions and process-tree behavior natively on both architectures. Record filesystem/mount context with the evidence; do not generalize ordinary `fsync` into an untested power-loss claim.  
+**macOS / Windows / containers (deferred):** may receive development backends, but are not first-release certification requirements under Q10. Until separately qualified, guarded effects must fail closed where their durability/process-control contract is unavailable and documentation must not advertise them as certified.
 
-If a platform cannot satisfy required durability, return a stable `unsupported_effect_durability` style error before adapter entry and document that platform as unsupported for guarded effects.
+If a required Linux target cannot satisfy required durability, return a stable `unsupported_effect_durability` style error before adapter entry; Phase F remains HOLD.
 
 ### Slice F — recovery/reconciliation
 
-Add an audited operator reconciliation path for unresolved journal entries.
+Add an audited delegated reconciliation path for unresolved journal entries. The path is agent-driven within pre-delegated authority; missing authority fails closed and no implementation/reviewer agent may self-authorize reconciliation.
 
 Requirements:
 - never clear by age/PID alone;
@@ -221,7 +238,7 @@ Platform test collection alone is not qualification. Native execution evidence i
 8. Reconcile governance/risk/evidence docs.
 9. Run full native platform matrix plus typecheck/build/unused/DOX/dependency analysis.
 10. Independent final architecture/security review.
-11. Authorized operator/security disposition.
+11. Independent verifier/critic technical verdict against the exact evidence tree. Q13 publication/release authority remains external to D9 and unchanged.
 
 ## 5. Explicit no-go conditions
 
@@ -234,11 +251,11 @@ Phase F cannot clear if any of the following remain:
 - a declared supported platform lacks native qualification for journal durability and child-process semantics;
 - unresolved effects can be auto-cleared by PID/age or reviewer/agent decision;
 - evidence hashes/tree/platform provenance are inconsistent;
-- residual security risk lacks authorized disposition.
+- unresolved residual security risk or missing required qualification evidence remains; D9 has no in-loop waiver path.
 
 ## 6. Current gate state
 
 - Phase F: **HOLD**
-- Code changes authorized by this plan: **NO — pending §0 decisions**
-- Commit/push/merge: **NONE**
-- Existing uncommitted working tree must be preserved while remediation is staged deliberately.
+- Code changes authorized by this plan: **YES for the bounded D9 remediation/test/qualification work described above; §0 decisions are recorded in ADR-0017. This does not authorize unrelated PRE-2.0 work or release.**
+- Local remediation commits: **present on `fix/d9-phase-f-remediation-v2`**.
+- Push/merge: **not performed by this plan state**; technical qualification does not itself authorize release or merge.

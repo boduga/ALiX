@@ -41,6 +41,10 @@ const TIMING_SENSITIVE = new Set(["soak", "stress"]);
 
 function collect(dir, out) {
   for (const entry of readdirSync(dir)) {
+    // tsconfig.tests.json emits a second copy under dist/tests/tests/.
+    // Those copies resolve ../../src relative to the wrong output root;
+    // run only the canonical dist/tests/<suite>/ artifacts.
+    if (dir === DIST_TESTS && entry === "tests") continue;
     const full = join(dir, entry);
     const st = statSync(full);
     if (st.isDirectory()) {
@@ -57,6 +61,10 @@ function collect(dir, out) {
 const files = [];
 collect(DIST_TESTS, files);
 console.log(`[test:${onlyManual ? "manual" : includeSlow ? "slow" : "node"}] ${files.length} test file(s)`);
+if (process.argv.includes("--list")) {
+  for (const file of files) console.log(file);
+  process.exit(0);
+}
 
 const testArgs = ["--test", "--test-timeout=30000"];
 if (onlyManual) testArgs.push("--test-concurrency=1");

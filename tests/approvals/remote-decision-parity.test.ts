@@ -163,6 +163,20 @@ describe("remote-decision parity", () => {
     return rec.id;
   }
 
+  /** Persist a corrupt expiry through the authoritative ledger, as a legacy row would load. */
+  async function seedApprovalWithExpiry(expiresAt: string | undefined): Promise<string> {
+    const id = await seedApproval();
+    const store = new ApprovalStore(root);
+    await store.load();
+    await store.mutate((approvals) => {
+      const record = approvals.find((a) => a.id === id);
+      if (!record) return;
+      if (expiresAt === undefined) delete (record as { expiresAt?: string }).expiresAt;
+      else record.expiresAt = expiresAt;
+    });
+    return id;
+  }
+
   beforeEach(async () => {
     root = join(tmpdir(), `srap-parity-${randomUUID()}`);
     stateDir = join(tmpdir(), `srap-state-${randomUUID()}`);
@@ -385,6 +399,25 @@ describe("remote-decision parity", () => {
     assert.equal(c.status, 409);
     assert.deepEqual(c.body, { error: "expired" });
   });
+
+  for (const [label, expiresAt] of [
+    ["missing", undefined],
+    ["empty", ""],
+    ["malformed", "not-a-date"],
+  ] as const) {
+    it(`${label} pending approval expiry → 409, never a decision`, { timeout: 10_000 }, async () => {
+      // CONTRIBUTING: real timers (setImmediate body + poll loop) ⇒ 10s cap.
+      const corruptId = await seedApprovalWithExpiry(expiresAt);
+      const c = await invoke(root, ctxWith({}), {}, tlsReq({ decision: "approved", nonce: "n1" }), corruptId);
+      assert.equal(c.status, 409);
+      assert.deepEqual(c.body, { error: "expired" });
+
+      const store = new ApprovalStore(root);
+      await store.load();
+      assert.equal(store.get(corruptId)?.status, "pending", "corrupt authority must not be decided");
+      assert.equal(store.get(corruptId)?.remoteDecisionEvidence, undefined);
+    });
+  }
 
   // -- Durable key-read evidence ------------------------------------------
   it("records a durable, non-secret key-read audit entry on success", { timeout: 10_000 }, async () => {

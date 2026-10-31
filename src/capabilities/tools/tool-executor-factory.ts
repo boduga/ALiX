@@ -16,6 +16,7 @@ import type { McpManager } from "../mcp/manager.js";
 import type { EditFormatPolicy } from "../../execution/patch/edit-format-policy.js";
 import type { CheckpointManager } from "../../execution/patch/checkpoint.js";
 import type { ToolCallRequest, ToolResult } from "./types.js";
+import type { CoordinationExecutionContext } from "../../runtime-state/runtime/execution-decision.js";
 
 export type { ToolExecutor } from "./executor.js";
 
@@ -35,6 +36,8 @@ export interface ToolExecutorOptions {
   workspacePathResolver?: unknown;
   ownershipRegistry?: unknown;
   ownedPaths?: string[];
+  /** Trusted coordination identity supplied by the host process, never model-authored. */
+  coordinationContext?: CoordinationExecutionContext;
 }
 
 /** Construct a `ToolExecutor` from named options. */
@@ -51,5 +54,6 @@ export function createToolExecutor(options: ToolExecutorOptions): ToolExecutor {
     options.workspacePathResolver,
     options.ownershipRegistry,
     options.ownedPaths,
+    options.coordinationContext,
   );
 }

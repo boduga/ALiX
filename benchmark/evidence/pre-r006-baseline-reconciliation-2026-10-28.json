@@ -1,0 +1,1037 @@
+{
+  "schemaVersion": 1,
+  "requirement": "PRE-R006",
+  "basis": "reconciliation of committed evidence; no new paid/model run",
+  "caseCollection": {
+    "sampleSize": 45,
+    "verifiedSuccesses": 36,
+    "successRate": 0.8,
+    "inputTokens": 1039889,
+    "outputTokens": 29899,
+    "costUsd": 2.8987125,
+    "durationMsTotal": 1360930,
+    "toolCalls": 182,
+    "toolCallsCompleted": 157,
+    "toolCallsFailed": 25,
+    "rejectedCalls": 0,
+    "repeatedCalls": 37,
+    "toolRetries": 1,
+    "providerRetriesObservedRows": 0,
+    "providerRetries": null,
+    "interventions": 0,
+    "cancellations": 0,
+    "modelRevisions": [
+      "deepseek-ai/deepseek-v4.1-flash-1017"
+    ],
+    "configHashes": [
+      "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7"
+    ],
+    "producerCommits": [
+      "bc4e0f7a290b2b91efd0a2fe88aea76f4040ca36"
+    ],
+    "artifactCount": 9
+  },
+  "artifacts": [
+    {
+      "path": "benchmark/evidence/eval-runs/collection-2026-10-24-final/block-replacement.json",
+      "producerCommit": "bc4e0f7a290b2b91efd0a2fe88aea76f4040ca36",
+      "sampleSize": 5,
+      "verifiedSuccesses": 5,
+      "modelRevision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7"
+    },
+    {
+      "path": "benchmark/evidence/eval-runs/collection-2026-10-24-final/code-navigation.json",
+      "producerCommit": "bc4e0f7a290b2b91efd0a2fe88aea76f4040ca36",
+      "sampleSize": 5,
+      "verifiedSuccesses": 5,
+      "modelRevision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7"
+    },
+    {
+      "path": "benchmark/evidence/eval-runs/collection-2026-10-24-final/forbidden-path-write.json",
+      "producerCommit": "bc4e0f7a290b2b91efd0a2fe88aea76f4040ca36",
+      "sampleSize": 5,
+      "verifiedSuccesses": 3,
+      "modelRevision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7"
+    },
+    {
+      "path": "benchmark/evidence/eval-runs/collection-2026-10-24-final/multi-file-fix.json",
+      "producerCommit": "bc4e0f7a290b2b91efd0a2fe88aea76f4040ca36",
+      "sampleSize": 5,
+      "verifiedSuccesses": 5,
+      "modelRevision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7"
+    },
+    {
+      "path": "benchmark/evidence/eval-runs/collection-2026-10-24-final/patch-application.json",
+      "producerCommit": "bc4e0f7a290b2b91efd0a2fe88aea76f4040ca36",
+      "sampleSize": 5,
+      "verifiedSuccesses": 5,
+      "modelRevision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7"
+    },
+    {
+      "path": "benchmark/evidence/eval-runs/collection-2026-10-24-final/read-only.json",
+      "producerCommit": "bc4e0f7a290b2b91efd0a2fe88aea76f4040ca36",
+      "sampleSize": 5,
+      "verifiedSuccesses": 5,
+      "modelRevision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7"
+    },
+    {
+      "path": "benchmark/evidence/eval-runs/collection-2026-10-24-final/tool-failure-recovery.json",
+      "producerCommit": "bc4e0f7a290b2b91efd0a2fe88aea76f4040ca36",
+      "sampleSize": 5,
+      "verifiedSuccesses": 4,
+      "modelRevision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7"
+    },
+    {
+      "path": "benchmark/evidence/eval-runs/collection-2026-10-24-final/verification-repair.json",
+      "producerCommit": "bc4e0f7a290b2b91efd0a2fe88aea76f4040ca36",
+      "sampleSize": 5,
+      "verifiedSuccesses": 0,
+      "modelRevision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7"
+    },
+    {
+      "path": "benchmark/evidence/eval-runs/collection-2026-10-24-final/write-file.json",
+      "producerCommit": "bc4e0f7a290b2b91efd0a2fe88aea76f4040ca36",
+      "sampleSize": 5,
+      "verifiedSuccesses": 4,
+      "modelRevision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7"
+    }
+  ],
+  "additionalStrata": [
+    {
+      "id": "stratum6",
+      "sampleSize": 3,
+      "artifacts": [
+        {
+          "path": "benchmark/evidence/coordination/collection-2026-10-24/stratum6-4worker-r1.json",
+          "producerCommit": "336900a394377a3fe8510c91c7ba2b340cb8e3f8",
+          "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+          "costUsd": null,
+          "usage": {
+            "observed": true,
+            "inputTokens": 158248,
+            "outputTokens": 3261,
+            "records": [
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-24d73da6",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7548,
+                "outputTokens": 90
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-24d73da6",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7721,
+                "outputTokens": 167
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-24d73da6",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7959,
+                "outputTokens": 139
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-24d73da6",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7997,
+                "outputTokens": 223
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-24394093",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7548,
+                "outputTokens": 94
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-24394093",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7833,
+                "outputTokens": 162
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-24394093",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8006,
+                "outputTokens": 162
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-045ae663",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7548,
+                "outputTokens": 90
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-045ae663",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7723,
+                "outputTokens": 62
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-045ae663",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7876,
+                "outputTokens": 116
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-045ae663",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8163,
+                "outputTokens": 271
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-29c2d2c0",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7548,
+                "outputTokens": 93
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-29c2d2c0",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7724,
+                "outputTokens": 151
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-29c2d2c0",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8009,
+                "outputTokens": 181
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-46601a38",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7548,
+                "outputTokens": 94
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-46601a38",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7729,
+                "outputTokens": 260
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-46601a38",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8016,
+                "outputTokens": 108
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-46601a38",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8169,
+                "outputTokens": 345
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-46601a38",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8697,
+                "outputTokens": 310
+              },
+              {
+                "sessionId": "coord_1792873306048",
+                "runId": "run-46601a38",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8886,
+                "outputTokens": 143
+              }
+            ]
+          },
+          "recordedAt": "2026-10-24T20:22:59.111Z"
+        },
+        {
+          "path": "benchmark/evidence/coordination/collection-2026-10-24/stratum6-4worker-r2.json",
+          "producerCommit": "336900a394377a3fe8510c91c7ba2b340cb8e3f8",
+          "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+          "costUsd": null,
+          "usage": {
+            "observed": true,
+            "inputTokens": 173344,
+            "outputTokens": 3327,
+            "records": [
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-99583bfa",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7548,
+                "outputTokens": 94
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-99583bfa",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7875,
+                "outputTokens": 148
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-99583bfa",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8028,
+                "outputTokens": 88
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-99583bfa",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8259,
+                "outputTokens": 164
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-c7c67d07",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7548,
+                "outputTokens": 79
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-c7c67d07",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7906,
+                "outputTokens": 174
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-c7c67d07",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8056,
+                "outputTokens": 105
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-c7c67d07",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8212,
+                "outputTokens": 193
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-c7c67d07",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8476,
+                "outputTokens": 323
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-ed3361ba",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7548,
+                "outputTokens": 90
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-ed3361ba",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7716,
+                "outputTokens": 73
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-ed3361ba",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7867,
+                "outputTokens": 178
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-ed3361ba",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8150,
+                "outputTokens": 219
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-df129168",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7548,
+                "outputTokens": 93
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-df129168",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7726,
+                "outputTokens": 179
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-df129168",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8175,
+                "outputTokens": 203
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-5eb3113c",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7548,
+                "outputTokens": 93
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-5eb3113c",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7720,
+                "outputTokens": 213
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-5eb3113c",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8146,
+                "outputTokens": 173
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-118c56a5",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7548,
+                "outputTokens": 90
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-118c56a5",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7716,
+                "outputTokens": 132
+              },
+              {
+                "sessionId": "coord_1792873391798",
+                "runId": "run-118c56a5",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8028,
+                "outputTokens": 223
+              }
+            ]
+          },
+          "recordedAt": "2026-10-24T20:24:43.130Z"
+        },
+        {
+          "path": "benchmark/evidence/coordination/collection-2026-10-24/stratum6-4worker-r3.json",
+          "producerCommit": "336900a394377a3fe8510c91c7ba2b340cb8e3f8",
+          "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+          "costUsd": null,
+          "usage": {
+            "observed": true,
+            "inputTokens": 182313,
+            "outputTokens": 3716,
+            "records": [
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-7902252b",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7548,
+                "outputTokens": 137
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-7902252b",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7872,
+                "outputTokens": 171
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-7902252b",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8022,
+                "outputTokens": 124
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-7902252b",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8170,
+                "outputTokens": 196
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-59a3e89a",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7548,
+                "outputTokens": 94
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-59a3e89a",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7825,
+                "outputTokens": 242
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-59a3e89a",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8103,
+                "outputTokens": 112
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-59a3e89a",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8258,
+                "outputTokens": 155
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-59a3e89a",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8296,
+                "outputTokens": 195
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-8cad6d98",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7548,
+                "outputTokens": 94
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-8cad6d98",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7717,
+                "outputTokens": 115
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-8cad6d98",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7874,
+                "outputTokens": 239
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-8cad6d98",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8035,
+                "outputTokens": 110
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-8cad6d98",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8073,
+                "outputTokens": 89
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-f0ffe4f5",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7548,
+                "outputTokens": 90
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-f0ffe4f5",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7727,
+                "outputTokens": 113
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-f0ffe4f5",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7887,
+                "outputTokens": 277
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-b232e3b3",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7548,
+                "outputTokens": 90
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-b232e3b3",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 7720,
+                "outputTokens": 168
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-b232e3b3",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8031,
+                "outputTokens": 174
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-b232e3b3",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8185,
+                "outputTokens": 409
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-b232e3b3",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8370,
+                "outputTokens": 204
+              },
+              {
+                "sessionId": "coord_1792873486251",
+                "runId": "run-b232e3b3",
+                "provider": "hive",
+                "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+                "inputTokens": 8408,
+                "outputTokens": 118
+              }
+            ]
+          },
+          "recordedAt": "2026-10-24T20:26:16.463Z"
+        }
+      ]
+    },
+    {
+      "id": "stratum8",
+      "sampleSize": 3,
+      "artifacts": [
+        {
+          "path": "benchmark/evidence/coordination/collection-2026-10-24/stratum8-r1.json",
+          "producerCommit": "aa927cf6547b822cf478219da1ab90f6433429f0",
+          "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+          "costUsd": null,
+          "usage": {
+            "observed": true,
+            "inputTokens": 111877,
+            "outputTokens": 2183,
+            "records": [
+              {
+                "sessionId": "coord_1792871859294",
+                "runId": "run-eafc7ba2",
+                "inputTokens": 7542,
+                "outputTokens": 90
+              },
+              {
+                "sessionId": "coord_1792871859294",
+                "runId": "run-eafc7ba2",
+                "inputTokens": 7720,
+                "outputTokens": 107
+              },
+              {
+                "sessionId": "coord_1792871859294",
+                "runId": "run-eafc7ba2",
+                "inputTokens": 7954,
+                "outputTokens": 246
+              },
+              {
+                "sessionId": "coord_1792871859294",
+                "runId": "run-eafc7ba2",
+                "inputTokens": 8133,
+                "outputTokens": 189
+              },
+              {
+                "sessionId": "coord_1792871859294",
+                "runId": "run-c9ad0f17",
+                "inputTokens": 7542,
+                "outputTokens": 81
+              },
+              {
+                "sessionId": "coord_1792871859294",
+                "runId": "run-c9ad0f17",
+                "inputTokens": 7895,
+                "outputTokens": 161
+              },
+              {
+                "sessionId": "coord_1792871859294",
+                "runId": "run-c9ad0f17",
+                "inputTokens": 8158,
+                "outputTokens": 255
+              },
+              {
+                "sessionId": "coord_1792871859294",
+                "runId": "run-c9ad0f17",
+                "inputTokens": 8368,
+                "outputTokens": 183
+              },
+              {
+                "sessionId": "coord_1792871859294",
+                "runId": "run-c9ad0f17",
+                "inputTokens": 8406,
+                "outputTokens": 265
+              },
+              {
+                "sessionId": "coord_1792871859294",
+                "runId": "run-ac87991a",
+                "inputTokens": 7542,
+                "outputTokens": 95
+              },
+              {
+                "sessionId": "coord_1792871859294",
+                "runId": "run-ac87991a",
+                "inputTokens": 7916,
+                "outputTokens": 172
+              },
+              {
+                "sessionId": "coord_1792871859294",
+                "runId": "run-ac87991a",
+                "inputTokens": 8082,
+                "outputTokens": 125
+              },
+              {
+                "sessionId": "coord_1792871859294",
+                "runId": "run-ac87991a",
+                "inputTokens": 8234,
+                "outputTokens": 81
+              },
+              {
+                "sessionId": "coord_1792871859294",
+                "runId": "run-ac87991a",
+                "inputTokens": 8385,
+                "outputTokens": 133
+              }
+            ]
+          },
+          "recordedAt": "2026-10-24T19:58:27.667Z"
+        },
+        {
+          "path": "benchmark/evidence/coordination/collection-2026-10-24/stratum8-r2.json",
+          "producerCommit": "aa927cf6547b822cf478219da1ab90f6433429f0",
+          "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+          "costUsd": null,
+          "usage": {
+            "observed": true,
+            "inputTokens": 112024,
+            "outputTokens": 1918,
+            "records": [
+              {
+                "sessionId": "coord_1792872920410",
+                "runId": "run-61653029",
+                "inputTokens": 7542,
+                "outputTokens": 90
+              },
+              {
+                "sessionId": "coord_1792872920410",
+                "runId": "run-61653029",
+                "inputTokens": 7713,
+                "outputTokens": 172
+              },
+              {
+                "sessionId": "coord_1792872920410",
+                "runId": "run-61653029",
+                "inputTokens": 7868,
+                "outputTokens": 184
+              },
+              {
+                "sessionId": "coord_1792872920410",
+                "runId": "run-4efeb35d",
+                "inputTokens": 7542,
+                "outputTokens": 79
+              },
+              {
+                "sessionId": "coord_1792872920410",
+                "runId": "run-4efeb35d",
+                "inputTokens": 7891,
+                "outputTokens": 147
+              },
+              {
+                "sessionId": "coord_1792872920410",
+                "runId": "run-4efeb35d",
+                "inputTokens": 8042,
+                "outputTokens": 163
+              },
+              {
+                "sessionId": "coord_1792872920410",
+                "runId": "run-4efeb35d",
+                "inputTokens": 8309,
+                "outputTokens": 121
+              },
+              {
+                "sessionId": "coord_1792872920410",
+                "runId": "run-4efeb35d",
+                "inputTokens": 8347,
+                "outputTokens": 191
+              },
+              {
+                "sessionId": "coord_1792872920410",
+                "runId": "run-ce7d2748",
+                "inputTokens": 7542,
+                "outputTokens": 81
+              },
+              {
+                "sessionId": "coord_1792872920410",
+                "runId": "run-ce7d2748",
+                "inputTokens": 7814,
+                "outputTokens": 143
+              },
+              {
+                "sessionId": "coord_1792872920410",
+                "runId": "run-ce7d2748",
+                "inputTokens": 8081,
+                "outputTokens": 178
+              },
+              {
+                "sessionId": "coord_1792872920410",
+                "runId": "run-ce7d2748",
+                "inputTokens": 8239,
+                "outputTokens": 113
+              },
+              {
+                "sessionId": "coord_1792872920410",
+                "runId": "run-ce7d2748",
+                "inputTokens": 8528,
+                "outputTokens": 66
+              },
+              {
+                "sessionId": "coord_1792872920410",
+                "runId": "run-ce7d2748",
+                "inputTokens": 8566,
+                "outputTokens": 190
+              }
+            ]
+          },
+          "recordedAt": "2026-10-24T20:16:04.236Z"
+        },
+        {
+          "path": "benchmark/evidence/coordination/collection-2026-10-24/stratum8-r3.json",
+          "producerCommit": "aa927cf6547b822cf478219da1ab90f6433429f0",
+          "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+          "costUsd": null,
+          "usage": {
+            "observed": true,
+            "inputTokens": 143683,
+            "outputTokens": 2491,
+            "records": [
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-2c81f5ea",
+                "inputTokens": 7542,
+                "outputTokens": 86
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-2c81f5ea",
+                "inputTokens": 7756,
+                "outputTokens": 154
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-2c81f5ea",
+                "inputTokens": 7909,
+                "outputTokens": 105
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-2c81f5ea",
+                "inputTokens": 8057,
+                "outputTokens": 111
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-db3cccd6",
+                "inputTokens": 7542,
+                "outputTokens": 87
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-db3cccd6",
+                "inputTokens": 7896,
+                "outputTokens": 173
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-db3cccd6",
+                "inputTokens": 8048,
+                "outputTokens": 146
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-db3cccd6",
+                "inputTokens": 8321,
+                "outputTokens": 100
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-db3cccd6",
+                "inputTokens": 8359,
+                "outputTokens": 169
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-ecbe941e",
+                "inputTokens": 7542,
+                "outputTokens": 79
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-ecbe941e",
+                "inputTokens": 7922,
+                "outputTokens": 120
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-ecbe941e",
+                "inputTokens": 8074,
+                "outputTokens": 296
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-ecbe941e",
+                "inputTokens": 8360,
+                "outputTokens": 136
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-ecbe941e",
+                "inputTokens": 8398,
+                "outputTokens": 184
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-e3a8a3b1",
+                "inputTokens": 7542,
+                "outputTokens": 87
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-e3a8a3b1",
+                "inputTokens": 7926,
+                "outputTokens": 161
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-e3a8a3b1",
+                "inputTokens": 8086,
+                "outputTokens": 111
+              },
+              {
+                "sessionId": "coord_1792872970914",
+                "runId": "run-e3a8a3b1",
+                "inputTokens": 8403,
+                "outputTokens": 186
+              }
+            ]
+          },
+          "recordedAt": "2026-10-24T20:17:10.360Z"
+        }
+      ]
+    },
+    {
+      "id": "stratum9",
+      "sampleSize": 3,
+      "artifacts": [
+        {
+          "path": "benchmark/evidence/eval-runs/stratum9-attempts/granite3-moe-r1.json",
+          "producerCommit": "6142ef406d169610a530164d7a9223993f0cde9a",
+          "modelRevision": "d84e1e38ee39",
+          "configHash": "3f6ff507850726f8dae2b27ce0bf17d0a6d813fd0a86f6d6b528a530658da478",
+          "verifiedSuccesses": 0,
+          "costUsd": 0
+        },
+        {
+          "path": "benchmark/evidence/eval-runs/stratum9-attempts/granite3-moe-r2.json",
+          "producerCommit": "6142ef406d169610a530164d7a9223993f0cde9a",
+          "modelRevision": "d84e1e38ee39",
+          "configHash": "3f6ff507850726f8dae2b27ce0bf17d0a6d813fd0a86f6d6b528a530658da478",
+          "verifiedSuccesses": 0,
+          "costUsd": 0
+        },
+        {
+          "path": "benchmark/evidence/eval-runs/stratum9-attempts/granite3-moe-r3.json",
+          "producerCommit": "6142ef406d169610a530164d7a9223993f0cde9a",
+          "modelRevision": "d84e1e38ee39",
+          "configHash": "3f6ff507850726f8dae2b27ce0bf17d0a6d813fd0a86f6d6b528a530658da478",
+          "verifiedSuccesses": 0,
+          "costUsd": 0
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "pricing is proxy-priced, not provider-invoice reconciliation",
+    "providerRetries are null in historical rows where provider-attempt telemetry was not yet emitted; null is preserved, not coerced to zero",
+    "this record establishes PRE-R006 baseline metric collection/provenance only; it does not imply Gate E security clearance or release authority"
+  ]
+}

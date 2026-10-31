@@ -49,7 +49,9 @@ export function countConsumedWriters(source: string): number {
  */
 export const REQUIRED_APPROVAL_GUARDS: readonly RegExp[] = [
   /status !== "approved"/,
-  /expiresAt\) <= now/,
+  /approvalExpiryState\(r\.expiresAt, now\)/,
+  /expiryState === "invalid"/,
+  /expiryState === "expired"/,
   /bindingKey !== expectedBindingKey/,
   /invocationMatches/,
 ];

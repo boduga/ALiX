@@ -175,7 +175,15 @@ describe('D9 daemon continuation acceptance', () => {
     'consumer-worker', 'consumer-attempt', 'missing-consumer', 'record-run', 'record-worker', 'record-attempt',
     'missing-fingerprint', 'args', 'capability', 'agent', 'session', 'workspace',
     'host', 'run-cancelled', 'worker-cancelled', 'worker-running', 'worker-run', 'current-agent', 'attempt', 'claims', 'scopes', 'shutdown']) {
-    it(`consumed recovery parity: ${fault}`, async () => {
+    // Workload-scaled budget, matching the sibling scheduler case below: each
+    // row rebuilds a whole durable fixture (ledger open + WAL/schema fsyncs,
+    // approval resolve, one full approved execution, a run patch, a mutation,
+    // then the resume under test). That fixture alone measures ~1.3–2.5s solo on
+    // the project's rotational CI-class disk, and the same work has been
+    // observed to take >10s while the full parallel suite loads every core. The
+    // default 10s turns the host's disk speed into the verdict; the workload is
+    // fixed, the machine speed is not. Assertions are unchanged.
+    it(`consumed recovery parity: ${fault}`, { timeout: 30_000 }, async () => {
       const f = await fixture();
       await f.approvals.resolve(f.approval.id, 'approved');
       const original = f.createResumer();

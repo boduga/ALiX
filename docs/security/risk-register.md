@@ -1,6 +1,7 @@
 # Security Risk Register
 
 **Date:** 2026-06-17
+**Last updated:** 2026-10-29
 **Milestone:** P4.3-S
 **Purpose:** Catalog of identified security risks, their likelihood, impact, mitigation, and residual risk after mitigation.
 
@@ -213,16 +214,32 @@
 
 ---
 
+### R-014 / RISK-REPLAY-01: Ambiguous External Effect Replay
+
+| Field | Value |
+|---|---|
+| **ID** | R-014 (`RISK-REPLAY-01`) |
+| **Category** | Execution Integrity / External Effects |
+| **Description** | A non-idempotent shell, MCP, API, plugin, or provider effect may occur before ALiX can durably establish its terminal outcome. Retrying an equivalent but differently represented operation, using a different routed tool/workspace, or relying on adapter/provider internal retries can duplicate an external effect even when one exact ALiX journal identity is quarantined. |
+| **Likelihood** | Medium |
+| **Impact** | High |
+| **Risk Level** | High |
+| **Mitigation** | D9 ADR-0017 effect journal: durable pre-adapter claim, `started_unknown` quarantine, exact effect identity, crash/restart preservation, no age/PID auto-clear, evidence-bound single-use `effect.reconcile` authority with per-generation binding, and release only after durable `reconciled_not_applied`. High/critical mutating routed tools include dynamic MCP. |
+| **Residual Risk** | Medium — the journal does not establish global exactly-once semantics across semantically equivalent representations, different tools/workspaces, pre-upgrade uncertain operations, direct provider/plugin effects, or adapter/provider internal retries. Broader assurance requires adapter/provider idempotency keys or authoritative reconciliation protocols. |
+| **Status** | OPEN — mitigated at the qualified exact-effect boundary; broader cross-provider/semantic exactly-once coverage is not claimed. |
+
+---
+
 ## Risk Summary
 
 | Risk Level | Count | IDs |
 |---|---|---|
 | Critical | 0 | (none after mitigation) |
-| High | 3 | R-004, R-005, R-013 |
+| High | 4 | R-004, R-005, R-013, R-014 |
 | Medium | 10 | R-001, R-002, R-003, R-006, R-007, R-008, R-009, R-010, R-011, R-012 |
 | Low | 0 | (all risks mitigated to Low residual or above) |
 
-**After mitigation, no Critical residual risks remain. Three High residual risks (config tampering, credential exposure, malicious MCP output) require ongoing monitoring and future hardening.**
+**No listed risk currently has a Critical assessed risk level. Four risks have a High assessed risk level (R-004, R-005, R-013, R-014); their individual residual-risk fields remain authoritative and must not be inferred from this count. R-014 / RISK-REPLAY-01 remains explicitly OPEN despite the qualified D9 exact-effect mitigations.**
 
 ---
 

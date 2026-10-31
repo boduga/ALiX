@@ -41,12 +41,18 @@ export class McpToolRegistry {
   async registerServer(config: McpServerConfig): Promise<void> {
     const transport = this.createTransport(config);
     const client = new McpClient(transport);
-    // Let errors propagate — McpManager catches them per-server
-    await client.initialize();
+    // Until discovery succeeds, this client is not owned by the registry.
+    // Close it here on failure so manager cleanup cannot lose its process.
+    let tools;
+    try {
+      await client.initialize();
+      tools = await client.listTools();
+    } catch (error) {
+      await client.close().catch(() => {});
+      throw error;
+    }
 
     this.clients.set(config.name, client);
-
-    const tools = await client.listTools();
     for (const tool of tools) {
       // MCP servers may prefix tool.name with server name (e.g. "fetch/fetch").
       // Strip the prefix so fullName is always "server/tool" without duplication.
@@ -98,11 +104,21 @@ export class McpToolRegistry {
         .map(c => c.type === "text" ? c.text ?? "" : JSON.stringify(c))
         .join("\n");
 
+      // MCP tools are conservatively catalogued as mutating/high-risk. Once a
+      // tools/call request has entered the remote server, even an MCP `isError`
+      // response cannot prove that no partial/external effect occurred.
       return result.isError
-        ? { kind: "error", message: content }
+        ? { kind: "error", message: content, outcomeUnknown: true, retryable: false }
         : { kind: "success", output: content };
     } catch (e) {
-      return { kind: "error", message: e instanceof Error ? e.message : String(e) };
+      // Transport/provider failure after call entry is ambiguous: the server may
+      // have applied the effect before the response was lost.
+      return {
+        kind: "error",
+        message: e instanceof Error ? e.message : String(e),
+        outcomeUnknown: true,
+        retryable: false,
+      };
     }
   }
 

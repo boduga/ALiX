@@ -11,17 +11,18 @@ This document maps what exists and names the gaps. It proposes no new authority.
 
 ---
 
-## 1. Existing supervision-relevant contracts
+## 1. Existing autonomy/verification-relevant contracts
 
 | Concern | Owner | Contract | Supervision relevance |
 |---|---|---|---|
-| **Session mode** | `permissions.sessionMode` (`"auto" \| "ask" \| "bypass"`, default `ask`) | `src/operations/config/schema.ts:277` | The only existing "how much supervision" dial. `ask` is the enforcing mode; `auto`/`bypass` cannot loosen a model-supplied request (root contract) |
+| **Session permission mode** | `permissions.sessionMode` (`"auto" \| "ask" \| "bypass"`, default `ask`) | `src/operations/config/schema.ts:277` | Permission input only. It is **not** a review/supervision mode and cannot substitute for autonomous verification qualification |
 | **Authorization decision** | `ExecutionAuthorization` → `PolicyGate` | S0-4 (R1.5 containment) | Every action is decided at one boundary; supervision does not add a second |
 | **Approval binding & consumption** | `ApprovalStore.consumeApproved` | S0-1, single-use, cross-process lock | An AFK/high-risk action needs a valid, specifically bound approval; consumed/expired/stale never authorize |
+| **Approval revocation / policy invalidation** | `ApprovalStore.revoke` + `invalidateByPolicyRevision` | Existing approval lifecycle authority | Revoked or policy-stale authority cannot remain eligible for autonomous execution/verification; eligibility must suspend/fail closed and require fresh qualification/authority |
 | **Child self-approval prevention** | `WorkerApprovalPort` | S0-2 | A supervised worker cannot grant itself capability |
 | **Ownership scope** | `OwnershipRegistry` + `path-scope` matcher | S0-5 | Bounds what an unsupervised worker may touch |
 | **Run ceilings** | `RunLimiter` (`src/planning/autonomy/run-limiter.ts`) | S0-7; `RunLimits`/`RunCounters`/`LimitCheckResult`/`RemainingCapacity` | Budget exhaustion is the existing stop mechanism (Q07) |
-| **Worker liveness / reclamation** | `shouldReclaimWorker` (`src/coordination/kernel/owner-liveness.ts:89`) | S0 recovery | Health-based supervision: dead owner or stale heartbeat reclaims; never a live owner |
+| **Worker liveness / reclamation** | `shouldReclaimWorker` (`src/coordination/kernel/owner-liveness.ts:89`) | S0 recovery | Health-based recovery: dead owner or stale heartbeat reclaims; never a live owner |
 | **Resume after restart** | `coordination-resume.ts` | Owner: coordination kernel | Restart reconciliation revalidates before resuming |
 | **Coordination completion truth** | `deriveCoordinationCompletion` + aggregate event | S0-6 | A non-terminal run is never success — supervision must honour the same verdict |
 | **Calibration** | `src/planning/decision/calibration/` (`profiles`, `reliability`, `labels`, `label-store`, `accuracy-sweep`, `dataset`) | Owner: `src/planning/decision/AGENTS.md` | Reliability is measurable in principle; **no supervision-mode calibration exists** |
@@ -29,29 +30,22 @@ This document maps what exists and names the gaps. It proposes no new authority.
 | **Q08 AFK authority** | Master PRD v2.8 §8.3.4 (APPROVED) | Bounded pre-authorized actions; high-risk needs approval; durable pause when unavailable | The governing behavioural contract for unattended work |
 
 **Key structural fact:** ALiX already has **one** authorization boundary, **one**
-approval authority, **one** ownership matcher and **one** completion verdict. A
-supervision feature is therefore a *policy/eligibility layer over existing
-decisions*, never a new execution path. Anything that adds a decision authority is
+approval authority, **one** ownership matcher and **one** completion verdict. An autonomous-verification feature is therefore a *qualification/eligibility layer over existing decisions*, never a new execution or authority path. Anything that adds a decision authority is
 a duplicate and is out of scope.
 
 ---
 
-## 2. What "supervision mode" means here (and what it must not mean)
+## 2. Verification modes versus permission modes
 
-Three conceptual stages appear in the source material (fully supervised, sampled,
-exception-based). They are **not** ALiX terms and carry **no numeric criteria**.
-Mapping them onto existing mechanisms:
+The 2026-10-28 agent-driven contract replaces human-supervision stages with verification modes:
 
-| Conceptual stage | Nearest existing mechanism | Does it exist as a mode? |
+| Verification mode | Meaning | Implemented today? |
 |---|---|---|
-| Fully supervised | `sessionMode: "ask"` — approval-required decisions follow the enforcing path; tools already allowed by policy do not require an approval merely because this mode is selected | **Yes** (as a mode) |
-| Sampled supervision | *(nothing)* | **No** — no sampling machinery exists |
-| Exception-based | *(nothing)* | **No** — `auto`/`bypass` is broader permission, not exception routing |
+| `full-verification` | Every decision-bearing result is independently checked by verifier/critic agents and deterministic oracles where available | **Contract target; not yet end-to-end qualified** |
+| `sampled-verification` | A policy-selected sample receives full independent verification; promotion requires pre-versioned thresholds and evidence | **No** — no qualified sampling machinery exists |
+| `exception-based` | Deterministic/agent monitors route defined anomalies to full verification or durable `BLOCKED` | **No** — no qualified exception router exists |
 
-**Critical distinction:** `auto`/`bypass` are **permission modes**, not supervision
-modes. Treating `bypass` as "exception-based supervision" would silently equate
-*less review* with *qualified automation* — the exact failure the PRD's source warns
-about and §14.2 forbids promoting.
+**Critical distinction:** `auto` / `ask` / `bypass` remain **permission modes**. They do not indicate how much independent verification occurs. No permission mode may be relabelled as an autonomy qualification.
 
 ---
 
@@ -59,22 +53,21 @@ about and §14.2 forbids promoting.
 
 | # | Gap | Blocks |
 |---|---|---|
-| S-1 | **No sampling mechanism** — no way to run N decisions and review a subset | Sampled supervision entirely |
-| S-2 | **No exception routing** — no queue that escalates a subset to a human while others proceed | Exception-based supervision |
-| S-3 | **No supervision-mode calibration** — reliability exists per decision domain, not per mode | Any eligibility threshold |
-| S-4 | **No measured review-accuracy baseline** — missed-risk rate unknown (see `harness-operator-attention-metrics.md`, all M-1..M-5 `not measured`) | Promoting to sampled/exception requires knowing what review catches |
+| S-1 | **No qualified sampling mechanism** — no way to select and verify a policy-defined subset with measured safety | `sampled-verification` |
+| S-2 | **No qualified exception routing** — no router that sends anomalies to full verification or durable `BLOCKED` while others proceed | `exception-based` verification |
+| S-3 | **No verification-mode calibration** — reliability exists per decision domain, not per verification mode | Any eligibility threshold |
+| S-4 | **No measured verifier/critic accuracy baseline** — missed-risk rate unknown (see `harness-operator-attention-metrics.md`, all M-1..M-5 `not measured`) | Promoting to sampled/exception requires knowing what autonomous review catches |
 | S-5 | **No eligibility schema** — proposed in the companion document; not implemented | Any per-node qualification |
 | S-6 | **No downgrade trigger implementation** — policy/model/tool change detection for qualification does not exist as a contract | Safe automatic demotion |
-| S-7 | **Trace completeness for supervision not assessed** | Auditing an unsupervised decision after the fact |
+| S-7 | **Trace completeness for verification modes not assessed** | Auditing an autonomously reviewed decision after the fact |
 
 ---
 
 ## 4. Non-negotiables carried into any future design
 
-These come from existing approved contracts and may not be relaxed by a supervision
-feature:
+These come from existing contracts and may not be relaxed by an autonomous-verification feature:
 
-1. **Supervision never bypasses authorization.** Q08: "AFK status is not an
+1. **Verification never bypasses authorization.** Q08: "AFK status is not an
    authorization mode and must never relax normal tool, approval, sandbox,
    model-provider, or data-classification controls." (PRE-R032)
 2. **High-risk actions always need a valid bound approval**, and pause durably when
@@ -92,11 +85,7 @@ feature:
 **PRE-R027: MET (inventory).** Existing contracts mapped, gaps named, duplicate
 authority avoided by construction.
 
-**Progressive supervision: NOT IMPLEMENTED, NOT MEASURED, NOT QUALIFIED.** No
-sampling engine, exception queue, eligibility evaluation, or downgrade trigger
-exists. Nothing in this document authorizes building one — §14.2 confines this work
+**Progressive autonomous verification: NOT IMPLEMENTED, NOT MEASURED, NOT QUALIFIED.** No qualified sampling engine, exception router, eligibility evaluation, or downgrade trigger exists. Nothing in this document authorizes building one — §14.2 confines this work
 to read-only research and design.
 
-**Crucially:** `sessionMode` already provides *fully supervised* operation
-(`ask`). Every broader mode today is a **permission** relaxation, not a supervision
-qualification, and must not be described as one.
+**Crucially:** `sessionMode` provides permission semantics only. None of `ask`, `auto`, or `bypass` is a verification qualification, and none may be used as evidence that agent-driven review is safe.

@@ -1,8 +1,10 @@
 import type { InvocationIdentity } from "../../governance/approvals/approval-binding.js";
+import { approvalExpiryState } from "../../governance/approvals/approval-binding.js";
 import "node:fs";
 import "node:fs/promises";
 import { resolve } from "node:path";
 import { hashArgs } from "./hash-args.js";
+import { executeWithEffectJournal } from "./effect-journal.js";
 import { emitToolTelemetry } from "./telemetry.js";
 import type { AlixConfig } from "../../operations/config/schema.js";
 import { createModelResolver } from "../../operations/config/model-resolver.js";
@@ -10,6 +12,7 @@ import type { EventLog } from "../../runtime-state/events/event-log.js";
 import { TOOL_EVENT_TYPES, ARTIFACT_EVENT_TYPES } from "../../runtime-state/events/types.js";
 import type { ToolOutputPayload, ToolCompletedPayload, ToolFailedPayload, ArtifactCreatedPayload } from "../../runtime-state/events/types.js";
 import type { CorrelationContext } from "../../runtime-state/runtime/tool-correlation.js";
+import type { CoordinationExecutionContext } from "../../runtime-state/runtime/execution-decision.js";
 import type { McpManager } from "../mcp/manager.js";
 import "../../governance/policy/secret-scanner.js";
 import type { EditFormatPolicy } from "../../execution/patch/edit-format-policy.js";
@@ -123,6 +126,7 @@ export class ToolExecutor {
     private workspacePathResolver?: any,  // WorkspacePathResolver — for OwnershipGate
     private ownershipRegistry?: any,  // OwnershipRegistry — for OwnershipGate
     private ownedPaths?: string[],  // OwnedPaths — owned-path auto-approval for headless write subagents
+    private coordinationContext?: CoordinationExecutionContext, // trusted host-minted worker identity
   ) {
     // Create router with all handlers
     const pathResolver = this.workspacePathResolver ?? new WorkspacePathResolver(this.root, config.permissions?.protectedPaths ?? []);
@@ -173,7 +177,7 @@ export class ToolExecutor {
    * "Access denied" and the model just retries, generating one new
    * approval per iteration.
    */
-  getApproval(id: string): { status?: string } | undefined {
+  getApproval(id: string): { status?: string; expiresAt?: string } | undefined {
     return this.approvalStore?.get?.(id);
   }
 
@@ -191,7 +195,7 @@ export class ToolExecutor {
    * error which this maps to `null` so the caller can keep waiting instead of
    * mistaking a broken read for a denial.
    */
-  async loadApprovalForWait(id: string): Promise<{ status?: string } | undefined | null> {
+  async loadApprovalForWait(id: string): Promise<{ status?: string; expiresAt?: string } | undefined | null> {
     if (!this.approvalStore?.loadFresh) return this.getApproval(id);
     try {
       return await this.approvalStore.loadFresh(id);
@@ -281,6 +285,41 @@ export class ToolExecutor {
     // A missing approval store is not a verdict on the command.
     if (decision.matchedRuleId === "approval-store-missing") return null;
     return decision.reason;
+  }
+
+
+  /**
+   * Re-check only current mandatory policy denies for a continuation that
+   * already has durable approval. `bypass` collapses normal ask/allow policy
+   * without weakening hard denies, so this probe cannot mint a second approval
+   * and cannot widen authority. A current deny always revokes execution.
+   *
+   * `source` is descriptive only — `PolicyGate` never reads it to decide
+   * anything — so it is set to the truthful `"tool"` rather than a label that
+   * suggests this probe is a replay step. Do not make any decision path depend
+   * on it: caller-set provenance is not authorization.
+   */
+  private async mandatoryContinuationDeny(
+    request: ToolCallRequest,
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<string | null> {
+    const gate = await this.policyGate();
+    const decision = await gate.evaluateToolCall({
+      requestId: `continuation-deny-probe-${request.toolCallId}`,
+      toolName,
+      capability: inferCapability(toolName),
+      args,
+      cwd: this.root,
+      sessionMode: "bypass",
+      sessionId: this.sessionId(),
+      agentId: request.agentId ?? "alix",
+      source: "tool",
+      ...((request.ownedPaths?.length ?? this.ownedPaths?.length)
+        ? { ownedPaths: [...(request.ownedPaths?.length ? request.ownedPaths : this.ownedPaths ?? [])] }
+        : {}),
+    });
+    return decision.decision === "deny" ? decision.reason : null;
   }
 
   private sessionId(): string {
@@ -518,7 +557,7 @@ export class ToolExecutor {
       const stillAuthorized =
         !!approval &&
         approval.status === "approved" &&
-        (!approval.expiresAt || new Date(approval.expiresAt).getTime() > Date.now());
+        approvalExpiryState(approval.expiresAt) === "valid";
       if (!stillAuthorized) {
         return {
           kind: "denied",
@@ -526,6 +565,18 @@ export class ToolExecutor {
             ? `Continuation resume rejected: approval ${request.approvalId} missing, not approved, or expired`
             : "Continuation resume rejected: no durable approval backing this request",
         };
+      }
+      // Prior approval does not override CURRENT hard policy. Re-check only
+      // mandatory denies without creating a second approval. This must happen
+      // before ownership awaits, approval consumption, or adapter entry.
+      const continuationDeny = await this.mandatoryContinuationDeny(request, name, args);
+      if (continuationDeny) {
+        await this.logEvent(TOOL_EVENT_TYPES.FAILED, {
+          toolCallId, toolName: name, error: continuationDeny, durationMs: 0,
+          canonicalCapability, argumentHash, executionId: correlation.executionId,
+          invocationId: correlation.invocationId, ...agentPayload,
+        });
+        return { kind: "denied", reason: continuationDeny };
       }
       // Ownership BEFORE the approval claim: a continuation resume is still a
       // write, and a write outside the declared scope is refused on its own
@@ -565,7 +616,7 @@ export class ToolExecutor {
         if (request.signal?.aborted) {
           throw new ExecutionCancelledError(signalReason(request.signal) ?? "continuation cancelled");
         }
-        resumed = await this.toolAwareRouter.downstream.execute(request);
+        resumed = await executeWithEffectJournal(this.root, request, (boundRequest) => this.toolAwareRouter.downstream.execute(boundRequest));
       } catch (error) {
         if (claimedApprovalId) {
           // After downstream dispatch began, a thrown error cannot establish whether
@@ -665,6 +716,7 @@ export class ToolExecutor {
       agentId: request.agentId ?? "alix",
       source: "tool",
       ownedPaths: this.ownedPaths,
+      coordination: this.coordinationContext,
     });
 
     // Denied — policy or ownership rejected this call
@@ -790,11 +842,16 @@ export class ToolExecutor {
     // The coordination exact-binding branch already consumed inside the gate
     // (`approvalConsumed`), so claiming again here would deny a legitimate
     // worker — skip it.
-    if (decision.status === "allowed" && decision.approvalId && !decision.approvalConsumed) {
-      const claimed = await this.claimApproval(decision.approvalId, {
-        ...this.invocationIdentity(capability, name, argumentHash, request.agentId),
-      });
-      if (claimed) return claimed;
+    if (decision.status === "allowed" && decision.approvalId) {
+      if (!decision.approvalConsumed) {
+        const claimed = await this.claimApproval(decision.approvalId, {
+          ...this.invocationIdentity(capability, name, argumentHash, request.agentId),
+        });
+        if (claimed) return claimed;
+      }
+      // The exact-binding branch may have consumed this approval atomically
+      // inside PolicyGate. Consumption is still single-use; carrying the id
+      // forward is only for the terminal execution receipt below.
       claimedApprovalId = decision.approvalId;
     }
 
@@ -816,7 +873,7 @@ export class ToolExecutor {
     // Verify argument hash match before execution (M0.9 permissive placeholder)
     let result: ToolResult;
     try {
-      result = await this.router.execute(request);
+      result = await executeWithEffectJournal(this.root, request, (boundRequest) => this.router.execute(boundRequest));
     } catch (error) {
       if (isCancellationError(error)) {
         // Cancellation is a terminal outcome, never a tool failure. Keep the
@@ -865,7 +922,7 @@ export class ToolExecutor {
     }
 
     // Classify MCP errors with hints
-    if (name.startsWith("mcp.") && result.kind === "error") {
+    if (name.startsWith("mcp.") && result.kind === "error" && result.outcomeUnknown !== true && result.retryable === undefined) {
       result = classifyError(result);
     }
 
@@ -1211,6 +1268,10 @@ export class ToolExecutor {
 type ErrorResult = { kind: "error"; message: string; retryable?: boolean; hint?: string };
 
 export function classifyError(result: ErrorResult): ErrorResult {
+  // An upstream boundary that explicitly marks an error non-retryable (for
+  // example the D9 effect journal) is authoritative. Classification may add
+  // retryability only when the caller has not already decided it.
+  if (result.retryable === false) return result;
   const msg = result.message.toLowerCase();
 
   // Fatal — don't retry, model can't fix this

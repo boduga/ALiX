@@ -82,7 +82,7 @@ describe("coordination worker completion boundary", () => {
       : { kind: "success", matches: [{ path: "sources.md", lineNumber: 1, line: "Bola Ahmed Tinubu — https://statehouse.gov.ng/" }] });
     try {
       process.chdir(root);
-      await SubagentCLI.main(["--subagent", "researcher", "--task-id", "research", "--session-id", "fixture", "--prompt", "Research President of Nigeria", "--coordination-run-id", "coord-fixture"]);
+      await SubagentCLI.main(["--subagent", "researcher", "--task-id", "research", "--session-id", "fixture", "--prompt", "Research President of Nigeria", "--coordination-run-id", "coord-fixture", "--worker-attempt", "0"]);
       const result = JSON.parse(String(output.mock.calls.at(-1)?.[0]));
       expect(result.status).toBe("failed");
       expect(JSON.stringify(result.findings)).toContain("https://statehouse.gov.ng/");
@@ -141,7 +141,7 @@ describe("coordination worker completion boundary", () => {
     });
     try {
       process.chdir(root);
-      await SubagentCLI.main(["--subagent", "worker", "--mode", "write", "--task-id", "writer", "--session-id", "fixture", "--prompt", deleting ? "Delete docs/report.md" : "Write Nigeria president report to docs/report.md", "--coordination-run-id", "coord-fixture", "--owned-paths", "docs,README.md,CHANGELOG.md"]);
+      await SubagentCLI.main(["--subagent", "worker", "--mode", "write", "--task-id", "writer", "--session-id", "fixture", "--prompt", deleting ? "Delete docs/report.md" : "Write Nigeria president report to docs/report.md", "--coordination-run-id", "coord-fixture", "--worker-attempt", "0", "--owned-paths", "docs,README.md,CHANGELOG.md"]);
       const result = JSON.parse(String(output.mock.calls.at(-1)?.[0]));
       expect(result.status).toBe(outcome === "wrong" ? "partial" : "success");
       expect(harness.complete).toHaveBeenCalledTimes(3);
@@ -201,7 +201,7 @@ describe("coordination worker completion boundary", () => {
     });
     try {
       process.chdir(root);
-      await SubagentCLI.main(["--subagent", "worker", "--mode", "write", "--task-id", "writer", "--session-id", "fixture", "--prompt", "Write Nigeria president report to docs/report.md", "--coordination-run-id", "coord-fixture", "--owned-paths", "docs"]);
+      await SubagentCLI.main(["--subagent", "worker", "--mode", "write", "--task-id", "writer", "--session-id", "fixture", "--prompt", "Write Nigeria president report to docs/report.md", "--coordination-run-id", "coord-fixture", "--worker-attempt", "0", "--owned-paths", "docs"]);
       const result = JSON.parse(String(output.mock.calls.at(-1)?.[0]));
       expect(result.status).toBe("success");
       expect(harness.execute.mock.calls.filter(([call]) => call.name === "file.create")).toHaveLength(0);

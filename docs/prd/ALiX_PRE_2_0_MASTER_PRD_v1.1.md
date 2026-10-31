@@ -2,13 +2,15 @@
 
 **Version:** 1.1 — LEAN architecture-first, constrained-hardware agent-operated readiness program  
 **Date:** 2026-10-25  
-**Status:** DRAFT — proposed requirements; no implementation or release authorization  
+**Status:** FROZEN FOR NEW WORK — D9 dependency-resolution/remediation remains active; no unrelated LEAN workstream advancement or release authorization
 **Parent:** [ALiX Master PRD v2.9](ALiX_MASTER_PRD_v2.9.md)  
 **Predecessor:** `ALiX_PRE_2_0_HARNESS_PRD_v1.2.md` — separately owned harness-rationalization closeout; not superseded until independently closed and its evidence accepted  
 **Derived from:** `ALiX_PRE_2_0_HARNESS_PRD_v1.3.md` (superseded draft), containing Harness², progressive-supervision, and grounded-reasoning research amendments  
 **Repository location:** `docs/prd/ALiX_PRE_2_0_MASTER_PRD_v1.1.md`
 
 > **Decision boundary.** The operator requests an **agent-driven program without human-in-the-loop execution, grading, or routine review**. This is an operating-model requirement for delegated work, **not** a change to Q01–Q15, existing approval authority, or legally required human oversight. A task needing authority not already granted must fail closed and remain blocked; an evaluator agent cannot manufacture that authority. Human approval is not silently converted to agent approval.
+
+> **Scoped program freeze (2026-10-28).** New PRE-2.0/LEAN expansion is frozen while the separately owned Harness PRD v1.2 closeout and the already-active D9 execution/security dependency are reconciled. This freeze does **not** stop D9 R4.2 Phase F remediation, qualification, evidence reconciliation, or the minimum changes required to resolve that existing blocker. D9 remains an active dependency-resolution lane because its effect-reconciliation, crash/recovery, authorization, and completion guarantees are required by this PRD and by the Harness PRD Gate E closeout. No unrelated LEAN-02+ implementation, capability expansion, optimization cutover, or new milestone may advance under this exception. LEAN-G01 remains blocked until its own evidence and decision requirements are satisfied.
 
 ## 1. Executive summary
 

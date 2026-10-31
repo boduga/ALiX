@@ -29,7 +29,12 @@ function agentId(event: AlixEvent): string | undefined {
 function stateOf(value: unknown, fallback: WorkbenchAgentState): WorkbenchAgentState {
   const normalized = String(value ?? '').toLowerCase().replaceAll('-', '_');
   const aliases: Record<string, WorkbenchAgentState> = {
-    pending: 'queued', running: 'thinking', executing: 'tool_running', done: 'completed',
+    // Canonical task-loop / coordination lifecycle states projected onto the
+    // smaller Workbench presentation vocabulary. These aliases do not create
+    // execution authority; they preserve producer semantics for display.
+    idle: 'queued', planning: 'thinking', executing: 'tool_running', repairing: 'thinking',
+    summarizing: 'thinking', blocked: 'waiting_dependency', stopped: 'failed',
+    pending: 'queued', running: 'thinking', done: 'completed',
     success: 'completed', error: 'failed', rejected: 'failed',
   };
   const candidate = aliases[normalized] ?? normalized;

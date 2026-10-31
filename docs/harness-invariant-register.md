@@ -103,7 +103,7 @@ as covered.
 | F-02 | No explicit wrong-workspace test for the worker port | The failure mode cannot be constructed via the port (no user-supplied workspace path), but the *test* does not exist | F8b limitation, accepted |
 | F-03 | Tool-level operator denial not exercised through the full TUI scenario | Denial proven at port and dispatch level only | F8b limitation, accepted |
 | F-04 | Ownership **hard-conflict rejection** not demonstrated | Prior evidence shows dependency *serialization*, not rejection of an unsynchronized conflict | Core release (GAP-09) |
-| F-05 | `config.model` / model-tier projection reader inventory partial; see `audits/2026-10-23-harness-legacy-inventory.md` | Blocks safe retirement of the projections | P0-F (PRE-R010) |
+| F-05 | PRE-R010 inventory is supported and internal compiler-project triage is complete at `43d81e98`; external/deep-import runtime compatibility disposition, Q04/Q05 policy, parity and retirement qualification remain open | Blocks safe retirement of the projections | P0-F / PRE-R011 / Gate D |
 | F-06 | ~~Prompt assembly spans ≥6 sites with no ownership map~~ **CLOSED by P0-B** — assembly has ONE owner (`buildEffectiveSystemPrompt`, one caller at `task-loop/main.ts:664`) | Was believed to block HC-01 classification; disproven, HC-01 is safe to classify | P0-B — closed |
 | F-07 | Transient clamp-reload test observation unresolved | Possible timing fragility in an approval test | P0-D (recurrence check) |
 | F-08 | Delegate failure result was written to stderr and never parsed by the parent (fixed: D8-01) | Every structured subagent failure surfaced to the parent as a bare crash, losing `status`/`findings`/`error`. Found by running a case, not by reading code | F1/strata — **fixed + regression test** |

@@ -49,6 +49,7 @@
 
 ## Local Contracts
 
+- Lock-protected `CoordinationStore` updates enter canonical per-run FIFO admission before acquiring the existing cross-process lock and reloading authoritative state. Admission spans store instances and preserves worker-claim, plan-revision CAS and single aggregate-attachment checks inside that lock. An idle queue returns each operation's existing unavailable result without executing its callback; ledger failures still throw.
 - `createPlannerGenerator` forwards an explicitly configured positive `context.budget.outputCap` as request `maxOutputTokens`; when absent, the planner leaves that request field unset. Planner calls must honor deliberate per-run output budgeting without changing model selection or stored user configuration.
 - Worker objective review reads persisted mutation paths only within the worker's owned scope, using the shared ownership matcher. Internal review reads turn ask into allow on a cloned executor config; explicit/default read denials, protected paths, and workspace containment remain enforced. Review reads must not request or consume worker approvals. Owned writes may pass the owned-path rule without a second approval; integration tests must distinguish dispatch approvals from exact tool invocations and retry dispatches.
 - **Review evidence spans the whole run, not one attempt.** The review's mutation evidence is the current attempt's events PLUS the run's durable session log, still owned-scoped. A re-created identical file emits no mutation event, so an attempt-scoped set left a correct retry with no evidence and the worker failed for work already on disk — root AGENTS.md ("Durable progress survives failed retries") applied to the worker review. The durable set is owned-scoped, so a sibling's artifact is never this worker's evidence.
@@ -184,7 +185,14 @@
   the binding key the approval was **created** with (`worker.authorizationEvidence.bindingKey`,
   never reconstructed), then independently verifies the stored record still
   describes THIS run / worker / attempt / capability set / ownership-claim hash /
-  current policy revision. It is a **read-only verdict**: it must NOT consume
+  current policy revision, and that its persisted `expiresAt` is a valid future
+  timestamp (`approvalExpiryState`; missing/empty/unparsable is corrupt authority,
+  exactly as consumption treats it). **An explicit operator `denied` record is
+  decided BEFORE expiry validation and stays terminal** (`approval_denied`,
+  `failureKind: approval_denied`): expiry is a property of a GRANT, so corrupt or
+  absent metadata on a refusal cannot suppress it. Only an `approved` record is
+  expiry-checked; `pending`/`consumed`/`expired`/`revoked`/`invalidated` stay
+  fail-closed without being read as denials. It is a **read-only verdict**: it must NOT consume
   the approval. Consumption is owned by the dispatch path (`PolicyGate`'s
   `exact-binding-approved` branch) as the single place an approval authorizes
   execution. Consuming in reconcile resumes the worker to `pending`, and the
@@ -341,6 +349,7 @@
 
 ## Verification
 
+- `tests/stress/coordination-store-stress.test.ts` rejects null worker updates as failed operations before checking durable worker state at 10/50/100 concurrency. Stale revision CAS rejection remains an expected outcome. Fixtures close the shared ledger before removing their workspace.
 - `tests/kernel/graph-executor.test.ts` — executor, sorting, enforcement, rerun
 - `tests/kernel/graph-projection.test.ts` — projection reconstruction
 - `tests/kernel/graph-planner.test.ts` — plan generation, cap normalize, repair retry

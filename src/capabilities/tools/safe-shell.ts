@@ -50,7 +50,6 @@ export const SAFE_SHELL_COMMANDS = [
 
   // Search (read-only)
   "grep",          // Text search
-  "rg",            // Ripgrep
 
   // Node/npm queries (read-only)
   "node --version",    // Node version
@@ -123,7 +122,6 @@ export function isSafeShellCommand(command: string): boolean {
 
     // grep with pattern and file (no pipes, no exec)
     /^grep\s+['"][^'"]*['"]\s+[\w\/.\-_\s]+$/,
-    /^rg\s+['"][^'"]*['"]\s+[\w\/.\-_\s]+$/,
 
     // wc with file
     /^wc\s+[\w\/.\-_\s]+$/,
@@ -134,8 +132,10 @@ export function isSafeShellCommand(command: string): boolean {
     // git log with commits count
     /^git\s+log(\s+--?oneline)?(\s+-n\d+)?$/,
 
-    // git diff with optional staged flag
-    /^git\s+diff(\s+--staged)?(\s+--?[a-z]+)*$/,
+    // git diff: presentation-only allowlist. Broad flag matching is unsafe:
+    // `--output` can write a file and option/value ambiguity can turn another
+    // flag token into that output filename.
+    /^git\s+diff(?:\s+(?:--staged|--stat|--name-only|--name-status))*$/,
 
     // git branch — LISTING ONLY.
     //
@@ -149,8 +149,9 @@ export function isSafeShellCommand(command: string): boolean {
     // git remote -v
     /^git\s+remote\s+-v$/,
 
-    // git show with commit ref
-    /^git\s+show(\s+--?[a-z]+)*(\s+[\w.\-]+)?$/,
+    // git show: allow only explicitly non-mutating presentation flags.
+    // Broad `--?[a-z]+` admitted effect-capable options such as `--output`.
+    /^git\s+show(?:\s+(?:--stat|--oneline|--summary|--name-only|--name-status))*(?:\s+[\w.\-]+)?$/,
 
     // npm version commands
     /^npm\s+list(\s+--depth=?\d+)?$/,
@@ -164,7 +165,7 @@ export function isSafeShellCommand(command: string): boolean {
 /**
  * Execute a safe shell command with output validation
  */
-export async function executeSafeShell(command: string, options: { cwd?: string; envAllowlist?: string[] } = {}): Promise<{
+export async function executeSafeShell(command: string, options: { cwd?: string; envAllowlist?: string[]; signal?: AbortSignal } = {}): Promise<{
   allowed: boolean;
   output?: string;
   error?: string;
@@ -185,11 +186,13 @@ export async function executeSafeShell(command: string, options: { cwd?: string;
       cwd: options.cwd ?? process.cwd(),
       timeoutMs: SAFE_SHELL_TIMEOUT_MS,
       envAllowlist: options.envAllowlist,
+      signal: options.signal,
     });
     return result.kind === "success"
       ? { allowed: true, output: (result.output ?? "").slice(0, SAFE_SHELL_MAX_BUFFER_BYTES) }
       : { allowed: true, error: result.message };
   } catch (err) {
+    if (options.signal?.aborted) throw err;
     return {
       allowed: true,  // Still allowed, but command failed
       error: err instanceof Error ? err.message : String(err),

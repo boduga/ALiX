@@ -15,11 +15,9 @@
  * All imports use .js extensions (NodeNext).
  */
 
-import type {
-  ApprovalRecord,
-  ConsumeResult,
-} from "../../governance/approvals/approval-types.js";
+import type { ApprovalRecord, ConsumeResult } from "../../governance/approvals/approval-types.js";
 import type { ApprovalStore, ApprovalRequestInput } from "../../governance/approvals/approval-store.js";
+import { approvalExpiryState } from "../../governance/approvals/approval-binding.js";
 import type { ImpactAnalysis } from "./replan-types.js";
 import { computeFingerprint } from "./replan-types.js";
 
@@ -92,13 +90,27 @@ export class ReplanApprovalGate {
     const existing = this.approvalStore.findExact(requestFingerprint);
     if (existing) {
       if (existing.status === "approved") {
-        return {
-          approved: true,
-          autoApproved: false,
-          reason: `Approval ${existing.id} is already approved`,
-          approvalId: existing.id,
-          record: existing,
-        };
+        // Corrupt expiry never authorizes applying a revision. A genuinely
+        // expired record falls through to a fresh request below.
+        const expiryState = approvalExpiryState(existing.expiresAt);
+        if (expiryState === "invalid") {
+          return {
+            approved: false,
+            autoApproved: false,
+            reason: `Approval ${existing.id} has invalid expiry metadata; refusing corrupt authority`,
+            approvalId: existing.id,
+            record: existing,
+          };
+        }
+        if (expiryState === "valid") {
+          return {
+            approved: true,
+            autoApproved: false,
+            reason: `Approval ${existing.id} is already approved`,
+            approvalId: existing.id,
+            record: existing,
+          };
+        }
       }
       if (existing.status === "pending") {
         return {
@@ -148,6 +160,18 @@ export class ReplanApprovalGate {
         approved: false,
         autoApproved: false,
         reason: `Approval "${approvalId}" not found`,
+      };
+    }
+
+    if (record.status === "approved" && approvalExpiryState(record.expiresAt) !== "valid") {
+      return {
+        approved: false,
+        autoApproved: false,
+        reason: approvalExpiryState(record.expiresAt) === "invalid"
+          ? `Approval ${record.id} has invalid expiry metadata; refusing corrupt authority`
+          : `Approval ${record.id} is expired`,
+        approvalId: record.id,
+        record,
       };
     }
 

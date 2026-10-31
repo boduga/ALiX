@@ -119,6 +119,19 @@ describe("ScheduledTaskService", () => {
     expect(store.list()).toHaveLength(0);
   });
 
+  it("does not materialize an approved schedule whose expiry is missing, empty, malformed, or past", async () => {
+    const svc = service([
+      approved({ id: "missing", expiresAt: undefined }),
+      approved({ id: "empty", expiresAt: "" }),
+      approved({ id: "malformed", expiresAt: "not-a-date" }),
+      approved({ id: "expired", expiresAt: "2000-01-01T00:00:00.000Z" }),
+    ]);
+    const out = await svc.materializeApproved();
+    expect(out.created).toEqual([]);
+    expect(out.skipped).toEqual(["missing", "empty", "malformed", "expired"]);
+    expect(store.list()).toHaveLength(0);
+  });
+
   it("enqueues due jobs, advances nextRun, and expires overdue", async () => {
     store.create({
       name: "due", task: "t", cwd: "/srv/repo", status: "active", approvalId: "a1",
