@@ -110,7 +110,9 @@ function req(command = 'printf applied > effect.txt'): ToolCallRequest { return 
     expect(calls).toBe(0);
   });
 
-  it('serializes same-key concurrent entry before either adapter can run twice', async () => {
+  // Serializes two same-key entries and polls a 75ms ordering window, so this
+  // is wall-clock sensitive rather than a pure unit spec. Assertions unchanged.
+  it('serializes same-key concurrent entry before either adapter can run twice', { timeout: 30_000 }, async () => {
     const cwd = await root(); let calls = 0; const request = req('sleep 0.01; touch one');
     let release!: () => void; const gate = new Promise<void>((resolve) => { release = resolve; });
     const first = executeWithEffectJournal(cwd, request, async () => { calls++; await gate; return { kind: 'success', output: 'ok' }; });

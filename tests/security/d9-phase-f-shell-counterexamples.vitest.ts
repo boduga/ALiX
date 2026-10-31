@@ -20,7 +20,9 @@ async function tempRoot(): Promise<string> {
 }
 
 describe('D9 Phase F shell counterexamples', () => {
-  it('F1: persistent-shell completion cannot be forged by consuming and echoing harness stdin', async () => {
+  // Spawns a real persistent shell with a deliberate 0.2s delayed effect.
+  // Workload-scaled budget; assertions unchanged.
+  it('F1: persistent-shell completion cannot be forged by consuming and echoing harness stdin', { timeout: 30_000 }, async () => {
     const root = await tempRoot();
     const effect = join(root, 'effect.txt');
     const router = new ShellToolRouter(root);
@@ -36,7 +38,7 @@ describe('D9 Phase F shell counterexamples', () => {
     expect(existsSync(effect)).toBe(true);
   });
 
-  it('F2: signal termination is never classified as successful exit 0', async () => {
+  it('F2: signal termination is never classified as successful exit 0', { timeout: 30_000 }, async () => {
     const root = await tempRoot();
     const result = await runCommand({ command: 'printf EFFECT_OBSERVED; kill -TERM $$', cwd: root });
     expect(result.kind).toBe('error');

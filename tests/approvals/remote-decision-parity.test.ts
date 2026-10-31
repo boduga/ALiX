@@ -406,6 +406,7 @@ describe("remote-decision parity", () => {
     ["malformed", "not-a-date"],
   ] as const) {
     it(`${label} pending approval expiry → 409, never a decision`, { timeout: 10_000 }, async () => {
+      // CONTRIBUTING: real timers (setImmediate body + poll loop) ⇒ 10s cap.
       const corruptId = await seedApprovalWithExpiry(expiresAt);
       const c = await invoke(root, ctxWith({}), {}, tlsReq({ decision: "approved", nonce: "n1" }), corruptId);
       assert.equal(c.status, 409);

@@ -21,7 +21,7 @@ import type { ReplayStatusIndex } from "./replay-status-index.js";
 import type { ReplayLock } from "./replay-lock.js";
 import type { RollbackProgressStore } from "./rollback-progress.js";
 import type { ApprovalStore } from "../../governance/approvals/approval-store.js";
-import { claimLiveStep, liveStepInvocation } from "../../governance/approvals/live-step-approval.js";
+import { claimLiveStep, emitBlockedStepApprovalCreated, liveStepInvocation } from "../../governance/approvals/live-step-approval.js";
 import { createHash } from "node:crypto";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -456,12 +456,10 @@ export class RollbackExecutor {
           `Rollback ${plan.rollbackId} step ${stepIndex}: ${step.action} ${step.path}`,
           { replayId: plan.replayId, rollbackId: plan.rollbackId, position: i, step });
         if (!claim.claimed) {
-          if (claim.created && !store.emitsLifecycleEvents) {
-            await this.logEvent("approval.created", {
-              approvalId: claim.approvalId, rollbackId: plan.rollbackId,
-              replayId: plan.replayId, path: step.path, action: step.action, status: "pending",
-            });
-          }
+          await emitBlockedStepApprovalCreated(store, claim, {
+            rollbackId: plan.rollbackId,
+            replayId: plan.replayId, path: step.path, action: step.action,
+          }, (eventType, data) => this.logEvent(eventType, data));
           stepResult.status = "blocked";
           stepResult.blockReason = claim.reason;
           stepResult.durationMs = Date.now() - stepStart;

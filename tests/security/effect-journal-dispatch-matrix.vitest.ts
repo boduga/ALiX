@@ -62,7 +62,10 @@ describe('D9 Slice D registry coverage', () => {
 });
 
 (process.platform === 'linux' ? describe : describe.skip)('D9 Slice D ambiguous shell outcomes', () => {
-  it('timeout after an observable effect remains started_unknown', async () => {
+  // Each case spawns a real shell and waits for an observable file effect plus
+  // a timeout/signal/nonzero exit, so wall-clock work exceeds a pure unit spec.
+  // Workload-scaled budget; the assertions are unchanged.
+  it('timeout after an observable effect remains started_unknown', { timeout: 30_000 }, async () => {
     const root = await tempRoot();
     const effect = join(root, 'timeout-effect.txt');
     const request = shell(`printf applied > ${JSON.stringify(effect)}; sleep 1`, { timeoutMs: 20 });
@@ -74,7 +77,7 @@ describe('D9 Slice D registry coverage', () => {
     expect(readEffectRecord(root, request)?.state).toBe('started_unknown');
   });
 
-  it('signal termination after an observable effect remains started_unknown', async () => {
+  it('signal termination after an observable effect remains started_unknown', { timeout: 30_000 }, async () => {
     const root = await tempRoot();
     const effect = join(root, 'signal-effect.txt');
     const request = shell(`printf applied > ${JSON.stringify(effect)}; kill -TERM $$`);
@@ -86,7 +89,7 @@ describe('D9 Slice D registry coverage', () => {
     expect(readEffectRecord(root, request)?.state).toBe('started_unknown');
   });
 
-  it('nonzero exit after an observable effect remains started_unknown', async () => {
+  it('nonzero exit after an observable effect remains started_unknown', { timeout: 30_000 }, async () => {
     const root = await tempRoot();
     const effect = join(root, 'nonzero-effect.txt');
     const request = shell(`printf applied > ${JSON.stringify(effect)}; false`);

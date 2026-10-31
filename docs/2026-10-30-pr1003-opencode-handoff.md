@@ -84,6 +84,28 @@ An earlier attempt at the same command (log `/tmp/opencode/opencode-full-qualifi
 
 Vitest now passes the formerly failing D9 parity row without any product change to that path; only the row's budget changed.
 
+## Code review (2026-10-30, two-axis) — outcomes
+
+A two-axis review of `git diff main...HEAD` (60 commits, 152 files) produced 3 hard standards violations, 5 standards judgement calls, and 6 spec findings. Every finding was verified against the code before acting. Durable outcomes:
+
+**Fixed**
+- **Untyped event vocabulary.** `ownership.state_invalid` was emitted as a raw string outside `OWNERSHIP_EVENT_TYPES`. `STATE_INVALID` is now in both constant copies (`ownership-types.ts`, `runtime-state/events/types.ts`), the registry emits the constants, and the event-contract count table records 9 ownership types.
+- **Replay route bypassed the effect journal.** `file.create` and `patch.apply` on the approved-live replay route wrote directly; only shell and delete were journaled, contradicting Slice D's "no alternate unguarded dispatch route". Both are now wrapped. `patch.apply` (high risk) genuinely journals — pinned by a non-vacuous test that fails if the journal is bypassed. `file.create` (medium risk) remains a pass-through because journal membership is governed by `requiresEffectJournal`, unchanged.
+- **Slice F had no production entry point.** `reconcileEffectRecord` was test-only, so a quarantined effect had no operator remedy. Added `alix effects list|request|reconcile` (`src/interfaces/cli/commands/effects.ts`). It adds no authorization semantics: it recomputes the original invocation identity and delegates every authority/evidence/identity decision to the journal. Verified end-to-end: list → request (pending) → reconcile refused before approval → approve → reconcile → `reconciled_success`. Pinned by `tests/security/effects-cli.vitest.ts`.
+- **Approval "newest wins" comparators disagreed.** `list()` broke no ties while the binding index and `consumeApproved` did, so `claimLiveStep` could select a different record than the store's own authority check. `list()` and `findResolved` now break ties by id, matching precedence.
+- **Duplicated `approval.created` emission.** Extracted `emitBlockedStepApprovalCreated` beside `claimLiveStep`; replay and rollback executors both use it.
+- **Dead construct.** Removed the `try/catch → rethrow` no-op in `effect-journal.ts`.
+- **Four timing-sensitive vitest cases lacked explicit budgets** (`CONTRIBUTING.md` requires them): three in `effect-journal-dispatch-matrix.vitest.ts`, one in `d9-phase-f-shell-counterexamples.vitest.ts`, one ordering case in `effect-journal.vitest.ts`; plus the missing rationale comment in `remote-decision-parity.test.ts`.
+- **DOX closeout** for three changed contracts: ownership lock semantics, the `ApprovalStoreLock` `lockPath` override used by the effect journal and ownership, and the continuation deny re-check.
+
+**Deliberately not changed (finding was wrong)**
+- **Shell should record `terminal_failure` for non-zero exit.** Rejected. `terminal_failure` and `started_unknown` block replay identically, so the change alters no safety — it would only mislabel a compound command that may have mutated before failing. `outcomeUnknown` is the correct classification and is now documented as such.
+- **Audit sidecar fsync removal called scope creep.** Kept, per operator decision. It is a measured fix (two qualification cases from timeout to pass) and is documented in `src/governance/audit/AGENTS.md` and this record; reverting it re-breaks full qualification.
+
+**Accepted as known open items (not defects to fix here)**
+- Linux ARM64 native qualification is still absent; `docs/prd/evidence/lean-01/D9-phase-f-slice-g-governance-reconciliation-2026-10-29.md` records it as a Phase F blocker. It requires an ARM64 host, not a code change.
+- The Harness PRD v1.2 status/acceptance rewrite and the repeated expiry tri-state cascade across nine authorization sites remain judgement calls. The cascade is intentional: each site applies its own fail-closed outcome (deny / fresh request / allow), and collapsing them would touch nine security-critical decision paths for readability alone.
+
 ## Limitations
 
 - The measured per-append cost is a property of this host's rotational disk. The fixes remove redundant durability work and a missing budget rationale; they do not make the suite independent of disk speed. Anything that pays a real fsync per operation stays latency-bound here, so future budget decisions should cite a measured per-operation cost rather than a peak-run duration.

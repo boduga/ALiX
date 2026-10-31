@@ -543,6 +543,11 @@ if (command === "approvals") {
   await handleApprovalsRoot(args);
 }
 
+if (command === "effects") {
+  const { handleEffectsRoot } = await import("./interfaces/cli/commands/effects.js");
+  await handleEffectsRoot(args);
+}
+
 if (command === "schedule") {
   const { handleSchedule } = await import("./interfaces/cli/commands/schedule.js");
   await handleSchedule(args);

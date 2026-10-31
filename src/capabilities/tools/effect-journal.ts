@@ -524,9 +524,7 @@ export async function executeWithEffectJournal(
     hooks.onPoint?.('before_adapter');
     if (snapshot.signal?.aborted) throw new ExecutionCancelledError(signalReason(snapshot.signal) ?? 'tool cancelled');
 
-    let result: ToolResult;
-    try { result = await execute(boundRequest); }
-    catch (error) { throw error; }
+    const result: ToolResult = await execute(boundRequest);
 
     hooks.onPoint?.('after_adapter');
     if (snapshot.signal?.aborted) {

@@ -27,6 +27,7 @@ import type {
   OwnershipStore, AcquireResult, OwnershipEventSink,
 } from "./ownership-types.js";
 import { modesConflict } from "./ownership-types.js";
+import { OWNERSHIP_EVENT_TYPES } from "./ownership-types.js";
 import { pathScopesOverlap, scopeContains, normalizePathScope, formatScope } from "./path-scope.js";
 import { OwnershipLock } from "./ownership-lock.js";
 
@@ -158,13 +159,13 @@ export class OwnershipRegistry {
   private async withLock<T>(fn: () => Promise<T>): Promise<T | null> {
     const acquired = await this.lock.acquire();
     if (!acquired) {
-      await this.emitEvents([{ event: "ownership.lock_failed", data: { reason: "timeout" } }]);
+      await this.emitEvents([{ event: OWNERSHIP_EVENT_TYPES.LOCK_FAILED, data: { reason: "timeout" } }]);
       return null;
     }
     let events: Array<{ event: string; data: Record<string, unknown> }> = [];
     try {
       if (!this.reloadFromDisk()) {
-        events = [{ event: "ownership.state_invalid", data: { reason: "unreadable_or_malformed" } }];
+        events = [{ event: OWNERSHIP_EVENT_TYPES.STATE_INVALID, data: { reason: "unreadable_or_malformed" } }];
         return null;
       }
       this.applyExpiration();

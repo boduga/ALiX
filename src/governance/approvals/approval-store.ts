@@ -777,10 +777,14 @@ export class ApprovalStore {
     return resolved;
   }
 
-  /** List all approvals, newest first. */
+  /** List all approvals, newest first. IDs break timestamp ties, matching the
+   * precedence order `consumeApproved` and the binding index apply, so a caller
+   * that takes the first exact-binding match cannot select a different record
+   * than the store's own authority check. */
   list(): ApprovalRecord[] {
     // createdAt is ISO-8601: lexicographic order is chronological.
-    return [...this.approvals].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return [...this.approvals]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
   }
 
   /** List pending approvals only. */
@@ -1234,8 +1238,10 @@ export class ApprovalStore {
       if (opts.graphId && a.graphId !== opts.graphId) continue;
       if (opts.nodeId && a.nodeId !== opts.nodeId) continue;
       if (opts.capability && !a.capabilities.includes(opts.capability)) continue;
-      // ISO-8601 strings compare chronologically — no per-element Date.
-      if (!latest || a.createdAt.localeCompare(latest.createdAt) > 0) latest = a;
+      // ISO-8601 strings compare chronologically — no per-element Date. IDs
+      // break ties, matching the store's precedence order.
+      if (!latest || a.createdAt.localeCompare(latest.createdAt) > 0 ||
+          (a.createdAt === latest.createdAt && a.id.localeCompare(latest.id) > 0)) latest = a;
     }
     return latest;
   }

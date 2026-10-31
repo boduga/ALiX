@@ -293,6 +293,11 @@ export class ToolExecutor {
    * already has durable approval. `bypass` collapses normal ask/allow policy
    * without weakening hard denies, so this probe cannot mint a second approval
    * and cannot widen authority. A current deny always revokes execution.
+   *
+   * `source` is descriptive only — `PolicyGate` never reads it to decide
+   * anything — so it is set to the truthful `"tool"` rather than a label that
+   * suggests this probe is a replay step. Do not make any decision path depend
+   * on it: caller-set provenance is not authorization.
    */
   private async mandatoryContinuationDeny(
     request: ToolCallRequest,
@@ -309,7 +314,7 @@ export class ToolExecutor {
       sessionMode: "bypass",
       sessionId: this.sessionId(),
       agentId: request.agentId ?? "alix",
-      source: "replay",
+      source: "tool",
       ...((request.ownedPaths?.length ?? this.ownedPaths?.length)
         ? { ownedPaths: [...(request.ownedPaths?.length ? request.ownedPaths : this.ownedPaths ?? [])] }
         : {}),
