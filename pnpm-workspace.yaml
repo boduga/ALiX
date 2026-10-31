@@ -5,6 +5,25 @@ saveExact: true
 strictPeerDependencies: false
 autoInstallPeers: true
 sharedWorkspaceLockfile: true
+# Scoped to test-exclude only. test-exclude@8.0.0 (the latest release) still
+# declares glob ^13.0.6 and minimatch ^10.2.2, which pull the vulnerable
+# minimatch@10 / brace-expansion@5.0.9 line and carry four advisories:
+#   GHSA-g3hv-75wg-m249  minimatch DoS via globparts amplification
+#   GHSA-qhr7-859c-m2p7  brace-expansion DoS via uncontrolled recursion
+#   GHSA-6j4f-fj2g-mc7p  brace-expansion DoS via parseCommaParts recursion
+#   GHSA-q2hr-2g5m-vwhr  brace-expansion quadratic-time expansion
+#   GHSA-3g3m-2fjr-6pw4  glob AbortSignal cancellation bypass
+# There is no upstream release that fixes this, so the fixed lines are pinned
+# here instead. The override is scoped to `test-exclude` rather than applied
+# globally so no other consumer is silently moved off its declared range.
+#
+# Compatibility: test-exclude@8.0.0 only uses `minimatch(path, pattern, opts)`
+# and `glob.sync` / `glob()`. Both are stable across minimatch 10 -> 11 and
+# glob 13 -> 14. Verified by running the real coverage path (see
+# docs/security/2026-10-31-dependency-advisory-remediation.md).
+overrides:
+  "test-exclude>glob": 14.0.3
+  "test-exclude>minimatch": 11.0.3
 allowBuilds:
   better-sqlite3: true
   esbuild: true
