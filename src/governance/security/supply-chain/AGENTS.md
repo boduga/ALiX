@@ -25,24 +25,29 @@ treat a `$schema` reference as evidence that validation runs.
 
 CLI surface: `src/interfaces/cli/commands/security/supply-chain.ts`
 (`handleSupplyChain{LifecycleCheck,Exceptions,VerifyTarball}`). The CI entry
-point is `scripts/check-supply-chain.sh`.
+point is `scripts/check-supply-chain.sh`; `scripts/verify-lifecycle-scripts.mjs`
+cross-checks `pnpm-workspace.yaml` approvals against the allowlist.
 
 ## Local Contracts
 
 - **A gate must evaluate the policy, not describe the file.** The two are easy
   to conflate and the difference is a fail-open. `runExceptionsCheck` returned
   `ok: true` from nothing but successful file parsing, never calling
-  `checkExceptionsPolicy`. Any new "check" entry point must route through
-  `checkExceptionsPolicy`; a list-only path must never be reachable from a
-  gate.
+  `checkExceptionsPolicy`, for every invocation — including `exceptions check`
+  from CI. It reported "0 expired" against five exceptions that had expired
+  weeks earlier. Any new "check" entry point must route through
+  `checkExceptionsPolicy`; `listOnly` exists solely for the `list` subcommand
+  and must never be reachable from a gate.
 - **The audit parser must accept the shape the package manager actually
   emits.** npm reports `{ vulnerabilities: { <name>: {...} } }`; **pnpm reports
-  `{ advisories: { <id>: {...} } }`**. A parser that understands only one shape
-  reports zero findings — a clean bill of health — for the other.
-- **A broken audit invocation is not a clean report.** If the audit cannot
-  run, the result is a failure. pnpm exits non-zero *when advisories exist*
-  while still writing the report to stdout, so that path reads stdout rather
-  than treating the exit code as failure.
+  `{ advisories: { <id>: {...} } }`**. Supporting only the npm shape made
+  `pnpm audit --json` parse to zero findings, so a correct policy check fed by
+  it would still pass on any graph. Both shapes are parsed, and malformed input
+  returns a parse error rather than an empty clean report.
+- **A broken audit invocation is not a clean report.** If the audit cannot run,
+  the result is `ok: false` with `SC_AUDIT_FAILED`. pnpm exits non-zero *when
+  advisories exist* while still writing the report to stdout, so the runner
+  reads stdout on that path instead of treating the exit code as failure.
 - **Exceptions may be keyed by package name or advisory id.** `checkExceptionsPolicy`
   matches `e.id === vuln.id || e.package === vuln.package`. A package-name
   exception therefore pre-authorises *any* future advisory for that package;
@@ -103,7 +108,11 @@ point is `scripts/check-supply-chain.sh`.
 ## Verification
 
 - `tests/security/supply-chain/security-exceptions.test.ts` — parses both audit
-  shapes and evaluates expiry/unexcepted/severity policy.
+  shapes, evaluates expiry/unexcepted/severity policy, and pins that
+  `runExceptionsCheck` fails on an expired exception, an unexcepted critical, a
+  broken audit invocation, and that `listOnly` produces no verdict. Verified
+  non-vacuous by sabotage: restoring the "always ok" return fails 2 tests;
+  ignoring the pnpm `advisories` map fails 3.
 - `tests/security/supply-chain/` — lifecycle policy and allowlist behaviour.
 - `pnpm verify:deps` — exact-pin policy.
 - End-to-end: `bash scripts/check-supply-chain.sh`.
