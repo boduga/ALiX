@@ -23,6 +23,18 @@ A bounded exploratory install of `@huggingface/transformers@4.3.2` resolved the 
 
 A secure migration requires a separately reviewed build-script trust decision, confirmation of the upstream package's native binary provenance, CPU-only Linux x86-64 inference smoke tests, and embedding-cache compatibility tests. Existing Xenova model identifiers and cached vectors must not be assumed compatible with the new major version without verification.
 
+## Static install-script review — follow-up
+
+Inspected local package `node_modules/.pnpm/onnxruntime-node@1.30.0/node_modules/onnxruntime-node` without executing its postinstall script:
+
+- `package.json` defines `postinstall: node ./script/install`.
+- `script/install-metadata.js` sets `requirements['linux/x64'] = ['cuda12']`, mapping three CUDA/TensorRT `.so` provider libraries to a `Microsoft.ML.OnnxRuntime.Gpu.Linux` NuGet package. Other listed targets have empty requirements.
+- `script/install.js` selects the platform manifest, checks for missing files, and invokes `installPackages`; `install-utils.js` retrieves NuGet index/package over HTTPS and extracts selected entries to the native binary directory. No independently verified checksum/signature check was identified in the inspected download/extraction path. This is a supply-chain risk requiring review, not proof of compromise.
+- The local package already contains `bin/napi-v6/linux/x64/onnxruntime_binding.node` and `libonnxruntime.so.1`, indicating that CPU-native binaries are bundled. **This is not yet a successful runtime inference test.**
+- `@huggingface/transformers@4.3.2` declares `onnxruntime-node@1.30.0`, `onnxruntime-web@1.31.0-dev.20260914-8d85527a0`, and `sharp@^0.35.4` dependencies. Their individual advisories and native artifacts still require review.
+
+**Decision:** Do not allow the unrestricted postinstall script or approve new downloads. First verify a package install with lifecycle scripts disabled, CPU-native binding load, real CPU-only model inference, model provenance and compatibility, and a reproducible offline CI path. Any future build-script exception requires separate explicit authorization and exact package/version review.
+
 ## Recommended next steps
 
 1. Independently inspect `onnxruntime-node@1.30.0` install scripts, provenance, binary download behavior, and the repository `allowBuilds` policy. Record an explicit scoped approval or reject this candidate; never bypass the guard.
