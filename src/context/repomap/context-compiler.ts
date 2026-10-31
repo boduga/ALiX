@@ -4,7 +4,7 @@ import { CONTEXT_EVENT_TYPES } from "../../runtime-state/events/types.js";
 import type { RepoMapCreatedPayload, ContextBundleCreatedPayload, ContextItemRef } from "../../runtime-state/events/types.js";
 import { ContextPipeline, RankingStage, BudgetingStage, RepoMapStage, SemanticSearchStage } from "./context-pipeline.js";
 import type { RepoMapOutput, ContextBundle as PipelineContextBundle, ContextItem as PipelineContextItem } from "./context-pipeline.js";
-import { EmbeddingCache, SEMANTIC_EMBEDDER, CODE_EMBEDDER } from "./embedding-cache.js";
+import { EmbeddingCache, SEMANTIC_EMBEDDER } from "./embedding-cache.js";
 import { join } from "node:path";
 import "node:fs";
 import "node:fs/promises";
@@ -51,7 +51,11 @@ export class ContextCompiler {
     this.repoMap.gitActivity = gitActivity;
 
     this.embeddingCache = new EmbeddingCache(this.options.root, SEMANTIC_EMBEDDER);
-    this.codeEmbedder = new EmbeddingCache(this.options.root, CODE_EMBEDDER);
+    // No code embedder. `CODE_EMBEDDER` resolves to microsoft/codebert-base,
+    // which publishes no ONNX artifacts, so this runtime can never load it —
+    // constructing it only bought a failed resolve per context compile.
+    // `RankingStage` defaults absent code scores to 0, so ranking is unchanged.
+    this.codeEmbedder = undefined;
 
     // Note: Embeddings are built lazily on first use (saves 68MB ONNX model load
     // for tasks that don't need semantic search). Call ensureEmbeddings() explicitly

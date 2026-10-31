@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/boduga/ALiX/main/security/schemas/audit-exceptions.schema.json",
   "description": "Exceptions for npm audit advisories that have been reviewed and accepted.",
-  "lastReviewed": "2026-10-31",
+  "lastReviewed": "2026-11-01",
   "policy": {
     "failOnUnexcepted": true,
     "failOnExpired": true,
@@ -12,44 +12,14 @@
   },
   "advisories": [
     {
-      "id": "@xenova/transformers",
-      "severity": "high",
-      "package": "@xenova/transformers",
-      "title": "Post-Install Script Execution Risk in transformers.js",
-      "reason": "@xenova/transformers is a deprecated package used for local embeddings. It runs postinstall scripts. Migration to @huggingface/transformers is planned (M0.82). The package is isolated and does not handle user input at runtime.",
-      "owner": "boduga",
-      "created": "2026-06-18",
-      "expiry": "2026-09-16"
-    },
-    {
-      "id": "onnx-proto",
-      "severity": "high",
-      "package": "onnx-proto",
-      "title": "Prototype Pollution in Protobufjs (transitive via onnx-proto)",
-      "reason": "Transitive dependency of @xenova/transformers. Not directly used by ALiX. Prototype pollution risk is limited to internal ONNX model parsing — no user-controlled input reaches the vulnerable path.",
-      "owner": "boduga",
-      "created": "2026-06-18",
-      "expiry": "2026-09-16"
-    },
-    {
       "id": "onnxruntime-web",
       "severity": "high",
       "package": "onnxruntime-web",
       "title": "Vulnerable ONNX Runtime Web Version",
-      "reason": "Transitive dependency of @xenova/transformers. Used only for ML model inference, not accessible via network. Migration to @huggingface/transformers will eliminate this dependency.",
+      "reason": "STILL PRESENT after the @huggingface/transformers migration, as a prerelease. @huggingface/transformers@4.3.2 declares onnxruntime-web@1.31.0-dev.20260914-8d85527a0 and onnxruntime-common@1.31.0-dev.20260911-2a43ec07e — pre-release builds, not covered by any released-version advisory range. The previous exception was justified by migration removing this dependency; that premise was wrong, so the reason is restated rather than the expiry extended. ALiX loads the Node native binding (onnxruntime-node) for CPU inference, not the web/WASM backend. Prerelease supply-chain exposure still requires an owner decision.",
       "owner": "boduga",
-      "created": "2026-06-18",
-      "expiry": "2026-09-16"
-    },
-    {
-      "id": "protobufjs",
-      "severity": "critical",
-      "package": "protobufjs",
-      "title": "Prototype Pollution in protobufjs (< 7.6.2)",
-      "reason": "Transitive dependency via @xenova/transformers. ALiX does not parse untrusted protobuf input. The library is used internally for ONNX model format only. Migration to updated transformers will resolve this.",
-      "owner": "boduga",
-      "created": "2026-06-18",
-      "expiry": "2026-09-16"
+      "created": "2026-10-31",
+      "expiry": "2027-01-29"
     }
   ]
 }
