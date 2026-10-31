@@ -120,6 +120,17 @@ builds for directory patterns.
 
 **Result: 754 comparisons, 0 differences.**
 
+That probe is not reproducible in CI, so `tests/tools/ignore-parity.test.ts`
+pins the expected decision for each case instead, independently of the matcher
+version. Non-vacuity verified by sabotage: removing the `` `${p}/**` `` branch
+fails 3 tests; changing `dot: true` to `dot: false` fails 1.
+
+The first attempt at the dotfile cases was non-discriminating — a literal
+`.env` pattern matches `.env` whether or not `dot` is set, so removing
+`dot: true` still passed. The table now includes cases where a wildcard has to
+cross a leading dot (`*` vs `.env`, `**/*.log` vs `.hidden/debug.log`), which
+is the behaviour that actually changes.
+
 ## Exception removed
 
 `security/audit-exceptions.json` lost **one** entry — `vite` — because the
@@ -150,6 +161,7 @@ remain expired (2026-09-16) and are tracked by the migration work.
 | `tests/file-tools.test.js` | 6/6 |
 | `tests/tools/search-tools.test.js` | 13/13 |
 | `tests/repomap/repomap-lite.test.js` | 17/17 |
+| `tests/tools/ignore-parity.test.js` | 5/5 (sabotage-verified) |
 | glob-consumer vitest files (4) | 67/67 |
 | `c8` coverage path | produced a summary, no error |
 | `pnpm test:node` | see below |
