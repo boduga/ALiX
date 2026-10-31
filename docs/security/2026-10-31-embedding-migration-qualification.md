@@ -290,28 +290,32 @@ installed):
 | `embedding-cache-cpu` (provisioned) | 4/4 PASS |
 | `embedding-cache-cpu` (unprovisioned) | skipped, exit 0 |
 | other `tests/repomap/*` | PASS (context-compiler 16, pipeline 20, features 5, ranker 2, dependency-graph 9, repomap-lite 17, sparse-batch 1, git-activity 2, symbol-extractor 2) |
-| `pnpm test:node` (full) | see §7.1 |
+| `pnpm test:node` (full) | PASS — 9315/9321, 0 fail, exit 0 |
+| `pnpm test:vitest` (full) | PASS — 8090/8101, 0 fail, exit 0 |
 
-### 7.1 Full node suite
+### 7.1 Full suites
 
-`pnpm test:node` on the migrated tree: **9316 tests, 9308 pass, 0 fail, 7
-skipped**. The suite's non-zero exit comes from one pre-existing timeout (below),
-not from a failure count.
+| Command | Result |
+|---|---|
+| `pnpm test:node` | **9321 tests, 9315 pass, 0 fail, 6 skipped, exit 0** |
+| `pnpm test:vitest` | **740 files (738 pass, 2 skip), 8090 pass, 0 fail, exit 0** |
 
-Flake note, recorded because it changes a baseline claim: the baseline run taken
-before any edit had 3 failures in `daemon-universal` (universal daemon
-cross-workspace, `ENOENT /tmp/cross-workspace-test.sock`). The same tests
-**passed** in the migrated run (15.6 s). They are timing/environment dependent
-and unrelated to embeddings, so neither the failures nor the passes are
-attributable to this change — but they must not be cited as a regression, and
-equally the earlier "3 pre-existing failures" figure should not be treated as
-fixed.
+Two flake observations, recorded rather than smoothed over, because both changed
+between runs on an unchanged tree:
 
-Pre-existing failure carried over from the baseline, present before any edit:
-`ContextCompiler.warm() detailed breakdown` and its child
-`shows per-operation timing for warm()` time out at 120 s on this machine (the
-suite reports ~489 s of directory traversal against a 120 s budget). Not caused
-by and not fixed by this change.
+- An earlier `test:node` run on the same tree had 3 `daemon-universal`
+  cross-workspace failures (`ENOENT /tmp/cross-workspace-test.sock`) and the
+  `warm-breakdown` 120 s timeout. All passed on the final run.
+- An earlier `test:vitest` run had 5 failures (4 in `effect-reconciliation`,
+  `ENOTEMPTY ... .alix/approvals` during teardown). A clean re-run passed all
+  8090.
+
+The baseline `test:node` run, taken before any edit, showed the same
+`daemon-universal` + `warm-breakdown` flake. These are timing/filesystem
+dependent, unrelated to embeddings, and neither introduced nor fixed here. The
+one reproducible pre-existing issue is `warm-breakdown`'s 120 s budget against
+~489 s of directory traversal on this machine — it is genuinely slow here and
+only sometimes exceeds the limit.
 
 ## 8. Residual risk and blockers
 
