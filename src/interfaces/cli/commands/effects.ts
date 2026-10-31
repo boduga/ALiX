@@ -25,6 +25,7 @@
 import { join } from "node:path";
 import { readdirSync, readFileSync, existsSync, realpathSync } from "node:fs";
 import type { ToolCallRequest } from "../../../capabilities/tools/types.js";
+import { openApprovalStores } from "../helpers/approval-stores.js";
 
 /** States that still block replay and therefore need operator attention. */
 const UNRESOLVED_STATES = ["claimed", "started_unknown", "terminal_failure"];
@@ -184,9 +185,11 @@ export async function handleEffectsRequest(cwd: string, args: string[]): Promise
       evidenceHash: parsed.evidenceHash!,
       evidenceRef: parsed.evidenceRef!,
     });
-    const { ApprovalStore } = await import("../../../governance/approvals/approval-store.js");
-    const store = new ApprovalStore(cwd);
-    await store.load();
+    // The project store (first entry) is the one the journal reconciles against.
+    // Reach it through the sanctioned CLI helper rather than importing the
+    // protected status store directly (R1 boundary freeze).
+    const { stores } = await openApprovalStores(cwd);
+    const store = stores[0];
     const approval = await store.requestBound({
       reason: `D9 effect reconciliation ${record.effectKey}`,
       bindingKey: authority.bindingKey,
@@ -227,9 +230,9 @@ export async function handleEffectsReconcile(cwd: string, args: string[]): Promi
   }
   try {
     const { reconcileEffectRecord } = await import("../../../capabilities/tools/effect-journal.js");
-    const { ApprovalStore } = await import("../../../governance/approvals/approval-store.js");
-    const store = new ApprovalStore(cwd);
-    await store.load();
+    // Sanctioned CLI helper, not a direct protected-store import (R1 freeze).
+    const { stores } = await openApprovalStores(cwd);
+    const store = stores[0];
     const request: ToolCallRequest = { toolCallId: "effects-reconcile", name: parsed.toolName, args: parsed.args };
     const record = await reconcileEffectRecord(cwd, request, {
       approvalId: parsed.approvalId,
