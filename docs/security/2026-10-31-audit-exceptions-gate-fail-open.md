@@ -9,7 +9,9 @@ Status: **fixed; the gate now enforces its policy**
 
 `alix security supply-chain exceptions check` is the Sf.2 gate invoked by
 `scripts/check-supply-chain.sh`. It reported a clean result for every
-invocation and could not fail. Three independent defects combined:
+invocation and could not fail. **Four** independent defects combined — the
+first three in the library and CLI, the fourth in the CI script itself, which
+would have masked the other three even after they were fixed.
 
 1. **`runExceptionsCheck` never evaluated the policy.** It called
    `loadExceptions`, then returned `ok: true` with empty `findings`,
@@ -29,6 +31,16 @@ invocation and could not fail. Three independent defects combined:
 3. **The handler ignored its subcommand.** `list` and `check` ran identical
    code, so `check` could not be distinguished from a listing. `list` also
    printed "Expired exceptions: 0" as a headline regardless of the facts.
+
+4. **The CI script's fallback masked the primary check.** On any non-zero exit
+   from the primary check, `check-supply-chain.sh` ran `npm audit --json` and
+   passed whenever the parsed count was 0. This repository has no
+   `package-lock.json`, so `npm audit` always failed with
+   `{"error": {"summary": "Cannot read properties of null (reading 'matches')"}}`
+   — which parsed to **0 advisories**, printing
+   `✅ No npm audit advisories` and leaving `PASSED=true`. Fixing defects 1–3
+   was therefore not enough: with every exception deliberately expired, the CLI
+   exited 1 and the script still exited 0.
 
 Concrete evidence of the fail-open: with all five exception entries expired on
 2026-09-16, the gate reported "0 expired" and exited 0. Calling
@@ -51,6 +63,10 @@ five `SC_EXCEPTION_EXPIRED` findings.
   result.
 - `check` reports advisories evaluated/excepted/unexcepted; `list` reports
   declared exceptions. Both were previously mislabelled.
+- `scripts/check-supply-chain.sh` falls back to `npm audit` **fail-closed**: an
+  audit that cannot produce a usable report is a failure, not a pass. The
+  non-numeric-result guard means stray output can never become an arithmetic
+  comparison.
 
 ## Behaviour change now visible
 
@@ -86,6 +102,15 @@ Probes on the fixed path:
 - unrecognised audit shape ⇒ `ok: false`, `SC_AUDIT_PARSE_FAILED`
 - explicit empty report ⇒ `ok: true`
 - `pnpm audit --json` ⇒ 15 findings (was 0)
+
+End-to-end gate probes, run with every exception temporarily expired and the
+file restored afterwards:
+
+| Scenario | `exceptions check` | `check-supply-chain.sh` |
+|---|---|---|
+| current tree | exit 0 | exit 0 |
+| all exceptions expired (before the script fix) | exit 1 | **exit 0 — masked** |
+| all exceptions expired (after the script fix) | exit 1 | exit 1 |
 
 Tests are verified non-vacuous by sabotage: restoring the "always ok" return
 fails 2, ignoring the pnpm `advisories` map fails 3, and removing the
