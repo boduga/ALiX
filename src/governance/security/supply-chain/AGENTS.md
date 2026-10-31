@@ -19,6 +19,11 @@ Policy inputs owned elsewhere: `pnpm-workspace.yaml` (`allowBuilds`,
 `overrides`, `saveExact`) and `package.json` (exact version pins, checked by
 `scripts/verify-deps.mjs`).
 
+Schema documents live at `security/schemas/` and mirror the interfaces above for
+editor completion and review. They are supplied by the staleness-guardrail
+change, not by this one; do not treat a `$schema` reference as evidence that
+validation runs, because nothing in CI validates against them.
+
 CLI surface: `src/interfaces/cli/commands/security/supply-chain.ts`
 (`handleSupplyChain{LifecycleCheck,Exceptions,VerifyTarball}`). The CI entry
 point is `scripts/check-supply-chain.sh`.
@@ -82,11 +87,19 @@ point is `scripts/check-supply-chain.sh`.
 - Preferences: report warnings do not fail the gate (`failSeverity: critical`,
   `warnSeverity: high`). An unreviewed **high** is a warning, not a pass —
   treat it as outstanding debt, not as satisfied.
-- `security/audit-exceptions.json` references a `$schema` under
-  `security/schemas/` that does not exist in the repository, so the document has
-  no live schema validation; the in-code validator in `src/interfaces/cli/commands/security/doctor.ts` is
-  the only structural check. Do not treat the `$schema` line as evidence that
-  validation happens.
+- Both policy files reference a `$schema` under `security/schemas/`. Those
+  schema documents mirror the interfaces this module consumes, but nothing in CI
+  validates against them — they are editor tooling. The structural checks that
+  actually run are `validateSecurityExceptionsDocument` in
+  `src/interfaces/cli/commands/security/doctor.ts` (exceptions) and
+  `runLifecycleCheck` (allowlist). Do not treat the `$schema` line as evidence
+  that validation happens.
+- **A reference that no longer describes the tree is a finding.** An exception
+  for a package that matches no advisory, or a `$schema` pointing at a file that
+  was never added, reads as coverage that does not exist. The guardrail is
+  `scripts/check-staleness.mjs` (`pnpm check:staleness`), supplied by the
+  staleness-guardrail change. It does not check expiry or advisory matching —
+  those are the policy verdicts above, and a second implementation would drift.
 
 ## Verification
 

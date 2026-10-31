@@ -188,8 +188,18 @@ can produce a lifecycle verdict that does not describe the lockfile.
 - The override forces `test-exclude` outside its declared dependency ranges.
   If a future `test-exclude` release widens them, the override should be
   removed. It is scoped so the removal is a one-line change.
-- `security/audit-exceptions.json` `$schema` points at
-  `security/schemas/audit-exceptions.schema.json`, which **does not exist** in
-  the repository. The document therefore has no live schema validation. This
-  is pre-existing and not addressed here; the in-code validator in
-  `security/doctor.ts` is the only structural check that currently runs.
+- Three of the four remaining exception entries (`@xenova/transformers`,
+  `onnx-proto`, `onnxruntime-web`) match no advisory in the current audit.
+  They are package-name exceptions covering post-install script risk, not
+  matches on a specific advisory, and they are retired by the embeddings
+  migration rather than by deleting them here. All four entries expired on
+  2026-09-16; the gate fails closed on them once policy evaluation is wired in
+  (#1012). This branch does not renew, extend, or delete them.
+- The `$schema` references in `security/audit-exceptions.json` and
+  `security/lifecycle-script-allowlist.json` point at schema files under
+  `security/schemas/`. Those are supplied by the staleness-guardrail change
+  (`chore/check-staleness`) and are not part of this branch, so on this branch
+  the references still do not resolve. They are editor tooling even once
+  present — nothing in CI validates against them. The runtime structural check
+  is `validateSecurityExceptionsDocument` in
+  `src/interfaces/cli/commands/security/doctor.ts`.
