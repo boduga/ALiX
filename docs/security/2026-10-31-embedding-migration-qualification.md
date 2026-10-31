@@ -21,8 +21,11 @@ dated entries in `security/audit-exceptions.json`, and no release approval.
 | `pnpm-lock.yaml` | Regenerated for the new subtree only |
 | `pnpm-workspace.yaml` | `onnxruntime-node: false`, `protobufjs: false` under `allowBuilds` — explicit **deny**, not approval |
 | `src/context/repomap/embedding-cache.ts` | v4 API, pinned revision, CPU device, offline mode, vector-space cache namespacing, actionable errors |
+| `src/context/repomap/context-compiler.ts` | stops constructing the code embedder (no ONNX artifacts upstream) |
 | `security/audit-exceptions.json` | 3 resolved entries removed, 2 restated with fresh dates |
-| `tests/repomap/embedding-cache-deterministic.test.ts` | new, 19 deterministic tests, no network |
+| `security/lifecycle-script-allowlist.json` | `protobufjs` entry dropped; the script is now denied, not permitted |
+| `src/context/repomap/AGENTS.md` | new subsystem contract for the embedding lifecycle |
+| `tests/repomap/embedding-cache-deterministic.test.ts` | new, 24 deterministic tests, no network |
 | `tests/repomap/embedding-cache-cpu.test.ts` | new, real CPU inference, opt-in via `ALIX_EMBEDDING_MODEL_PATH` |
 | `tests/repomap/embedding-cache.test.ts` | honours a provisioned model instead of always requiring network |
 
@@ -205,6 +208,15 @@ code embedder (see §8).
 
 `pnpm audit` advisory count across the whole graph: **29 → 15 (−14)**.
 
+| Severity | Before | After |
+|---|---|---|
+| critical | 1 | **0** |
+| high | 13 | 5 |
+| moderate | 14 | 9 |
+| low | 1 | 1 |
+
+The critical finding (`protobufjs` GHSA-xq3m-2v4x-88gg) is gone.
+
 Removed outright by the migration:
 
 - `protobufjs@6.11.6` — 1 critical + 5 high + 5 moderate (incl. GHSA-xq3m-2v4x-88gg)
@@ -271,15 +283,35 @@ installed):
 | `pnpm verify:deps` | PASS (24 pins) |
 | `node scripts/verify-lifecycle-scripts.mjs` | PASS (3 approved, 0 missing, 0 expired) |
 | `pnpm install --frozen-lockfile` | PASS |
-| `pnpm audit --json` | 15 advisories (was 29) |
-| `embedding-cache-deterministic` | 19/19 PASS |
+| `bash scripts/check-supply-chain.sh` | PASS |
+| `pnpm check:dox` | PASS (12 claim tokens across 2 AGENTS.md) |
+| `pnpm audit --json` | 15 advisories (was 29; 0 critical, was 1) |
+| `embedding-cache-deterministic` | 24/24 PASS |
 | `embedding-cache-cpu` (provisioned) | 4/4 PASS |
 | `embedding-cache-cpu` (unprovisioned) | skipped, exit 0 |
 | other `tests/repomap/*` | PASS (context-compiler 16, pipeline 20, features 5, ranker 2, dependency-graph 9, repomap-lite 17, sparse-batch 1, git-activity 2, symbol-extractor 2) |
+| `pnpm test:node` (full) | see §7.1 |
 
-Pre-existing failures, unchanged by this work (present on the baseline commit
-before any edit): 3 `daemon-universal` cross-workspace tests
-(`ENOENT /tmp/cross-workspace-test.sock`) and 2 `warm-breakdown` timeouts.
+### 7.1 Full node suite
+
+`pnpm test:node` on the migrated tree: **9316 tests, 9308 pass, 0 fail, 7
+skipped**. The suite's non-zero exit comes from one pre-existing timeout (below),
+not from a failure count.
+
+Flake note, recorded because it changes a baseline claim: the baseline run taken
+before any edit had 3 failures in `daemon-universal` (universal daemon
+cross-workspace, `ENOENT /tmp/cross-workspace-test.sock`). The same tests
+**passed** in the migrated run (15.6 s). They are timing/environment dependent
+and unrelated to embeddings, so neither the failures nor the passes are
+attributable to this change — but they must not be cited as a regression, and
+equally the earlier "3 pre-existing failures" figure should not be treated as
+fixed.
+
+Pre-existing failure carried over from the baseline, present before any edit:
+`ContextCompiler.warm() detailed breakdown` and its child
+`shows per-operation timing for warm()` time out at 120 s on this machine (the
+suite reports ~489 s of directory traversal against a 120 s budget). Not caused
+by and not fixed by this change.
 
 ## 8. Residual risk and blockers
 
@@ -320,7 +352,49 @@ before any edit): 3 `daemon-universal` cross-workspace tests
    `SC_EXCEPTION_EXPIRED` findings. Not fixed here — it is an unrelated
    governance defect that deserves its own reviewed change.
 
-## 9. D9 Phase F recommendation
+## 9. Independent review findings
+
+A separate adversarial review pass was run against the first version of this
+change. It found four real defects, all fixed and pinned by tests before commit.
+Recording them because a clean final diff would otherwise imply they never
+existed:
+
+1. **`env.useFSCache = false` was never restored.** Correct for making offline
+   mode strict, but leaving it set makes a later *download* structurally
+   impossible (`Unable to get model file path or buffer`), so the error's own
+   "unset the variable to allow a one-time download" advice did not work. A
+   failed offline load also left `allowRemoteModels = false` behind. Now
+   snapshotted and restored in `finally`, with loads serialised so two roots
+   cannot corrupt each other through the process-global `env`.
+2. **The code embedder was live.** `ContextCompiler.warm()` constructed
+   `CODE_EMBEDDER` and `SemanticSearchStage` searched it on every
+   `compileContext()`, while the docs claimed it was not instantiated. Because
+   `microsoft/codebert-base` has no ONNX artifacts, each compile produced a
+   fresh outbound 404 (~80–150 ms), and the earlier memoisation change had made
+   it retry per call instead of failing once. The compiler no longer constructs
+   it.
+3. **`toVector` validated the wrong branch.** Finite/empty checks sat only in
+   the unreachable fallback, so a NaN or empty vector from the Tensor path
+   reached `cosineSimilarity`. NaN compares false against everything, survives
+   `sort`, and yields an arbitrary ranking order. Validation now covers every
+   branch.
+4. **Two tests were vacuous.** "Treats a corrupted cache entry as a miss" and
+   "treats a non-finite or empty cache entry as a miss" stubbed `getEmbedding`
+   and then asserted the stub's own return value, never entering `loadCached`.
+   The retry test also passed under sabotage because it only asserted that two
+   rejections occurred. Both now assert the real code path, and the suite was
+   re-verified by sabotage: forcing `loadCached` to always miss fails 4 tests,
+   disabling the retry guard fails 1, removing finite-value validation fails 3.
+
+The review also corrected two overstated claims in §4 (q8 drift is dominated by
+batch *geometry*, not runtime version, and ALiX's real cross-version drift is
+~4e-3 not 1.4e-2) and one false claim in §6 ("no unrelated package changed
+version" — `sharp` moved 0.32.6 → 0.35.5 as a direct consequence of the
+migration). Those are corrected in place above.
+
+This is a second pass by the same agent, not independent certification.
+
+## 10. D9 Phase F recommendation
 
 **HOLD.**
 
