@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed — 2026-10-28. This records the implementation contract for the
+Proposed — 2026-10-28; platform scope amended by operator decision 2026-10-31 (Master PRD v2.10). This records the implementation contract for the
 D9 R4.2 Phase F remediation plan. It does not clear Phase F, accept residual
 risk, or authorize a release.
 
@@ -27,8 +27,7 @@ The implementation plan requires five contract decisions before runtime implemen
 
 ### 1. Supported platforms
 
-Per Master PRD v2.9 Q10/NFR-11, Phase F certification is required for **Linux
-x86-64 and Linux ARM64**. macOS, native Windows, and containerized deployment are
+Per Master PRD v2.10 Q10/NFR-11 (operator amendment 2026-10-31), initial Phase F certification is required for **Linux x86-64 only**. Linux ARM64, macOS, native Windows, and containerized deployment are
 **deferred certification targets** and are not required to clear this first-release
 Phase F gate. Development behavior on those platforms must still fail closed where
 the guarded durability/process contract is unavailable; it must not be advertised
@@ -38,8 +37,7 @@ A required Linux architecture must not silently downgrade to best-effort replay
 protection. If a required persistence or process-control primitive cannot satisfy
 this contract, the affected guarded capability fails closed until that backend is
 qualified. CI collection by itself is not platform qualification; claimed execution
-and failure semantics must be exercised natively on both certified Linux
-architectures.
+and failure semantics must be exercised natively on each architecture before it is certified. Linux ARM64 is not certified or supported for the initial release by this decision; its native qualification is deferred and non-blocking for initial x86-64 D9 closeout.
 
 ### 2. Durability target
 
@@ -122,8 +120,7 @@ For D9:
   when all required evidence is present and no unresolved blocker remains;
 - any unresolved residual risk, missing native-platform evidence, or ambiguous
   effect outcome forces durable `HOLD`/`BLOCKED`; there is no in-loop waiver path;
-- Linux x86-64/ARM64 are required by the governing Master PRD, while macOS/Windows
-  are already deferred by Q10 and therefore need no D9 platform-exclusion waiver.
+- Linux x86-64 alone is required for initial certification under amended Q10; ARM64, macOS and Windows are deferred. This is an explicit scope change, not a waiver of security or durability invariants.
 
 This technical verdict does **not** replace Q13 release/publication authority.
 Actual release remains subject to the Master PRD's separately recorded maintainer
@@ -155,8 +152,7 @@ Before the remediation PR may be described as Phase F ready:
    read-oriented.
 3. Crash-injection tests cover each journal boundary from durable claim through
    terminal outcome recording.
-4. Linux x86-64 and Linux ARM64 have explicit native qualification for the
-   guarantees claimed here; macOS/Windows remain deferred per Q10.
+4. Linux x86-64 has explicit native qualification for the guarantees claimed here. ARM64, macOS and Windows remain deferred under amended Q10; ARM64 must qualify natively before later certification.
 5. Unknown outcomes remain quarantined after ALiX process restart.
 6. Evidence distinguishes process-crash safety from kernel/power-loss claims.
 7. Independent verifier/critic review finds no unresolved violation of this ADR;
