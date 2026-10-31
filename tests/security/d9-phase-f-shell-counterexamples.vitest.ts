@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ShellToolRouter } from '../../src/capabilities/tools/tool-router.js';
@@ -54,9 +54,17 @@ describe('D9 Phase F shell counterexamples', () => {
   // `process.exit(143)` is a plain exit code, and 143's conventional meaning on
   // POSIX (128+15) does not make Windows report a signal. The effect must also
   // stay uncertain, because a non-zero exit cannot prove no mutation happened.
+  //
+  // The exit code comes from a script FILE, not `node -e "..."`: `runCommand`
+  // spawns with `shell: true`, so on Windows the command is interpolated into
+  // `cmd.exe /d /s /c "<command>"`. Embedded double quotes only survive because
+  // of cmd's `/s` first/last-quote stripping, which is fragile. A file path has
+  // no quotes to mangle.
   it.skipIf(process.platform !== 'win32')('F2 (Windows): a nonzero exit is never classified as success', { timeout: 30_000 }, async () => {
     const root = await tempRoot();
-    const result = await runCommand({ command: 'node -e "process.exit(143)"', cwd: root });
+    const script = join(root, 'exit143.cjs');
+    await writeFile(script, 'process.exit(143);\n', 'utf8');
+    const result = await runCommand({ command: 'node exit143.cjs', cwd: root });
     expect(result.kind).toBe('error');
     if (result.kind === 'error') {
       expect(result.message).toMatch(/exited with code 143/i);
