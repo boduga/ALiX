@@ -8,7 +8,7 @@
 // Run: pnpm test:node (compiled to dist/tests/scripts/check-staleness.test.js)
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -368,10 +368,36 @@ describe("check-staleness: exception entries", () => {
   });
 });
 
-describe("check-staleness: this repository", () => {
-  it("is clean at HEAD", () => {
-    const r = run(ROOT);
-    assert.equal(r.status, 0, r.stdout);
-    assert.deepEqual(r.parsed?.findings, []);
+describe("check-staleness: this repository's policy files", () => {
+  // Scope deliberately limited to the policy files and their schemas. Asserting
+  // the whole tree is clean here would fail whenever an unrelated uncommitted
+  // edit is present, which reports the developer's scratch state as a defect.
+  // Tree-wide cleanliness is CI's job, on a committed checkout.
+  it("security policy files conform to the schemas they ship with", () => {
+    const dir = fixture({
+      "security/audit-exceptions.json": readFileSync(
+        join(ROOT, "security", "audit-exceptions.json"),
+        "utf-8"
+      ),
+      "security/lifecycle-script-allowlist.json": readFileSync(
+        join(ROOT, "security", "lifecycle-script-allowlist.json"),
+        "utf-8"
+      ),
+      "security/schemas/audit-exceptions.schema.json": readFileSync(
+        join(ROOT, "security", "schemas", "audit-exceptions.schema.json"),
+        "utf-8"
+      ),
+      "security/schemas/lifecycle-allowlist.schema.json": readFileSync(
+        join(ROOT, "security", "schemas", "lifecycle-allowlist.schema.json"),
+        "utf-8"
+      ),
+    });
+    try {
+      const r = run(dir);
+      assert.equal(r.status, 0, r.stdout);
+      assert.deepEqual(r.parsed?.findings, []);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
