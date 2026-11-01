@@ -96,9 +96,10 @@ point is `scripts/check-supply-chain.sh`.
   that validation happens.
 - **A reference that no longer describes the tree is a finding.** An exception
   for a package that matches no advisory, or a `$schema` pointing at a file that
-  was never added, reads as coverage that does not exist. The guardrail is
-  `scripts/check-staleness.mjs` (`pnpm check:staleness`), supplied by the
-  staleness-guardrail change. It does not check expiry or advisory matching —
+  was never added, reads as coverage that does not exist. The guardrail for this
+  is supplied by a separate change (the staleness sentinel, PR #1013), not by
+  this branch; until it lands, nothing automated reports this class of drift.
+  When it lands it deliberately does not check expiry or advisory matching —
   those are the policy verdicts above, and a second implementation would drift.
 
 ## Verification
