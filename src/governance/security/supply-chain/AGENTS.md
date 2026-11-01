@@ -20,9 +20,8 @@ Policy inputs owned elsewhere: `pnpm-workspace.yaml` (`allowBuilds`,
 `scripts/verify-deps.mjs`).
 
 Schema documents live at `security/schemas/` and mirror the interfaces above for
-editor completion and review. They are supplied by the staleness-guardrail
-change, not by this one; do not treat a `$schema` reference as evidence that
-validation runs, because nothing in CI validates against them.
+editor completion and review. Nothing in CI validates against them, so do not
+treat a `$schema` reference as evidence that validation runs.
 
 CLI surface: `src/interfaces/cli/commands/security/supply-chain.ts`
 (`handleSupplyChain{LifecycleCheck,Exceptions,VerifyTarball}`). The CI entry
@@ -96,11 +95,10 @@ point is `scripts/check-supply-chain.sh`.
   that validation happens.
 - **A reference that no longer describes the tree is a finding.** An exception
   for a package that matches no advisory, or a `$schema` pointing at a file that
-  was never added, reads as coverage that does not exist. The guardrail for this
-  is supplied by a separate change (the staleness sentinel, PR #1013), not by
-  this branch; until it lands, nothing automated reports this class of drift.
-  When it lands it deliberately does not check expiry or advisory matching —
-  those are the policy verdicts above, and a second implementation would drift.
+  was never added, reads as coverage that does not exist. `pnpm check:staleness`
+  (`scripts/check-staleness.mjs`) fails CI on exactly that. It does not check
+  expiry or advisory matching — those are the policy verdicts above, and a
+  second implementation would drift.
 
 ## Verification
 
