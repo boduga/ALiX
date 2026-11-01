@@ -32,19 +32,47 @@ echo "▸ Sf.2 — Audit exceptions check..."
 if npx --prefix "$PROJECT_ROOT" alix security supply-chain exceptions check 2>/dev/null; then
   echo "  ✅ Audit exceptions — all advisories excepted or below threshold"
 else
-  # alix may not be built; run npm audit directly and check against exceptions
-  echo "  ⚠  Running npm audit fallback..."
-  AUDIT_JSON="$(npm audit --json 2>/dev/null || echo "{}")"
-  AUDIT_COUNT="$(echo "$AUDIT_JSON" | node -p "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); Object.keys(a.vulnerabilities||{}).length" 2>/dev/null || echo "0")"
+  # alix may not be built; fall back to an independent audit. The fallback
+  # cannot evaluate the exceptions file, so it must fail closed (#691) on
+  # either a finding OR an unusable audit result.
+  #
+  # Previously this branch reported a pass whenever the parsed count was 0 —
+  # including when `npm audit` itself errored. This is a pnpm repository with no
+  # package-lock.json, so `npm audit` always fails and always produced
+  # `{"error": ...}`, which parsed to 0 advisories. The result was an
+  # unconditional "✅ No npm audit advisories" that also masked a failing
+  # primary check: an expired-exception failure was swallowed here.
+  echo "  ⚠  Primary exceptions check did not pass; running fail-closed fallback..."
+  AUDIT_JSON="$(npm audit --json 2>/dev/null || true)"
+  AUDIT_COUNT="$(
+    printf '%s' "$AUDIT_JSON" |
+      node -e "
+        let d = '';
+        process.stdin.on('data', (c) => (d += c)).on('end', () => {
+          try {
+            const a = JSON.parse(d);
+            if (!a || typeof a !== 'object' || a.error) return console.log('ERR');
+            console.log(String(Object.keys(a.vulnerabilities || {}).length));
+          } catch {
+            console.log('ERR');
+          }
+        });
+      " 2>/dev/null || echo "ERR"
+  )"
+  # Never let stray output become an arithmetic comparison.
+  case "$AUDIT_COUNT" in
+    ''|*[!0-9]*) AUDIT_COUNT="ERR" ;;
+  esac
 
-  if [ "$AUDIT_COUNT" -gt 0 ]; then
-    # Fail closed (#691): the fallback cannot evaluate the exceptions file,
-    # so any advisory fails the gate. Run the primary check (built ALiX)
-    # for exception-aware analysis.
+  if [ "$AUDIT_COUNT" = "ERR" ]; then
+    # An audit that could not run is not evidence of a clean graph.
+    echo "  ❌ npm audit could not produce a usable report — failing closed (run 'alix security supply-chain exceptions check' for exception-aware analysis)"
+    PASSED=false
+  elif [ "$AUDIT_COUNT" -gt 0 ]; then
     echo "  ❌ $AUDIT_COUNT npm audit advisories found — failing closed (run 'alix security supply-chain exceptions check' for exception-aware analysis)"
     PASSED=false
   else
-    echo "  ✅ No npm audit advisories"
+    echo "  ✅ No npm audit advisories (fallback evaluated a usable report)"
   fi
 fi
 echo ""

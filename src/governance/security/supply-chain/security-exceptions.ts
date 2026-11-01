@@ -102,6 +102,8 @@ export interface ExceptionsCheckResult {
 
 interface NpmAuditResult {
   vulnerabilities?: Record<string, NpmAuditVulnerability>;
+  /** pnpm (and npm >= 7 in advisory mode) emit a flat id-keyed map instead. */
+  advisories?: Record<string, NpmAuditAdvisory>;
 }
 
 interface NpmAuditVulnerability {
@@ -113,8 +115,29 @@ interface NpmAuditVulnerability {
   effects?: string[];
 }
 
+interface NpmAuditAdvisory {
+  id?: number | string;
+  module_name?: string;
+  severity?: "low" | "moderate" | "high" | "critical";
+  title?: string;
+  github_advisory_id?: string;
+  url?: string;
+  findings?: { version?: string; dev?: boolean; paths?: string[] }[];
+}
+
 /**
- * Parse npm audit JSON output into structured advisory findings.
+ * Parse audit JSON output into structured advisory findings.
+ *
+ * Two shapes are accepted:
+ *
+ * - npm's `{ vulnerabilities: { <name>: {...} } }` form, and
+ * - the flat `{ advisories: { <id>: {...} } }` form that **pnpm emits**.
+ *
+ * Supporting only the npm shape was a silent fail-open: `pnpm audit --json`
+ * parsed to zero findings, so a policy check built on it would report a clean
+ * bill of health no matter how many advisories were present. A finding keeps
+ * the GHSA id when the format provides one so an exception can be scoped to a
+ * specific advisory rather than a whole package.
  */
 export function parseAuditResult(raw: string): {
   findings: AdvisoryFinding[];
@@ -122,7 +145,24 @@ export function parseAuditResult(raw: string): {
 } {
   try {
     const parsed: NpmAuditResult = JSON.parse(raw);
-    const vulns = parsed.vulnerabilities ?? {};
+    if (!parsed || typeof parsed !== "object") {
+      throw new Error("audit output is not a JSON object");
+    }
+
+    if (parsed.advisories && typeof parsed.advisories === "object") {
+      return { findings: parseAdvisoryMap(parsed.advisories) };
+    }
+
+    if (!parsed.vulnerabilities || typeof parsed.vulnerabilities !== "object") {
+      // Valid JSON with neither known shape. Reporting "no findings" here would
+      // be the same silent fail-open as the pnpm-shape bug: an unrecognised
+      // format would pass the gate forever. Surface it instead.
+      throw new Error(
+        "audit output has neither an 'advisories' nor a 'vulnerabilities' object"
+      );
+    }
+
+    const vulns = parsed.vulnerabilities;
 
     const findings: AdvisoryFinding[] = [];
     for (const [_id, vuln] of Object.entries(vulns)) {
@@ -147,11 +187,33 @@ export function parseAuditResult(raw: string): {
       error: {
         code: EXCEPTION_ERROR_CODES.AUDIT_PARSE_FAILED,
         severity: "error",
-        message: "Failed to parse npm audit output as JSON.",
+        message: "Failed to parse audit output as JSON.",
         details: err instanceof Error ? err.message : String(err),
       },
     };
   }
+}
+
+/** Flatten a pnpm advisory map into findings. */
+function parseAdvisoryMap(advisories: Record<string, NpmAuditAdvisory>): AdvisoryFinding[] {
+  const findings: AdvisoryFinding[] = [];
+  for (const [key, adv] of Object.entries(advisories)) {
+    const pkg = adv.module_name ?? key;
+    const entries = adv.findings ?? [];
+    // An advisory is dev-only when every recorded path is a dev dependency.
+    const dev = entries.length > 0 && entries.every((f) => f.dev === true);
+    findings.push({
+      // Prefer the stable advisory id; package-name exceptions still match
+      // through `package`.
+      id: adv.github_advisory_id ?? String(adv.id ?? key),
+      severity: adv.severity ?? "low",
+      package: pkg,
+      title: adv.title ?? `${pkg} advisory`,
+      isProduction: !dev,
+      isDev: dev,
+    });
+  }
+  return findings;
 }
 
 function extractTitle(vuln: NpmAuditVulnerability): string {
@@ -360,9 +422,48 @@ export function checkExceptionsPolicy(
 // Top-level entry point
 // ---------------------------------------------------------------------------
 
+export type ExceptionsCheckOptions = {
+  /**
+   * Provide the audit output instead of running `pnpm audit`. Used by tests and
+   * by callers that already hold a report.
+   */
+  auditJson?: string;
+  /** Injection point for the audit command (tests). */
+  runAudit?: () => Promise<string>;
+  /** Clock override (tests). */
+  now?: Date;
+  /**
+   * Skip the audit and policy evaluation, returning only the declared
+   * exceptions. This is the `list` behaviour and is NEVER used by `check`:
+   * listing must not be able to report a policy verdict.
+   */
+  listOnly?: boolean;
+};
+
+/** Default audit command: the repository's own package manager. */
+async function defaultRunAudit(projectRoot: string): Promise<string> {
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const execFileAsync = promisify(execFile);
+  try {
+    const { stdout } = await execFileAsync("pnpm", ["audit", "--json"], {
+      cwd: projectRoot,
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    return stdout;
+  } catch (err) {
+    // pnpm exits non-zero when advisories are found; the report is still on
+    // stdout. A genuinely broken invocation must not be mistaken for "clean".
+    const stdout = (err as { stdout?: string }).stdout;
+    if (typeof stdout === "string" && stdout.trim().length > 0) return stdout;
+    throw err;
+  }
+}
+
 export async function runExceptionsCheck(
   projectRoot: string,
-  exceptionsRelPath: string = "security/audit-exceptions.json"
+  exceptionsRelPath: string = "security/audit-exceptions.json",
+  options: ExceptionsCheckOptions = {}
 ): Promise<ExceptionsCheckResult> {
   const exceptionsPath = resolve(projectRoot, exceptionsRelPath);
 
@@ -387,20 +488,61 @@ export async function runExceptionsCheck(
     };
   }
 
-  // For listing — return all exceptions without audit data
-  return {
-    ok: true,
-    totalAdvisories: exceptions.advisories.length,
-    excepted: exceptions.advisories.map((a) => ({
-      id: a.id,
-      severity: a.severity,
-      package: a.package,
-      title: a.title,
-      isProduction: true,
-      isDev: false,
-    })),
-    unexcepted: [],
-    expiredExceptions: [],
-    findings: [],
-  };
+  // `list` returns the declared exceptions only. Guarded so a policy verdict
+  // can never be produced without evaluating the policy.
+  if (options.listOnly) {
+    return {
+      ok: true,
+      totalAdvisories: exceptions.advisories.length,
+      excepted: exceptions.advisories.map((a) => ({
+        id: a.id,
+        severity: a.severity,
+        package: a.package,
+        title: a.title,
+        isProduction: true,
+        isDev: false,
+      })),
+      unexcepted: [],
+      expiredExceptions: [],
+      findings: [],
+    };
+  }
+
+  // Run (or accept) the audit report.
+  let auditJson: string;
+  try {
+    auditJson = options.auditJson ?? (await (options.runAudit
+      ? options.runAudit()
+      : defaultRunAudit(projectRoot)));
+  } catch (err) {
+    return {
+      ok: false,
+      totalAdvisories: 0,
+      excepted: [],
+      unexcepted: [],
+      expiredExceptions: [],
+      findings: [
+        {
+          code: EXCEPTION_ERROR_CODES.AUDIT_FAILED,
+          severity: "error",
+          message: "Failed to run the dependency audit.",
+          details: err instanceof Error ? err.message : String(err),
+        },
+      ],
+    };
+  }
+
+  const { findings: auditFindings, error: parseError } = parseAuditResult(auditJson);
+  if (parseError) {
+    return {
+      ok: false,
+      totalAdvisories: 0,
+      excepted: [],
+      unexcepted: [],
+      expiredExceptions: [],
+      findings: [parseError],
+    };
+  }
+
+  return checkExceptionsPolicy(auditFindings, exceptions, options.now);
 }

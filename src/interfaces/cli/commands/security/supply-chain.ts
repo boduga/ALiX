@@ -103,7 +103,14 @@ export async function handleSupplyChainExceptions(args: string[]): Promise<void>
   setJsonMode(args.includes("--json"));
   const cwd = process.cwd();
 
-  const result = await runExceptionsCheck(cwd);
+  // The subcommand was previously ignored: `check` returned the same
+  // "ok: true, 0 advisories, 0 expired" result as `list`, so the CI gate in
+  // scripts/check-supply-chain.sh could not fail on an expired exception or an
+  // unexcepted advisory. Default to `check` — failing closed — because the
+  // gate is the caller that matters.
+  const listOnly = args.includes("list") && !args.includes("check");
+
+  const result = await runExceptionsCheck(cwd, undefined, { listOnly });
 
   if (jsonMode) {
     console.log(JSON.stringify(result, null, 2));
@@ -111,7 +118,23 @@ export async function handleSupplyChainExceptions(args: string[]): Promise<void>
   }
 
   console.log(`\nAudit Exceptions — ${result.ok ? "OK" : "ISSUES FOUND"}\n`);
-  console.log(`Total exceptions: ${result.excepted.length}`);
+  if (listOnly) {
+    console.log(`Declared exceptions: ${result.excepted.length}`);
+    console.log();
+    if (result.excepted.length > 0) {
+      console.log("EXCEPTED:");
+      for (const e of result.excepted) {
+        console.log(`  - [${e.severity}] ${e.package}: ${e.title}`);
+      }
+      console.log();
+    }
+    process.exit(result.ok ? 0 : 1);
+  }
+
+  // In check mode these counts describe advisories, not declared exceptions —
+  // "Total exceptions: 11" for a 2-entry file was misleading.
+  console.log(`Advisories evaluated: ${result.excepted.length + result.unexcepted.length}`);
+  console.log(`Excepted advisories: ${result.excepted.length}`);
   console.log(`Unexcepted advisories: ${result.unexcepted.length}`);
   console.log(`Expired exceptions: ${result.expiredExceptions.length}`);
   console.log();
@@ -128,6 +151,14 @@ export async function handleSupplyChainExceptions(args: string[]): Promise<void>
     console.log("UNEXCEPTED:");
     for (const u of result.unexcepted) {
       console.log(`  - [${u.severity}] ${u.package}: ${u.title}`);
+    }
+    console.log();
+  }
+
+  if (result.expiredExceptions.length > 0) {
+    console.log("EXPIRED EXCEPTIONS:");
+    for (const e of result.expiredExceptions) {
+      console.log(`  - [${e.severity}] ${e.package}: expired ${e.expiry} (owner: ${e.owner})`);
     }
     console.log();
   }
