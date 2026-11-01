@@ -23,6 +23,24 @@ Master PRD v2.10 Q10/Q15 and ADR-0017, merged in PR #1004, make **Linux x86-64**
 
 The repository `security/audit-exceptions.json` records five advisories with `expiry: 2026-09-16` and `failOnExpired: true` (as of this baseline). No renewal, deletion, exception extension, or waiver is authorized by this packet. Each must be reconciled with current dependency reachability and supply-chain policy by an authorized owner; until then, security-exception clearance is **HOLD**. A CI supply-chain PASS does not, by itself, prove this independent gate cleared.
 
+> **Status update (2026-11-01) — REQ-3 substantively met, owner sign-off still required.**
+> The register has since been reconciled through governed review, not by waiving
+> it. On `main` at `abf6ca0a` it holds **one** entry, `onnxruntime-web`, expiry
+> **2027-01-29** (valid). The other four were removed because the migrations
+> resolved them: `@xenova/transformers` and `onnx-proto` left the graph,
+> `protobufjs` moved to `7.6.6` (outside every listed range), and `vite` moved
+> to `8.3.5` once #1014 shipped. `scripts/check-supply-chain.sh` exits **0**
+> against that actual repository state.
+>
+> This does **not** clear the gate. It clears the *evidence* half of REQ-3: the
+> gate was proven to accept a state that was produced by fixing the underlying
+> dependencies rather than by extending expiries. The owner-authorization half
+> remains unspent — per the paragraph above, a CI PASS is not the same claim as
+> an owner's security-exception clearance, and no agent can supply that.
+> The trade-off recorded here: `onnxruntime-web` is a **prerelease** that no
+> released-version advisory range covers, so "0 advisories matching" is not
+> "0 exposure". That entry is an owner decision, and it is unresolved.
+
 ## Initial fresh checks on candidate branch
 
 - `pnpm exec vitest run tests/security/d9-scripted-review-routing.vitest.ts --config vitest.config.mts`: **3/3 PASS**.
@@ -35,7 +53,7 @@ The repository `security/audit-exceptions.json` records five advisories with `ex
 
 1. Run reproducible native Linux x86-64 tests and negative crash/replay/approval/identity checks on the exact candidate tree; retain logs and hashes, including build and source identities.
 2. Independently review code and evidence with separate verifier/critic authority; no author self-certification.
-3. Resolve the five expired exception records through governed review and prove the security gate accepts the resulting actual repository state, or retain HOLD.
+3. Resolve the five expired exception records through governed review and prove the security gate accepts the resulting actual repository state, or retain HOLD. — **evidence half met 2026-11-01** (register reconciled to one valid entry by fixing the dependencies; gate exits 0 on the real state). **Owner clearance outstanding**; see the status update under "Security exception disposition".
 4. Reconcile historical missing Vitest evidence explicitly as INCONCLUSIVE or supersede the *specific* acceptance obligation with independently retained new evidence, without claiming historical hash verification.
 5. Reconcile D9 Phase F with Harness Gate E clause-by-clause; PRE-R024 rubric/process isolation remains a separate Harness blocker.
 6. Preserve zero acknowledged-critical-transition loss, evidence-derived enforceable recovery thresholds, fail-closed effects, and Q13 external release authority. Do not expand process-crash evidence into a power-loss certification claim.
