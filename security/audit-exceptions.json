@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/boduga/ALiX/main/security/schemas/audit-exceptions.schema.json",
   "description": "Exceptions for npm audit advisories that have been reviewed and accepted.",
-  "lastReviewed": "2026-06-18",
+  "lastReviewed": "2026-10-31",
   "policy": {
     "failOnUnexcepted": true,
     "failOnExpired": true,
@@ -47,16 +47,6 @@
       "package": "protobufjs",
       "title": "Prototype Pollution in protobufjs (< 7.6.2)",
       "reason": "Transitive dependency via @xenova/transformers. ALiX does not parse untrusted protobuf input. The library is used internally for ONNX model format only. Migration to updated transformers will resolve this.",
-      "owner": "boduga",
-      "created": "2026-06-18",
-      "expiry": "2026-09-16"
-    },
-    {
-      "id": "vite",
-      "severity": "high",
-      "package": "vite",
-      "title": "Dev-only: Vite Server File Access Vulnerability",
-      "reason": "Dev dependency only — vitest uses vite. Development-only exposure; not shipped in production tarball. Vite dev server is only run locally during test execution.",
       "owner": "boduga",
       "created": "2026-06-18",
       "expiry": "2026-09-16"

@@ -77,3 +77,15 @@ Record which of these were checked and what they showed.
 - **Baseline check:** the failing command is `alix governance report` over a fixture bundle; none of the R3.4 files (coordination ownership/liveness/release paths) are on its dependency path, and node lanes were green at `017e9c5b` and `a79dc0cb`
 - **Suspected cause:** 30 s `npx tsx` spawn budget exceeded under full-lane load; the file legitimately takes ~51 s standalone
 - **Status:** watch — consistent with the existing governance-report entry (spawn-budget timing, not a wrong result). If it recurs, raise the named spawn budget rather than asserting anything new.
+
+## Node runner discovery — "canonical daemon security test must remain discoverable"
+
+- **Test:** `tests/node-runner-discovery.test.ts` → `node runner discovers each canonical compiled test exactly once`
+- **Symptom:** `AssertionError: canonical daemon security test must remain discoverable` — the test spawns `scripts/run-node-tests.mjs --list` and asserts `dist/tests/security/d9-full-daemon.test.js` appears in the output. It does, except when the child's stdout is truncated.
+- **Frequency:** **4 of 20** standalone runs, and observed in a full `pnpm test:node` lane. Reproduces with an unrelated change *removed*, so it is not caused by anything in the surrounding diff.
+- **Cause, measured:** `scripts/run-node-tests.mjs` prints the file list with `console.log` then calls `process.exit(0)` immediately (lines 64–67, `--list` branch). `process.exit` does not flush a piped `stdout`, so the child exits before the pipe drains. Direct sampling of the same spawn: **5 of 20** invocations returned fewer than 724 lines, truncated as low as **189 and 305** lines. The daemon test sits at line 562 of 724, so a truncation below that drops it.
+- **Parallel-only:** No — fails standalone, in the same 4-of-20 pattern, because it is stdout buffering rather than load.
+- **Present on `main`:** yes, since `ccbed7f7`; `origin/main:scripts/run-node-tests.mjs` has the same `console.log` → `process.exit(0)` sequence.
+- **Standalone result:** 3 of 5 runs passed; 1 of 5 through 15 failed in one sweep and 3 of 15 in another — consistent with a 20–25% truncation rate.
+- **Suspected fix:** do not call `process.exit` after writing to a pipe. Let `--list` fall off the end of the module, or set `process.exitCode` and return; Node then flushes stdout before exiting. Raising the 15 s timeout would not help — the timeouts measured 77–102 ms.
+- **Status:** watch — a real test-or-runner defect on `main`, not a product defect and not introduced by any branch under review.

@@ -140,6 +140,11 @@ reason about.
 ## Verification
 
 - `tests/tools/tool-router.test.ts` — dispatch, owned writes, containment.
+- `tests/tools/ignore-parity.test.ts` — the ignore-decision table for
+  `isIgnoredPath`: directory patterns covering their contents, `dot: true`
+  crossing a leading dot, trailing-slash stripping, and non-matches staying
+  visible. Pinned independently of the `minimatch` version, because a matcher
+  upgrade can change what search skips without touching ALiX code.
 - `tests/unit/safe-shell.test.ts` — shell admission grammar.
 - `tests/policy/policy-gate.test.ts` — the authorization decision that runs
   before any of this.
