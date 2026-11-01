@@ -26,7 +26,7 @@ The repository `security/audit-exceptions.json` records five advisories with `ex
 ## Initial fresh checks on candidate branch
 
 - `pnpm exec vitest run tests/security/d9-scripted-review-routing.vitest.ts --config vitest.config.mts`: **3/3 PASS**.
-- `node --test dist/tests/cli/security-doctor.test.js`: **4/4 PASS** on the local compiled tree. This does not certify the full security gate.
+- `node --test dist/tests/cli/security-doctor.test.js`: **8/8 PASS** on the local compiled tree. This does not certify the full security gate.
 - `pnpm audit --json`: **exit 1**, vulnerability summary: **1 critical, 13 high, 14 moderate, 1 low**. These are dependency advisory counts, not an adjudicated list of exploitable ALiX vulnerabilities. Require owner review, dependency reachability assessment, and remediation; do not automatically renew expired exceptions.
 - Attempting to execute a `.vitest.js` artifact using `node --test` failed because it is not the intended Vitest runner; the correctly invoked source Vitest suite passed. Do not treat the invalid-runner failure as a product regression.
 - Historical `node-tests` CI flake from PR #1004 passed on rerun; no root cause or permanent test-runner repair is established.

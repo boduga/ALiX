@@ -4,16 +4,18 @@ Date: 2026-10-31
 Branch: `fix/security-dependency-exceptions-20261031`
 Status: **HOLD — dependency migration requires explicit build-script trust review and runtime qualification**
 
-## Verified current dependency graph
+**Baseline: `origin/main` @ `d77aa991`.** Every version, count, and exception census below describes that tree at that commit. It is a point-in-time record, not a description of current `main`; re-verify before citing. Two facts in particular have since moved: PR #1014 shipped `vite@8.3.5` (this document records `8.0.13`), and the exception register now holds **four** entries, not five, because the `vite` exception was removed once its advisory was fixed.
+
+## Verified dependency graph at the baseline
 
 - `@xenova/transformers@2.17.2` is a direct production dependency, imported in `src/context/repomap/embedding-cache.ts` for `pipeline('feature-extraction', ...)`.
 - `onnxruntime-web@1.14.0` is transitive through Xenova; `onnx-proto@4.0.4` and `protobufjs@6.11.6` follow from it.
 - `vite@8.0.13` is a development dependency through Vitest. Its installed version is within multiple advisory ranges reported by the current `pnpm audit` output.
-- All five repository exception records expire on 2026-09-16. Do not delete, extend, or claim them resolved without governed advisory-by-advisory disposition.
+- All five repository exception records at the baseline (`@xenova/transformers`, `onnx-proto`, `onnxruntime-web`, `protobufjs`, `vite`) expire on 2026-09-16. Do not delete, extend, or claim them resolved without governed advisory-by-advisory disposition.
 
 ## Audit snapshot
 
-`pnpm audit --json` exited 1, reporting **1 critical, 13 high, 14 moderate, 1 low** advisories across the full dependency graph. These are advisory counts, not a proven exploitability or release-risk classification. Findings also include `sharp`, `postcss`, `nanoid`, `brace-expansion`, `source-map-js`, `minimatch`, and `glob`; the five exception entries do not exhaust the audit surface.
+`pnpm audit --json` exited 1, reporting **1 critical, 13 high, 14 moderate, 1 low** advisories across the full dependency graph. These are advisory counts, not a proven exploitability or release-risk classification. Findings also include `sharp`, `postcss`, `nanoid`, `brace-expansion`, `source-map-js`, `minimatch`, and `glob`; the five baseline exception entries do not exhaust the audit surface.
 
 The critical `protobufjs` advisory is GHSA-xq3m-2v4x-88gg, affecting installed 6.11.6 (audit reported patched versions >=7.5.5). Additional `protobufjs` advisories require >=7.5.6 or later. Dependency paths must be upgraded through supported packages rather than overriding incompatible transitive majors without tests.
 
