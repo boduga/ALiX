@@ -361,15 +361,20 @@ Emitters are distributed across agent loops, tool executors, coordination detect
 
 ### 7.1 CI Workflows
 
-**3 workflows, all reference `actions/*@v4`:**
+**3 workflows at the baseline commit `d47a8f05`, all reference `actions/*@v4`:**
 
 | Workflow | File | Trigger |
 |---|---|---|
 | CI | `.github/workflows/ci.yml` | Push/PR to `main` |
 | Publish | `.github/workflows/publish.yml` | Tag push `v*` |
-| PR-Agent | `.github/workflows/pr-agent.yml` | PR events + `/` comments |
+| PR-Agent | `pr-agent.yml` | PR events + `/` comments |
 
-**CI lanes (6 total):**
+**Drift since the baseline.** The PR-Agent workflow was removed in `17f3dd28`
+("chore(ci): remove Qodo PR-Agent workflow"), and the tree now also carries
+`.github/workflows/soak.yml` and `.github/workflows/opentui-spike.yml`. The CI
+lanes below are the baseline snapshot; the current workflow pins Node 26.
+
+**CI lanes at the baseline (6 total):**
 1. Typecheck (ubuntu-latest, node 24)
 2. Unit tests (ubuntu-latest, node 24, build + node test + vitest)
 3. Integration + Soak + Doctor (ubuntu-latest, node 24)

@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/boduga/ALiX/main/security/schemas/audit-exceptions.schema.json",
+  "title": "ALiX audit exception register",
+  "description": "Exceptions for dependency advisories that have been reviewed and accepted. Mirrors the `ExceptionsFile` and `AdvisoryException` interfaces in src/governance/security/supply-chain/security-exceptions.ts, which is the contract the gate actually consumes. This schema is for editor tooling and review; it does not run in CI. The runtime structural check is validateSecurityExceptionsDocument in src/interfaces/cli/commands/security/doctor.ts.",
+  "type": "object",
+  "required": ["advisories"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this schema document."
+    },
+    "description": {
+      "type": "string"
+    },
+    "lastReviewed": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO date of the last full review of this register."
+    },
+    "policy": {
+      "type": "object",
+      "description": "Evaluation policy consumed by checkExceptionsPolicy.",
+      "additionalProperties": false,
+      "properties": {
+        "failOnUnexcepted": {
+          "type": "boolean",
+          "description": "Fail the gate on an advisory with no matching exception. Keep true."
+        },
+        "failOnExpired": {
+          "type": "boolean",
+          "description": "Fail the gate on an expired exception. Keep true."
+        },
+        "failSeverity": {
+          "type": "string",
+          "enum": ["low", "moderate", "high", "critical"],
+          "description": "Severity at or above which an unexcepted advisory fails the gate."
+        },
+        "warnSeverity": {
+          "type": "string",
+          "enum": ["low", "moderate", "high", "critical"],
+          "description": "Severity at or above which an unexcepted advisory is reported as a warning."
+        },
+        "expiryWindowDays": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum permitted lifetime of a new exception, in days."
+        },
+        "productionOnly": {
+          "type": "boolean",
+          "description": "Evaluate production advisories only."
+        }
+      }
+    },
+    "advisories": {
+      "type": "array",
+      "description": "Accepted-risk entries. Each entry must name the package or advisory it covers, and must carry an owner and an expiry.",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "severity",
+          "package",
+          "title",
+          "reason",
+          "owner",
+          "created",
+          "expiry"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Advisory ID (GHSA-xxxx-xxxx-xxxx) or package name."
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "moderate", "high", "critical"]
+          },
+          "package": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Affected package name. Matching on package name pre-authorises any future advisory for that package; prefer a GHSA id when the exposure is specific."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why the risk is acceptable. Must describe the current tree, not the tree at creation time."
+          },
+          "owner": {
+            "type": "string",
+            "minLength": 1
+          },
+          "created": {
+            "type": "string",
+            "format": "date"
+          },
+          "expiry": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      }
+    }
+  }
+}
