@@ -8,14 +8,33 @@
 // Run: pnpm test:node (compiled to dist/tests/scripts/check-staleness.test.js)
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, "..", "..");
+
+/**
+ * Resolve the repository root by walking up until the sentinel is found.
+ *
+ * The test runs from two depths: `tests/scripts/` in source and
+ * `dist/tests/scripts/` when compiled, so a fixed `../..` resolves to `dist/`
+ * under the node runner and the spawn fails. Walking up is correct in both.
+ */
+function findRoot(start: string): string {
+  let dir = start;
+  for (let i = 0; i < 6; i++) {
+    if (existsSync(join(dir, "scripts", "check-staleness.mjs"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  throw new Error(`could not locate repository root from ${start}`);
+}
+
+const ROOT = findRoot(__dirname);
 const SCRIPT = join(ROOT, "scripts", "check-staleness.mjs");
 
 const SCHEMA_REF =
