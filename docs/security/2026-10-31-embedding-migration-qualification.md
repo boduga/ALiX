@@ -206,14 +206,22 @@ code embedder (see §8).
 
 ## 6. Dependency audit before/after
 
-`pnpm audit` advisory count across the whole graph: **29 → 15 (−14)**.
+> **Re-measured on the rebased tree (2026-11-01).** This branch was rebased onto
+> `main` after PR #1014 landed, which is what changed the numbers below. The
+> original measurement at the branch's first parent was 29 → 15; the migration
+> still removes its 14, and #1014 removes the rest.
+>
+> Current state: `pnpm audit --json` → **0 advisories**, exit 0, across 299
+> dependencies (87 prod, 131 dev, 134 optional).
+
+`pnpm audit` advisory count across the whole graph: **29 → 0 (−29)**.
 
 | Severity | Before | After |
 |---|---|---|
 | critical | 1 | **0** |
-| high | 13 | 5 |
-| moderate | 14 | 9 |
-| low | 1 | 1 |
+| high | 13 | **0** |
+| moderate | 14 | **0** |
+| low | 1 | **0** |
 
 The critical finding (`protobufjs` GHSA-xq3m-2v4x-88gg) is gone.
 
@@ -224,19 +232,23 @@ Removed outright by the migration:
 
 Added: **none.**
 
-Remaining, none of which the migration touched:
+Remaining: **none.** The 14 that once remained were resolved by PR #1014 on
+`main` before this branch was rebased:
 
-| Package | Count | Reachability |
-|---|---|---|
-| `vite@8.0.13` | 7 | dev-only (vitest); not in the packaged CLI |
-| `postcss@8.5.18`, `source-map-js@1.2.1`, `nanoid@3.3.16` | 3 | dev-only, via vite |
-| `glob@13.0.6` | 1 (moderate) | dev-only (c8/test-exclude) |
-| `minimatch@10.2.6`, `brace-expansion@5.0.9` | 4 | **production**: glob-DoS advisories |
+| Package | Then | Now | Resolved by |
+|---|---|---|---|
+| `vite` | 7 | 0 | open range `^8.0.0` now resolves 8.3.5 |
+| `postcss`, `source-map-js`, `nanoid` | 3 | 0 | transitively, via the same vite resolution |
+| `glob` | 1 (moderate) | 0 | `glob` 13.0.6 → 14.0.3 |
+| `minimatch`, `brace-expansion` | 4 (**production**) | 0 | `minimatch` 10.2.6 → 11.0.3 |
 
-`minimatch`/`brace-expansion` are direct production dependencies used on
-workspace-relative paths (see §8). They are *not* exception-listed, above the
-`failSeverity: critical` threshold, and therefore do not fail the gate; they are
-real residual risk, not waived.
+> **Correction.** An earlier revision of this section listed `vite@8.0.13` and
+> `minimatch@10.2.6` as residual risk and restated a `vite` exception to
+> 2027-01-29. That was true against this branch's original base, and false after
+> the rebase: `main` already ships `vite@8.3.5` and `minimatch@11.0.3`. The
+> `vite` exception is therefore **removed**, not restated — re-adding it would
+> have re-opened an advisory that #1014 had genuinely closed. Neither the
+> previous nor the current state is waived.
 
 Exception disposition:
 
@@ -245,12 +257,19 @@ Exception disposition:
 | `@xenova/transformers` | **removed** | package no longer in the dependency graph |
 | `onnx-proto` | **removed** | was only reachable through onnxruntime-web@1.14 |
 | `protobufjs` | **removed** | resolved: 6.11.6 → 7.6.6, outside every listed range |
+| `vite` | **removed** | resolved on `main` by #1014 (`8.0.13` → `8.3.5`); matches no advisory |
 | `onnxruntime-web` | **restated**, expiry 2027-01-29 | **premise was false.** The old reason said migration "will eliminate this dependency". It does not: `@huggingface/transformers@4.3.2` pulls `onnxruntime-web@1.31.0-dev.20260914-8d85527a0` and `onnxruntime-common@1.31.0-dev.20260911-2a43ec07e` — *prerelease* builds. |
-| `vite` | **restated**, expiry 2027-01-29 | still present, still dev-only; substance unchanged, not silently extended |
+
+`onnxruntime-web` is now the **only** remaining entry. Its advisory count is 0
+because prerelease versions fall outside every released-version advisory range —
+which is why the entry exists at all: "no advisory matches" is not the same
+claim as "no exposure", and the entry records an owner decision rather than a
+clean scan.
 
 No expiry was extended on an expired entry without its reason being re-examined;
 the `onnxruntime-web` row is the one whose original justification the evidence
 contradicted, and it is recorded as such rather than quietly renewed.
+
 
 Determinism: `pnpm install --frozen-lockfile` succeeds and `pnpm install` is a
 no-op against the committed lockfile.
@@ -285,7 +304,7 @@ installed):
 | `pnpm install --frozen-lockfile` | PASS |
 | `bash scripts/check-supply-chain.sh` | PASS |
 | `pnpm check:dox` | PASS (12 claim tokens across 2 AGENTS.md) |
-| `pnpm audit --json` | 15 advisories (was 29; 0 critical, was 1) |
+| `pnpm audit --json` | **0 advisories** (was 29 at the original base; 0 critical, was 1) |
 | `embedding-cache-deterministic` | 24/24 PASS |
 | `embedding-cache-cpu` (provisioned) | 4/4 PASS |
 | `embedding-cache-cpu` (unprovisioned) | skipped, exit 0 |
@@ -404,7 +423,7 @@ This is a second pass by the same agent, not independent certification.
 
 The embedding migration itself is technically qualified on x86-64 Linux CPU:
 real offline inference, deterministic output, provenance-pinned model, fail-closed
-error handling, an audited 29 → 15 advisory reduction, and cache isolation that
+error handling, an audited 29 → 0 advisory reduction, and cache isolation that
 prevents cross-runtime vector mixing.
 
 Phase F cannot close because (a) the migration introduces prerelease
