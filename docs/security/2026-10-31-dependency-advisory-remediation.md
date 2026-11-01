@@ -197,9 +197,9 @@ can produce a lifecycle verdict that does not describe the lockfile.
   (#1012). This branch does not renew, extend, or delete them.
 - The `$schema` references in `security/audit-exceptions.json` and
   `security/lifecycle-script-allowlist.json` point at schema files under
-  `security/schemas/`. Those are supplied by the staleness-guardrail change
-  (`chore/check-staleness`) and are not part of this branch, so on this branch
-  the references still do not resolve. They are editor tooling even once
-  present — nothing in CI validates against them. The runtime structural check
-  is `validateSecurityExceptionsDocument` in
+  `security/schemas/`, supplied by the staleness-guardrail change (#1013).
+  They are editor tooling — `pnpm check:staleness` verifies that the reference
+  resolves and that the document matches the declared shape, but the schemas
+  are not a runtime validator. The structural check that actually gates a
+  malformed exception is `validateSecurityExceptionsDocument` in
   `src/interfaces/cli/commands/security/doctor.ts`.
