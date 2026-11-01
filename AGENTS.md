@@ -227,6 +227,7 @@ Single-context: read CONTEXT.md at the repo root and docs/adr/ when they exist; 
 | `src/coordination/kernel/AGENTS.md` | Graph execution engine — TaskGraph, GraphExecutor, projection, planner, coordination (planner/scheduler/tools/subagent executor) |
 | `src/operations/prompts/AGENTS.md` | Prompt registry — static prompt ids, versions, token accounting, snapshot hashes |
 | `src/governance/policy/AGENTS.md` | Policy rules, RuleEvaluator, RuntimeGate, default policies, loader |
+| `src/governance/security/supply-chain/AGENTS.md` | Supply-chain gates — advisory exceptions, lifecycle-script approvals, dependency overrides, tarball verification |
 | `src/capabilities/registry/AGENTS.md` | Agent/tool cards, CardRegistry, CapabilityResolver, card loader |
 | `src/runtime-state/contracts/AGENTS.md` | Type-only authority boundaries — domain schemas, R1 ports, R2 runtime-event envelope, barrel |
 | `src/governance/approvals/AGENTS.md` | Approval queue, ApprovalStore |
