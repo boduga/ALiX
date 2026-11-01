@@ -243,6 +243,7 @@ Single-context: read CONTEXT.md at the repo root and docs/adr/ when they exist; 
 | `src/runtime-state/runtime/AGENTS.md` | Runtime — execution-state, state-aware context builder, unified event index |
 | `src/execution/run/task-loop/AGENTS.md` | Task loop — session-lifecycle/predicates/context-helpers/main submodules (`runTaskLoop`) |
 | `src/agents/agent/session/AGENTS.md` | Agent session — types/helpers/setup/main submodules (`AgentSessionBuilder`) |
+| `src/context/repomap/AGENTS.md` | RepoMap + semantic context — embedding model lifecycle, vector-space cache namespacing, CPU/offline inference contracts |
 | `src/agents/AGENTS.md` | Agent tool naming, policy, and subagent CLI boundaries |
 | `src/operations/observability/AGENTS.md` | Observability platform — metrics, telemetry, diagnostics, alerts, cost, health |
 | `src/operations/utils/memory/AGENTS.md` | Agent memory store — persistence, recall, consolidation, decision extraction |

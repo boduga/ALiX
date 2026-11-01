@@ -27,7 +27,31 @@ overrides:
 allowBuilds:
   better-sqlite3: true
   esbuild: true
-  protobufjs: true
+  # Explicitly DENIED, not approved. pnpm fails closed on any dependency whose
+  # lifecycle script is neither approved nor denied, so migrating to
+  # @huggingface/transformers (which pulls onnxruntime-node and protobufjs@7)
+  # needs a recorded decision — and the decision here is "do not run it".
+  #
+  # protobufjs@7's postinstall only prints a version-scheme warning; it is
+  # denied because ALiX gains nothing from running dependency scripts.
+  #
+  # onnxruntime-node's postinstall downloads CUDA/TensorRT provider libraries
+  # from NuGet without an independently verified checksum or signature. CPU
+  # inference does not need those: the package already ships
+  # bin/napi-v6/<os>/<arch>/onnxruntime_binding.node and libonnxruntime.so.1.
+  # Verified: `pnpm install --frozen-lockfile` succeeds and 384-dim CPU
+  # inference runs offline with both scripts denied.
+  #
+  # Denying also keeps these out of security/lifecycle-script-allowlist.json,
+  # which must only list scripts ALiX actually permits. Do not flip these to
+  # `true` without a scoped supply-chain review of the NuGet download path.
+  onnxruntime-node: false
+  protobufjs: false
+  # `sharp` is retained as an approval even though sharp@0.35.5 (pulled in by
+  # @huggingface/transformers) no longer defines an install/postinstall script —
+  # 0.32.6 did. It is an upstream native-image dependency, so leave the
+  # approval in place rather than silently dropping a reviewed entry; revisit
+  # when the allowlist entry is next renewed.
   sharp: true
 minimumReleaseAgeExclude:
   - tsx@4.22.5

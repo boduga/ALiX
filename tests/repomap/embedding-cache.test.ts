@@ -3,12 +3,14 @@ import assert from "node:assert";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
-import { EmbeddingCache } from "../../src/context/repomap/embedding-cache.js";
+import { EmbeddingCache, SEMANTIC_EMBEDDER } from "../../src/context/repomap/embedding-cache.js";
 
 // Embedding tests download a model from HuggingFace at runtime.
 // CI runners may not have reliable access to the model hub, so check
 // the specific model's file URL (not just the homepage) before running.
+// A pre-provisioned local model makes the network check unnecessary.
 function canReachHuggingFace(): boolean {
+  if (process.env.ALIX_EMBEDDING_MODEL_PATH?.trim()) return true;
   try {
     const result = execSync(
       "curl -sI --connect-timeout 5 --max-time 10 'https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/README.md' -o /dev/null -w '%{http_code}' 2>/dev/null",
@@ -29,7 +31,8 @@ describe("EmbeddingCache", { skip: !hasNetwork }, () => {
 
   beforeEach(() => {
     mkdirSync(tmpDir, { recursive: true });
-    cache = new EmbeddingCache(tmpDir);
+    // Honour a provisioned model so this suite stays offline when one exists.
+    cache = new EmbeddingCache(tmpDir, SEMANTIC_EMBEDDER);
   });
 
   afterEach(() => {

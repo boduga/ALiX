@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/boduga/ALiX/main/security/schemas/lifecycle-allowlist.schema.json",
   "description": "Allowlist of packages permitted to run lifecycle scripts during npm install.",
-  "lastReviewed": "2026-07-03",
+  "lastReviewed": "2026-10-31",
   "policy": {
     "failOnNew": true,
     "failOnExpired": true,
@@ -12,8 +12,10 @@
     {
       "name": "better-sqlite3",
       "versionRange": ">=12.0.0",
-      "scripts": ["install"],
-      "reason": "Native SQLite binding — requires node-gyp rebuild to compile C++ addon",
+      "scripts": [
+        "install"
+      ],
+      "reason": "Native SQLite binding \u2014 requires node-gyp rebuild to compile C++ addon",
       "owner": "boduga",
       "created": "2025-06-01",
       "expiry": "2027-06-01"
@@ -21,8 +23,10 @@
     {
       "name": "esbuild",
       "versionRange": ">=0.28.0",
-      "scripts": ["postinstall"],
-      "reason": "JavaScript bundler used by tsx — postinstall downloads a native binary",
+      "scripts": [
+        "postinstall"
+      ],
+      "reason": "JavaScript bundler used by tsx \u2014 postinstall downloads a native binary",
       "owner": "boduga",
       "created": "2026-07-03",
       "expiry": "2027-07-03"
@@ -30,8 +34,10 @@
     {
       "name": "fsevents",
       "versionRange": ">=2.0.0",
-      "scripts": ["install"],
-      "reason": "Native macOS filesystem watcher — optional dependency of chokidar; requires prebuild for native binary",
+      "scripts": [
+        "install"
+      ],
+      "reason": "Native macOS filesystem watcher \u2014 optional dependency of chokidar; requires prebuild for native binary",
       "owner": "boduga",
       "created": "2025-06-01",
       "expiry": "2027-06-01"
@@ -39,17 +45,10 @@
     {
       "name": "node-pty",
       "versionRange": ">=1.0.0",
-      "scripts": ["postinstall"],
-      "reason": "Pseudoterminal native addon — postinstall script compiles TypeScript and links native library",
-      "owner": "boduga",
-      "created": "2025-06-01",
-      "expiry": "2027-06-01"
-    },
-    {
-      "name": "protobufjs",
-      "versionRange": ">=6.0.0 <=7.6.2",
-      "scripts": ["postinstall"],
-      "reason": "Protocol Buffers runtime — postinstall generates stub types and validates installation",
+      "scripts": [
+        "postinstall"
+      ],
+      "reason": "Pseudoterminal native addon \u2014 postinstall script compiles TypeScript and links native library",
       "owner": "boduga",
       "created": "2025-06-01",
       "expiry": "2027-06-01"
@@ -57,8 +56,10 @@
     {
       "name": "sharp",
       "versionRange": ">=0.30.0",
-      "scripts": ["install"],
-      "reason": "High-performance image processing — install script downloads libvips and compiles native binding",
+      "scripts": [
+        "install"
+      ],
+      "reason": "High-performance image processing \u2014 install script downloads libvips and compiles native binding",
       "owner": "boduga",
       "created": "2025-06-01",
       "expiry": "2027-06-01"
@@ -66,8 +67,10 @@
     {
       "name": "tree-sitter",
       "versionRange": ">=0.20.0",
-      "scripts": ["install"],
-      "reason": "Incremental parsing library — install script compiles native C parser via node-gyp-build",
+      "scripts": [
+        "install"
+      ],
+      "reason": "Incremental parsing library \u2014 install script compiles native C parser via node-gyp-build",
       "owner": "boduga",
       "created": "2025-06-01",
       "expiry": "2027-06-01"
@@ -75,8 +78,10 @@
     {
       "name": "tree-sitter-javascript",
       "versionRange": ">=0.20.0",
-      "scripts": ["install"],
-      "reason": "Tree-sitter JavaScript grammar — install compiles native parser binding",
+      "scripts": [
+        "install"
+      ],
+      "reason": "Tree-sitter JavaScript grammar \u2014 install compiles native parser binding",
       "owner": "boduga",
       "created": "2025-06-01",
       "expiry": "2027-06-01"
@@ -84,8 +89,10 @@
     {
       "name": "tree-sitter-typescript",
       "versionRange": ">=0.20.0",
-      "scripts": ["install"],
-      "reason": "Tree-sitter TypeScript grammar — install compiles native parser binding",
+      "scripts": [
+        "install"
+      ],
+      "reason": "Tree-sitter TypeScript grammar \u2014 install compiles native parser binding",
       "owner": "boduga",
       "created": "2025-06-01",
       "expiry": "2027-06-01"
