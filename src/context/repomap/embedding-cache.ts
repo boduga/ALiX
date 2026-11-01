@@ -34,6 +34,27 @@ export type SearchResult = {
   symbolName?: string;
 };
 
+/** A file offered to the cache for embedding or search. */
+export type SearchableFile = {
+  path: string;
+  content?: string;
+  kind?: string;
+};
+
+/** A file that has content to embed — the only kind search can score. */
+export type ContentfulFile = SearchableFile & { content: string };
+
+/**
+ * Narrow to files that carry content.
+ *
+ * Search must build vectors and scores from the *same* list. Filtering in one
+ * place and iterating another is what mis-aligned the scores originally, so the
+ * filter lives here and both consumers call it.
+ */
+export function hasContent(file: SearchableFile): file is ContentfulFile {
+  return Boolean(file.content);
+}
+
 // EmbeddingModel - the return type of the transformers pipeline
 type EmbeddingModel = Awaited<ReturnType<typeof pipeline>>;
 
@@ -119,7 +140,7 @@ export class EmbeddingCache {
   async search(
     query: string,
     topK: number,
-    files: { path: string; content?: string; kind?: string }[]
+    files: SearchableFile[]
   ): Promise<SearchResult[]> {
     const queryEmbedding = await this.getEmbedding(query);
 
@@ -128,15 +149,13 @@ export class EmbeddingCache {
 
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
       const batch = files.slice(i, i + BATCH_SIZE);
+      const eligibleFiles = batch.filter(hasContent);
       const embeddings = await Promise.all(
-        batch
-          .filter(f => f.content)
-          .map(f => this.getEmbedding(f.content!.slice(0, 2000)))
+        eligibleFiles.map(file => this.getEmbedding(file.content.slice(0, 2000)))
       );
 
-      for (let j = 0; j < batch.length; j++) {
-        const file = batch[j];
-        if (!file.content) continue;
+      for (let j = 0; j < eligibleFiles.length; j++) {
+        const file = eligibleFiles[j];
         const similarity = this.cosineSimilarity(queryEmbedding, embeddings[j]);
         results.push({
           path: file.path,
@@ -167,9 +186,7 @@ export class EmbeddingCache {
   }
 
   /** Build embeddings for all source files (called during warm()) */
-  async buildEmbeddings(
-    files: { path: string; content?: string; kind?: string }[]
-  ): Promise<void> {
+  async buildEmbeddings(files: SearchableFile[]): Promise<void> {
     await Promise.all(
       files.map(async (file) => {
         if (file.content) {
