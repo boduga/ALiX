@@ -47,6 +47,13 @@ Concrete evidence of the fail-open: with all five exception entries expired on
 `checkExceptionsPolicy` directly on the same file returned `ok: false` with
 five `SC_EXCEPTION_EXPIRED` findings.
 
+> **Baseline note.** That measurement was taken against the five-entry register
+> that existed when this defect was found. The register has since been reduced
+> to a single entry (`onnxruntime-web`) by the embeddings migration and its
+> rebase. The finding is unchanged — it was always about the gate not evaluating
+> policy, not about how many entries existed — and the numbers above are
+> historical, not a description of the current file.
+
 ## What changed
 
 - `runExceptionsCheck` now runs the audit, parses it, and routes through
