@@ -92,8 +92,14 @@ async function buildRepoMapTimed(root: string): Promise<{ map: RepoMap; timings:
   return { map, timings };
 }
 
-describe("ContextCompiler.warm() detailed breakdown", { timeout: 120000 }, () => {
-  it("shows per-operation timing for warm()", { timeout: 120000 }, async () => {
+// Compiles the whole repository and times each warm() phase. Under full-suite
+// load this exceeds its budget, so it follows the same opt-in gate as its
+// siblings (warm-overhead, context-events): `pnpm test:node` sets
+// ALIX_SKIP_SLOW_TESTS, and `pnpm test:slow` clears it.
+const skipSlow = process.env.ALIX_SKIP_SLOW_TESTS !== undefined;
+
+describe("ContextCompiler.warm() detailed breakdown", { timeout: 120000, skip: skipSlow }, () => {
+  it("shows per-operation timing for warm()", { timeout: 120000, skip: skipSlow }, async () => {
     const projectRoot = process.cwd();
     const { timings } = await buildRepoMapTimed(projectRoot);
 
