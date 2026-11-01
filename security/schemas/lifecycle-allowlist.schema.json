@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/boduga/ALiX/main/security/schemas/lifecycle-allowlist.schema.json",
+  "title": "ALiX lifecycle-script allowlist",
+  "description": "Packages permitted to run install/postinstall scripts. Mirrors the `AllowlistFile` and `AllowlistEntry` interfaces in src/governance/security/supply-chain/dependency-policy.ts, which is the contract the gate actually consumes. This schema is for editor tooling and review; it does not run in CI. The runtime structural check is runLifecycleCheck in the same module.",
+  "type": "object",
+  "required": ["packages"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this schema document."
+    },
+    "description": {
+      "type": "string"
+    },
+    "lastReviewed": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO date of the last full review of this allowlist."
+    },
+    "policy": {
+      "type": "object",
+      "description": "Evaluation policy consumed by runLifecycleCheck.",
+      "additionalProperties": false,
+      "properties": {
+        "failOnNew": {
+          "type": "boolean",
+          "description": "Fail when an installed package runs a lifecycle script without an allowlist entry. Keep true."
+        },
+        "failOnExpired": {
+          "type": "boolean",
+          "description": "Fail when an allowlist entry has expired. Keep true."
+        },
+        "expiryWindowDays": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum permitted lifetime of a new entry, in days."
+        },
+        "allowDevOnlyScripts": {
+          "type": "boolean",
+          "description": "Permit lifecycle scripts on dev-only dependencies."
+        }
+      }
+    },
+    "packages": {
+      "type": "array",
+      "description": "Approved packages. A package denied in pnpm-workspace.yaml `allowBuilds` must not appear here.",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "versionRange",
+          "scripts",
+          "reason",
+          "owner",
+          "created",
+          "expiry"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Package name, exactly as it appears in the installed tree."
+          },
+          "versionRange": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Semver range the entry covers. A range that no longer includes the installed version silently stops applying."
+          },
+          "scripts": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Lifecycle scripts this entry permits (install, postinstall, preinstall)."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why the script is required. Must describe the current dependency, not the dependency at creation time."
+          },
+          "owner": {
+            "type": "string",
+            "minLength": 1
+          },
+          "created": {
+            "type": "string",
+            "format": "date"
+          },
+          "expiry": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      }
+    }
+  }
+}

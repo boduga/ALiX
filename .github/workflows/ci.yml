@@ -93,6 +93,12 @@ jobs:
           node-version: "26.11.0"
       - name: DOX claim/code audit
         run: node scripts/check-dox-claims.mjs --base "${{ github.event.pull_request.base.sha || 'main' }}"
+      # A reference that no longer describes the tree reads as coverage that does
+      # not exist. Offline-only: $schema refs, root-relative doc paths, and
+      # exception-entry shape. Expiry and advisory matching belong to the
+      # supply-chain gate, not here.
+      - name: Staleness audit (references still resolve)
+        run: node scripts/check-staleness.mjs
 
   # ─── Lane 2: Unit tests (vitest) ──────────────────────────────────────────
   unit:

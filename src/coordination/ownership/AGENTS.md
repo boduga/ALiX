@@ -46,8 +46,9 @@ plus the path-scope arithmetic both enforcement points share.
   write leases on it at spawn (scope reduced with `resolveOwnedScopePrefix`,
   released before `spawn` resolves); coordination tasks skip acquisition
   because the scheduler pre-claims their leases. The former in-process map in
-  `SubagentManager` and `src/agents/ownership-registry.ts` are gone — do not
-  reintroduce a second registry for the same claims.
+  `SubagentManager` is gone, as is the separate registry module that used to
+  live under `src/agents/`. Do not reintroduce a second registry for the same
+  claims.
 - **A workspace-wide grant is a RULE, not a list of spellings.**
   `isWorkspaceWideGrant` treats `.` and any pattern made only of `*` segments as
   the whole workspace; derive the rule rather than enumerating spellings.
