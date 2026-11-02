@@ -98,12 +98,22 @@ run focused-vitest pnpm exec vitest run \
   tests/security/continuation-cancellation.vitest.ts \
   tests/security/d9-phase-f-shell-counterexamples.vitest.ts \
   tests/security/worker-approval-identity-acceptance.vitest.ts \
-  --reporter=dot
+  --reporter=verbose
 
 # The rest of the gate remains green on the same candidate tree. Without
 # these, a security suite could pass while the tree fails to typecheck.
 run typecheck pnpm typecheck
 run typecheck-unused pnpm typecheck:unused
+
+# Build identity: without a hash of the emitted artifacts, "the build passed"
+# names a command but not the executable files the tests actually ran against.
+(
+  cd dist
+  find . -name '*.js' -type f -print0 | sort -z | xargs -0 sha256sum > "$out/build-manifest-sha256.txt"
+  sha256sum --sort "$out/build-manifest-sha256.txt" > "$out/build-matrix-sha256.txt"
+) | tee "$out/build-identity.log"
+echo "build_files=$(wc -l < "$out/build-manifest-sha256.txt")"
+echo "build_matrix_sha256=$(cut -d' ' -f1 "$out/build-matrix-sha256.txt")"
 run dox pnpm check:dox
 run staleness pnpm check:staleness
 run deps pnpm verify:deps

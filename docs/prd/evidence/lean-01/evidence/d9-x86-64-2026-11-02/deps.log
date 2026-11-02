@@ -1,0 +1,3 @@
+== deps ==
+$ node scripts/verify-deps.mjs
+✓ All 24 direct dependencies are pinned to exact versions.

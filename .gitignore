@@ -101,3 +101,9 @@ src/**/tui.md
 tests/**/tests.md
 tests/final-report.md
 benchmark/evidence/coordination/workspace/
+
+# D9 qualification evidence: retained execution logs are the evidence and
+# must be tracked. The global *.log ignore above would otherwise silently
+# drop them, leaving only checksums that cannot reconstruct the files they
+# describe.
+!docs/prd/evidence/lean-01/evidence/**/*.log

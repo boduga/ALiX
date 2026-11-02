@@ -1,0 +1,2 @@
+== build ==
+$ tsc -p tsconfig.json && node scripts/copy-build-artifacts.mjs

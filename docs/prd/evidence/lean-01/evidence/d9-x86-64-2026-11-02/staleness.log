@@ -1,0 +1,5 @@
+== staleness ==
+$ node scripts/check-staleness.mjs
+Staleness audit: 4543 file(s) walked, 0 stale reference(s)
+
+OK: every checked reference resolves.

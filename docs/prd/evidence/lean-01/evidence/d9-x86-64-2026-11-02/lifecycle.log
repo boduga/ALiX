@@ -1,0 +1,12 @@
+== lifecycle ==
+Lifecycle Script Verification — PASSED
+
+Packages with pnpm build approval: 3
+Approved in security allowlist: 3
+Missing from allowlist: 0
+Expired entries: 0
+
+APPROVED:
+  - better-sqlite3
+  - esbuild
+  - sharp

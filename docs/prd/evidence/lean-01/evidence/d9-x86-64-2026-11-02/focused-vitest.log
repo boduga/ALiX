@@ -1,0 +1,14 @@
+== focused-vitest ==
+
+ RUN  v5.0.5 /home/babasola/Projects/ALiX
+
+··-········stderr | tests/security/effect-journal-dispatch-matrix.vitest.ts > D9 Slice D ambiguous shell outcomes > timeout after an observable effect remains started_unknown
+[runtime] timeout: shell.run: printf applied > "/tmp/alix-d9-dispatch-eyWzTn/timeout-effect.txt"; sleep 1 — timed out after 20ms (timeout: 20ms)
+
+·············
+
+ Test Files  4 passed (4)
+      Tests  23 passed | 1 skipped (24)
+   Start at  20:39:38
+   Duration  13.42s (tests 96%, transform 3%, import 1%)
+
