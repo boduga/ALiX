@@ -127,3 +127,7 @@ lapse, and the opt-in real native helper).
 ### GE-04 experimental pre-spawn evidence (2026-11-02)
 
 The experimental adapter now creates and syncs an exclusive attempt record in `.alix/ge04/attempts/` before native helper dispatch. It contains the approval ID, lease ID, worker ID, invocation, host PID and timestamp. Failure to persist blocks dispatch. This is not a child-process identity, authenticated native receipt or evidence that a mutation occurred. No automatic recovery transition is authorized by these records.
+
+### Helper termination test
+
+A regression test verifies that a helper can write and then terminate by signal. The adapter returns an uncertain outcome, and restart inspection retains the pending consumed claim. This does not demonstrate recovery from host termination or authenticate a native receipt.

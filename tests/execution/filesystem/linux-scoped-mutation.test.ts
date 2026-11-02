@@ -554,3 +554,22 @@ test("experimental Linux adapter creates beneath owned root with supplied native
     await assert.rejects(readFile(join(h.root, "unowned", "escape.txt")));
   } finally { await h.dispose(); }
 });
+
+test("GE-04: terminated native helper leaves durable uncertain claim for restart inspection", async () => {
+  const h = await harness();
+  try {
+    const helper = join(h.root, "terminated-helper.sh");
+    await writeFile(helper, '#!/bin/sh\nprintf "%s" "$4" > "$1/$2/$3"\nkill -TERM "$$"\n');
+    await chmod(helper, 0o755);
+    const service = new ExperimentalLinuxScopedMutationService(helper,
+      createScopedMutationAuthorizationVerifier({ config: config(), approvalStore: h.approvals, registry: h.registry }));
+    const result = await service.mutate(authorityOf(h), createOp());
+    assert.equal(result.kind, "unverified");
+    assert.equal(await readFile(join(h.root, "owned", "hello.txt"), "utf8"), "hello");
+    const claims = await inspectGe04UncertainClaims(new ApprovalStore(h.root));
+    const claim = claims.find(item => item.approvalId === h.approvalId);
+    assert.equal(claim?.executionOutcome, "pending");
+    assert.equal(assessGe04Reconciliation(claim!).eligibleForAutomaticTransition, false);
+    await assert.rejects(service.mutate(authorityOf(h), createOp()), /authoritative mutation verification required/);
+  } finally { await h.dispose(); }
+});
