@@ -440,11 +440,10 @@ test("experimental Linux adapter creates beneath owned root with supplied native
       { kind: "created", changed: true });
     assert.equal(await readFile(join(h.root, "owned", "hello.txt"), "utf8"), "hello");
 
-    // A symlinked owned scope is still resolved by the native helper, so the
-    // helper refuses the write. Authority is granted for `alias` (its lease
-    // covers the workspace, so the grant is genuinely authorized), which is the
-    // point: authorization is not containment — the primitive must deny the
-    // redirect itself.
+    // Defense in depth: the live lease verifier now refuses an existing
+    // symlinked owned root before spending an approval. Independently, the
+    // native helper's no-symlink openat2 containment is covered by the
+    // standalone GE-04 native adversarial tests.
     await symlink("unowned", join(h.root, "alias"));
     const wideLease = await h.registry.acquire({
       agentId: "worker-a",
@@ -464,7 +463,7 @@ test("experimental Linux adapter creates beneath owned root with supplied native
     await h.approvals.resolve(aliasApproval.id, "approved");
     await assert.rejects(
       service.mutate({ ...aliasAuthority, approvalId: aliasApproval.id }, createOp("attack", "escape.txt")),
-      /native helper failed/,
+      /authoritative mutation verification required/,
     );
     await assert.rejects(readFile(join(h.root, "unowned", "escape.txt")));
   } finally { await h.dispose(); }
