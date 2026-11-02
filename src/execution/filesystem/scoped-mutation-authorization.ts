@@ -163,6 +163,8 @@ export type ScopedMutationAuthorizationGrant = {
   readonly leaseId: string;
   /** Re-check policy revision + lease validity AFTER the helper has run. */
   revalidate(): Promise<boolean>;
+  /** Hold the durable ownership revocation lock across an experimental action. */
+  withLeaseFence<T>(action: () => Promise<T>): Promise<{ allowed: true; value: T } | { allowed: false }>;
   /** Report the terminal outcome through the existing approval seam. */
   settle(outcome: "succeeded" | "failed" | "cancelled"): Promise<void>;
 };
@@ -279,6 +281,11 @@ export function createScopedMutationAuthorizationVerifier(
       async revalidate(): Promise<boolean> {
         if (authority.policyRevision !== currentPolicyRevision()) return false;
         return leaseVerifier(authority, operation);
+      },
+      async withLeaseFence<T>(action: () => Promise<T>): Promise<{ allowed: true; value: T } | { allowed: false }> {
+        if (authority.policyRevision !== currentPolicyRevision()) return { allowed: false };
+        const target = join(resolve(authority.workspaceRoot, authority.ownedScope), operation.relativePath);
+        return deps.registry.withExclusiveLeaseFence(authority.leaseId, authority.workerId, target, action);
       },
       async settle(outcome): Promise<void> {
         if (settled) return;

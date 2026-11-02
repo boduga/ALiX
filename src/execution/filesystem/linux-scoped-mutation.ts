@@ -61,7 +61,11 @@ export class ExperimentalLinuxScopedMutationService implements ScopedMutationSer
       if (!(await grant.revalidate())) {
         throw new Error("GE-04: authority lapsed before native helper dispatch");
       }
-      await this.invokeHelper(authority, operation, content);
+      // Keep the existing ownership revocation/release lock held until the
+      // helper finishes. This closes the explicit-revocation race for callers
+      // using OwnershipRegistry, but NOT policy invalidation or lease expiry.
+      const fenced = await grant.withLeaseFence(() => this.invokeHelper(authority, operation, content));
+      if (!fenced.allowed) throw new Error("GE-04: lease fence denied native helper dispatch");
     } catch (error) {
       await grant.settle("failed");
       throw error;

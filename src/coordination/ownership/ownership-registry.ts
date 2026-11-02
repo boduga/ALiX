@@ -305,6 +305,25 @@ export class OwnershipRegistry {
       ?? { allowed: false, reason: "Ownership state unavailable or lock acquisition timed out" };
   }
 
+  /**
+   * GE-04 experimental lease fence. Holds the SAME cross-process ownership lock
+   * used by revoke/release/renew while the callback executes. An invalid lease
+   * or unavailable lock fails closed. This does NOT fence policy changes,
+   * approval revocation, or lease expiry during a long-running callback.
+   */
+  async withExclusiveLeaseFence<T>(
+    leaseId: string, agentId: string, targetPath: string, action: () => Promise<T>,
+  ): Promise<{ allowed: true; value: T } | { allowed: false }> {
+    const result = await this.withLock(async () => {
+      const lease = this.records.find(r => r.id === leaseId);
+      if (!lease || lease.status !== "active" || this.isExpired(lease) ||
+          lease.agentId !== agentId || lease.mode !== "exclusive-write" ||
+          !scopeContains(lease.scope, targetPath)) return { allowed: false as const };
+      return { allowed: true as const, value: await action() };
+    });
+    return result ?? { allowed: false };
+  }
+
   /** Check whether agent has active exclusive-write coverage for a path. */
   hasCoverageForPath(agentId: string, targetPath: string): boolean {
     return this.records.some(r =>

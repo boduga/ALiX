@@ -50,6 +50,12 @@ A parent/child READY/GO handshake alone is **insufficient**: authority can be re
 4. **Mutate and acknowledge.** While the coordinator retains exclusion, the helper performs the fd-relative operation and returns a terminal receipt tied to the request identifier. A broken pipe, crash, timeout, or missing receipt yields an **unknown** outcome, not a fabricated failure or success; reconcile the on-disk state before settlement.
 5. **Release and audit.** Persist the outcome and release exclusion in a documented order; ensure the lock cannot become permanently held after process crashes. Establish explicit ordering between lease expiry, monotonic clock checks, lock acquisition and the mutation linearization point. Do not claim expiry guarantees stronger than the protocol enforces.
 
+### Experimental ownership-only fence (not a production boundary)
+
+`OwnershipRegistry.withExclusiveLeaseFence` now holds the existing cross-process ownership lock across the experimental helper invocation. `ScopedMutationAuthorizationGrant.withLeaseFence` uses this API, so an explicit `OwnershipRegistry.revoke` or `release` cannot interleave with the helper's write after the fence is acquired. A revocation that wins first prevents dispatch. A regression test exercises competing registry instances and verifies that revocation waits for the fenced action.
+
+**Limits:** This fence does not serialize policy configuration changes or approval-store revocation, and a lease may expire while the action is running. The lock is held for the entire helper lifetime, so lock waiters can fail closed on timeout. The current prototype also has no crash-reconciled mutation receipt. Do not call this the final atomic authorization boundary, and do not register the experimental backend in production.
+
 **Unresolved design work:** the current `OwnershipRegistry`, policy revision checks, and native helper do not implement this shared coordination protocol. Cross-process lock ordering, crash recovery, helper authenticity, parent/child liveness, and filesystem commit semantics need an ADR and adversarial tests before implementation can be qualified. In particular, merely adding a READY/GO message to the current helper would **not** close the TOCTOU gap.
 
 ## Release gates

@@ -393,6 +393,35 @@ test("GE-04: a grant is claimed once and a replay is denied", async () => {
   } finally { await h.dispose(); }
 });
 
+test("GE-04: explicit lease revocation waits for fenced mutation", async () => {
+  const h = await harness();
+  try {
+    let signalEntered!: () => void;
+    let releaseAction!: () => void;
+    const entered = new Promise<void>(resolve => { signalEntered = resolve; });
+    const continueAction = new Promise<void>(resolve => { releaseAction = resolve; });
+    const fence = h.registry.withExclusiveLeaseFence(h.leaseId, h.workerId,
+      join(h.root, "owned", "hello.txt"), async () => {
+        signalEntered();
+        await continueAction;
+        return "completed";
+      });
+    await entered;
+    const competingRegistry = new OwnershipRegistry(h.root);
+    let revoked = false;
+    const revocation = competingRegistry.revoke(h.leaseId).then(value => { revoked = value; });
+    // A second process's revocation must not complete before the held action.
+    await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal(revoked, false);
+    releaseAction();
+    assert.deepEqual(await fence, { allowed: true, value: "completed" });
+    await revocation;
+    assert.equal(revoked, true);
+    assert.deepEqual(await h.registry.withExclusiveLeaseFence(h.leaseId, h.workerId,
+      join(h.root, "owned", "hello.txt"), async () => "not-run"), { allowed: false });
+  } finally { await h.dispose(); }
+});
+
 test("GE-04: revoked lease before helper dispatch prevents creation", async () => {
   const h = await harness();
   try {
