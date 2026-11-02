@@ -51,7 +51,7 @@ The repository `security/audit-exceptions.json` records five advisories with `ex
 
 ## Required final evidence before a Phase F PASS
 
-1. Run reproducible native Linux x86-64 tests and negative crash/replay/approval/identity checks on the exact candidate tree; retain logs and hashes, including build and source identities.
+1. Run reproducible native Linux x86-64 tests and negative crash/replay/approval/identity checks on the exact candidate tree; retain logs and hashes, including build and source identities. — **evidence produced 2026-11-02** at `f0e0d89e`: `D9-phase-f-req1-x86-64-qualification-2026-11-02.md`, runner `scripts/d9-qualify-linux-x86-64.sh`, retained logs under `evidence/d9-x86-64-2026-11-02/` with verified SHA-256s. 58 negative checks pass (17 crash/replay, 18 approval, 23 focused vitest). **Author-side execution only** — see REQ 2.
 2. Independently review code and evidence with separate verifier/critic authority; no author self-certification.
 3. Resolve the five expired exception records through governed review and prove the security gate accepts the resulting actual repository state, or retain HOLD. — **evidence half met 2026-11-01** (register reconciled to one valid entry by fixing the dependencies; gate exits 0 on the real state). **Owner clearance outstanding**; see the status update under "Security exception disposition".
 4. Reconcile historical missing Vitest evidence explicitly as INCONCLUSIVE or supersede the *specific* acceptance obligation with independently retained new evidence, without claiming historical hash verification.
