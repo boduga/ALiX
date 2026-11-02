@@ -45,8 +45,25 @@ int main(int argc, char **argv) {
     if (n <= 0) { perror("write"); close(file); close(owned); close(root); return 6; }
     written += (size_t)n;
   }
-  int result = close(file);
+  // A zero exit must not precede persistence of the created bytes and
+  // directory entry. fsync errors are ambiguous: creation may already exist.
+  if (fsync(file) != 0) { perror("fsync file"); close(file); close(owned); close(root); return 10; }
+  if (close(file) != 0) { perror("close file"); close(owned); close(root); return 7; }
+  // Sync the actual containing directory, not merely the owned root:
+  // nested/target.txt is recorded in nested/, whose entry must be durable.
+  char *parent_path = strdup(argv[3]);
+  if (!parent_path) { perror("parent allocation"); close(owned); close(root); return 12; }
+  char *slash = strrchr(parent_path, '/');
+  int parent = owned;
+  if (slash) {
+    *slash = '\0';
+    parent = beneath(owned, parent_path, O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0);
+    if (parent < 0) { perror("open containing directory"); free(parent_path); close(owned); close(root); return 13; }
+  }
+  free(parent_path);
+  int synced = fsync(parent);
+  if (parent != owned) close(parent);
+  if (synced != 0) { perror("fsync containing directory"); close(owned); close(root); return 11; }
   close(owned); close(root);
-  if (result != 0) { perror("close"); return 7; }
   return 0;
 }

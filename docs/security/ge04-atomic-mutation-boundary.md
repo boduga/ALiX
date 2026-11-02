@@ -139,3 +139,7 @@ A separate Node host process writes and syncs a GE-04 pre-spawn record, then is 
 ### Host termination while a helper remains active
 
 An adversarial process test starts a shell helper from a separate Node host, waits for the helper to begin, and terminates the host with SIGKILL. The helper can survive and create a file after host death. The persisted pre-spawn record cannot distinguish this from a completed or failed helper. Therefore host liveness alone is not sufficient to reconcile consumed approvals or authorize replay. This is a controlled process-lifecycle reproduction, not a native C helper receipt test.
+
+### Native helper persistence before zero exit
+
+The experimental Linux C helper now fsyncs the created file and its actual containing directory, including nested paths, before returning zero. A failed sync or inability to reopen the containing directory returns nonzero, which the adapter quarantines as an ambiguous outcome because creation may already have occurred. This is not an authenticated receipt, cross-process authorization barrier or proof of power-loss durability on every filesystem and storage stack.
