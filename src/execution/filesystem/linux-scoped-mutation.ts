@@ -22,6 +22,10 @@ import {
  * supported way to run a scoped write without composing the real approval,
  * policy and ownership authorities.
  */
+class AmbiguousNativeHelperOutcome extends Error {
+  constructor(message: string) { super(message); this.name = "AmbiguousNativeHelperOutcome"; }
+}
+
 export class ExperimentalLinuxScopedMutationService implements ScopedMutationService {
   constructor(
     private readonly executable: string,
@@ -67,6 +71,12 @@ export class ExperimentalLinuxScopedMutationService implements ScopedMutationSer
       const fenced = await grant.withLeaseFence(() => this.invokeHelper(authority, operation, content));
       if (!fenced.allowed) throw new Error("GE-04: lease fence denied native helper dispatch");
     } catch (error) {
+      if (error instanceof AmbiguousNativeHelperOutcome) {
+        // Once a child was launched, failure to observe a clean terminal
+        // receipt cannot prove the kernel create did not happen. Preserve the
+        // consumed claim as pending for recovery; never mark it retryable.
+        return { kind: "unverified", changed: true, reason: "native helper outcome unknown; reconcile before retry" };
+      }
       await grant.settle("failed");
       throw error;
     }
@@ -97,7 +107,9 @@ export class ExperimentalLinuxScopedMutationService implements ScopedMutationSer
       child.stderr.setEncoding("utf8");
       child.stderr.on("data", (data: string) => { stderr = (stderr + data).slice(-2048); });
       child.once("error", reject);
-      child.once("close", (code) => code === 0 ? resolve() : reject(new Error(`GE-04 native helper failed (${code}): ${stderr.trim()}`)));
+      child.once("close", (code, signal) => code === 0 ? resolve() : reject(new AmbiguousNativeHelperOutcome(
+        `GE-04 native helper outcome unknown (code=${code}, signal=${signal}): ${stderr.trim()}`,
+      )));
     });
   }
 }

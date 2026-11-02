@@ -393,6 +393,21 @@ test("GE-04: a grant is claimed once and a replay is denied", async () => {
   } finally { await h.dispose(); }
 });
 
+test("GE-04: helper writes then exits nonzero stays unverified and is not replayable", async () => {
+  const h = await harness();
+  try {
+    const helper = join(h.root, "partial-helper.sh");
+    await writeFile(helper, '#!/bin/sh\nprintf "%s" "$4" > "$1/$2/$3"\nexit 17\n');
+    await chmod(helper, 0o755);
+    const service = new ExperimentalLinuxScopedMutationService(helper,
+      createScopedMutationAuthorizationVerifier({ config: config(), approvalStore: h.approvals, registry: h.registry }));
+    const result = await service.mutate(authorityOf(h), createOp());
+    assert.equal(result.kind, "unverified");
+    assert.equal(await readFile(join(h.root, "owned", "hello.txt"), "utf8"), "hello");
+    await assert.rejects(service.mutate(authorityOf(h), createOp()), /authoritative mutation verification required/);
+  } finally { await h.dispose(); }
+});
+
 test("GE-04: explicit lease revocation waits for fenced mutation", async () => {
   const h = await harness();
   try {
