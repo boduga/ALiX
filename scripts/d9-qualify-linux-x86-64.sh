@@ -110,10 +110,12 @@ run typecheck-unused pnpm typecheck:unused
 (
   cd dist
   find . -name '*.js' -type f -print0 | sort -z | xargs -0 sha256sum > "$out/build-manifest-sha256.txt"
-  sha256sum --sort "$out/build-manifest-sha256.txt" > "$out/build-matrix-sha256.txt"
+  # A single matrix hash over the sorted manifest: one value that identifies
+  # the whole compiled output without naming 700+ files individually.
+  sort "$out/build-manifest-sha256.txt" | sha256sum | cut -d' ' -f1 > "$out/build-matrix-sha256.txt"
 ) | tee "$out/build-identity.log"
 echo "build_files=$(wc -l < "$out/build-manifest-sha256.txt")"
-echo "build_matrix_sha256=$(cut -d' ' -f1 "$out/build-matrix-sha256.txt")"
+echo "build_matrix_sha256=$(cat "$out/build-matrix-sha256.txt")"
 run dox pnpm check:dox
 run staleness pnpm check:staleness
 run deps pnpm verify:deps
