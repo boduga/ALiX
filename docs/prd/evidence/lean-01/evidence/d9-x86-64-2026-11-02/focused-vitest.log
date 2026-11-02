@@ -1,0 +1,37 @@
+== focused-vitest ==
+
+ RUN  v5.0.5 /home/babasola/Projects/ALiX
+
+ ✓ tests/security/effect-journal-dispatch-matrix.vitest.ts > D9 Slice D registry coverage > enumerates the complete high/critical mutating routed catalogue 3ms
+ ✓ tests/security/continuation-cancellation.vitest.ts > continuation cancellation at already-aborted preserves authority and prevents effects 1965ms
+ ✓ tests/security/continuation-cancellation.vitest.ts > continuation cancellation at tool.requested preserves authority and prevents effects 2078ms
+ ✓ tests/security/effect-journal-dispatch-matrix.vitest.ts > D9 Slice D registry coverage > journals every high/critical mutating catalogue family and blocks exact replay 6482ms
+stderr | tests/security/effect-journal-dispatch-matrix.vitest.ts > D9 Slice D ambiguous shell outcomes > timeout after an observable effect remains started_unknown
+[runtime] timeout: shell.run: printf applied > "/tmp/alix-d9-dispatch-PXcymD/timeout-effect.txt"; sleep 1 — timed out after 20ms (timeout: 20ms)
+
+ ✓ tests/security/continuation-cancellation.vitest.ts > continuation cancellation at after-claim preserves authority and prevents effects 2532ms
+ ✓ tests/security/effect-journal-dispatch-matrix.vitest.ts > D9 Slice D ambiguous shell outcomes > timeout after an observable effect remains started_unknown 1070ms
+ ✓ tests/security/effect-journal-dispatch-matrix.vitest.ts > D9 Slice D ambiguous shell outcomes > signal termination after an observable effect remains started_unknown 739ms
+ ✓ tests/security/effect-journal-dispatch-matrix.vitest.ts > D9 Slice D ambiguous shell outcomes > nonzero exit after an observable effect remains started_unknown 583ms
+ ✓ tests/security/continuation-cancellation.vitest.ts > continuation cancellation at tool.started preserves authority and prevents effects 2299ms
+ ✓ tests/security/effect-journal-dispatch-matrix.vitest.ts > D9 Slice D dynamic MCP ambiguity > production MCP registry preserves a thrown transport failure as outcome-unknown 525ms
+ ✓ tests/security/effect-journal-dispatch-matrix.vitest.ts > D9 Slice D dynamic MCP ambiguity > production MCP isError response remains outcome-unknown for a mutating dynamic tool 907ms
+ ✓ tests/security/continuation-cancellation.vitest.ts > continuation cancellation at active preserves authority and prevents effects 2495ms
+ ✓ tests/security/continuation-cancellation.vitest.ts > continuation cancellation at no-signal preserves authority and prevents effects 2526ms
+ ✓ tests/security/worker-approval-identity-acceptance.vitest.ts > LEAN-G01 worker-bound approval acceptance > rejects missing consumer identity and preserves approved state 2268ms
+ ✓ tests/security/d9-phase-f-shell-counterexamples.vitest.ts > D9 Phase F shell counterexamples > F1: persistent-shell completion cannot be forged by consuming and echoing harness stdin 229ms
+ ✓ tests/security/d9-phase-f-shell-counterexamples.vitest.ts > D9 Phase F shell counterexamples > F2: signal termination is never classified as successful exit 0 10ms
+ ↓ tests/security/d9-phase-f-shell-counterexamples.vitest.ts > D9 Phase F shell counterexamples > F2 (Windows): a nonzero exit is never classified as success
+ ✓ tests/security/d9-phase-f-shell-counterexamples.vitest.ts > D9 Phase F shell counterexamples > F4: git show output-writing syntax is not approval-exempt safe shell 2ms
+ ✓ tests/security/d9-phase-f-shell-counterexamples.vitest.ts > D9 Phase F shell counterexamples > F4: git diff output-writing syntax is not approval-exempt safe shell 1ms
+ ✓ tests/security/d9-phase-f-shell-counterexamples.vitest.ts > D9 Phase F shell counterexamples > F4: quoted rg --pre cannot receive safe-shell approval exemption 1ms
+ ✓ tests/security/d9-phase-f-shell-counterexamples.vitest.ts > D9 Phase F shell counterexamples > F4: rg preprocessors are not classified as read-only 5ms
+ ✓ tests/security/worker-approval-identity-acceptance.vitest.ts > LEAN-G01 worker-bound approval acceptance > rejects cross-worker consumption through worker-bound port 1721ms
+ ✓ tests/security/worker-approval-identity-acceptance.vitest.ts > LEAN-G01 worker-bound approval acceptance > never attributes worker B port requests to worker A 1060ms
+ ✓ tests/security/worker-approval-identity-acceptance.vitest.ts > LEAN-G01 worker-bound approval acceptance > still rejects explicitly mismatched worker identity 1072ms
+
+ Test Files  4 passed (4)
+      Tests  23 passed | 1 skipped (24)
+   Start at  21:07:08
+   Duration  16.92s (tests 99%, import 1%)
+

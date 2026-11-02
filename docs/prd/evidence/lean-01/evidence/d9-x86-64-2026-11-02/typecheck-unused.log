@@ -1,0 +1,2 @@
+== typecheck-unused ==
+$ tsc -p tsconfig.unused.json --noEmit

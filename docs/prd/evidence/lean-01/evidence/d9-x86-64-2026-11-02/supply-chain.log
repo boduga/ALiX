@@ -1,0 +1,39 @@
+== supply-chain ==
+═══════════════════════════════════════════════════════
+  ALiX Supply-Chain Check
+═══════════════════════════════════════════════════════
+
+▸ Sf.1 — Lifecycle script verification...
+Lifecycle Script Verification — PASSED
+
+Packages with pnpm build approval: 3
+Approved in security allowlist: 3
+Missing from allowlist: 0
+Expired entries: 0
+
+APPROVED:
+  - better-sqlite3
+  - esbuild
+  - sharp
+  ✅ Lifecycle scripts — all approved and current
+
+▸ Sf.2 — Audit exceptions check...
+
+Audit Exceptions — OK
+
+Advisories evaluated: 0
+Excepted advisories: 0
+Unexcepted advisories: 0
+Expired exceptions: 0
+
+  ✅ Audit exceptions — all advisories excepted or below threshold
+
+▸ Sf.3 — Lockfile integrity...
+  ✅ pnpm-lock.yaml — present
+  ✅ Lockfile — clean (no uncommitted changes)
+
+▸ Sf.5 — Tarball content verification...
+  ℹ  No tarball found — run 'pnpm pack' first to verify package contents
+
+═══════════════════════════════════════════════════════
+  ✅ Supply-chain check PASSED

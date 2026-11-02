@@ -1,10 +1,19 @@
 # D9 Phase F — REQ 1 native Linux x86-64 qualification
 
 Date: 2026-11-02 (UTC)
-Commit: `f0e0d89e221c8dcb61a4fe1868102de5b9c7e721`
+Commit: `31a7ed1d` (runner fix; evidence re-run on the same tree)
 Tree: `577f3831ada7a528f3102f413fd2f52a48dbec5a`
 Runner: `scripts/d9-qualify-linux-x86-64.sh`
-Retained evidence: `evidence/d9-x86-64-2026-11-02/` (16 files, `SHA256SUMS` verified)
+Retained evidence: `evidence/d9-x86-64-2026-11-02/` (19 files, all **tracked**, `SHA256SUMS` verified)
+
+> **Revision note.** The first version of this evidence retained only 3 of 16
+> artefacts in git: `.gitignore:15` (`*.log`) silently dropped the 13 execution
+> logs. `SHA256SUMS` listed and verified them locally, so nothing appeared
+> broken, but a fresh checkout could not inspect any claimed execution — and a
+> hash cannot reconstruct missing bytes. Found by an independent review (Codex,
+> 2026-11-02). Fixed by a scoped `!docs/prd/evidence/lean-01/evidence/**/*.log`
+> negation, and the run was repeated with build identity and verbose test names.
+> The old 16-file set is superseded by this one.
 
 ## What REQ 1 asked
 
@@ -44,9 +53,16 @@ cannot describe a dependency graph the commit does not pin.
 | `negative-approval` | **18 tests, 18 pass, 0 fail** |
 | `focused-vitest` | **4 files, 23 pass, 1 skipped, 0 fail** |
 | `typecheck` / `typecheck-unused` | exit 0 |
+| `build-identity` | **3026 files**, matrix `292c48ffc610935fff4f57bdc6d29d62b404ff19d1de0512bb21a646090519e4` |
 | `dox` / `staleness` / `deps` | exit 0 |
 | `lifecycle` / `supply-chain` | exit 0 |
 | `git diff --check` | clean |
+
+Build identity now names the executable files rather than a command line:
+`build-manifest-sha256.txt` carries a per-file hash of all 3026 emitted `.js`
+files, and `build-matrix-sha256.txt` one value over the sorted manifest.
+`focused-vitest` runs at `--reporter=verbose`, so individual test identities are
+retained (23 named cases) instead of aggregate dot counts.
 
 Negative crash/replay coverage actually exercised — real children, real
 signals, at `--test-concurrency=1` so signal timing is not the variable:

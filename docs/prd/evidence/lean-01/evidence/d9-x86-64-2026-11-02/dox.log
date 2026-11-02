@@ -1,0 +1,5 @@
+== dox ==
+$ node scripts/check-dox-claims.mjs
+DOX claim/code audit: 0 AGENTS.md file(s) changed, 0 token(s) checked (main...HEAD)
+  vocabulary baseline: 0 known executor-ID claim(s) (docs/dox-executor-id-baseline.txt)
+OK: 0 claim token(s) across 0 AGENTS.md file(s) resolve to the branch's own content.
