@@ -83,6 +83,39 @@ describe("OwnershipRegistry", () => {
     assert.equal(result.acquired, true);
   });
 
+  it("GE-04 fence refuses an already-expired lease without invoking the callback", async () => {
+    const result = await reg.acquire({
+      agentId: "agent-1", scope: { kind: "path", root: join(dir, "owned"), recursive: true },
+      mode: "exclusive-write", ttlMs: -1,
+    });
+    assert.equal(result.acquired, true);
+    let invoked = false;
+    const fenced = await reg.withExclusiveLeaseFence(result.record!.id, "agent-1",
+      join(dir, "owned", "file.txt"), async () => { invoked = true; return "unsafe"; });
+    assert.deepEqual(fenced, { allowed: false });
+    assert.equal(invoked, false);
+  });
+
+  it("GE-04 fence does not claim expiry is serialized during an in-flight action", async () => {
+    const result = await reg.acquire({
+      agentId: "agent-1", scope: { kind: "path", root: join(dir, "owned"), recursive: true },
+      mode: "exclusive-write", ttlMs: 100,
+    });
+    assert.equal(result.acquired, true);
+    let release!: () => void;
+    let entered!: () => void;
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const resume = new Promise<void>(resolve => { release = resolve; });
+    const fenced = reg.withExclusiveLeaseFence(result.record!.id, "agent-1",
+      join(dir, "owned", "file.txt"), async () => { entered(); await resume; return "ran"; });
+    await started;
+    await new Promise(resolve => setTimeout(resolve, 150));
+    release();
+    assert.deepEqual(await fenced, { allowed: true, value: "ran" });
+    assert.deepEqual(await reg.withExclusiveLeaseFence(result.record!.id, "agent-1",
+      join(dir, "owned", "file.txt"), async () => "not-run"), { allowed: false });
+  });
+
   // ─── Release ────────────────────────────────────────────────────
 
   it("release marks as released", async () => {
