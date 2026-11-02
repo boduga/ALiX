@@ -26,6 +26,7 @@ import {
   isTrustedScopedMutationVerifier,
 } from "../../../src/execution/filesystem/scoped-mutation-authorization.js";
 import type { ScopedMutationAuthority } from "../../../src/execution/filesystem/scoped-mutation.js";
+import { inspectGe04UncertainClaims } from "../../../src/execution/filesystem/ge04-recovery.js";
 import type { AlixConfig } from "../../../src/operations/config/schema.js";
 
 const config = (overrides: { sessionMode?: "auto" | "ask" | "bypass"; tools?: Record<string, "allow" | "ask" | "deny"> } = {}): AlixConfig => ({
@@ -405,6 +406,25 @@ test("GE-04: helper writes then exits nonzero stays unverified and is not replay
     assert.equal(result.kind, "unverified");
     assert.equal(await readFile(join(h.root, "owned", "hello.txt"), "utf8"), "hello");
     await assert.rejects(service.mutate(authorityOf(h), createOp()), /authoritative mutation verification required/);
+  } finally { await h.dispose(); }
+});
+
+test("GE-04: a restarted store can inspect an ambiguous consumed claim without replay", async () => {
+  const h = await harness();
+  try {
+    const helper = join(h.root, "partial-restart-helper.sh");
+    await writeFile(helper, '#!/bin/sh\nprintf "%s" "$4" > "$1/$2/$3"\nexit 17\n');
+    await chmod(helper, 0o755);
+    const service = new ExperimentalLinuxScopedMutationService(helper,
+      createScopedMutationAuthorizationVerifier({ config: config(), approvalStore: h.approvals, registry: h.registry }));
+    assert.equal((await service.mutate(authorityOf(h), createOp())).kind, "unverified");
+    const restarted = new ApprovalStore(h.root);
+    const claims = await inspectGe04UncertainClaims(restarted);
+    assert.ok(claims.some(claim => claim.approvalId === h.approvalId && claim.executionOutcome === "pending"));
+    assert.equal(await readFile(join(h.root, "owned", "hello.txt"), "utf8"), "hello");
+    await assert.rejects(service.mutate(authorityOf(h), createOp()), /authoritative mutation verification required/);
+    const after = await inspectGe04UncertainClaims(new ApprovalStore(h.root));
+    assert.ok(after.some(claim => claim.approvalId === h.approvalId));
   } finally { await h.dispose(); }
 });
 
