@@ -46,3 +46,46 @@ On macOS and Windows, provide equivalent native handle-relative guarantees or fa
 - Red-team tests run against the exact pinned commit, with reproducible swap harness and sentinel assertions.
 - No regression to existing idempotency, ownership, protected-path, checkpoint, and audit semantics.
 - Evidence identifies any remaining unsupported mutation channels. Until then, GE-04 and D9 Phase F remain HOLD.
+
+## Experimental adapter authorization guard (2026-11-02)
+
+The opt-in `ExperimentalLinuxScopedMutationService` requires an injected
+authorization verifier that is **only** obtainable from
+`createScopedMutationAuthorizationVerifier`
+(`src/execution/filesystem/scoped-mutation-authorization.ts`). A caller-supplied
+callback is rejected at construction by a module-private brand, closing the
+previous fail-open where any `async () => true` satisfied the guard. Missing
+identity/revision/lease/approval metadata, a `null` grant and verifier errors
+all fail closed.
+
+The composition reuses ALiX's existing authorities and adds no second one:
+
+- **Policy:** `computePolicyRevision` — the same fingerprint the coordination
+  scheduler uses to invalidate stale approvals. `PolicyGate` is deliberately NOT
+  re-invoked at this boundary because its `evaluate*` methods mint and reuse
+  approvals as a side effect.
+- **Approval:** `ApprovalStore.consumeApproved`, the one atomic single-use
+  claim. The record must be `approved`, unexpired per `approvalExpiryState`,
+  bound to this worker and policy revision, and match the exact invocation
+  (`computeScopedMutationInvocation` → the shared `computeInvocationFingerprint`).
+  A forged, pending, expired, revoked, already-consumed or differently-bound
+  record is refused without spending a valid one.
+- **Ownership:** `OwnershipRegistry` via `createLiveScopedLeaseVerifier` and the
+  shared `scopeContains` matcher.
+
+The grant also exposes `revalidate()` and `settle()`. `revalidate()` re-checks
+the lease and policy revision **after** the helper runs: authority that lapses
+mid-write cannot be reported as `created`/`changed: true` — the adapter returns
+`{ kind: "unverified", changed: true }` instead. This narrows, but does not
+eliminate, the residual verification-to-spawn TOCTOU window; Node cannot hold
+the kernel's checks across a process boundary, so a production integration needs
+the fd-relative primitive to re-check authority itself before the final write.
+
+Still NOT qualified: the native helper, executable packaging, cross-platform
+backends and independent review are outstanding, and production service
+selection remains unregistered and fail-closed (`createScopedMutationService`).
+Adversarial coverage lives in
+`tests/execution/filesystem/linux-scoped-mutation.test.ts` (forged/expired/
+revoked/mismatched lease, policy revision mismatch, forged/pending/expired/
+revoked/mismatched approval, changed bytes or target, single-use replay, mid-flight
+lapse, and the opt-in real native helper).

@@ -16,11 +16,26 @@ export interface ScopedMutationAuthority {
   readonly workerId: string;
   readonly policyRevision: string;
   readonly leaseId: string;
+  /**
+   * Durable approval this mutation is claimed under.
+   *
+   * Optional in the SHAPE so a caller cannot be forced to invent an id, but the
+   * trusted verifier requires a non-empty value and fails closed without one.
+   * Every field here is caller-supplied metadata: none of them is evidence of
+   * authority on its own — the verifier re-derives all of it from the stores.
+   */
+  readonly approvalId?: string;
 }
 
 export type ScopedMutationOutcome =
   | { readonly kind: "created" | "replaced" | "deleted"; readonly changed: true }
-  | { readonly kind: "identical"; readonly changed: false };
+  | { readonly kind: "identical"; readonly changed: false }
+  /**
+   * The operation may have taken effect, but the authority that permitted it
+   * lapsed before completion. Never a success claim: a caller must treat the
+   * workspace state as unestablished rather than as evidence of the write.
+   */
+  | { readonly kind: "unverified"; readonly changed: true; readonly reason: string };
 
 export interface ScopedMutationService {
   mutate(authority: ScopedMutationAuthority, operation: ScopedMutationOperation): Promise<ScopedMutationOutcome>;
