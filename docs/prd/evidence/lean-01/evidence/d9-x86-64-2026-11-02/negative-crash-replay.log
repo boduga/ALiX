@@ -1,25 +1,25 @@
 == negative-crash-replay ==
 ▶ approval crash-after-consume recovery
-  ✔ marks a claimed-but-unreported approval unverified and denies the replay (1091.693299ms)
-  ✔ denies replay when an external effect happened but the receipt was lost (808.682795ms)
-  ✔ reports a proven success and still refuses a replay (1498.302009ms)
-  ✔ reports a proven failure and still refuses a replay (734.858209ms)
-  ✔ lists uncertain consumptions without a wall-clock sweep (1681.33528ms)
-  ✔ does not let a duplicate outcome report rewrite a resolved claim (1040.012738ms)
-  ✔ classifies a crashed claim at the continuation seam too (890.713262ms)
-✔ approval crash-after-consume recovery (7749.577745ms)
-✔ D9 actual resumer SIGKILL: before-resume (2651.503913ms)
-✔ D9 actual resumer SIGKILL: after-tombstone (2771.008159ms)
-✔ D9 actual resumer SIGKILL: after-consume (2138.042214ms)
-✔ D9 actual resumer SIGKILL: after-effect (2008.996726ms)
-✔ D9 actual resumer SIGKILL: after-receipt (2640.032698ms)
-✔ D9 actual resumer SIGKILL: reassigned-after-receipt (2312.378488ms)
-✔ D9 recovery rechecks reassignment under the run lock after initial eligibility (2494.605415ms)
-✔ D9 SIGKILL after-consume: persisted claim cannot authorize replay (1412.454334ms)
-✔ D9 SIGKILL after-effect: persisted claim cannot authorize replay (1644.983633ms)
+  ✔ marks a claimed-but-unreported approval unverified and denies the replay (1595.592669ms)
+  ✔ denies replay when an external effect happened but the receipt was lost (1679.28631ms)
+  ✔ reports a proven success and still refuses a replay (2241.869855ms)
+  ✔ reports a proven failure and still refuses a replay (1300.819334ms)
+  ✔ lists uncertain consumptions without a wall-clock sweep (2879.177725ms)
+  ✔ does not let a duplicate outcome report rewrite a resolved claim (2390.202728ms)
+  ✔ classifies a crashed claim at the continuation seam too (1451.184644ms)
+✔ approval crash-after-consume recovery (13543.953584ms)
+✔ D9 actual resumer SIGKILL: before-resume (3195.288902ms)
+✔ D9 actual resumer SIGKILL: after-tombstone (2981.35242ms)
+✔ D9 actual resumer SIGKILL: after-consume (2561.209401ms)
+✔ D9 actual resumer SIGKILL: after-effect (2658.519009ms)
+✔ D9 actual resumer SIGKILL: after-receipt (3020.502676ms)
+✔ D9 actual resumer SIGKILL: reassigned-after-receipt (2657.33003ms)
+✔ D9 recovery rechecks reassignment under the run lock after initial eligibility (2964.381343ms)
+✔ D9 SIGKILL after-consume: persisted claim cannot authorize replay (1580.465162ms)
+✔ D9 SIGKILL after-effect: persisted claim cannot authorize replay (1221.569441ms)
 ▶ D9 effect journal fresh-process crash recovery
-  ✔ SIGKILL after applied effect but before terminal receipt quarantines exact replay (256.024616ms)
-✔ D9 effect journal fresh-process crash recovery (257.8278ms)
+  ✔ SIGKILL after applied effect but before terminal receipt quarantines exact replay (377.925992ms)
+✔ D9 effect journal fresh-process crash recovery (380.430571ms)
 ℹ tests 17
 ℹ suites 2
 ℹ pass 17
@@ -27,4 +27,4 @@
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 29069.552591
+ℹ duration_ms 37603.642003

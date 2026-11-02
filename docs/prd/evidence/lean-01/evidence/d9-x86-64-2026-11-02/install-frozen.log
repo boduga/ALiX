@@ -1,6 +1,6 @@
 == install-frozen ==
 [WARN] The "workspaces" field in package.json differs from "packages" in pnpm-workspace.yaml. pnpm uses pnpm-workspace.yaml.
 Scope: all 2 workspace projects
-✓ Lockfile passes supply-chain policies (verified 48m ago)
+✓ Lockfile passes supply-chain policies (verified 1h ago)
 Lockfile is up to date, resolution step is skipped
-Done in 47ms using pnpm v12.11.2
+Done in 44ms using pnpm v12.11.2

@@ -1,28 +1,28 @@
 == negative-approval ==
 ▶ approval consumption propagation
-  ✔ decisionAllowed preserves the consumed flag (0.798625ms)
-  ✔ ExecutionAuthorization forwards approvalConsumed to the allowed decision (0.5181ms)
-  ✔ an ordinary allowed decision leaves approvalConsumed undefined (0.272588ms)
-  ✔ executor records a terminal receipt for an approval preconsumed by the exact-binding gate (1179.03086ms)
-  ✔ the coordination exact-binding branch consumes once and reports it (862.923169ms)
-✔ approval consumption propagation (2046.136208ms)
+  ✔ decisionAllowed preserves the consumed flag (0.928755ms)
+  ✔ ExecutionAuthorization forwards approvalConsumed to the allowed decision (0.732783ms)
+  ✔ an ordinary allowed decision leaves approvalConsumed undefined (0.372562ms)
+  ✔ executor records a terminal receipt for an approval preconsumed by the exact-binding gate (1549.486232ms)
+  ✔ the coordination exact-binding branch consumes once and reports it (843.762543ms)
+✔ approval consumption propagation (2398.65612ms)
 ▶ legacy approval single-use (ordinary retry route)
-  ✔ executes exactly once and refuses a fresh-process replay (1248.716015ms)
-  ✔ runs the effect exactly once under concurrent duplicate execution (1488.492689ms)
-  ✔ a changed argument set does not reuse the approval (769.966286ms)
-  ✔ a changed capability does not reuse the approval (1123.858209ms)
-  ✔ a changed agent identity does not reuse the approval (991.97788ms)
-  ✔ a legacy approved record with no invocation binding is re-asked, never reused (1032.115685ms)
-  ✔ a consumed record is denied and never re-authorized (1230.625732ms)
-  ✔ the store refuses a second consume of the same approval (899.784068ms)
-✔ legacy approval single-use (ordinary retry route) (8792.709524ms)
+  ✔ executes exactly once and refuses a fresh-process replay (1838.0811ms)
+  ✔ runs the effect exactly once under concurrent duplicate execution (1757.592749ms)
+  ✔ a changed argument set does not reuse the approval (1155.405203ms)
+  ✔ a changed capability does not reuse the approval (1252.586184ms)
+  ✔ a changed agent identity does not reuse the approval (1148.481484ms)
+  ✔ a legacy approved record with no invocation binding is re-asked, never reused (1097.346817ms)
+  ✔ a consumed record is denied and never re-authorized (1600.903587ms)
+  ✔ the store refuses a second consume of the same approval (929.792363ms)
+✔ legacy approval single-use (ordinary retry route) (10787.784393ms)
 ▶ legacy approval single-use (continuation-resume route)
-  ✔ resumes exactly once and the continuation is one-shot (1540.001061ms)
-  ✔ resumes the effect exactly once under concurrent resumes (1522.138072ms)
-  ✔ refuses to resume a legacy approval with no invocation binding (829.410782ms)
-✔ legacy approval single-use (continuation-resume route) (3893.461512ms)
-✔ D7 report: fresh processes enforce persisted ownership under contention (1385.7457ms)
-✔ D7 unverified: fresh processes enforce persisted ownership under contention (1508.636886ms)
+  ✔ resumes exactly once and the continuation is one-shot (1862.075027ms)
+  ✔ resumes the effect exactly once under concurrent resumes (2000.102677ms)
+  ✔ refuses to resume a legacy approval with no invocation binding (1067.861461ms)
+✔ legacy approval single-use (continuation-resume route) (4932.100653ms)
+✔ D7 report: fresh processes enforce persisted ownership under contention (1906.112094ms)
+✔ D7 unverified: fresh processes enforce persisted ownership under contention (1893.818476ms)
 ℹ tests 18
 ℹ suites 3
 ℹ pass 18
@@ -30,4 +30,4 @@
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 18024.40937
+ℹ duration_ms 22309.362857
