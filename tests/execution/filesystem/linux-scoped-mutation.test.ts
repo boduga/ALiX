@@ -26,7 +26,7 @@ import {
   isTrustedScopedMutationVerifier,
 } from "../../../src/execution/filesystem/scoped-mutation-authorization.js";
 import type { ScopedMutationAuthority } from "../../../src/execution/filesystem/scoped-mutation.js";
-import { inspectGe04UncertainClaims } from "../../../src/execution/filesystem/ge04-recovery.js";
+import { assessGe04Reconciliation, inspectGe04UncertainClaims } from "../../../src/execution/filesystem/ge04-recovery.js";
 import type { AlixConfig } from "../../../src/operations/config/schema.js";
 
 const config = (overrides: { sessionMode?: "auto" | "ask" | "bypass"; tools?: Record<string, "allow" | "ask" | "deny"> } = {}): AlixConfig => ({
@@ -421,6 +421,12 @@ test("GE-04: a restarted store can inspect an ambiguous consumed claim without r
     const restarted = new ApprovalStore(h.root);
     const claims = await inspectGe04UncertainClaims(restarted);
     assert.ok(claims.some(claim => claim.approvalId === h.approvalId && claim.executionOutcome === "pending"));
+    const uncertain = claims.find(claim => claim.approvalId === h.approvalId)!;
+    assert.deepEqual(assessGe04Reconciliation(uncertain), {
+      approvalId: h.approvalId,
+      eligibleForAutomaticTransition: false,
+      reason: "missing_trusted_execution_owner_and_native_receipt",
+    });
     assert.equal(await readFile(join(h.root, "owned", "hello.txt"), "utf8"), "hello");
     await assert.rejects(service.mutate(authorityOf(h), createOp()), /authoritative mutation verification required/);
     const after = await inspectGe04UncertainClaims(new ApprovalStore(h.root));

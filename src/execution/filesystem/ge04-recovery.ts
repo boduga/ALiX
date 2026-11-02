@@ -25,3 +25,26 @@ export async function inspectGe04UncertainClaims(store: ApprovalStore): Promise<
     invocationFingerprint: record.invocationFingerprint,
   }));
 }
+
+/**
+ * Conservative reconciliation gate. An approval record has a worker ID but
+ * does NOT durably bind an execution-owner process identity, process start
+ * identity, or native-helper receipt. A PID supplied by the caller cannot
+ * fill that gap: it may refer to an unrelated/reused process. Consequently no
+ * claim can be automatically finalized by this prototype.
+ */
+export type Ge04ReconciliationAssessment = Readonly<{
+  approvalId: string;
+  eligibleForAutomaticTransition: false;
+  reason: "missing_trusted_execution_owner_and_native_receipt";
+}>;
+
+export function assessGe04Reconciliation(
+  claim: Ge04UncertainClaim,
+): Ge04ReconciliationAssessment {
+  return {
+    approvalId: claim.approvalId,
+    eligibleForAutomaticTransition: false,
+    reason: "missing_trusted_execution_owner_and_native_receipt",
+  };
+}
