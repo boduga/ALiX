@@ -135,3 +135,7 @@ A regression test verifies that a helper can write and then terminate by signal.
 ### Host termination after attempt journal fsync
 
 A separate Node host process writes and syncs a GE-04 pre-spawn record, then is terminated by SIGKILL. The surviving test process reads the journal and verifies the persisted approval, PID and pre-spawn state. This proves persistence across host termination at that checkpoint only. It does not cover a host crash during a native write, helper identity, receipt authenticity or automatic recovery.
+
+### Host termination while a helper remains active
+
+An adversarial process test starts a shell helper from a separate Node host, waits for the helper to begin, and terminates the host with SIGKILL. The helper can survive and create a file after host death. The persisted pre-spawn record cannot distinguish this from a completed or failed helper. Therefore host liveness alone is not sufficient to reconcile consumed approvals or authorize replay. This is a controlled process-lifecycle reproduction, not a native C helper receipt test.
