@@ -70,7 +70,7 @@
     "node": ">=26.4.0"
   },
   "devDependencies": {
-    "@langfuse/core": "5.13.1",
+    "@langfuse/core": "6.0.2",
     "@types/better-sqlite3": "9.6.0",
     "@types/node": "26.6.5",
     "c8": "12.0.0",
@@ -80,14 +80,14 @@
     "vitest": "5.0.3"
   },
   "dependencies": {
-    "@langfuse/otel": "5.13.1",
-    "@langfuse/tracing": "5.13.1",
+    "@langfuse/otel": "6.0.2",
+    "@langfuse/tracing": "6.0.2",
     "@napi-rs/keyring": "2.1.0",
     "@node-rs/argon2": "2.2.2",
     "@opentelemetry/api": "1.9.1",
     "@opentelemetry/context-async-hooks": "2.12.0",
     "@opentelemetry/sdk-trace-base": "2.12.0",
-    "@opentui/core": "0.5.17",
+    "@opentui/core": "0.7.0",
     "@huggingface/transformers": "4.3.2",
     "better-sqlite3": "13.0.3",
     "cli-spinners": "3.4.0",
