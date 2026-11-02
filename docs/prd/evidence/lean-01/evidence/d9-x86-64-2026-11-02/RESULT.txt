@@ -1,0 +1,17 @@
+D9 Phase F Linux x86-64 native qualification: PASS
+commit=f0e0d89e221c8dcb61a4fe1868102de5b9c7e721
+tree=577f3831ada7a528f3102f413fd2f52a48dbec5a
+arch=x86_64
+node=v26.11.0
+Evidence directory: /tmp/d9-x86-64-2026-11-02
+
+Scope of this evidence:
+  - Native Linux x86-64 only, on the filesystem recorded above.
+  - Process-crash/restart and process-tree scope only.
+
+NOT claimed by this run:
+  - Kernel crash, power loss, or generalized storage durability.
+  - macOS, Windows, containers, network filesystems, or emulation.
+  - Independent review (REQ 2). This is author-side execution evidence and
+    cannot satisfy a requirement that forbids author self-certification.
+  - Owner security-exception clearance (REQ 3). A PASS here is not that.
