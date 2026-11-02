@@ -40,6 +40,18 @@ On macOS and Windows, provide equivalent native handle-relative guarantees or fa
 7. Crash and partial write, disk-full, permissions, and cleanup failures; verify journal/recovery and audit evidence.
 8. Linux, macOS and Windows CI coverage of each supported backend; unsupported backend must fail closed.
 
+## Final-boundary authorization protocol (required before production)
+
+A parent/child READY/GO handshake alone is **insufficient**: authority can be revoked after GO and before `openat2`/`write`. The production design must provide one linearization point shared by **all** lease/policy revocations and governed mutations, including independent daemon processes.
+
+1. **Single authority coordinator.** All ownership lease revocations, policy invalidations and governed mutation admissions must use one durable, cross-process synchronization domain. Any bypassing writer or revoker invalidates the guarantee. A module-private JavaScript verifier brand, `instanceof`, and an in-memory mutex do not provide this guarantee.
+2. **Prepare and pin.** The native worker opens workspace and owned-scope directory handles with no symlink traversal. It reports a unique request identifier, operation digest and pinned identity over an authenticated, private IPC channel; it must not accept an untrusted GO token from argv, environment, or an arbitrary process.
+3. **Authorize under exclusive coordination.** The trusted coordinator acquires the shared mutation/revocation exclusion lock, reloads authoritative policy and lease state, validates the exact invocation and the already-consumed approval claim, then authorizes only that specific worker/request. The lock must remain held until the kernel mutation has completed or definitively failed. A revocation waits for this operation to finish, or wins the lock first and prevents it.
+4. **Mutate and acknowledge.** While the coordinator retains exclusion, the helper performs the fd-relative operation and returns a terminal receipt tied to the request identifier. A broken pipe, crash, timeout, or missing receipt yields an **unknown** outcome, not a fabricated failure or success; reconcile the on-disk state before settlement.
+5. **Release and audit.** Persist the outcome and release exclusion in a documented order; ensure the lock cannot become permanently held after process crashes. Establish explicit ordering between lease expiry, monotonic clock checks, lock acquisition and the mutation linearization point. Do not claim expiry guarantees stronger than the protocol enforces.
+
+**Unresolved design work:** the current `OwnershipRegistry`, policy revision checks, and native helper do not implement this shared coordination protocol. Cross-process lock ordering, crash recovery, helper authenticity, parent/child liveness, and filesystem commit semantics need an ADR and adversarial tests before implementation can be qualified. In particular, merely adding a READY/GO message to the current helper would **not** close the TOCTOU gap.
+
 ## Release gates
 
 - Independent reviewer verifies the native primitive, authority binding, and all mutation call sites.
