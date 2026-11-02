@@ -131,3 +131,7 @@ The experimental adapter now creates and syncs an exclusive attempt record in `.
 ### Helper termination test
 
 A regression test verifies that a helper can write and then terminate by signal. The adapter returns an uncertain outcome, and restart inspection retains the pending consumed claim. This does not demonstrate recovery from host termination or authenticate a native receipt.
+
+### Host termination after attempt journal fsync
+
+A separate Node host process writes and syncs a GE-04 pre-spawn record, then is terminated by SIGKILL. The surviving test process reads the journal and verifies the persisted approval, PID and pre-spawn state. This proves persistence across host termination at that checkpoint only. It does not cover a host crash during a native write, helper identity, receipt authenticity or automatic recovery.
