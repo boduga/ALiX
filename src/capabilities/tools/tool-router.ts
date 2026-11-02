@@ -4,9 +4,9 @@ import { relativeIsOutside } from "../../runtime-state/runtime/workspace-path.js
 import { readFile, grepSearch, globMatch } from "./file-tools.js";
 import { runCommand } from "./shell-tool.js";
 import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./safe-shell.js";
-import { existsSync } from "node:fs";
+import { constants, existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
-import { lstat, mkdir, readFile as readFileFs, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, writeFile } from "node:fs/promises";
 import { applyPatch } from "../../execution/patch/patch-engine.js";
 import { PatchRejectedError } from "../../execution/patch/patch-engine.js";
 import { buildEditFormatPolicy, type EditFormatPolicy, type EditFormat } from "../../execution/patch/edit-format-policy.js";
@@ -228,30 +228,42 @@ export class FileToolRouter implements ToolRouter {
                 retryable: false,
               };
             }
-            const existing = await readFileFs(resolvedPath, "utf8");
-            if (existing === content) {
-              return {
-                kind: "success",
-                outcome: "already_exists_identical",
-                changed: false,
-                output: `File already exists with identical content: ${path}`,
-                createdPath: path,
-                changedFiles: [],
-              };
+            // Pin the existing leaf inode and refuse symlinks. A separate
+            // readFile(path) then writeFile(path) can follow a replaced leaf.
+            const handle = await open(resolvedPath, constants.O_RDWR | constants.O_NOFOLLOW);
+            try {
+              const pinned = await handle.stat();
+              if (!pinned.isFile() || pinned.dev !== existingEntry.dev || pinned.ino !== existingEntry.ino) {
+                return { kind: "error", message: `File changed during authorization: ${path}`, retryable: false };
+              }
+              const existing = await handle.readFile("utf8");
+              if (existing === content) {
+                return {
+                  kind: "success",
+                  outcome: "already_exists_identical",
+                  changed: false,
+                  output: `File already exists with identical content: ${path}`,
+                  createdPath: path,
+                  changedFiles: [],
+                };
+              }
+              if (!this.isOwnedWriteTarget(request, resolvedPath)) {
+                return { kind: "error", message: `File already exists with different content: ${path}`, retryable: false };
+              }
+              // Write through the pinned descriptor rather than reopening a
+              // pathname that could now refer to a different leaf.
+              const bytes = Buffer.from(content, "utf8");
+              let offset = 0;
+              while (offset < bytes.length) {
+                const { bytesWritten } = await handle.write(bytes, offset, bytes.length - offset, offset);
+                if (bytesWritten === 0) throw new Error("Short write while replacing owned file");
+                offset += bytesWritten;
+              }
+              await handle.truncate(bytes.length);
+              overwritten = true;
+            } finally {
+              await handle.close();
             }
-            if (!this.isOwnedWriteTarget(request, resolvedPath)) {
-              return {
-                kind: "error",
-                message: `File already exists with different content: ${path}`,
-                retryable: false,
-              };
-            }
-            // The worker owns this path: rewriting its own output is the whole
-            // point of ownership. Without this, re-running the same goal in the
-            // same workspace fails structurally (`file.create` is the only
-            // creation tool, and it refuses differing content).
-            await writeFile(resolvedPath, content, { encoding: "utf8" });
-            overwritten = true;
           } catch (compareError) {
             return {
               kind: "error",
