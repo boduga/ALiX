@@ -6,6 +6,7 @@
  */
 import { spawn } from "node:child_process";
 import { isAbsolute, posix } from "node:path";
+import { recordGe04Attempt } from "./ge04-attempt-journal.js";
 import type { ScopedMutationAuthority, ScopedMutationOperation, ScopedMutationOutcome, ScopedMutationService } from "./scoped-mutation.js";
 import {
   isSafeScopedRelativePath,
@@ -68,7 +69,10 @@ export class ExperimentalLinuxScopedMutationService implements ScopedMutationSer
       // Keep the existing ownership revocation/release lock held until the
       // helper finishes. This closes the explicit-revocation race for callers
       // using OwnershipRegistry, but NOT policy invalidation or lease expiry.
-      const fenced = await grant.withLeaseFence(() => this.invokeHelper(authority, operation, content));
+      const fenced = await grant.withLeaseFence(async () => {
+        await recordGe04Attempt(authority, operation);
+        await this.invokeHelper(authority, operation, content);
+      });
       if (!fenced.allowed) throw new Error("GE-04: lease fence denied native helper dispatch");
     } catch (error) {
       if (error instanceof AmbiguousNativeHelperOutcome) {
