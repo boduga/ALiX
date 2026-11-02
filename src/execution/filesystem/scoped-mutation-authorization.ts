@@ -48,15 +48,16 @@
  */
 
 import { createHash } from "node:crypto";
-import { isAbsolute, join, resolve } from "node:path";
+import { realpathSync } from "node:fs";
+import { dirname, isAbsolute, join, resolve } from "node:path";
+import { ApprovalStore } from "../../governance/approvals/approval-store.js";
+import { OwnershipRegistry } from "../../coordination/ownership/ownership-registry.js";
 import { computePolicyRevision } from "../../governance/policy/policy-revision.js";
 import {
   approvalExpiryState,
   computeInvocationFingerprint,
   type InvocationIdentity,
 } from "../../governance/approvals/approval-binding.js";
-import type { ApprovalStore } from "../../governance/approvals/approval-store.js";
-import type { OwnershipRegistry } from "../../coordination/ownership/ownership-registry.js";
 import { scopeContains } from "../../coordination/ownership/path-scope.js";
 import type { AlixConfig } from "../../operations/config/schema.js";
 import type {
@@ -100,7 +101,29 @@ export function createLiveScopedLeaseVerifier(registry: OwnershipRegistry): Scop
         !Number.isFinite(Date.parse(lease.expiresAt)) || Date.parse(lease.expiresAt) <= Date.now()) return false;
     const ownedRoot = resolve(authority.workspaceRoot, authority.ownedScope);
     const target = join(ownedRoot, operation.relativePath);
-    return scopeContains(lease.scope, ownedRoot) && scopeContains(lease.scope, target);
+    if (!scopeContains(lease.scope, ownedRoot) || !scopeContains(lease.scope, target)) return false;
+    // Scope matching is lexical. Independently reject existing symlinked
+    // components before consuming the one-shot approval. The native helper
+    // remains responsible for atomic fd-relative containment at mutation time.
+    try {
+      if (realpathSync(authority.workspaceRoot) !== resolve(authority.workspaceRoot)) return false;
+      if (realpathSync(ownedRoot) !== ownedRoot) return false;
+      let parent = dirname(target);
+      while (parent !== ownedRoot) {
+        try {
+          if (realpathSync(parent) !== parent) return false;
+          break; // Existing ancestor is canonical; absent descendants are helper-checked.
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") return false;
+          const next = dirname(parent);
+          if (next === parent || !scopeContains({ kind: "path", root: ownedRoot, recursive: true }, next)) return false;
+          parent = next;
+        }
+      }
+      return true;
+    } catch {
+      return false;
+    }
   };
 }
 
@@ -192,6 +215,11 @@ export type ScopedMutationAuthorizationDeps = {
 export function createScopedMutationAuthorizationVerifier(
   deps: ScopedMutationAuthorizationDeps,
 ): ScopedMutationAuthorizationVerifier {
+  // Reject plain-object substitutes at the trust-composition boundary. This is
+  // defense in depth, not proof that a same-process caller is trustworthy.
+  if (!(deps.approvalStore instanceof ApprovalStore) || !(deps.registry instanceof OwnershipRegistry)) {
+    throw new Error("GE-04: authorization requires real approval and ownership store instances");
+  }
   const leaseVerifier = createLiveScopedLeaseVerifier(deps.registry);
   const clock = deps.now ?? (() => new Date());
   const currentPolicyRevision = (): string => computePolicyRevision(deps.config);

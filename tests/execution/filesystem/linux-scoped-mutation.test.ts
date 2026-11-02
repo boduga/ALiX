@@ -140,6 +140,27 @@ async function fixtureHelper(root: string): Promise<string> {
   return path;
 }
 
+test("GE-04: fabricated store objects cannot mint a trusted verifier", () => {
+  assert.throws(() => createScopedMutationAuthorizationVerifier({
+    config: config(),
+    approvalStore: {} as ApprovalStore,
+    registry: {} as OwnershipRegistry,
+  }), /real approval and ownership store instances/);
+});
+
+test("GE-04: a symlinked nested parent fails the live lease check", async () => {
+  const h = await harness();
+  const outside = await mkdtemp(join(tmpdir(), "ge04-external-"));
+  try {
+    await symlink(outside, join(h.root, "owned", "escape"));
+    const verifier = createLiveScopedLeaseVerifier(h.registry);
+    assert.equal(await verifier(authorityOf(h), createOp("unsafe", "escape/out.txt")), false);
+  } finally {
+    await h.dispose();
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
 // ─── The fail-open that shipped: a caller-supplied boolean callback ─────
 
 test("GE-04: a plain callback is not accepted as an authorization verifier", async () => {

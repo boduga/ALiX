@@ -58,6 +58,8 @@ previous fail-open where any `async () => true` satisfied the guard. Missing
 identity/revision/lease/approval metadata, a `null` grant and verifier errors
 all fail closed.
 
+The verifier factory now rejects plain-object substitutes for the approval and ownership stores (`instanceof` checks), and the live lease predicate refuses existing symlinked parent components before consuming an approval. These are defense-in-depth checks, **not** proof of a trusted same-process caller or an atomic kernel authorization boundary: JavaScript prototypes can be manipulated, canonical prechecks can race, and the native helper still does not validate policy/lease/approval itself.
+
 The composition reuses ALiX's existing authorities and adds no second one:
 
 - **Policy:** `computePolicyRevision` — the same fingerprint the coordination
