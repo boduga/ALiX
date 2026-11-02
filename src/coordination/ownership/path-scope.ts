@@ -12,7 +12,7 @@
  */
 
 import { resolve, relative, normalize } from "node:path";
-import { relativeIsOutside } from "../../runtime-state/runtime/workspace-path.js";
+import { isCanonicalPathWithinWorkspace, relativeIsOutside } from "../../runtime-state/runtime/workspace-path.js";
 import type { PathScope } from "./ownership-types.js";
 
 /**
@@ -206,7 +206,18 @@ export function isWithinOwnedScope(
 ): boolean {
   return ownedPaths.some(raw => {
     const prefix = resolveOwnedScopePrefix(raw, cwd);
-    return prefix !== undefined && isInside(prefix, resolvedTarget);
+    if (prefix === undefined || !isInside(prefix, resolvedTarget)) return false;
+    // Lexical ownership is insufficient: an existing symlink under the owned
+    // prefix can redirect a write to a sibling unowned directory. Check both
+    // workspace and owned-prefix canonical containment, including the nearest
+    // existing ancestor of a not-yet-created target.
+    try {
+      return isCanonicalPathWithinWorkspace(cwd, resolvedTarget)
+        && isCanonicalPathWithinWorkspace(prefix, resolvedTarget);
+    } catch {
+      // Broken links, loops and inaccessible ancestors must not grant writes.
+      return false;
+    }
   });
 }
 
