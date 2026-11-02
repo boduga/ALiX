@@ -1,0 +1,48 @@
+# GE-04: Atomic filesystem mutation boundary — implementation contract
+
+Status: DESIGN ONLY / SECURITY HOLD. This document does not qualify GE-04 or authorize a merge.
+
+## Observed implementation gaps
+
+- `src/capabilities/tools/tool-router.ts` `file.create` now pins existing leaf descriptors with `O_NOFOLLOW`, but `mkdir(dirname(...))` and the initial exclusive create still resolve parent directories by pathname. An attacker who can replace a parent directory between authorization and use can redirect a write.
+- `src/execution/patch/patch-engine.ts` uses separate `resolvePatchPath` checks and pathname-based `writeFile` for search/replace, structured patches, and unified diffs. `rm` and directory creation are also pathname-based.
+- Shell-mediated writes and external tools cannot be made safe merely by checking path strings before command execution.
+- `O_NOFOLLOW` only protects the final component; canonical checks and lstat/realpath rechecks are not atomic authorization of a future mutation.
+
+## Security invariant
+
+For each mutating operation, the directory actually used by the kernel to perform the operation MUST be a descendant of the authorized, pinned workspace and owned-scope directory handles, and the leaf MUST satisfy the operation's preconditions. The authorization and mutation MUST refer to the same pinned objects, not separately resolved pathnames. A symlink swap MUST never cause a write, create, rename, or delete outside the authorized directory tree.
+
+## Proposed capability boundary
+
+Introduce an internal `ScopedMutationService` used by `file.create`, `file.delete`, patch application, and checkpoint restore. It receives an immutable authorization context (workspace, owned scopes, protected/sensitive paths, policy revision, worker identity), an operation, and relative target path. It returns a structured result and mutation evidence. No caller may supply a trusted absolute path as a substitute for authority.
+
+On Linux, implement a reviewed native helper using directory file descriptors and `openat2` with `RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS` (and appropriate `RESOLVE_NO_MAGICLINKS`) or an equivalent audited fd-relative walk; perform `openat`/`mkdirat`/`renameat`/`unlinkat` relative to pinned directory handles. Resolve owned scopes under the workspace root without following symlinks. Recheck policy revision/lease validity at the final boundary. Never fall back to pathname-based writes if the primitive is unavailable.
+
+On macOS and Windows, provide equivalent native handle-relative guarantees or fail closed for governed writes until independently qualified. A platform-specific implementation must have its own adversarial tests; Linux behavior alone cannot qualify cross-platform safety. A Node-only `realpath`/`lstat`/`O_NOFOLLOW` implementation is NOT equivalent to the invariant.
+
+## Operation contracts
+
+- **Create:** exclusive create; identical existing content returns unchanged success; differing existing content requires an owned overwrite authorization. Parent creation must remain beneath pinned directories.
+- **Overwrite:** open an authorized regular file without symlink following; verify pinned identity and preimage, write via pinned handle or safely replace via fd-relative rename. For failure atomicity, prefer same-directory temp file, fsync, and fd-relative rename after final authorization. Preserve metadata policy explicitly.
+- **Patch:** plan and validate every file before mutations; preimage hashes refer to pinned content. Apply operations through the same service. Preserve checkpoint and rollback semantics; do not claim all-or-nothing multi-file transactions without a journal and crash recovery.
+- **Delete:** operate on a validated leaf relative to pinned parent, without following symlinks; clarify symlink-unlink policy separately.
+- **Shell:** shell commands with arbitrary filesystem mutation are not safely scope-enforceable through argument extraction alone. Deny in owned/governed mode unless executed inside an independently qualified OS sandbox with a restricted writable mount view. Explicit policy approval does not substitute for containment.
+
+## Adversarial qualification matrix
+
+1. Symlink at owned root, nested parent, and final leaf (inside/outside workspace).
+2. Dangling links, symlink loops, non-existent nested parents, absolute and `..` traversal, path normalization, and platform separators.
+3. Deterministic parent swap between authorization and create, overwrite, delete, and patch; assert external sentinel unchanged.
+4. Concurrent workers writing different contents; prove no unowned inode mutation and document expected conflict behavior.
+5. Symlink swap during patch preimage verification and checkpoint restore; prove no external mutation.
+6. Shell-mediated `>`, `mv`, `cp`, script execution and command substitutions in governed mode; demonstrate denial or sandbox containment.
+7. Crash and partial write, disk-full, permissions, and cleanup failures; verify journal/recovery and audit evidence.
+8. Linux, macOS and Windows CI coverage of each supported backend; unsupported backend must fail closed.
+
+## Release gates
+
+- Independent reviewer verifies the native primitive, authority binding, and all mutation call sites.
+- Red-team tests run against the exact pinned commit, with reproducible swap harness and sentinel assertions.
+- No regression to existing idempotency, ownership, protected-path, checkpoint, and audit semantics.
+- Evidence identifies any remaining unsupported mutation channels. Until then, GE-04 and D9 Phase F remain HOLD.
