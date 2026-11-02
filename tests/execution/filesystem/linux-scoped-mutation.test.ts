@@ -393,6 +393,22 @@ test("GE-04: a grant is claimed once and a replay is denied", async () => {
   } finally { await h.dispose(); }
 });
 
+test("GE-04: revoked lease before helper dispatch prevents creation", async () => {
+  const h = await harness();
+  try {
+    const service = new ExperimentalLinuxScopedMutationService(await fixtureHelper(h.root),
+      createScopedMutationAuthorizationVerifier({ config: config(), approvalStore: h.approvals, registry: h.registry }));
+    const refresh = h.registry.refresh.bind(h.registry);
+    let calls = 0;
+    h.registry.refresh = async () => {
+      await refresh();
+      if (++calls === 2) await h.registry.revoke(h.leaseId);
+    };
+    await assert.rejects(service.mutate(authorityOf(h), createOp()), /authority lapsed before native helper dispatch/);
+    await assert.rejects(readFile(join(h.root, "owned", "hello.txt")));
+  } finally { await h.dispose(); }
+});
+
 // ─── Post-write authority lapse (the residual TOCTOU) ───────────────────
 
 test("GE-04: authority lapsing during the write is reported as unverified, never success", async () => {
@@ -412,8 +428,8 @@ test("GE-04: authority lapsing during the write is reported as unverified, never
     h.registry.refresh = async () => {
       refreshes++;
       await originalRefresh();
-      // First refresh = pre-spawn verification; second = post-write revalidation.
-      if (refreshes === 2) await h.registry.revoke(h.leaseId);
+      // First refresh = approval verification; second = pre-dispatch; third = post-write.
+      if (refreshes === 3) await h.registry.revoke(h.leaseId);
     };
     const outcome = await service.mutate(authorityOf(h), createOp());
     assert.equal(outcome.kind, "unverified");

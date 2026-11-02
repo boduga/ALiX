@@ -55,6 +55,12 @@ export class ExperimentalLinuxScopedMutationService implements ScopedMutationSer
     if (!grant) throw new Error("GE-04: authoritative mutation verification required");
 
     try {
+      // Recheck immediately before dispatch: a lease or policy may have
+      // changed while the single-use approval was being consumed. This is
+      // defense in depth only; it does NOT close the spawn-to-create race.
+      if (!(await grant.revalidate())) {
+        throw new Error("GE-04: authority lapsed before native helper dispatch");
+      }
       await this.invokeHelper(authority, operation, content);
     } catch (error) {
       await grant.settle("failed");

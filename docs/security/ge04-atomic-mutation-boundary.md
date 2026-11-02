@@ -75,6 +75,8 @@ The composition reuses ALiX's existing authorities and adds no second one:
 - **Ownership:** `OwnershipRegistry` via `createLiveScopedLeaseVerifier` and the
   shared `scopeContains` matcher.
 
+The experimental adapter also revalidates the grant immediately before helper dispatch. If the lease or policy lapses after the approval claim but before dispatch, it settles the attempt as failed and does not spawn the helper. This does **not** close the interval between dispatch and the kernel mutation: the native helper still needs a trusted, enforceable final-boundary authorization protocol.
+
 The grant also exposes `revalidate()` and `settle()`. `revalidate()` re-checks
 the lease and policy revision **after** the helper runs: authority that lapses
 mid-write cannot be reported as `created`/`changed: true` — the adapter returns
