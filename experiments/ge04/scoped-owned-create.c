@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <linux/openat2.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -20,6 +21,19 @@ int main(int argc, char **argv) {
   if (root < 0) { perror("workspace"); return 3; }
   int owned = beneath(root, argv[2], O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0);
   if (owned < 0) { perror("owned scope"); close(root); return 4; }
+#ifdef GE04_TEST_HOOKS
+  // Test-only synchronization point. Production binaries MUST NOT enable this.
+  const char *ready_env = getenv("GE04_READY_FD");
+  const char *continue_env = getenv("GE04_CONTINUE_FD");
+  if (ready_env && continue_env) {
+    int ready_fd = atoi(ready_env), continue_fd = atoi(continue_env);
+    if (write(ready_fd, "R", 1) != 1) { perror("ready"); close(owned); close(root); return 8; }
+    char signal;
+    if (read(continue_fd, &signal, 1) != 1 || signal != 'C') {
+      fprintf(stderr, "test synchronization failed\n"); close(owned); close(root); return 9;
+    }
+  }
+#endif
   // The owned directory is now pinned. Renaming or replacing its pathname
   // cannot redirect this fd to an unrelated unowned directory.
   int file = beneath(owned, argv[3], O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
