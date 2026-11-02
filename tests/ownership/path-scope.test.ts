@@ -385,6 +385,19 @@ describe("GE-04 canonical owned-scope enforcement", () => {
     } finally { rmSync(cwd, { recursive: true, force: true }); }
   });
 
+  it("denies an owned root that aliases an unowned sibling", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "alix-ge04-root-"));
+    try {
+      mkdirSync(join(cwd, "unowned"));
+      symlinkSync("unowned", join(cwd, "owned"));
+      assert.equal(isWithinOwnedScope(join(cwd, "owned", "new.txt"), ["owned/**"], cwd), false);
+      mkdirSync(join(cwd, "nested"));
+      symlinkSync("../unowned", join(cwd, "nested", "alias"));
+      assert.equal(isWithinOwnedScope(join(cwd, "nested", "alias", "new.txt"), ["nested/alias/**"], cwd), false);
+      assert.equal(isWithinOwnedScope(join(cwd, "missing", "new.txt"), ["missing/**"], cwd), true);
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  });
+
   it("denies workspace-wide grants that traverse a symlink outside workspace", () => {
     const cwd = mkdtempSync(join(tmpdir(), "alix-ge04-ws-"));
     const outside = mkdtempSync(join(tmpdir(), "alix-ge04-out-"));
