@@ -39,6 +39,15 @@ with tempfile.TemporaryDirectory(prefix='ge04-signed-root-') as temp:
     install_module = importlib.util.module_from_spec(install_spec)
     install_spec.loader.exec_module(install_module)
     assert install_module.verify_installation(install, 0, 'ci-fixture', hashlib.sha256(key).hexdigest()) == hashlib.sha256(helper).hexdigest()
+    config = root / 'config'
+    config.mkdir(mode=0o755)
+    trust = config / 'trust.json'
+    trust.write_text(json.dumps({'version': 1, 'trustedKeySha256': hashlib.sha256(key).hexdigest(), 'release': 'ci-fixture'}))
+    trust.chmod(0o444)
+    config_spec = importlib.util.spec_from_file_location('ge04_config', Path(__file__).with_name('supervisor-trust-config.py'))
+    config_module = importlib.util.module_from_spec(config_spec)
+    config_spec.loader.exec_module(config_module)
+    assert config_module.verify_from_trust_config(install, config, 0) == hashlib.sha256(helper).hexdigest()
     pid = os.fork()
     if pid == 0:
         try:
@@ -56,11 +65,20 @@ with tempfile.TemporaryDirectory(prefix='ge04-signed-root-') as temp:
                 (install / 'new-manifest').write_bytes(b'forged')
             except PermissionError:
                 denied += 1
-            os._exit(0 if denied == len(files) + 1 else 1)
+            try:
+                trust.write_bytes(b'forged')
+            except PermissionError:
+                denied += 1
+            try:
+                (config / 'replacement').write_bytes(b'forged')
+            except PermissionError:
+                denied += 1
+            os._exit(0 if denied == len(files) + 3 else 1)
         except BaseException:
             os._exit(2)
     _, status = os.waitpid(pid, 0)
     assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, 'worker altered signed installation'
     for name, contents in files.items():
         assert (install / name).read_bytes() == contents
-    print('GE04 signed installation distinct-UID PASS: root-owned key, manifest, signature, helper immutable to worker')
+    assert json.loads(trust.read_text())['trustedKeySha256'] == hashlib.sha256(key).hexdigest()
+    print('GE04 signed installation distinct-UID PASS: root-owned key, manifest, signature, helper and independent config immutable to worker')
