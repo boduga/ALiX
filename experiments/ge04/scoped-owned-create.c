@@ -4,6 +4,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/openat2.h>
+#include <sys/prctl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,6 +19,12 @@ static int beneath(int fd, const char *path, int flags, unsigned mode) {
 }
 int main(int argc, char **argv) {
   if (argc != 5) { fprintf(stderr, "usage: scoped-owned-create WORKSPACE OWNED_DIR RELATIVE_FILE CONTENT\n"); return 2; }
+  // Kernel-delivered SIGKILL if the immediate spawning parent exits. The
+  // parent identity check closes the race where it dies before prctl().
+  pid_t parent_pid = getppid();
+  if (parent_pid <= 1 || prctl(PR_SET_PDEATHSIG, SIGKILL) != 0 || getppid() != parent_pid) {
+    fprintf(stderr, "GE04 parent lifetime binding failed\n"); return 14;
+  }
   int root = open(argv[1], O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
   if (root < 0) { perror("workspace"); return 3; }
   int owned = beneath(root, argv[2], O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0);

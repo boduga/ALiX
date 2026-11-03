@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Native C helper survives host SIGKILL at the pinned-fd test barrier.
+"""Native C helper must die with its spawning host before a paused mutation.
 
-This is a test-hook-only process-lifecycle demonstration, NOT authenticated
+This is a test-hook-only process-lifecycle regression, NOT authenticated
 receipt or authority verification. Never enable GE04_TEST_HOOKS in production.
 """
 import os
@@ -50,16 +50,24 @@ while True: time.sleep(1)
         assert not (workspace / "owned" / "target.txt").exists()
         host.kill()
         assert host.wait(timeout=5) == -signal.SIGKILL
-        # The helper remains blocked after host death, then writes when released.
+        # PDEATHSIG kills the paused helper; it must never create a file.
+        import time
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            stat_path = Path(f"/proc/{helper}/stat")
+            if not stat_path.exists() or stat_path.read_text().split(') ')[1][0] in 'ZX':
+                break
+            time.sleep(0.02)
+        else:
+            raise AssertionError("native helper survived parent SIGKILL")
         assert not (workspace / "owned" / "target.txt").exists()
-        os.write(continue_w, b"C")
-        deadline = __import__("time").monotonic() + 5
-        while not (workspace / "owned" / "target.txt").exists():
-            if __import__("time").monotonic() >= deadline:
-                raise AssertionError("orphan native helper did not write")
-            __import__("time").sleep(0.02)
-        assert (workspace / "owned" / "target.txt").read_text() == "native"
-        print("GE-04 native host SIGKILL: PASS (orphan C helper can mutate)")
+        try:
+            os.write(continue_w, b"C")
+        except BrokenPipeError:
+            pass
+        time.sleep(0.1)
+        assert not (workspace / "owned" / "target.txt").exists()
+        print("GE-04 native host SIGKILL: PASS (helper terminated before mutation)")
     finally:
         for fd in (ready_r, continue_w):
             try: os.close(fd)
