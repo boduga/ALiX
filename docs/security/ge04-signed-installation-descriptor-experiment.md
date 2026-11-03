@@ -1,0 +1,9 @@
+# GE-04 — descriptor-pinned signed installation experiment
+
+**SECURITY HOLD. No helper execution, production trust anchor, or admission.**
+
+`experiments/ge04/signed-installation.py` opens one installation directory descriptor with `O_DIRECTORY|O_NOFOLLOW`, requires an expected owner UID and rejects group/other-writable directories. It reads `trusted.pub`, `manifest.json`, `manifest.sig`, and `helper` using `openat`-style `dir_fd` and `O_NOFOLLOW`; requires regular, single-link, non-writable owner-matched inodes with bounded sizes and stable metadata; and passes the bytes to the existing Ed25519 signed-release verifier. This removes per-file pathname reopening inside the installation, but not ancestor-path replacement, same-UID modification, or atomic multi-file snapshot concerns.
+
+`python3 -B experiments/ge04/test-signed-installation.py` verifies valid input and denies writable helper, symlink signature, and writable installation directory. It **deliberately demonstrates a same-UID attacker replacing both the public key and signature and still passing**: owner/mode checks are not a trust anchor. The privileged CI test `test-signed-release-root.py` now additionally verifies descriptor-pinned installation under root and cross-UID worker write denial. CI qualification of this new change remains pending.
+
+This prototype accepts caller-selected installation path and owner UID for testing. Production must fix both through privileged configuration, independently pin the public-key digest outside worker-controlled state, validate every ancestor and deployment mount, use an atomic signed-release generation, and enforce rollback/version policy. The helper bytes are verified but not passed into the sealed-memfd preflight in this experiment. Neither file DAC nor Ed25519 signatures alone solve supervisor compromise or crash-safe authorization.
