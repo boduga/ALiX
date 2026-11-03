@@ -38,7 +38,7 @@ with tempfile.TemporaryDirectory(prefix='ge04-signed-root-') as temp:
     install_spec = importlib.util.spec_from_file_location('ge04_installation', Path(__file__).with_name('signed-installation.py'))
     install_module = importlib.util.module_from_spec(install_spec)
     install_spec.loader.exec_module(install_module)
-    assert install_module.verify_installation(install, 0, 'ci-fixture') == hashlib.sha256(helper).hexdigest()
+    assert install_module.verify_installation(install, 0, 'ci-fixture', hashlib.sha256(key).hexdigest()) == hashlib.sha256(helper).hexdigest()
     pid = os.fork()
     if pid == 0:
         try:

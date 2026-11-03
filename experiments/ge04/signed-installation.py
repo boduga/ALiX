@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Experimental descriptor-pinned signed installation verification; no execution."""
+import hashlib
 import importlib.util
 import os
 from pathlib import Path
@@ -28,8 +29,12 @@ def read_protected_file(directory_fd: int, name: str, owner_uid: int, max_bytes:
         os.close(fd)
 
 
-def verify_installation(installation: Path, owner_uid: int, expected_release: str) -> str:
-    """Owner UID is an experimental test parameter, not production authority."""
+def verify_installation(installation: Path, owner_uid: int, expected_release: str,
+                        trusted_key_sha256: str) -> str:
+    """Key digest must originate independently of installation and worker inputs."""
+    if (not isinstance(trusted_key_sha256, str) or len(trusted_key_sha256) != 64 or
+            any(c not in '0123456789abcdef' for c in trusted_key_sha256)):
+        raise ValueError('invalid pinned public-key digest')
     directory_fd = os.open(installation, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
     try:
         directory = os.fstat(directory_fd)
@@ -37,6 +42,8 @@ def verify_installation(installation: Path, owner_uid: int, expected_release: st
                 directory.st_mode & 0o022):
             raise PermissionError('untrusted installation directory')
         public_key = read_protected_file(directory_fd, 'trusted.pub', owner_uid, 32)
+        if hashlib.sha256(public_key).hexdigest() != trusted_key_sha256:
+            raise PermissionError('installed trust anchor does not match independently pinned digest')
         manifest = read_protected_file(directory_fd, 'manifest.json', owner_uid, 4096)
         signature = read_protected_file(directory_fd, 'manifest.sig', owner_uid, 64)
         helper = read_protected_file(directory_fd, 'helper', owner_uid, 16 * 1024 * 1024)

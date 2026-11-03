@@ -29,11 +29,17 @@ with tempfile.TemporaryDirectory(prefix='ge04-install-') as temp:
         path.write_bytes(data)
         path.chmod(0o400)
     uid = os.geteuid()
-    assert module.verify_installation(install, uid, 'fixture-1') == hashlib.sha256(helper).hexdigest()
+    pinned_key_digest = hashlib.sha256(files['trusted.pub']).hexdigest()
+    assert module.verify_installation(install, uid, 'fixture-1', pinned_key_digest) == hashlib.sha256(helper).hexdigest()
+    try:
+        module.verify_installation(install, uid, 'fixture-1', '0' * 64)
+        raise AssertionError('incorrect independent key pin accepted')
+    except PermissionError:
+        pass
 
     def denied():
         try:
-            module.verify_installation(install, uid, 'fixture-1')
+            module.verify_installation(install, uid, 'fixture-1', pinned_key_digest)
         except (OSError, ValueError):
             return
         raise AssertionError('unsafe installation accepted')
@@ -52,7 +58,7 @@ with tempfile.TemporaryDirectory(prefix='ge04-install-') as temp:
     install.chmod(0o777)
     denied()
     install.chmod(0o700)
-    # Same-UID attacker can replace the entire key+manifest+signature set: not a trust proof.
+    # A key+signature replacement must fail when the expected key digest is pinned outside the installation.
     attacker = Ed25519PrivateKey.generate()
     replacement = attacker.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
     (install / 'trusted.pub').chmod(0o600)
@@ -61,5 +67,5 @@ with tempfile.TemporaryDirectory(prefix='ge04-install-') as temp:
     (install / 'manifest.sig').chmod(0o600)
     (install / 'manifest.sig').write_bytes(attacker.sign(manifest))
     (install / 'manifest.sig').chmod(0o400)
-    assert module.verify_installation(install, uid, 'fixture-1') == hashlib.sha256(helper).hexdigest(), 'expected same-UID key substitution limitation'
-    print('GE04 descriptor installation PASS: writable/symlink/dir denial; same-UID trust-anchor substitution reproduced')
+    denied()  # The independent pin must reject replacement of key and signature together.
+    print('GE04 descriptor installation PASS: writable/symlink/dir denial; pinned key rejects same-UID key substitution')
