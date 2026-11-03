@@ -241,3 +241,7 @@ The experimental `ExperimentalLinuxScopedMutationService` now passes the journal
 ### Descriptor-bound launch denial regression
 
 The pinned-helper integration suite now checks both a successful real native launch and a digest-mismatch rejection that must leave the target file absent. This establishes fail-closed behavior for a mismatched configured digest before launch; it does **not** establish immutable inode contents, pidfd-supervised lifetime, or a trusted terminal receipt. No automatic reconciliation is authorized by these tests.
+
+### Experimental pinned-descriptor integrity refinement (not qualified)
+
+`launchGe04PinnedHelper` now opens the executable once, verifies ownership/mode/link count and hashes the **same open file descriptor** subsequently inherited by the child as fd 4. `inspectGe04HelperIntegrityFd` performs the descriptor-bound verification; the original `inspectGe04HelperIntegrity` remains a standalone wrapper that opens and closes its own descriptor. A regression renames the executable after opening the pinned descriptor, replaces the pathname with different bytes, and proves the pinned descriptor still hashes to the original digest while fresh pathname inspection rejects the replacement. This eliminates the previous two-open pathname substitution gap, but does **not** prevent same-inode modification after hashing, establish immutable protected helper bytes, authenticate a terminal receipt, or guarantee child process lifetime. This remains experimental and unwired; no automatic recovery or production enablement is authorized.

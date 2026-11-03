@@ -2,7 +2,7 @@
 import { spawn } from "node:child_process";
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
-import { inspectGe04HelperIntegrity, type Ge04HelperIntegrity } from "./ge04-helper-integrity.js";
+import { inspectGe04HelperIntegrityFd, type Ge04HelperIntegrity } from "./ge04-helper-integrity.js";
 
 /**
  * Binds path resolution for exec to a pinned descriptor (fd 4) rather than
@@ -17,15 +17,15 @@ export async function launchGe04PinnedHelper(
   if (process.platform !== "linux" || !/^[0-9a-f-]{36}$/i.test(attemptId)) {
     throw new Error("GE-04: invalid pinned launch configuration");
   }
-  // Preflight and descriptor open are separate; verify inode identity after
-  // opening to detect a replacement in that interval, then use that fd for exec.
-  const inspected = await inspectGe04HelperIntegrity(config);
+  // Open once: hash the pinned descriptor that is passed to the child as fd 4.
+  // This eliminates the prior path-reopen gap, NOT same-inode write races.
   const executable = await open(config.executable, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
+    const inspected = await inspectGe04HelperIntegrityFd(config, executable);
     const stat = await executable.stat();
     if (!stat.isFile() || stat.dev !== inspected.device || stat.ino !== inspected.inode ||
         stat.uid !== config.expectedOwnerUid || (stat.mode & 0o022) !== 0) {
-      throw new Error("GE-04: helper changed between inspection and descriptor pin");
+      throw new Error("GE-04: helper changed after descriptor verification");
     }
     return await new Promise((resolve, reject) => {
       const child = spawn("/proc/self/fd/4", [...args], {

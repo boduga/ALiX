@@ -1,7 +1,7 @@
 /** Experimental executable integrity preflight, NOT an exec-time identity proof. */
 import { createHash, timingSafeEqual } from "node:crypto";
 import { constants } from "node:fs";
-import { open } from "node:fs/promises";
+import { open, type FileHandle } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 
 export type Ge04HelperIntegrity = Readonly<{
@@ -22,6 +22,20 @@ export async function inspectGe04HelperIntegrity(config: Ge04HelperIntegrity): P
   }
   const handle = await open(config.executable, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
+    return await inspectGe04HelperIntegrityFd(config, handle);
+  } finally { await handle.close(); }
+}
+
+/** Validate and hash the SAME descriptor subsequently passed to exec. */
+export async function inspectGe04HelperIntegrityFd(config: Ge04HelperIntegrity, handle: FileHandle): Promise<Readonly<{
+  sha256: string; device: number; inode: number;
+}>> {
+  if (process.platform !== "linux" || !isAbsolute(config.executable) ||
+      !/^[a-f0-9]{64}$/.test(config.expectedSha256) ||
+      !Number.isSafeInteger(config.expectedOwnerUid) || config.expectedOwnerUid < 0) {
+    throw new Error("GE-04: invalid helper integrity configuration");
+  }
+  {
     const before = await handle.stat();
     if (!before.isFile() || before.uid !== config.expectedOwnerUid ||
         (before.mode & 0o022) !== 0 || (before.mode & 0o111) === 0 || before.nlink !== 1) {
@@ -46,5 +60,5 @@ export async function inspectGe04HelperIntegrity(config: Ge04HelperIntegrity): P
       throw new Error("GE-04: helper digest mismatch");
     }
     return { sha256, device: after.dev, inode: after.ino };
-  } finally { await handle.close(); }
+  }
 }
