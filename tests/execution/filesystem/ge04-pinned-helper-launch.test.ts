@@ -26,3 +26,21 @@ test("GE04 pinned helper launch executes verified descriptor with notification f
     assert.equal(await readFile(join(root, "owned", "created.txt"), "utf8"), "value");
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test("GE04 pinned launch fails closed on helper digest mismatch before mutation", {
+  skip: process.platform !== "linux" || !helper,
+}, async () => {
+  const root = await mkdtemp(join(tmpdir(), "ge04-pinned-deny-"));
+  try {
+    const executable = join(root, "helper");
+    const bytes = await readFile(helper!);
+    await writeFile(executable, bytes);
+    await chmod(executable, 0o500);
+    await mkdir(join(root, "owned"));
+    const wrongDigest = "0".repeat(64);
+    await assert.rejects(launchGe04PinnedHelper({
+      executable, expectedSha256: wrongDigest, expectedOwnerUid: process.getuid!(),
+    }, [root, "owned", "denied.txt", "value"], randomUUID()), /digest mismatch/);
+    await assert.rejects(readFile(join(root, "owned", "denied.txt")), { code: "ENOENT" });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

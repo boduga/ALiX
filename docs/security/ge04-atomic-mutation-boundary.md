@@ -237,3 +237,7 @@ The experimental `ExperimentalLinuxScopedMutationService` now passes the journal
 ### Experimental kernel-observed helper gate
 
 `assertGe04VerifiedHelperGate` composes existing helper-isolation and digest checks with two observations of a worker's Linux `/proc` UID, GID, and process start-time ticks. It rejects caller-declared UID/GID/start-time values that disagree with the first kernel observation, and fails if the second observation differs. A same-UID forgery regression passes unprivileged; the distinct-UID positive test is root-gated and **skipped on unprivileged developer hosts**. This does not bind a process lifetime to a pidfd, protect against PID reuse outside the observation window, pin an immutable executable through the entire launch, or establish an authenticated durable receipt. It is standalone and not wired to the adapter; no GE-04 production or reconciliation authorization may rely on it.
+
+### Descriptor-bound launch denial regression
+
+The pinned-helper integration suite now checks both a successful real native launch and a digest-mismatch rejection that must leave the target file absent. This establishes fail-closed behavior for a mismatched configured digest before launch; it does **not** establish immutable inode contents, pidfd-supervised lifetime, or a trusted terminal receipt. No automatic reconciliation is authorized by these tests.
