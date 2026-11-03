@@ -155,3 +155,7 @@ The experimental attempt writer now rejects symlinked workspace ancestors and jo
 ### Journal directory permissions
 
 The experimental journal writer now rejects `.alix`, `ge04`, and `attempts` directories unless owned by the executing Unix UID and inaccessible to group/other users. This is a fail-closed check against cross-user interference, not a protected authority store: a worker running as the same UID can still tamper with or rename the directories, and path-based checks remain subject to TOCTOU. Recovery must not treat these records as authenticated evidence.
+
+### Same-UID journal forgery demonstrated
+
+`ge04-journal-tamper.test.ts` demonstrates that a second same-UID filesystem writer can replace the approval ID inside a persisted pre-spawn record despite owner-only directory modes. Thus mode `0700`, symlink checks and `O_NOFOLLOW` do not establish an authority-owned trust boundary when workers share the coordinator UID. Journal data remains **untrusted diagnostic evidence only**, never proof of authorization, native execution or eligibility for automatic reconciliation. Production qualification requires OS-level isolation (distinct security principal or equivalent) and fd-relative protected evidence storage, or a separately authenticated durable receipt protocol whose signing authority workers cannot access.
