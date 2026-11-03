@@ -21,6 +21,20 @@ int main(int argc, char **argv) {
   if (root < 0) { perror("workspace"); return 3; }
   int owned = beneath(root, argv[2], O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0);
   if (owned < 0) { perror("owned scope"); close(root); return 4; }
+  // Pin the *containing* directory before any synchronization barrier or
+  // mutation. Reopening it by pathname after create could fsync a replacement.
+  char *parent_path = strdup(argv[3]);
+  if (!parent_path) { perror("parent allocation"); close(owned); close(root); return 12; }
+  char *slash = strrchr(parent_path, '/');
+  int parent = owned;
+  const char *leaf = argv[3];
+  if (slash) {
+    *slash = '\0';
+    leaf = slash + 1;
+    parent = beneath(owned, parent_path, O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0);
+    if (parent < 0) { perror("open containing directory"); free(parent_path); close(owned); close(root); return 13; }
+  }
+  if (!*leaf) { fprintf(stderr, "empty leaf\n"); if (parent != owned) close(parent); free(parent_path); close(owned); close(root); return 5; }
 #ifdef GE04_TEST_HOOKS
   // Test-only synchronization point. Production binaries MUST NOT enable this.
   const char *ready_env = getenv("GE04_READY_FD");
@@ -36,7 +50,7 @@ int main(int argc, char **argv) {
 #endif
   // The owned directory is now pinned. Renaming or replacing its pathname
   // cannot redirect this fd to an unrelated unowned directory.
-  int file = beneath(owned, argv[3], O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+  int file = beneath(parent, leaf, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
   if (file < 0) { perror("owned create"); close(owned); close(root); return 5; }
   size_t size = strlen(argv[4]), written = 0;
   while (written < size) {
@@ -49,19 +63,10 @@ int main(int argc, char **argv) {
   // directory entry. fsync errors are ambiguous: creation may already exist.
   if (fsync(file) != 0) { perror("fsync file"); close(file); close(owned); close(root); return 10; }
   if (close(file) != 0) { perror("close file"); close(owned); close(root); return 7; }
-  // Sync the actual containing directory, not merely the owned root:
-  // nested/target.txt is recorded in nested/, whose entry must be durable.
-  char *parent_path = strdup(argv[3]);
-  if (!parent_path) { perror("parent allocation"); close(owned); close(root); return 12; }
-  char *slash = strrchr(parent_path, '/');
-  int parent = owned;
-  if (slash) {
-    *slash = '\0';
-    parent = beneath(owned, parent_path, O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0);
-    if (parent < 0) { perror("open containing directory"); free(parent_path); close(owned); close(root); return 13; }
-  }
-  free(parent_path);
+  // Sync the same pinned directory fd used to create the leaf, even if
+  // its original pathname was renamed or replaced during execution.
   int synced = fsync(parent);
+  free(parent_path);
   if (parent != owned) close(parent);
   if (synced != 0) { perror("fsync containing directory"); close(owned); close(root); return 11; }
   close(owned); close(root);

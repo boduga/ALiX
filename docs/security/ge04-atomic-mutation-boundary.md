@@ -197,3 +197,7 @@ The standalone manual workflow was not registered on the default branch (GitHub 
 ### Cross-UID CI run outcome and gate correction
 
 GitHub Actions run `41583983711`, job `125745057216`, executed the distinct-UID filesystem denial test under privileged Linux and reported **tests 1, pass 1, fail 0, skipped 0**. The job itself failed because the first gate matched the literal `skipped 0`. The CI assertion was changed to require exact test totals (one test, one pass, zero failures, zero skips). This verifies the tested owner-only directory denial, **not** end-to-end GE-04 authorization, helper identity, or crash-safe recovery. A subsequent green CI job is still required to validate the corrected gate.
+
+### Native containing-directory inode pinning
+
+The native `scoped-owned-create.c` helper now resolves and pins the *containing* directory before its test barrier and before file creation. It creates the leaf relative to that fd and fsyncs the **same fd**, rather than reopening a mutable parent pathname after creation. `test-nested-parent-swap.py` deterministically renames and symlink-replaces the nested containing directory while the helper is paused, then verifies the file remains under the pinned original inode and the unowned directory is untouched. Basic helper, owned-parent swap, nested-parent swap, and native host-crash characterization tests passed. This fixes the directory-identity fsync race but **does not** prevent an orphan helper from mutating after coordinator death; the native host-crash test still demonstrates that gap.
