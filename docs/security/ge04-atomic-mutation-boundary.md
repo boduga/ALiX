@@ -171,3 +171,7 @@ The experimental journal writer now rejects `.alix`, `ge04`, and `attempts` dire
 ### Declared worker UID spoofing demonstrated
 
 `ge04-protected-evidence-credential-spoof.test.ts` demonstrates that passing a different `workerUid` into the pinned writer does not establish actual process separation: a same-UID actor can still rewrite its evidence record. The machine's unprivileged user-namespace probe did not succeed; real separate-UID access-denial tests remain unverified here. Worker identity must come from an OS-attested execution boundary rather than caller-provided configuration. Until then protected records remain diagnostic, not authoritative receipts.
+
+### Linux worker credential observation prototype
+
+`inspectGe04WorkerCredentials` reads Linux `/proc/<pid>/status` UID/GID fields and `/proc/<pid>/stat` start-time ticks, rejecting same-UID and inconsistent-credential processes. Focused tests exercise same-UID rejection and read-only observation of a different-UID process. This is **not an OS-enforced worker launch boundary**: PID lookup can race process death/reuse and a different-UID PID is not proof of an ALiX-owned worker. A future implementation must bind a supervised child process to a pidfd (or equivalent), verify its credentials at the execution boundary, enforce isolation for the worker's entire lifetime, and avoid passing coordinator-owned evidence FDs to the worker. No recovery or production mutation path uses this prototype.
