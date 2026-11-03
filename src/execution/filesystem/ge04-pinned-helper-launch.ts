@@ -24,8 +24,8 @@ export async function launchGe04PinnedHelper(
     const inspected = await inspectGe04HelperIntegrityFd(config, executable);
     const stat = await executable.stat();
     if (!stat.isFile() || stat.dev !== inspected.device || stat.ino !== inspected.inode ||
-        stat.uid !== config.expectedOwnerUid || (stat.mode & 0o022) !== 0) {
-      throw new Error("GE-04: helper changed after descriptor verification");
+        stat.uid !== config.expectedOwnerUid || (stat.mode & 0o222) !== 0) {
+      throw new Error("GE-04: helper changed or is writable after descriptor verification");
     }
     return await new Promise((resolve, reject) => {
       const child = spawn("/proc/self/fd/4", [...args], {

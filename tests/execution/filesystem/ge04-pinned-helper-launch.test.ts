@@ -44,3 +44,22 @@ test("GE04 pinned launch fails closed on helper digest mismatch before mutation"
     await assert.rejects(readFile(join(root, "owned", "denied.txt")), { code: "ENOENT" });
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test("GE04 pinned launch refuses owner-writable helper even when digest matches", {
+  skip: process.platform !== "linux" || !helper,
+}, async () => {
+  const root = await mkdtemp(join(tmpdir(), "ge04-pinned-writable-"));
+  try {
+    const executable = join(root, "helper");
+    const bytes = await readFile(helper!);
+    await writeFile(executable, bytes);
+    await chmod(executable, 0o700);
+    await mkdir(join(root, "owned"));
+    await assert.rejects(launchGe04PinnedHelper({
+      executable,
+      expectedSha256: createHash("sha256").update(bytes).digest("hex"),
+      expectedOwnerUid: process.getuid!(),
+    }, [root, "owned", "must-not-create.txt", "value"], randomUUID()), /writable/);
+    await assert.rejects(readFile(join(root, "owned", "must-not-create.txt")), { code: "ENOENT" });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
