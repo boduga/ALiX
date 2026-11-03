@@ -432,6 +432,8 @@ jobs:
           grep -Fq 'GE04 pinned sequence root PASS' /tmp/ge04-pinned-sequence.log
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-floor-advance-root.py | tee /tmp/ge04-floor-advance.log
           grep -Fq 'GE04 floor advancement root PASS' /tmp/ge04-floor-advance.log
+          sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-floor-concurrency-root.py | tee /tmp/ge04-floor-concurrency.log
+          grep -Fq 'GE04 floor concurrency root PASS' /tmp/ge04-floor-concurrency.log
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-signed-release-root.py | tee /tmp/ge04-signed-install.log
           grep -Fq 'GE04 signed installation distinct-UID PASS' /tmp/ge04-signed-install.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
