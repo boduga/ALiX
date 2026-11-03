@@ -29,6 +29,12 @@ async function ensureJournalDirectory(workspaceRoot: string): Promise<string> {
     try { await mkdir(path, { mode: 0o700 }); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
     await assertRealDirectory(path);
+    // A shared or differently-owned journal component permits another local
+    // account to replace or alter evidence. Refuse it rather than trusting it.
+    const stat = await lstat(path);
+    if (stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0) {
+      throw new Error("GE-04: journal directory must be owner-only: " + path);
+    }
   }
   return path;
 }

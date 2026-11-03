@@ -151,3 +151,7 @@ The experimental Linux C helper now fsyncs the created file and its actual conta
 ### Journal symlink rejection (defense in depth)
 
 The experimental attempt writer now rejects symlinked workspace ancestors and journal components, creates journal directories individually, and opens new records with exclusive create and `O_NOFOLLOW`. Tests cover workspace and `.alix/ge04/attempts` redirection. This is **not** a trusted journal: path checks and subsequent path-based opens still race with concurrent renames, and workspace writers may tamper with records. Move the journal into a protected authority-owned store with fd-relative pinned operations before relying on it for recovery decisions.
+
+### Journal directory permissions
+
+The experimental journal writer now rejects `.alix`, `ge04`, and `attempts` directories unless owned by the executing Unix UID and inaccessible to group/other users. This is a fail-closed check against cross-user interference, not a protected authority store: a worker running as the same UID can still tamper with or rename the directories, and path-based checks remain subject to TOCTOU. Recovery must not treat these records as authenticated evidence.

@@ -20,11 +20,11 @@ test("GE-04 journal refuses symlinked workspace and journal components", async (
     await symlink(outside, join(workspace, ".alix"));
     await assert.rejects(recordGe04Attempt(authority, operation), /real directory/);
     await rm(join(workspace, ".alix"));
-    await mkdir(join(workspace, ".alix"));
+    await mkdir(join(workspace, ".alix"), { mode: 0o700 });
     await symlink(outside, join(workspace, ".alix", "ge04"));
     await assert.rejects(recordGe04Attempt(authority, operation), /real directory/);
     await rm(join(workspace, ".alix", "ge04"));
-    await mkdir(join(workspace, ".alix", "ge04"));
+    await mkdir(join(workspace, ".alix", "ge04"), { mode: 0o700 });
     await symlink(outside, join(workspace, ".alix", "ge04", "attempts"));
     await assert.rejects(recordGe04Attempt(authority, operation), /real directory/);
     assert.deepEqual(await readdir(outside), []);
