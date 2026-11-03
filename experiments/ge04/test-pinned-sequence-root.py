@@ -69,10 +69,16 @@ with tempfile.TemporaryDirectory(prefix='ge04-pinned-sequence-', dir='/run') as 
     advance_spec = importlib.util.spec_from_file_location('ge04_authorized_advance', Path(__file__).with_name('authorized-floor-advance.py'))
     advance_module = importlib.util.module_from_spec(advance_spec)
     advance_spec.loader.exec_module(advance_module)
+    recovery_spec = importlib.util.spec_from_file_location('ge04_recovery', Path(__file__).with_name('release-floor-recovery.py'))
+    recovery = importlib.util.module_from_spec(recovery_spec)
+    recovery_spec.loader.exec_module(recovery)
     signed(11)
+    assert recovery.classify(config, release, floor, 0) == 'UNCERTAIN', 'unpublished floor advance must quarantine'
     assert advance_module.advance_verified(config, release, floor, 0) == 11
     assert json.loads((floor / 'floor.json').read_text())['minimumSequence'] == 11
+    assert recovery.classify(config, release, floor, 0) == 'VERIFIED_CURRENT'
     signed(10)
+    assert recovery.classify(config, release, floor, 0) == 'UNCERTAIN'
     try:
         advance_module.advance_verified(config, release, floor, 0)
     except PermissionError:
