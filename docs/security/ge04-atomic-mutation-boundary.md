@@ -183,3 +183,7 @@ The experimental journal writer now rejects `.alix`, `ge04`, and `attempts` dire
 ### Experimental distinct-UID worker launch guard
 
 `spawnGe04IsolatedWorker` is an unwired Linux-only launcher prototype. It rejects same-UID workers, invalid UID/GID values, relative executable paths and unprivileged coordinator attempts to change UID. When privileged, it requests UID/GID at spawn and checks observed `/proc` credentials; on failed verification it kills the child. The tests on this unprivileged host validate rejection only, **not** a real distinct-UID launch or filesystem denial. The launcher has no pidfd, sandbox, executable allowlist, or authenticated helper receipt, and must not be used as an authorization boundary or enabled in production.
+
+### Opt-in real cross-UID evidence denial test
+
+`ge04-distinct-uid-denial.test.ts` exercises a real Linux worker under UID/GID 65534 and checks that it cannot read, overwrite, or create files under a coordinator-owned 0700 evidence directory. It executes only when the test runner is already privileged; otherwise it explicitly **skips** without attempting elevation. On the current unprivileged host this test was skipped, so cross-UID denial remains **unverified**. A privileged controlled CI runner must execute it and report a passing result before treating this boundary as demonstrated. This does not establish pidfd supervision, trusted receipts, or recovery safety.
