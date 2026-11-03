@@ -143,3 +143,7 @@ An adversarial process test starts a shell helper from a separate Node host, wai
 ### Native helper persistence before zero exit
 
 The experimental Linux C helper now fsyncs the created file and its actual containing directory, including nested paths, before returning zero. A failed sync or inability to reopen the containing directory returns nonzero, which the adapter quarantines as an ambiguous outcome because creation may already have occurred. This is not an authenticated receipt, cross-process authorization barrier or proof of power-loss durability on every filesystem and storage stack.
+
+### Real native helper survives parent SIGKILL
+
+`experiments/ge04/test-native-host-crash.py` compiles the actual C helper with test-only barrier hooks, starts it through a separate Python host, kills that host while the helper is blocked at its pinned-directory barrier, then releases the helper and observes the created file. This confirms the orphan-helper hazard against the real native prototype. The test uses no approval/lease authority and provides no authenticated terminal receipt; it must not be treated as production qualification.
