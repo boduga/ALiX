@@ -14,4 +14,8 @@ The adversarial smoke test proves that digest mismatch, writable helper and syml
 - The prototype has no coordinator authentication, policy/lease admission, approval consumption, kernel-bound child identity, terminal receipt, cross-process revocation fence, crash reconciliation or replay.
 - This is intentionally separate from the high-impact TypeScript launcher and protected evidence writer. Neither production wiring nor a merge is authorized.
 
-Next: design a protected supervisor-owned installation/manifest and real distinct-UID evidence isolation, then introduce an authenticated admission protocol before any mutation-capable helper execution.
+## Real distinct-UID adversarial gate (CI pending)
+
+`experiments/ge04/test-supervisor-distinct-uid.py` requires explicit root execution (never elevates itself), prepares a supervisor-owned evidence record, forks a child with kernel UID/GID 65534, and demands `EACCES`/`EPERM` on read, overwrite, create, and unlink attempts. The temporary parent is mode 0755 so the test isolates denial at the evidence directory rather than relying on an inaccessible parent. The existing GE-04 privileged CI job runs the test with `sudo -n` and requires the explicit PASS marker. On an unprivileged local machine the script exits nonzero with `REQUIRES root (not a pass)`; this is **not** a local qualification. A green privileged CI run is still needed. This tests only filesystem DAC isolation; it does not authenticate the supervisor or provide durable terminal receipts.
+
+Next: design a protected supervisor-owned installation/manifest and verify this real distinct-UID gate in CI, then introduce an authenticated admission protocol before any mutation-capable helper execution.
