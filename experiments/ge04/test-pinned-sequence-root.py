@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -54,7 +55,7 @@ with tempfile.TemporaryDirectory(prefix='ge04-pinned-sequence-', dir='/run') as 
     signed(99, attacker)
     try:
         verifier.verify(config, release, 0, floor)
-    except (PermissionError, ValueError):
+    except (InvalidSignature, PermissionError, ValueError):
         pass
     else:
         raise AssertionError('attacker signed key accepted')
