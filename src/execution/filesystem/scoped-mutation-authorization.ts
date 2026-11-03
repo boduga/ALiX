@@ -50,8 +50,8 @@
 import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { ApprovalStore } from "../../governance/approvals/approval-store.js";
-import { OwnershipRegistry } from "../../coordination/ownership/ownership-registry.js";
+import { isTrustedGe04ApprovalAuthority, type Ge04ApprovalAuthority } from "../../governance/approvals/ge04-approval-authority.js";
+import { isTrustedGe04OwnershipAuthority, type Ge04OwnershipAuthority } from "../../coordination/ownership/ge04-ownership-authority.js";
 import { computePolicyRevision } from "../../governance/policy/policy-revision.js";
 import {
   approvalExpiryState,
@@ -90,7 +90,10 @@ export type ScopedMutationLeaseVerifier = (
   operation: Readonly<ScopedMutationOperation>,
 ) => Promise<boolean>;
 
-export function createLiveScopedLeaseVerifier(registry: OwnershipRegistry): ScopedMutationLeaseVerifier {
+export function createLiveScopedLeaseVerifier(registry: Ge04OwnershipAuthority): ScopedMutationLeaseVerifier {
+  if (!isTrustedGe04OwnershipAuthority(registry)) {
+    throw new Error("GE-04: live lease verification requires trusted ownership authority");
+  }
   return async (authority, operation) => {
     if (!isAbsolute(authority.workspaceRoot) || !isSafeScopedRelativePath(authority.ownedScope) ||
         !isSafeScopedRelativePath(operation.relativePath) || !authority.workerId || !authority.leaseId) return false;
@@ -198,9 +201,9 @@ export type ScopedMutationAuthorizationDeps = {
   /** The policy configuration in force; its revision is recomputed per check. */
   readonly config: AlixConfig;
   /** The one durable approval authority. Consumed atomically, never re-issued. */
-  readonly approvalStore: ApprovalStore;
+  readonly approvalStore: Ge04ApprovalAuthority;
   /** The one durable ownership authority. */
-  readonly registry: OwnershipRegistry;
+  readonly registry: Ge04OwnershipAuthority;
   /** Host-attributed worker attempt, when the caller has one. */
   readonly workerAttempt?: number;
   /** Deterministic clock for expiry tests. */
@@ -219,7 +222,7 @@ export function createScopedMutationAuthorizationVerifier(
 ): ScopedMutationAuthorizationVerifier {
   // Reject plain-object substitutes at the trust-composition boundary. This is
   // defense in depth, not proof that a same-process caller is trustworthy.
-  if (!(deps.approvalStore instanceof ApprovalStore) || !(deps.registry instanceof OwnershipRegistry)) {
+  if (!isTrustedGe04ApprovalAuthority(deps.approvalStore) || !isTrustedGe04OwnershipAuthority(deps.registry)) {
     throw new Error("GE-04: authorization requires real approval and ownership store instances");
   }
   const leaseVerifier = createLiveScopedLeaseVerifier(deps.registry);

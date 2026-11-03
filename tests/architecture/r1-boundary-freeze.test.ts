@@ -84,7 +84,16 @@ const IMPORT_RULE_EXEMPT: Record<string, string[]> = {
   // processes. A child cannot receive the parent's in-memory store, so it
   // opens its own against the same authoritative workspace — but only here,
   // never in a caller, and never exposing a decision method.
-  "status-store-writes": ["src/governance/approvals/worker-approval-port.ts"],
+  // GE-04: narrowly sanctioned, owner-local adapters. These factories validate
+  // real concrete instances and mint private-WeakSet-branded, frozen ports.
+  // This is NOT permission to import stores from execution or add more adapters.
+  "status-store-writes": [
+    "src/governance/approvals/worker-approval-port.ts",
+    "src/governance/approvals/ge04-approval-authority.ts",
+  ],
+  "ownership-registry-construction": [
+    "src/coordination/ownership/ge04-ownership-authority.ts",
+  ],
 };
 
 const UI_DIRS = ["src/interfaces/tui/", "src/interfaces/ui/", "src/interfaces/inspector/"];
@@ -284,6 +293,26 @@ function key(v: { rule: string; importer: string; imported: string }): string {
 }
 
 describe("R1 boundary freeze", () => {
+  it("GE-04 protected-store exemptions remain exact and owner-local", () => {
+    assert.deepEqual(IMPORT_RULE_EXEMPT["ownership-registry-construction"], [
+      "src/coordination/ownership/ge04-ownership-authority.ts",
+    ]);
+    assert.deepEqual(IMPORT_RULE_EXEMPT["status-store-writes"], [
+      "src/governance/approvals/worker-approval-port.ts",
+      "src/governance/approvals/ge04-approval-authority.ts",
+    ]);
+    const approval = readFileSync(resolve(PROJECT_ROOT, "src/governance/approvals/ge04-approval-authority.ts"), "utf8");
+    const ownership = readFileSync(resolve(PROJECT_ROOT, "src/coordination/ownership/ge04-ownership-authority.ts"), "utf8");
+    for (const source of [approval, ownership]) {
+      assert.match(source, /new WeakSet<object>\(\)/);
+      assert.match(source, /Object\.freeze\(/);
+      assert.doesNotMatch(source, /Object\.defineProperty\(|Symbol\(/);
+    }
+    assert.match(approval, /store instanceof ApprovalStore/);
+    assert.match(ownership, /registry instanceof OwnershipRegistry/);
+    assert.doesNotMatch(approval, /\b(?:resolve|revoke|request):\s*\(/);
+    assert.doesNotMatch(ownership, /\b(?:acquire|release|revoke):\s*\(/);
+  });
   it("allowlist entries are well-formed with R0 reference and removal phase", () => {
     const list = loadAllowlist();
     assert.ok(Array.isArray(list) && list.length > 0, "allowlist must be non-empty");

@@ -8,7 +8,7 @@ plus the path-scope arithmetic both enforcement points share.
 
 ## Ownership
 
-- `ge04-ownership-authority.ts` — Experimental GE-04 coordination-owned restricted lease port, minted from a real OwnershipRegistry. It delegates refresh, read, and the existing exclusive-write revocation fence, but exposes no acquire/release/revoke. Not yet wired into the filesystem verifier; its private WeakSet identity is only a same-process guard (descriptor cloning must not forge it) and does not fence policy changes or lease expiry during an action.
+- `ge04-ownership-authority.ts` — Experimental GE-04 coordination-owned restricted lease port, minted from a real OwnershipRegistry. It delegates refresh, read, and the existing exclusive-write revocation fence, but exposes no acquire/release/revoke. Consumed by the experimental filesystem verifier; its private WeakSet identity is only a same-process guard (descriptor cloning must not forge it) and does not fence policy changes or lease expiry during an action.
 
 - `path-scope.ts` — Path scope arithmetic. `normalizePathScope` (planning-side,
   rejects `..` and uninterpretable wildcards) and `resolveOwnedScopePrefix` +

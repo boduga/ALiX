@@ -1,6 +1,6 @@
 # GE-04 — architecture-boundary decision (blocked)
 
-Status: **SECURITY HOLD; no architecture-rule changes authorized**.
+Status: **SECURITY HOLD; two exact owner-local GE-04 adapter exemptions now implemented for review.** This does not authorize production enablement or merge.
 
 ## Verified constraint
 

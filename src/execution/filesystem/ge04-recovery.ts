@@ -3,7 +3,7 @@
  * approval may belong to a LIVE worker. Restart alone is not proof of death.
  * No automatic replay, mutation, or terminal classification is permitted.
  */
-import { ApprovalStore } from "../../governance/approvals/approval-store.js";
+import { isTrustedGe04ApprovalAuthority, type Ge04ApprovalAuthority } from "../../governance/approvals/ge04-approval-authority.js";
 
 export type Ge04UncertainClaim = Readonly<{
   approvalId: string;
@@ -14,8 +14,8 @@ export type Ge04UncertainClaim = Readonly<{
 }>;
 
 /** Reload the durable store before listing unresolved claims. */
-export async function inspectGe04UncertainClaims(store: ApprovalStore): Promise<readonly Ge04UncertainClaim[]> {
-  if (!(store instanceof ApprovalStore)) throw new Error("GE-04: real approval store required");
+export async function inspectGe04UncertainClaims(store: Ge04ApprovalAuthority): Promise<readonly Ge04UncertainClaim[]> {
+  if (!isTrustedGe04ApprovalAuthority(store)) throw new Error("GE-04: real approval store required");
   await store.load(); // propagates failures; never claim an empty result on storage error
   return store.listUncertainConsumptions().map(record => ({
     approvalId: record.id,

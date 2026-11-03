@@ -16,6 +16,8 @@ import { closeSharedLedger } from "../../../src/runtime-state/storage/runtime-le
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ApprovalStore } from "../../../src/governance/approvals/approval-store.js";
+import { createGe04ApprovalAuthority } from "../../../src/governance/approvals/ge04-approval-authority.js";
+import { createGe04OwnershipAuthority } from "../../../src/coordination/ownership/ge04-ownership-authority.js";
 import { OwnershipRegistry } from "../../../src/coordination/ownership/ownership-registry.js";
 import { computePolicyRevision } from "../../../src/governance/policy/policy-revision.js";
 import { ExperimentalLinuxScopedMutationService } from "../../../src/execution/filesystem/linux-scoped-mutation.js";
@@ -149,12 +151,18 @@ test("GE-04: fabricated store objects cannot mint a trusted verifier", () => {
   }), /real approval and ownership store instances/);
 });
 
+test("GE-04: standalone lease verifier rejects forged port before any read", () => {
+  const forged = { refresh: async () => {}, get: () => ({ status: "active", mode: "exclusive-write" }), withExclusiveLeaseFence: async () => ({ allowed: true, value: true }) };
+  assert.throws(() => createLiveScopedLeaseVerifier(forged as unknown as ReturnType<typeof createGe04OwnershipAuthority>),
+    /trusted ownership authority/);
+});
+
 test("GE-04: a symlinked nested parent fails the live lease check", async () => {
   const h = await harness();
   const outside = await mkdtemp(join(tmpdir(), "ge04-external-"));
   try {
     await symlink(outside, join(h.root, "owned", "escape"));
-    const verifier = createLiveScopedLeaseVerifier(h.registry);
+    const verifier = createLiveScopedLeaseVerifier(createGe04OwnershipAuthority(h.registry));
     assert.equal(await verifier(authorityOf(h), createOp("unsafe", "escape/out.txt")), false);
   } finally {
     await h.dispose();
@@ -177,7 +185,7 @@ test("GE-04: only the composed verifier carries the module-private brand", async
   const h = await harness();
   try {
     const verifier = createScopedMutationAuthorizationVerifier({
-      config: config(), approvalStore: h.approvals, registry: h.registry,
+      config: config(), approvalStore: createGe04ApprovalAuthority(h.approvals), registry: createGe04OwnershipAuthority(h.registry),
     });
     assert.equal(isTrustedScopedMutationVerifier(verifier), true);
     assert.equal(isTrustedScopedMutationVerifier(async () => true), false);
@@ -195,7 +203,7 @@ test("GE-04: adapter fails closed on missing authority metadata before any verif
   try {
     const service = new ExperimentalLinuxScopedMutationService("/definitely/missing/helper",
       createScopedMutationAuthorizationVerifier({
-        config: config(), approvalStore: h.approvals, registry: h.registry,
+        config: config(), approvalStore: createGe04ApprovalAuthority(h.approvals), registry: createGe04OwnershipAuthority(h.registry),
       }));
     for (const patch of [{ workerId: "" }, { policyRevision: "" }, { leaseId: "" }, { approvalId: "" }, { approvalId: undefined }]) {
       await assert.rejects(service.mutate(authorityOf(h, patch), createOp()),
@@ -212,7 +220,7 @@ test("GE-04: adapter fails closed on missing authority metadata before any verif
 test("GE-04: live lease verifier rejects forged, revoked, expired and mismatched leases", async () => {
   const h = await harness();
   try {
-    const verifier = createLiveScopedLeaseVerifier(h.registry);
+    const verifier = createLiveScopedLeaseVerifier(createGe04OwnershipAuthority(h.registry));
     const op = createOp();
     const auth = authorityOf(h);
     assert.equal(await verifier(auth, op), true);
@@ -240,7 +248,7 @@ test("GE-04: a forged lease cannot spend a real approval", async () => {
   try {
     const service = new ExperimentalLinuxScopedMutationService(await fixtureHelper(h.root),
       createScopedMutationAuthorizationVerifier({
-        config: config(), approvalStore: h.approvals, registry: h.registry,
+        config: config(), approvalStore: createGe04ApprovalAuthority(h.approvals), registry: createGe04OwnershipAuthority(h.registry),
       }));
     await assert.rejects(service.mutate(authorityOf(h, { leaseId: "forged" }), createOp()),
       /authoritative mutation verification required/);
@@ -259,7 +267,7 @@ test("GE-04: a policy revision mismatch denies without spending the approval", a
       createScopedMutationAuthorizationVerifier({
         // Different policy configuration than the one that issued the grant.
         config: config({ sessionMode: "bypass" }),
-        approvalStore: h.approvals, registry: h.registry,
+        approvalStore: createGe04ApprovalAuthority(h.approvals), registry: createGe04OwnershipAuthority(h.registry),
       }));
     await assert.rejects(service.mutate(authorityOf(h), createOp()),
       /authoritative mutation verification required/);
@@ -269,7 +277,7 @@ test("GE-04: a policy revision mismatch denies without spending the approval", a
     // A forged authority.revision is not a way around it either.
     const honest = new ExperimentalLinuxScopedMutationService(await fixtureHelper(h.root),
       createScopedMutationAuthorizationVerifier({
-        config: config(), approvalStore: h.approvals, registry: h.registry,
+        config: config(), approvalStore: createGe04ApprovalAuthority(h.approvals), registry: createGe04OwnershipAuthority(h.registry),
       }));
     await assert.rejects(honest.mutate(authorityOf(h, { policyRevision: "forged-revision" }), createOp()),
       /authoritative mutation verification required/);
@@ -290,7 +298,7 @@ test("GE-04: an approval recorded under a different policy revision is refused",
     });
     const service = new ExperimentalLinuxScopedMutationService(await fixtureHelper(h.root),
       createScopedMutationAuthorizationVerifier({
-        config: config(), approvalStore: h.approvals, registry: h.registry,
+        config: config(), approvalStore: createGe04ApprovalAuthority(h.approvals), registry: createGe04OwnershipAuthority(h.registry),
       }));
     await assert.rejects(service.mutate(authorityOf(h), createOp()),
       /authoritative mutation verification required/);
@@ -304,7 +312,7 @@ test("GE-04: forged, pending, expired, revoked and mismatched approvals all fail
   try {
     const service = new ExperimentalLinuxScopedMutationService(await fixtureHelper(h.root),
       createScopedMutationAuthorizationVerifier({
-        config: config(), approvalStore: h.approvals, registry: h.registry,
+        config: config(), approvalStore: createGe04ApprovalAuthority(h.approvals), registry: createGe04OwnershipAuthority(h.registry),
       }));
     // Forged id.
     await assert.rejects(service.mutate(authorityOf(h, { approvalId: "approval_forged" }), createOp()),
@@ -357,7 +365,7 @@ test("GE-04: a grant bound to different bytes or a different target cannot autho
   try {
     const service = new ExperimentalLinuxScopedMutationService(await fixtureHelper(h.root),
       createScopedMutationAuthorizationVerifier({
-        config: config(), approvalStore: h.approvals, registry: h.registry,
+        config: config(), approvalStore: createGe04ApprovalAuthority(h.approvals), registry: createGe04OwnershipAuthority(h.registry),
       }));
     await assert.rejects(service.mutate(authorityOf(h), createOp("different bytes")),
       /authoritative mutation verification required/);
@@ -377,7 +385,7 @@ test("GE-04: a grant is claimed once and a replay is denied", async () => {
   try {
     const service = new ExperimentalLinuxScopedMutationService(await fixtureHelper(h.root),
       createScopedMutationAuthorizationVerifier({
-        config: config(), approvalStore: h.approvals, registry: h.registry,
+        config: config(), approvalStore: createGe04ApprovalAuthority(h.approvals), registry: createGe04OwnershipAuthority(h.registry),
       }));
     assert.deepEqual(await service.mutate(authorityOf(h), createOp()),
       { kind: "created", changed: true });
@@ -401,7 +409,7 @@ test("GE-04: helper writes then exits nonzero stays unverified and is not replay
     await writeFile(helper, '#!/bin/sh\nprintf "%s" "$4" > "$1/$2/$3"\nexit 17\n');
     await chmod(helper, 0o755);
     const service = new ExperimentalLinuxScopedMutationService(helper,
-      createScopedMutationAuthorizationVerifier({ config: config(), approvalStore: h.approvals, registry: h.registry }));
+      createScopedMutationAuthorizationVerifier({ config: config(), approvalStore: createGe04ApprovalAuthority(h.approvals), registry: createGe04OwnershipAuthority(h.registry) }));
     const result = await service.mutate(authorityOf(h), createOp());
     assert.equal(result.kind, "unverified");
     assert.equal(await readFile(join(h.root, "owned", "hello.txt"), "utf8"), "hello");
@@ -416,10 +424,10 @@ test("GE-04: a restarted store can inspect an ambiguous consumed claim without r
     await writeFile(helper, '#!/bin/sh\nprintf "%s" "$4" > "$1/$2/$3"\nexit 17\n');
     await chmod(helper, 0o755);
     const service = new ExperimentalLinuxScopedMutationService(helper,
-      createScopedMutationAuthorizationVerifier({ config: config(), approvalStore: h.approvals, registry: h.registry }));
+      createScopedMutationAuthorizationVerifier({ config: config(), approvalStore: createGe04ApprovalAuthority(h.approvals), registry: createGe04OwnershipAuthority(h.registry) }));
     assert.equal((await service.mutate(authorityOf(h), createOp())).kind, "unverified");
     const restarted = new ApprovalStore(h.root);
-    const claims = await inspectGe04UncertainClaims(restarted);
+    const claims = await inspectGe04UncertainClaims(createGe04ApprovalAuthority(restarted));
     assert.ok(claims.some(claim => claim.approvalId === h.approvalId && claim.executionOutcome === "pending"));
     const uncertain = claims.find(claim => claim.approvalId === h.approvalId)!;
     assert.deepEqual(assessGe04Reconciliation(uncertain), {
@@ -429,7 +437,7 @@ test("GE-04: a restarted store can inspect an ambiguous consumed claim without r
     });
     assert.equal(await readFile(join(h.root, "owned", "hello.txt"), "utf8"), "hello");
     await assert.rejects(service.mutate(authorityOf(h), createOp()), /authoritative mutation verification required/);
-    const after = await inspectGe04UncertainClaims(new ApprovalStore(h.root));
+    const after = await inspectGe04UncertainClaims(createGe04ApprovalAuthority(new ApprovalStore(h.root)));
     assert.ok(after.some(claim => claim.approvalId === h.approvalId));
   } finally { await h.dispose(); }
 });
@@ -467,7 +475,7 @@ test("GE-04: revoked lease before helper dispatch prevents creation", async () =
   const h = await harness();
   try {
     const service = new ExperimentalLinuxScopedMutationService(await fixtureHelper(h.root),
-      createScopedMutationAuthorizationVerifier({ config: config(), approvalStore: h.approvals, registry: h.registry }));
+      createScopedMutationAuthorizationVerifier({ config: config(), approvalStore: createGe04ApprovalAuthority(h.approvals), registry: createGe04OwnershipAuthority(h.registry) }));
     const refresh = h.registry.refresh.bind(h.registry);
     let calls = 0;
     h.registry.refresh = async () => {
@@ -486,7 +494,7 @@ test("GE-04: authority lapsing during the write is reported as unverified, never
   try {
     const service = new ExperimentalLinuxScopedMutationService(await fixtureHelper(h.root),
       createScopedMutationAuthorizationVerifier({
-        config: config(), approvalStore: h.approvals, registry: h.registry,
+        config: config(), approvalStore: createGe04ApprovalAuthority(h.approvals), registry: createGe04OwnershipAuthority(h.registry),
       }));
     // Revoke the lease while the helper is running. The fixture helper is a plain
     // shell script, so do it from a timer-free hook: revoke first is not possible
@@ -520,7 +528,7 @@ test("experimental Linux adapter creates beneath owned root with supplied native
   try {
     const service = new ExperimentalLinuxScopedMutationService(process.env.GE04_TEST_HELPER!,
       createScopedMutationAuthorizationVerifier({
-        config: config(), approvalStore: h.approvals, registry: h.registry,
+        config: config(), approvalStore: createGe04ApprovalAuthority(h.approvals), registry: createGe04OwnershipAuthority(h.registry),
       }), true);
     assert.deepEqual(await service.mutate(authorityOf(h), createOp("hello")),
       { kind: "created", changed: true });
@@ -562,11 +570,11 @@ test("GE-04: terminated native helper leaves durable uncertain claim for restart
     await writeFile(helper, '#!/bin/sh\nprintf "%s" "$4" > "$1/$2/$3"\nkill -TERM "$$"\n');
     await chmod(helper, 0o755);
     const service = new ExperimentalLinuxScopedMutationService(helper,
-      createScopedMutationAuthorizationVerifier({ config: config(), approvalStore: h.approvals, registry: h.registry }));
+      createScopedMutationAuthorizationVerifier({ config: config(), approvalStore: createGe04ApprovalAuthority(h.approvals), registry: createGe04OwnershipAuthority(h.registry) }));
     const result = await service.mutate(authorityOf(h), createOp());
     assert.equal(result.kind, "unverified");
     assert.equal(await readFile(join(h.root, "owned", "hello.txt"), "utf8"), "hello");
-    const claims = await inspectGe04UncertainClaims(new ApprovalStore(h.root));
+    const claims = await inspectGe04UncertainClaims(createGe04ApprovalAuthority(new ApprovalStore(h.root)));
     const claim = claims.find(item => item.approvalId === h.approvalId);
     assert.equal(claim?.executionOutcome, "pending");
     assert.equal(assessGe04Reconciliation(claim!).eligibleForAutomaticTransition, false);
