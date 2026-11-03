@@ -77,6 +77,28 @@ int main(int argc, char **argv) {
   free(parent_path);
   if (parent != owned) close(parent);
   if (synced != 0) { perror("fsync containing directory"); close(owned); close(root); return 11; }
+  // Experimental terminal notification over a supervisor-provided fd.
+  // This is NOT a durable/authenticated receipt: an untrusted process can
+  // spoof env values or a writable fd, and a crash can lose the notification.
+  const char *receipt_fd_env = getenv("GE04_RECEIPT_FD");
+  const char *attempt_id = getenv("GE04_ATTEMPT_ID");
+  if (receipt_fd_env || attempt_id) {
+    if (!receipt_fd_env || !attempt_id || strlen(attempt_id) != 36 ||
+        strspn(attempt_id, "0123456789abcdefABCDEF-") != 36) {
+      fprintf(stderr, "GE04 invalid terminal notification binding\n"); close(owned); close(root); return 15;
+    }
+    char *end = NULL;
+    errno = 0;
+    long parsed = strtol(receipt_fd_env, &end, 10);
+    if (errno || !end || *end || parsed < 3 || parsed > 1024) {
+      fprintf(stderr, "GE04 invalid notification fd\n"); close(owned); close(root); return 15;
+    }
+    char receipt[96];
+    int len = snprintf(receipt, sizeof(receipt), "GE04v1 %s fsynced\n", attempt_id);
+    if (len <= 0 || (size_t)len >= sizeof(receipt) || write((int)parsed, receipt, (size_t)len) != len) {
+      perror("GE04 terminal notification"); close(owned); close(root); return 16;
+    }
+  }
   close(owned); close(root);
   return 0;
 }
