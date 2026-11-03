@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+"""Root-gated signed release installation DAC test. Never elevates itself."""
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+if sys.platform != 'linux' or os.geteuid() != 0:
+    raise SystemExit('GE04 signed installation test REQUIRES root (not a pass)')
+
+spec = importlib.util.spec_from_file_location('ge04_signed_release', Path(__file__).with_name('signed-release.py'))
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+with tempfile.TemporaryDirectory(prefix='ge04-signed-root-') as temp:
+    root = Path(temp)
+    root.chmod(0o755)
+    install = root / 'install'
+    install.mkdir(mode=0o755)
+    signer = Ed25519PrivateKey.generate()  # Ephemeral CI fixture, NOT a release key.
+    key = signer.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    helper = b'GE04 fixture helper'
+    manifest = json.dumps({'version': 1, 'release': 'ci-fixture', 'platform': 'linux',
+                           'helperSha256': hashlib.sha256(helper).hexdigest()}, sort_keys=True).encode()
+    files = {'trusted.pub': key, 'manifest.json': manifest, 'manifest.sig': signer.sign(manifest), 'helper': helper}
+    for name, contents in files.items():
+        path = install / name
+        path.write_bytes(contents)
+        path.chmod(0o444)
+    assert module.verify_release(files['manifest.json'], files['manifest.sig'],
+                                 files['trusted.pub'], files['helper'], 'ci-fixture')
+    pid = os.fork()
+    if pid == 0:
+        try:
+            os.setgroups([])
+            os.setgid(65534)
+            os.setuid(65534)
+            assert os.geteuid() == 65534
+            denied = 0
+            for name in files:
+                try:
+                    (install / name).write_bytes(b'forged')
+                except PermissionError:
+                    denied += 1
+            try:
+                (install / 'new-manifest').write_bytes(b'forged')
+            except PermissionError:
+                denied += 1
+            os._exit(0 if denied == len(files) + 1 else 1)
+        except BaseException:
+            os._exit(2)
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, 'worker altered signed installation'
+    for name, contents in files.items():
+        assert (install / name).read_bytes() == contents
+    print('GE04 signed installation distinct-UID PASS: root-owned key, manifest, signature, helper immutable to worker')
