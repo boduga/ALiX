@@ -417,6 +417,9 @@ jobs:
           python -B experiments/ge04/test-signed-release.py
           python -B experiments/ge04/test-signed-installation.py
           python -B experiments/ge04/test-supervisor-trust-config.py
+          python -B experiments/ge04/test-trusted-path.py
+          sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-trusted-path-root.py | tee /tmp/ge04-trusted-path.log
+          grep -Fq 'GE04 trusted ancestry root PASS' /tmp/ge04-trusted-path.log
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-signed-release-root.py | tee /tmp/ge04-signed-install.log
           grep -Fq 'GE04 signed installation distinct-UID PASS' /tmp/ge04-signed-install.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
