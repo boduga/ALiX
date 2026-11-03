@@ -17,6 +17,10 @@ test("GE04 approval authority rejects forged store and structural port", async (
     assert.equal("revoke" in port, false);
     assert.equal("request" in port, false);
     assert.equal(isTrustedGe04ApprovalAuthority({ ...port }), false);
+    const symbolClone = Object.create(Object.getPrototypeOf(port));
+    Object.defineProperties(symbolClone, Object.getOwnPropertyDescriptors(port));
+    assert.equal(isTrustedGe04ApprovalAuthority(symbolClone), false);
+    assert.equal(Object.getOwnPropertySymbols(port).length, 0);
     assert.throws(() => createGe04ApprovalAuthority({ ...store } as ApprovalStore), /real approval store/);
     await port.load();
     assert.deepEqual(port.listUncertainConsumptions(), []);

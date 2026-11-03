@@ -14,6 +14,10 @@ test("GE04 ownership port rejects forged registry and structural copies", async 
     assert.equal(isTrustedGe04OwnershipAuthority(port), true);
     assert.equal(Object.isFrozen(port), true);
     assert.equal(isTrustedGe04OwnershipAuthority({ ...port }), false);
+    const descriptorClone = Object.create(Object.getPrototypeOf(port));
+    Object.defineProperties(descriptorClone, Object.getOwnPropertyDescriptors(port));
+    assert.equal(isTrustedGe04OwnershipAuthority(descriptorClone), false);
+    assert.equal(Object.getOwnPropertySymbols(port).length, 0);
     assert.equal("acquire" in port, false);
     assert.equal("release" in port, false);
     assert.equal("revoke" in port, false);

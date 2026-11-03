@@ -2,7 +2,7 @@
 import { OwnershipRegistry } from "./ownership-registry.js";
 import type { OwnershipRecord } from "./ownership-types.js";
 
-const TRUSTED_GE04_OWNERSHIP = Symbol("ge04.coordination.ownership-authority");
+const trustedGe04Ownership = new WeakSet<object>();
 
 export type Ge04OwnershipAuthority = Readonly<{
   refresh(): Promise<void>;
@@ -22,12 +22,12 @@ export function createGe04OwnershipAuthority(registry: OwnershipRegistry): Ge04O
     withExclusiveLeaseFence: (leaseId, agentId, targetPath, action) =>
       registry.withExclusiveLeaseFence(leaseId, agentId, targetPath, action),
   };
-  Object.defineProperty(authority, TRUSTED_GE04_OWNERSHIP, { value: true });
+  trustedGe04Ownership.add(authority);
   return Object.freeze(authority);
 }
 
 /** Structural copies and caller-authored lease objects cannot pass this gate. */
 export function isTrustedGe04OwnershipAuthority(value: unknown): value is Ge04OwnershipAuthority {
   return typeof value === "object" && value !== null &&
-    (value as Record<symbol, unknown>)[TRUSTED_GE04_OWNERSHIP] === true;
+    trustedGe04Ownership.has(value);
 }

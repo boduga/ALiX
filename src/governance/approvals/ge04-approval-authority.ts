@@ -7,7 +7,7 @@ import { ApprovalStore } from "./approval-store.js";
 import type { ApprovalRecord } from "./approval-types.js";
 
 
-const TRUSTED_GE04_APPROVAL = Symbol("ge04.governance.approval-authority");
+const trustedGe04Approvals = new WeakSet<object>();
 
 export type Ge04ApprovalAuthority = Readonly<{
   load(): Promise<void>;
@@ -29,12 +29,12 @@ export function createGe04ApprovalAuthority(store: ApprovalStore): Ge04ApprovalA
     recordExecutionOutcome: store.recordExecutionOutcome.bind(store),
     listUncertainConsumptions: () => store.listUncertainConsumptions(),
   };
-  Object.defineProperty(port, TRUSTED_GE04_APPROVAL, { value: true });
+  trustedGe04Approvals.add(port);
   return Object.freeze(port);
 }
 
 /** An unbranded, structurally identical caller object is never trusted. */
 export function isTrustedGe04ApprovalAuthority(value: unknown): value is Ge04ApprovalAuthority {
   return typeof value === "object" && value !== null &&
-    (value as Record<symbol, unknown>)[TRUSTED_GE04_APPROVAL] === true;
+    trustedGe04Approvals.has(value);
 }
