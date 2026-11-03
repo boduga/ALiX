@@ -15,5 +15,8 @@ def advance_verified(config_path, release_path, floor_path, owner_uid=0):
     """Advance only to the sequence authenticated by pinned release verification."""
     verifier = load('trusted-release-verification')
     updater = load('floor-advance')
-    _digest, signed_sequence = verifier.verify(config_path, release_path, owner_uid, floor_path, True)
-    return updater.advance(floor_path, signed_sequence, owner_uid)
+    def signed_candidate():
+        _digest, sequence = verifier.verify(config_path, release_path, owner_uid, floor_path, True)
+        return sequence
+
+    return updater.advance(floor_path, None, owner_uid, candidate_provider=signed_candidate)
