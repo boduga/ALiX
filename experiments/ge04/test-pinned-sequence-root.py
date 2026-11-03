@@ -65,4 +65,17 @@ with tempfile.TemporaryDirectory(prefix='ge04-pinned-sequence-', dir='/run') as 
         pass
     else:
         raise AssertionError('sequenced release accepted without protected floor')
-print('GE04 pinned sequence root PASS: independent key pin and signed floor; downgrade and attacker key denied')
+    advance_spec = importlib.util.spec_from_file_location('ge04_authorized_advance', Path(__file__).with_name('authorized-floor-advance.py'))
+    advance_module = importlib.util.module_from_spec(advance_spec)
+    advance_spec.loader.exec_module(advance_module)
+    signed(11)
+    assert advance_module.advance_verified(config, release, floor, 0) == 11
+    assert json.loads((floor / 'floor.json').read_text())['minimumSequence'] == 11
+    signed(10)
+    try:
+        advance_module.advance_verified(config, release, floor, 0)
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError('old signed release advanced floor')
+print('GE04 pinned sequence root PASS: independent key pin, signed floor advancement; downgrade and attacker key denied')
