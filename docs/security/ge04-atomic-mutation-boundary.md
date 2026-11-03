@@ -187,3 +187,7 @@ The experimental journal writer now rejects `.alix`, `ge04`, and `attempts` dire
 ### Opt-in real cross-UID evidence denial test
 
 `ge04-distinct-uid-denial.test.ts` exercises a real Linux worker under UID/GID 65534 and checks that it cannot read, overwrite, or create files under a coordinator-owned 0700 evidence directory. It executes only when the test runner is already privileged; otherwise it explicitly **skips** without attempting elevation. On the current unprivileged host this test was skipped, so cross-UID denial remains **unverified**. A privileged controlled CI runner must execute it and report a passing result before treating this boundary as demonstrated. This does not establish pidfd supervision, trusted receipts, or recovery safety.
+
+### Dedicated cross-UID CI gate
+
+`.github/workflows/ge04-cross-uid.yml` defines a manually dispatched, least-privilege GitHub-hosted Linux security job. It builds ALiX and runs the real cross-UID filesystem denial test under an explicitly privileged test runner; any skipped test fails the job. This is a test-only CI privilege context, not a production privilege grant. Workflow existence does not establish a passing result: require a linked successful GitHub Actions run before marking the cross-UID evidence denial verified.
