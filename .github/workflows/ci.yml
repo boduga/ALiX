@@ -394,5 +394,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo -n env PATH="$PATH" node --test dist/tests/execution/filesystem/ge04-distinct-uid-denial.test.js | tee /tmp/ge04-cross-uid-test.log
-          if grep -Eq '(skipped|# SKIP|ℹ skipped [1-9])' /tmp/ge04-cross-uid-test.log; then exit 1; fi
-          grep -Eq 'pass 1|ℹ pass 1' /tmp/ge04-cross-uid-test.log
+          grep -Eq '^[[:space:]]*ℹ tests 1[[:space:]]*$' /tmp/ge04-cross-uid-test.log
+          grep -Eq '^[[:space:]]*ℹ pass 1[[:space:]]*$' /tmp/ge04-cross-uid-test.log
+          grep -Eq '^[[:space:]]*ℹ fail 0[[:space:]]*$' /tmp/ge04-cross-uid-test.log
+          grep -Eq '^[[:space:]]*ℹ skipped 0[[:space:]]*$' /tmp/ge04-cross-uid-test.log
