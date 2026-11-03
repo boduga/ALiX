@@ -167,3 +167,7 @@ The experimental journal writer now rejects `.alix`, `ge04`, and `attempts` dire
 ### Experimental pinned evidence writer
 
 `recordGe04ProtectedEvidence` adds a standalone Linux-only writer for an evidence root that passes the isolation preflight. It opens the root with `O_DIRECTORY | O_NOFOLLOW`, verifies ownership and owner-only permissions against the pinned FD, creates an exclusive record through `/proc/self/fd/<directory-fd>/` and fsyncs the record and directory. This prevents a subsequent pathname rename from redirecting the leaf create away from the pinned inode. It is **not wired into** the production or experimental mutation adapter, and its worker UID is caller-supplied rather than attested. The test only simulates distinct UIDs. No native helper attests the record; no automatic reconciliation or replay is permitted. Production needs real worker credential isolation, protected IPC, and crash-safe authenticated receipts.
+
+### Declared worker UID spoofing demonstrated
+
+`ge04-protected-evidence-credential-spoof.test.ts` demonstrates that passing a different `workerUid` into the pinned writer does not establish actual process separation: a same-UID actor can still rewrite its evidence record. The machine's unprivileged user-namespace probe did not succeed; real separate-UID access-denial tests remain unverified here. Worker identity must come from an OS-attested execution boundary rather than caller-provided configuration. Until then protected records remain diagnostic, not authoritative receipts.
