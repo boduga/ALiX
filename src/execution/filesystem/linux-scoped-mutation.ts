@@ -31,6 +31,7 @@ export class ExperimentalLinuxScopedMutationService implements ScopedMutationSer
   constructor(
     private readonly executable: string,
     private readonly verifyAuthorization: ScopedMutationAuthorizationVerifier,
+    private readonly requireNativeNotification = false,
   ) {
     if (!isAbsolute(executable)) throw new Error("GE-04: helper path must be absolute");
     if (!isTrustedScopedMutationVerifier(verifyAuthorization)) {
@@ -70,8 +71,8 @@ export class ExperimentalLinuxScopedMutationService implements ScopedMutationSer
       // helper finishes. This closes the explicit-revocation race for callers
       // using OwnershipRegistry, but NOT policy invalidation or lease expiry.
       const fenced = await grant.withLeaseFence(async () => {
-        await recordGe04Attempt(authority, operation);
-        await this.invokeHelper(authority, operation, content);
+        const attemptId = await recordGe04Attempt(authority, operation);
+        await this.invokeHelper(authority, operation, content, attemptId);
       });
       if (!fenced.allowed) throw new Error("GE-04: lease fence denied native helper dispatch");
     } catch (error) {
@@ -103,17 +104,36 @@ export class ExperimentalLinuxScopedMutationService implements ScopedMutationSer
     authority: ScopedMutationAuthority,
     operation: Extract<ScopedMutationOperation, { kind: "create" }>,
     content: string,
+    attemptId: string,
   ): Promise<void> {
     await new Promise<void>((resolve, reject) => {
+      const strict = this.requireNativeNotification;
       const child = spawn(this.executable, [authority.workspaceRoot, posix.normalize(authority.ownedScope),
-        operation.relativePath, content], { stdio: ["ignore", "ignore", "pipe"] });
+        operation.relativePath, content], {
+        stdio: strict ? ["ignore", "ignore", "pipe", "pipe"] : ["ignore", "ignore", "pipe"],
+        env: strict ? { ...process.env, GE04_ATTEMPT_ID: attemptId, GE04_RECEIPT_FD: "3" } : process.env,
+      });
       let stderr = "";
-      child.stderr.setEncoding("utf8");
-      child.stderr.on("data", (data: string) => { stderr = (stderr + data).slice(-2048); });
+      let notification = "";
+      child.stderr?.setEncoding("utf8");
+      child.stderr?.on("data", (data: string) => { stderr = (stderr + data).slice(-2048); });
+      if (strict) {
+        const channel = child.stdio[3];
+        if (!channel || typeof (channel as NodeJS.ReadableStream).on !== "function") {
+          child.kill();
+          reject(new AmbiguousNativeHelperOutcome("GE-04 missing supervisor notification channel"));
+          return;
+        }
+        (channel as NodeJS.ReadableStream).setEncoding?.("utf8");
+        channel.on("data", (data: string) => { notification = (notification + data).slice(0, 256); });
+      }
       child.once("error", reject);
-      child.once("close", (code, signal) => code === 0 ? resolve() : reject(new AmbiguousNativeHelperOutcome(
-        `GE-04 native helper outcome unknown (code=${code}, signal=${signal}): ${stderr.trim()}`,
-      )));
+      child.once("close", (code, signal) => {
+        if (code === 0 && (!strict || notification === `GE04v1 ${attemptId} fsynced\n`)) resolve();
+        else reject(new AmbiguousNativeHelperOutcome(
+          `GE-04 native helper unverified (code=${code}, signal=${signal}, notification=${strict ? "required" : "off"}): ${stderr.trim()}`,
+        ));
+      });
     });
   }
 }

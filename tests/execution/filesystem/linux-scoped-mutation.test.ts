@@ -521,7 +521,7 @@ test("experimental Linux adapter creates beneath owned root with supplied native
     const service = new ExperimentalLinuxScopedMutationService(process.env.GE04_TEST_HELPER!,
       createScopedMutationAuthorizationVerifier({
         config: config(), approvalStore: h.approvals, registry: h.registry,
-      }));
+      }), true);
     assert.deepEqual(await service.mutate(authorityOf(h), createOp("hello")),
       { kind: "created", changed: true });
     assert.equal(await readFile(join(h.root, "owned", "hello.txt"), "utf8"), "hello");
