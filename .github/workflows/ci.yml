@@ -426,6 +426,8 @@ jobs:
           grep -Fq 'GE04 atomic generations root PASS' /tmp/ge04-atomic-generation.log
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-release-floor-root.py | tee /tmp/ge04-release-floor.log
           grep -Fq 'GE04 protected floor root PASS' /tmp/ge04-release-floor.log
+          sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-signed-sequence-root.py | tee /tmp/ge04-signed-sequence.log
+          grep -Fq 'GE04 signed sequence root PASS' /tmp/ge04-signed-sequence.log
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-signed-release-root.py | tee /tmp/ge04-signed-install.log
           grep -Fq 'GE04 signed installation distinct-UID PASS' /tmp/ge04-signed-install.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
