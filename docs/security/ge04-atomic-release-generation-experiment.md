@@ -1,0 +1,7 @@
+# GE-04 — atomic release generation and rollback experiment
+
+**SECURITY HOLD — root-only test fixture, not a production installer or supervisor.**
+
+`experiments/ge04/test-atomic-release-root.py` builds ephemeral Ed25519-signed release generations under root-owned `/run`, writes each file exclusively, fsyncs every file and staging directory, renames the staged directory to a unique final generation name, and fsyncs its parent directory. It uses the descriptor-based `trusted-release-verification.py` to reject an incomplete staging directory, reject a correctly signed older release when protected `trust.json` names the newer release, and accept the currently configured release. It also checks that ordinary `rename()` cannot replace a populated current-generation directory in this fixture. This last observation is **not** a general no-replacement primitive; a privileged actor can remove or rename directories, and robust publication requires a separately designed no-replace/immutable policy.
+
+The root-gated CI job runs the fixture and requires `GE04 atomic generations root PASS`; unprivileged execution exits nonzero. This experiment does not update trust config atomically, preserve a monotonic rollback floor across compromise/crash, implement signed generation counters, prove power-loss durability, or transfer verified helper bytes into a sealed executable. It does not authorize mutation or wire production. CI confirmation for this revision is pending.
