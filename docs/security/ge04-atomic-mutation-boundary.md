@@ -179,3 +179,7 @@ The experimental journal writer now rejects `.alix`, `ge04`, and `attempts` dire
 ### Bracketed worker identity observation
 
 `inspectGe04WorkerCredentials` now reads `/proc/<pid>/stat` before and after the UID/GID observation and rejects a changed start-time identity. `ge04-supervised-worker-identity.test.ts` launches and cleans up a real same-UID child and confirms denial. This narrows a simple PID-replacement window but **does not close PID reuse or credential-change races**, attest a child was spawned by the coordinator, or provide a pidfd-held execution boundary. The child test is not a distinct-UID filesystem denial test. No production or reconciliation authorization is enabled.
+
+### Experimental distinct-UID worker launch guard
+
+`spawnGe04IsolatedWorker` is an unwired Linux-only launcher prototype. It rejects same-UID workers, invalid UID/GID values, relative executable paths and unprivileged coordinator attempts to change UID. When privileged, it requests UID/GID at spawn and checks observed `/proc` credentials; on failed verification it kills the child. The tests on this unprivileged host validate rejection only, **not** a real distinct-UID launch or filesystem denial. The launcher has no pidfd, sandbox, executable allowlist, or authenticated helper receipt, and must not be used as an authorization boundary or enabled in production.
