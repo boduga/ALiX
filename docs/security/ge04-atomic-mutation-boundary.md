@@ -159,3 +159,7 @@ The experimental journal writer now rejects `.alix`, `ge04`, and `attempts` dire
 ### Same-UID journal forgery demonstrated
 
 `ge04-journal-tamper.test.ts` demonstrates that a second same-UID filesystem writer can replace the approval ID inside a persisted pre-spawn record despite owner-only directory modes. Thus mode `0700`, symlink checks and `O_NOFOLLOW` do not establish an authority-owned trust boundary when workers share the coordinator UID. Journal data remains **untrusted diagnostic evidence only**, never proof of authorization, native execution or eligibility for automatic reconciliation. Production qualification requires OS-level isolation (distinct security principal or equivalent) and fd-relative protected evidence storage, or a separately authenticated durable receipt protocol whose signing authority workers cannot access.
+
+### Experimental evidence-store isolation preflight
+
+`assertGe04EvidenceIsolation` rejects same-UID worker ownership of the evidence root, workspace/evidence ancestry overlap, symlinked path components, permissive evidence-root modes and group/other-writable ancestors. It requires the coordinator to own the evidence root. This is a **standalone preflight**, not wired to production or journal writes: it retains no directory FD, cannot defeat concurrent same-UID renames, cannot prove a worker actually runs under the declared UID, and does not authenticate native-helper receipts. Do not treat a passing check as permission to reconcile or replay consumed approvals.
