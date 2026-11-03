@@ -147,3 +147,7 @@ The experimental Linux C helper now fsyncs the created file and its actual conta
 ### Real native helper survives parent SIGKILL
 
 `experiments/ge04/test-native-host-crash.py` compiles the actual C helper with test-only barrier hooks, starts it through a separate Python host, kills that host while the helper is blocked at its pinned-directory barrier, then releases the helper and observes the created file. This confirms the orphan-helper hazard against the real native prototype. The test uses no approval/lease authority and provides no authenticated terminal receipt; it must not be treated as production qualification.
+
+### Journal symlink rejection (defense in depth)
+
+The experimental attempt writer now rejects symlinked workspace ancestors and journal components, creates journal directories individually, and opens new records with exclusive create and `O_NOFOLLOW`. Tests cover workspace and `.alix/ge04/attempts` redirection. This is **not** a trusted journal: path checks and subsequent path-based opens still race with concurrent renames, and workspace writers may tamper with records. Move the journal into a protected authority-owned store with fd-relative pinned operations before relying on it for recovery decisions.
