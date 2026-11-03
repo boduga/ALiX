@@ -25,6 +25,26 @@ int main(int argc, char **argv) {
   if (parent_pid <= 1 || prctl(PR_SET_PDEATHSIG, SIGKILL) != 0 || getppid() != parent_pid) {
     fprintf(stderr, "GE04 parent lifetime binding failed\n"); return 14;
   }
+  // Validate optional supervisor notification configuration before any mutation.
+  const char *receipt_fd_env = getenv("GE04_RECEIPT_FD");
+  const char *attempt_id = getenv("GE04_ATTEMPT_ID");
+  int receipt_fd = -1;
+  if (receipt_fd_env || attempt_id) {
+    if (!receipt_fd_env || !attempt_id || strlen(attempt_id) != 36 ||
+        strspn(attempt_id, "0123456789abcdefABCDEF-") != 36 ||
+        attempt_id[8] != '-' || attempt_id[13] != '-' ||
+        attempt_id[18] != '-' || attempt_id[23] != '-') {
+      fprintf(stderr, "GE04 invalid terminal notification binding\n"); return 15;
+    }
+    char *end = NULL;
+    errno = 0;
+    long parsed = strtol(receipt_fd_env, &end, 10);
+    if (errno || !end || *end || parsed < 3 || parsed > 1024 ||
+        fcntl((int)parsed, F_GETFD) == -1) {
+      fprintf(stderr, "GE04 invalid notification fd\n"); return 15;
+    }
+    receipt_fd = (int)parsed;
+  }
   int root = open(argv[1], O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
   if (root < 0) { perror("workspace"); return 3; }
   int owned = beneath(root, argv[2], O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0);
@@ -80,22 +100,10 @@ int main(int argc, char **argv) {
   // Experimental terminal notification over a supervisor-provided fd.
   // This is NOT a durable/authenticated receipt: an untrusted process can
   // spoof env values or a writable fd, and a crash can lose the notification.
-  const char *receipt_fd_env = getenv("GE04_RECEIPT_FD");
-  const char *attempt_id = getenv("GE04_ATTEMPT_ID");
-  if (receipt_fd_env || attempt_id) {
-    if (!receipt_fd_env || !attempt_id || strlen(attempt_id) != 36 ||
-        strspn(attempt_id, "0123456789abcdefABCDEF-") != 36) {
-      fprintf(stderr, "GE04 invalid terminal notification binding\n"); close(owned); close(root); return 15;
-    }
-    char *end = NULL;
-    errno = 0;
-    long parsed = strtol(receipt_fd_env, &end, 10);
-    if (errno || !end || *end || parsed < 3 || parsed > 1024) {
-      fprintf(stderr, "GE04 invalid notification fd\n"); close(owned); close(root); return 15;
-    }
+  if (receipt_fd >= 0) {
     char receipt[96];
     int len = snprintf(receipt, sizeof(receipt), "GE04v1 %s fsynced\n", attempt_id);
-    if (len <= 0 || (size_t)len >= sizeof(receipt) || write((int)parsed, receipt, (size_t)len) != len) {
+    if (len <= 0 || (size_t)len >= sizeof(receipt) || write(receipt_fd, receipt, (size_t)len) != len) {
       perror("GE04 terminal notification"); close(owned); close(root); return 16;
     }
   }

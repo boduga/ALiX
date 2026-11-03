@@ -26,5 +26,17 @@ with tempfile.TemporaryDirectory(prefix='ge04-notify-') as td:
     invalid = subprocess.run([str(binary), str(workspace), 'owned', 'ambiguous.txt', 'value'],
                              env=dict(os.environ, GE04_ATTEMPT_ID=attempt), capture_output=True)
     assert invalid.returncode != 0
-    assert (workspace / 'owned' / 'ambiguous.txt').read_text() == 'value'
-    print('GE-04 notification protocol: PASS; post-create error remains ambiguous')
+    assert not (workspace / 'owned' / 'ambiguous.txt').exists()
+    # An existing but non-writable descriptor still fails after fsync.
+    bad_read, bad_write = os.pipe()
+    try:
+        ambiguous = subprocess.run([str(binary), str(workspace), 'owned', 'postwrite.txt', 'value'],
+                                   env=dict(os.environ, GE04_ATTEMPT_ID=attempt,
+                                            GE04_RECEIPT_FD=str(bad_read)),
+                                   pass_fds=(bad_read,), capture_output=True)
+    finally:
+        os.close(bad_read)
+        os.close(bad_write)
+    assert ambiguous.returncode != 0
+    assert (workspace / 'owned' / 'postwrite.txt').read_text() == 'value'
+    print('GE-04 notification protocol: PASS; invalid config fails before create; delivery failure ambiguous')
