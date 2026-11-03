@@ -16,14 +16,23 @@ export async function inspectGe04WorkerCredentials(pid: number): Promise<Ge04Wor
   if (process.platform !== "linux" || !process.getuid || !Number.isSafeInteger(pid) || pid <= 0) {
     throw new Error("GE-04: Linux worker PID required");
   }
-  const [status, stat] = await Promise.all([
-    readFile(`/proc/${pid}/status`, "utf8"),
-    readFile(`/proc/${pid}/stat`, "utf8"),
-  ]);
+  // Bracket the credential read with process start identity observations.
+  // This detects ordinary PID replacement during inspection, but is not a
+  // substitute for a supervised pidfd-bound child lifecycle.
+  const statBefore = await readFile(`/proc/${pid}/stat`, "utf8");
+  const status = await readFile(`/proc/${pid}/status`, "utf8");
+  const statAfter = await readFile(`/proc/${pid}/stat`, "utf8");
   const uidLine = /^Uid:\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$/m.exec(status);
   const gidLine = /^Gid:\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$/m.exec(status);
-  const tail = stat.slice(stat.lastIndexOf(")") + 2).trim().split(/\s+/);
-  const startTimeTicks = tail[19]; // field 22; tail begins at field 3
+  const startTime = (stat: string): string | undefined => {
+    const end = stat.lastIndexOf(")");
+    if (end < 0) return undefined;
+    return stat.slice(end + 2).trim().split(/\s+/)[19]; // field 22
+  };
+  const startTimeTicks = startTime(statBefore);
+  if (!startTimeTicks || startTimeTicks !== startTime(statAfter)) {
+    throw new Error("GE-04: worker process identity changed during inspection");
+  }
   if (!uidLine || !gidLine || !startTimeTicks) {
     throw new Error("GE-04: incomplete kernel credential observation");
   }

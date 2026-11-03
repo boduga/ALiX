@@ -175,3 +175,7 @@ The experimental journal writer now rejects `.alix`, `ge04`, and `attempts` dire
 ### Linux worker credential observation prototype
 
 `inspectGe04WorkerCredentials` reads Linux `/proc/<pid>/status` UID/GID fields and `/proc/<pid>/stat` start-time ticks, rejecting same-UID and inconsistent-credential processes. Focused tests exercise same-UID rejection and read-only observation of a different-UID process. This is **not an OS-enforced worker launch boundary**: PID lookup can race process death/reuse and a different-UID PID is not proof of an ALiX-owned worker. A future implementation must bind a supervised child process to a pidfd (or equivalent), verify its credentials at the execution boundary, enforce isolation for the worker's entire lifetime, and avoid passing coordinator-owned evidence FDs to the worker. No recovery or production mutation path uses this prototype.
+
+### Bracketed worker identity observation
+
+`inspectGe04WorkerCredentials` now reads `/proc/<pid>/stat` before and after the UID/GID observation and rejects a changed start-time identity. `ge04-supervised-worker-identity.test.ts` launches and cleans up a real same-UID child and confirms denial. This narrows a simple PID-replacement window but **does not close PID reuse or credential-change races**, attest a child was spawned by the coordinator, or provide a pidfd-held execution boundary. The child test is not a distinct-UID filesystem denial test. No production or reconciliation authorization is enabled.
