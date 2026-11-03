@@ -190,4 +190,6 @@ The experimental journal writer now rejects `.alix`, `ge04`, and `attempts` dire
 
 ### Dedicated cross-UID CI gate
 
-`.github/workflows/ge04-cross-uid.yml` defines a manually dispatched, least-privilege GitHub-hosted Linux security job. It builds ALiX and runs the real cross-UID filesystem denial test under an explicitly privileged test runner; any skipped test fails the job. This is a test-only CI privilege context, not a production privilege grant. Workflow existence does not establish a passing result: require a linked successful GitHub Actions run before marking the cross-UID evidence denial verified.
+`.github/workflows/ci.yml` defines a branch-restricted, least-privilege GitHub-hosted Linux security job for the GE-04 pull request. It builds ALiX and runs the real cross-UID filesystem denial test under an explicitly privileged test runner; any skipped test fails the job. This is a test-only CI privilege context, not a production privilege grant. Workflow existence does not establish a passing result: require a linked successful GitHub Actions run before marking the cross-UID evidence denial verified.
+
+The standalone manual workflow was not registered on the default branch (GitHub dispatch returned HTTP 404), so the gate was moved into the existing PR CI workflow as the `ge04-cross-uid-denial` job, restricted to the GE-04 feature branch. Do not interpret the workflow definition as proof of a successful privileged run; inspect its GitHub Actions result.
