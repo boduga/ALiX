@@ -10,6 +10,10 @@ test("node runner discovers each canonical compiled test exactly once", () => {
     cwd: resolve("."), encoding: "utf8", timeout: 15_000,
   });
   const files = output.split(/\r?\n/).filter(line => line.endsWith(".test.js"));
+  const declaredCount = /^\[test:node\] (\d+) test file\(s\)$/m.exec(output);
+  assert.ok(declaredCount, "expected runner's manifest count");
+  assert.equal(files.length, Number(declaredCount[1]),
+    "manifest output must be fully flushed before the runner exits");
   assert.ok(files.length > 0, "expected compiled tests");
   assert.equal(files.length, new Set(files).size, "duplicate compiled test path");
   assert.ok(files.every(file => !file.includes(`${sep}dist${sep}tests${sep}tests${sep}`)),

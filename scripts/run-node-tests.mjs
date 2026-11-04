@@ -62,11 +62,14 @@ const files = [];
 collect(DIST_TESTS, files);
 console.log(`[test:${onlyManual ? "manual" : includeSlow ? "slow" : "node"}] ${files.length} test file(s)`);
 if (process.argv.includes("--list")) {
+  // stdout can be asynchronous when piped to a parent process. Calling
+  // process.exit() here truncates the manifest intermittently before the
+  // buffered writes drain (observed as 575/672/751 of 751 test paths).
   for (const file of files) console.log(file);
-  process.exit(0);
+  process.exitCode = 0;
+} else {
+  const testArgs = ["--test", "--test-timeout=30000"];
+  if (onlyManual) testArgs.push("--test-concurrency=1");
+  const child = spawn(process.execPath, [...testArgs, ...files], { stdio: "inherit" });
+  child.on("exit", (code) => process.exitCode = code ?? 1);
 }
-
-const testArgs = ["--test", "--test-timeout=30000"];
-if (onlyManual) testArgs.push("--test-concurrency=1");
-const child = spawn(process.execPath, [...testArgs, ...files], { stdio: "inherit" });
-child.on("exit", (code) => process.exit(code ?? 1));
