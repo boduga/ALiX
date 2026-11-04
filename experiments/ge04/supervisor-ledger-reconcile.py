@@ -38,7 +38,15 @@ def classify(evidence_root: Path, attempt_id: str, owner_uid: int = 0) -> str:
                 os.close(entry)
         finally:
             os.close(fd)
-        record = json.loads(data)
+        def unique_pairs(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError('duplicate ledger key')
+                result[key] = value
+            return result
+
+        record = json.loads(data, object_pairs_hook=unique_pairs)
         if (type(record) is not dict or set(record) != {'version', 'attemptId', 'state', 'helperSha256', 'admission'} or
                 type(record['version']) is not int or record['version'] != 1 or record['attemptId'] != attempt_id or
                 record['state'] != 'pre_spawn' or record['admission'] != 'NOT_AUTHORIZED' or

@@ -49,6 +49,11 @@ with tempfile.TemporaryDirectory(prefix='ge04-ledger-', dir='/run') as temp:
     entry.write_text(json.dumps(record))
     assert recovery.classify(evidence, attempt) == 'UNCERTAIN', 'forged terminal state accepted'
     entry.write_bytes(original)
+    duplicated = original.decode().rstrip().replace('"admission": "NOT_AUTHORIZED"', '"admission": "AUTHORIZED", "admission": "NOT_AUTHORIZED"')
+    assert duplicated != original.decode().rstrip(), 'fixture did not duplicate key'
+    entry.write_text(duplicated)
+    assert recovery.classify(evidence, attempt) == 'UNCERTAIN', 'duplicate ledger keys accepted'
+    entry.write_bytes(original)
     hardlink = root / 'hardlink'
     os.link(entry, hardlink)
     assert recovery.classify(evidence, attempt) == 'UNCERTAIN', 'multi-link evidence accepted'
