@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { chmod, mkdtemp, open, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -49,4 +50,43 @@ test("GE04 descriptor integrity remains bound to pinned inode after path replace
       await assert.rejects(inspectGe04HelperIntegrity(config), /digest mismatch/);
     } finally { await fd.close(); }
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("GE04 pinned descriptor does NOT freeze same-UID executable bytes after digest verification", {
+  skip: process.platform !== "linux",
+}, async () => {
+  const root = await mkdtemp(join(tmpdir(), "ge04-same-inode-race-"));
+  const executable = join(root, "helper");
+  const original = "#!/bin/sh\necho original\n";
+  const modified = "#!/bin/sh\necho modified\n";
+  try {
+    await writeFile(executable, original, { mode: 0o500 });
+    const fd = await open(executable, "r");
+    try {
+      const config = {
+        executable,
+        expectedSha256: createHash("sha256").update(original).digest("hex"),
+        expectedOwnerUid: process.getuid!(),
+      };
+      await inspectGe04HelperIntegrityFd(config, fd);
+      // An owner sharing the coordinator UID can chmod, replace bytes on the
+      // SAME inode and chmod back after verification. The descriptor stays pinned,
+      // but its bytes are not sealed. This is an adversarial characterization;
+      // the test must NOT count as qualification of the launch protocol.
+      await chmod(executable, 0o700);
+      await writeFile(executable, modified);
+      await chmod(executable, 0o500);
+      const result = spawnSync("/proc/self/fd/4", [], {
+        stdio: ["ignore", "pipe", "pipe", "ignore", fd.fd],
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 0, String(result.error ?? result.stderr));
+      assert.equal(result.stdout.trim(), "modified");
+      await assert.rejects(inspectGe04HelperIntegrityFd(config, fd), /digest mismatch/);
+    } finally {
+      await fd.close();
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

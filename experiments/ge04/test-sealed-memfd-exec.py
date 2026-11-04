@@ -21,6 +21,7 @@ with tempfile.TemporaryDirectory(prefix='ge04-memfd-proof-') as temp:
     subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)], check=True)
     original = binary.read_bytes()
     digest = hashlib.sha256(original).hexdigest()
+    # The digest is a test fixture, not authenticated release provenance.
     fd = os.memfd_create('ge04-verified-executable', os.MFD_ALLOW_SEALING)
     try:
         assert os.write(fd, original) == len(original)
@@ -40,6 +41,19 @@ with tempfile.TemporaryDirectory(prefix='ge04-memfd-proof-') as temp:
                 pass
             else:
                 raise AssertionError('sealed memfd accepted ' + operation)
+        # Simulate the owner rewriting the original helper inode after the
+        # sealed, verified snapshot was prepared. Unlike the pathname/descriptor
+        # launch prototype, subsequent source changes cannot affect this memfd.
+        source_inode = binary.stat().st_ino
+        with binary.open('r+b') as source_handle:
+            source_handle.seek(0)
+            source_handle.write(b'X')  # Corrupt the original ELF header.
+            source_handle.flush()
+            os.fsync(source_handle.fileno())
+        assert binary.stat().st_ino == source_inode, 'fixture unexpectedly replaced the source inode'
+        assert hashlib.sha256(binary.read_bytes()).hexdigest() != digest
+        os.lseek(fd, 0, os.SEEK_SET)
+        assert hashlib.sha256(os.read(fd, len(original) + 1)).hexdigest() == digest
         workspace = base / 'workspace'
         (workspace / 'owned').mkdir(parents=True)
         # Original pathname is no longer needed: execute only the sealed memfd.
