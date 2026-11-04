@@ -458,6 +458,8 @@ jobs:
           grep -Fq 'GE04 SUP-03 unverified evidence PASS' /tmp/ge04-sup03-unverified.log
           python3 -B experiments/ge04/test-pidfd-attempt-observation.py | tee /tmp/ge04-sup04-pidfd-attempt.log
           grep -Fq 'GE04 SUP-04 pidfd attempt binding PASS' /tmp/ge04-sup04-pidfd-attempt.log
+          "$(command -v python)" -B experiments/ge04/test-signed-authority-claim.py | tee /tmp/ge04-sup05-claim.log
+          grep -Fq 'GE04 SUP-05 signed claim matching PASS' /tmp/ge04-sup05-claim.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |
