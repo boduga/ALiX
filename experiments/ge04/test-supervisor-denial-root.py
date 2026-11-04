@@ -20,6 +20,7 @@ def load(name):
 preflight = load('supervisor-preflight')
 journal = load('supervisor-transition-journal')
 recovery = load('supervisor-denial-reconcile')
+audit = load('supervisor-ledger-audit')
 with tempfile.TemporaryDirectory(prefix='ge04-denial-', dir='/run') as temp:
     root = Path(temp)
     root.chmod(0o700)
@@ -42,16 +43,23 @@ with tempfile.TemporaryDirectory(prefix='ge04-denial-', dir='/run') as temp:
         raise AssertionError('duplicate denial overwrote protected journal')
     assert json.loads(denied.read_bytes())['reason'] == 'operator_denied'
     assert recovery.reconcile(evidence, attempt) == 'DENIED'
+    assert audit.audit(evidence) == ('DENY_ONLY', (attempt,))
     original = denied.read_bytes()
     denied.write_bytes(b'{torn')
     assert recovery.reconcile(evidence, attempt) == 'UNCERTAIN', 'torn denial accepted'
+    assert audit.audit(evidence) == ('UNCERTAIN', ()), 'torn denial inventory accepted'
     denied.write_bytes(original)
     forged = json.loads(original)
     forged['preSpawnSha256'] = '0' * 64
     denied.write_text(json.dumps(forged))
     assert recovery.reconcile(evidence, attempt) == 'UNCERTAIN', 'wrong predecessor digest accepted'
+    assert audit.audit(evidence) == ('UNCERTAIN', ()), 'forged denial inventory accepted'
     denied.write_bytes(original)
     denied.unlink()
     assert recovery.reconcile(evidence, attempt) == 'UNCERTAIN', 'missing denial accepted'
+    orphan = evidence / '00000000-0000-4000-8000-000000000001.denied'
+    orphan.write_bytes(original)
+    assert audit.audit(evidence) == ('UNCERTAIN', ()), 'orphan denial accepted'
+    orphan.unlink()
     assert not (root / 'created.txt').exists()
 print('GE04 supervisor denial root PASS: fsynced deny-only transition, replay denied, no execution')
