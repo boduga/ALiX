@@ -481,6 +481,8 @@ jobs:
           "$(command -v python)" -B experiments/ge04/test-fixture-credential-delegation.py | tee /tmp/ge04-sup15-delegation.log
           grep -Fq 'GE04 SUP-15 fixture provisioning PASS' /tmp/ge04-sup15-delegation.log
           grep -Fq 'SCM_RIGHTS delegation risk REPRODUCED_UNTRUSTED' /tmp/ge04-sup15-delegation.log
+          "$(command -v python)" -B experiments/ge04/test-descriptor-provenance-contract.py | tee /tmp/ge04-sup16-provenance.log
+          grep -Fq 'GE04 SUP-16 provenance contract PASS' /tmp/ge04-sup16-provenance.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |
