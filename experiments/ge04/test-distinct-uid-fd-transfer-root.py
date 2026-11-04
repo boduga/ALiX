@@ -11,6 +11,7 @@ import importlib.util
 import os
 from pathlib import Path
 import socket
+import shutil
 import struct
 import subprocess
 import sys
@@ -41,6 +42,11 @@ def drop_identity():
 with tempfile.TemporaryDirectory(prefix='ge04-sup16-') as dirname:
     root = Path(dirname)
     root.chmod(0o711)
+    # GitHub checkout ancestry may be inaccessible to the dropped UID.
+    # Copy only the inert child source to the traversable test directory.
+    child_script = root / 'child-fixture.py'
+    shutil.copyfile(Path(__file__).with_name('sup16-distinct-uid-child.py'), child_script)
+    child_script.chmod(0o644)
     keydir = root / 'protected'
     keydir.mkdir(mode=0o700)
     credential = keydir / 'fixture.key'
@@ -65,7 +71,7 @@ with tempfile.TemporaryDirectory(prefix='ge04-sup16-') as dirname:
         # A fresh Python exec erases inherited Python secrets and objects.
         proc = subprocess.Popen(
             [sys.executable, '-B',
-             str(Path(__file__).with_name('sup16-distinct-uid-child.py')),
+             str(child_script),
              str(child_control.fileno()), str(credential), str(path)],
             pass_fds=(child_control.fileno(),), preexec_fn=drop_identity,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
