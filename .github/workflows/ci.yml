@@ -472,6 +472,8 @@ jobs:
           grep -Fq 'GE04 SUP-10 endpoint bootstrap PASS' /tmp/ge04-sup10-endpoint.log
           "$(command -v python)" -B experiments/ge04/test-supervisor-role-observation.py | tee /tmp/ge04-sup11-role.log
           grep -Fq 'GE04 SUP-11 role identity observation PASS' /tmp/ge04-sup11-role.log
+          "$(command -v python)" -B experiments/ge04/test-ephemeral-ipc-session.py | tee /tmp/ge04-sup12-session.log
+          grep -Fq 'GE04 SUP-12 ephemeral IPC authentication PASS' /tmp/ge04-sup12-session.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |

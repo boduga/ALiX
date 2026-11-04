@@ -1,0 +1,11 @@
+# GE-04 SUP-12: Ephemeral authenticated IPC session experiment
+
+**SECURITY HOLD: fixture protocol, not trusted coordinator admission, mutation authority, or authenticated execution receipt.**
+
+`experiments/ge04/ephemeral-ipc-session.py` models a challenge-response handshake using a fixture-provided 32-byte HMAC key and a fresh 32-byte server challenge. The proof is bound to an explicit fixture peer label. A separate challenge-derived session key MACs every subsequent request, including monotonic sequence number, attempt ID and exact request SHA-256 digest. Reusing a challenge or handshake, replaying a consumed sequence, skipping a sequence, changing an attempt or digest, or using an old request MAC in a new session is rejected. Invalid handshake responses burn that connection's challenge.
+
+`test-ephemeral-ipc-session.py` covers positive fixture sequences, same-session and cross-session replay, wrong fixture key/peer, message tampering, wrong order, duplicate JSON keys, oversized framing and failed challenge reuse. The independent test is registered in the GE-04 Linux CI lane.
+
+**Limitations:** This is an in-memory protocol model, not actual authenticated AF_UNIX transport. Its secret and peer label come from the test caller; no independent coordinator trust anchor, OS credential-to-key binding, per-sender descriptor provenance, key rotation, durable replay state, crash-safe session invalidation, protected supervisor key custody, or real lease/policy authority is established. In particular, process restart with the same leaked key is not a secure role bootstrap, and HMAC validity cannot authorize operations. It does not integrate SUP-04 pidfd, SUP-08, SUP-10 endpoint, SUP-11 peer observation, or any real worker/mutation helper. The only positive values end in `UNTRUSTED`; production `UnavailableScopedMutationService` remains unchanged. PR #1039 must remain unmerged.
+
+**Next gate:** Independently provision supervisor/coordinator secret custody and role authorization, build a bounded real Unix-socket transport that binds a session to an OS-observed peer without allowing delegated-descriptor spoofing, then prove crash/restart invalidation and per-request replay protection before any mutation integration.
