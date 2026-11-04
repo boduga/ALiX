@@ -485,6 +485,9 @@ jobs:
           grep -Fq 'GE04 SUP-16 provenance contract PASS' /tmp/ge04-sup16-provenance.log
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-cross-uid-path-isolation-root.py | tee /tmp/ge04-sup17-path-isolation.log
           grep -Fq 'GE04 SUP-17 cross-UID path isolation PASS' /tmp/ge04-sup17-path-isolation.log
+          sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-distinct-uid-fd-transfer-root.py | tee /tmp/ge04-sup16-cross-uid-fd.log
+          grep -Fq 'GE04 SUP-16 distinct-UID FD transfer PASS' /tmp/ge04-sup16-cross-uid-fd.log
+          grep -Fq 'delegated authenticated request REPRODUCED_UNTRUSTED' /tmp/ge04-sup16-cross-uid-fd.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |
