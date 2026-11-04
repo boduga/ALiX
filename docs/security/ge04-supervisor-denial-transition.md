@@ -1,0 +1,7 @@
+# GE-04 experimental deny-only journal transition
+
+**SECURITY HOLD. Not an authenticated supervisor, execution admission, or production state machine.**
+
+`experiments/ge04/supervisor-transition-journal.py` can append one protected `DENIED` record for an existing validated pre-spawn attempt. It binds the denial to a SHA-256 digest of the pre-spawn bytes, uses exclusive creation to reject duplicate writers, and fsyncs the record and parent directory. It never admits, spawns, mutates, records success, or replays. A torn record must remain quarantined rather than retried automatically. The privileged CI fixture verifies the single-use denial record and absence of helper execution.
+
+This is a narrow prototype, **not crash-safe end-to-end reconciliation**. The pre-spawn verification and denial creation are not serialized against privileged same-UID changes; no signed authority or independently pinned approval is involved. A digest is an integrity link, not authentication. The journal is not append-only against root or its own owner. Crash/power-loss matrix, lease fencing, child identity, terminal receipts, and full transition monotonicity remain unresolved. Production mutation remains disabled.
