@@ -478,6 +478,9 @@ jobs:
           grep -Fq 'GE04 SUP-13 real IPC transport PASS' /tmp/ge04-sup13-transport.log
           "$(command -v python)" -B experiments/ge04/test-ipc-lifecycle.py | tee /tmp/ge04-sup14-lifecycle.log
           grep -Fq 'GE04 SUP-14 lifecycle PASS' /tmp/ge04-sup14-lifecycle.log
+          "$(command -v python)" -B experiments/ge04/test-fixture-credential-delegation.py | tee /tmp/ge04-sup15-delegation.log
+          grep -Fq 'GE04 SUP-15 fixture provisioning PASS' /tmp/ge04-sup15-delegation.log
+          grep -Fq 'SCM_RIGHTS delegation risk REPRODUCED_UNTRUSTED' /tmp/ge04-sup15-delegation.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |
