@@ -456,6 +456,8 @@ jobs:
           grep -Fq 'GE04 SUP-02 pidfd lifecycle PASS' /tmp/ge04-sup02-pidfd.log
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-supervisor-unverified-evidence-root.py | tee /tmp/ge04-sup03-unverified.log
           grep -Fq 'GE04 SUP-03 unverified evidence PASS' /tmp/ge04-sup03-unverified.log
+          python3 -B experiments/ge04/test-pidfd-attempt-observation.py | tee /tmp/ge04-sup04-pidfd-attempt.log
+          grep -Fq 'GE04 SUP-04 pidfd attempt binding PASS' /tmp/ge04-sup04-pidfd-attempt.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |
