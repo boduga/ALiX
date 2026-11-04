@@ -108,12 +108,20 @@ with tempfile.TemporaryDirectory(prefix='ge04-sup06-', dir='/run') as name:
         pass
     else:
         raise AssertionError('crash-created reservation replayed')
-    # Tamper is quarantine only; it cannot create new authority.
-    file = next(reservation.glob('*.claim-reserved'))
+    # Two reservations coexist; only the exact nonce-derived entry is targeted.
+    # Directory iteration order must never decide which claim is tampered with.
+    file = reservation / store._name(claim['nonce'])
+    other = reservation / store._name(crashed['nonce'])
+    assert file != other and file.is_file() and other.is_file()
     original = file.read_bytes()
+    other_original = other.read_bytes()
+    assert original != other_original
     file.write_bytes(b'RECEIPT_DURABLE SUCCESS\n')
     assert store.classify_reservation(reservation, claim['nonce'], raw) == 'UNCERTAIN'
+    assert store.classify_reservation(reservation, crashed['nonce'], crash_raw) == 'UNCERTAIN'
+    assert other.read_bytes() == other_original, 'unrelated reservation was modified'
     file.write_bytes(original)
     assert store.classify_reservation(reservation, claim['nonce'], raw) == 'RESERVED_UNTRUSTED'
+    assert other.read_bytes() == other_original
 
 print('GE04 SUP-06 single-use claim reservation PASS: race, replay, nonce collision, crash and tamper fail closed')
