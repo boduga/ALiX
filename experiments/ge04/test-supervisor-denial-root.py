@@ -19,6 +19,7 @@ def load(name):
 
 preflight = load('supervisor-preflight')
 journal = load('supervisor-transition-journal')
+recovery = load('supervisor-denial-reconcile')
 with tempfile.TemporaryDirectory(prefix='ge04-denial-', dir='/run') as temp:
     root = Path(temp)
     root.chmod(0o700)
@@ -40,5 +41,17 @@ with tempfile.TemporaryDirectory(prefix='ge04-denial-', dir='/run') as temp:
     else:
         raise AssertionError('duplicate denial overwrote protected journal')
     assert json.loads(denied.read_bytes())['reason'] == 'operator_denied'
+    assert recovery.reconcile(evidence, attempt) == 'DENIED'
+    original = denied.read_bytes()
+    denied.write_bytes(b'{torn')
+    assert recovery.reconcile(evidence, attempt) == 'UNCERTAIN', 'torn denial accepted'
+    denied.write_bytes(original)
+    forged = json.loads(original)
+    forged['preSpawnSha256'] = '0' * 64
+    denied.write_text(json.dumps(forged))
+    assert recovery.reconcile(evidence, attempt) == 'UNCERTAIN', 'wrong predecessor digest accepted'
+    denied.write_bytes(original)
+    denied.unlink()
+    assert recovery.reconcile(evidence, attempt) == 'UNCERTAIN', 'missing denial accepted'
     assert not (root / 'created.txt').exists()
 print('GE04 supervisor denial root PASS: fsynced deny-only transition, replay denied, no execution')
