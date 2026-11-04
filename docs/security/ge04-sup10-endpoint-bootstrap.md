@@ -1,0 +1,11 @@
+# GE-04 SUP-10 — Protected Unix-socket endpoint bootstrap experiment
+
+**SECURITY HOLD — TEST ONLY. No trusted coordinator, authorization, helper execution, mutation, or terminal receipt.**
+
+`experiments/ge04/supervisor-endpoint-bootstrap.py` opens an explicit fixture socket-root path using `O_DIRECTORY | O_NOFOLLOW` through each component. Each ancestor must be owned by root or the expected fixture owner and must not be group/other writable; the endpoint root must be owner-only. The server binds `supervisor.sock` underneath its retained directory descriptor via `/proc/self/fd/<fd>/supervisor.sock`, sets owner-only socket permissions, checks the socket inode and type, fsyncs the directory, and listens. An already occupied socket path (including a stale crashed-server endpoint) is never removed or overwritten automatically. On accept, the supervisor checks the pinned socket inode again. Closing intentionally leaves the socket file behind; explicit out-of-band reconciliation is required before reuse.
+
+`test-supervisor-endpoint-bootstrap.py` exercises a real Unix stream connection, socket permissions, duplicate bootstrap denial, stale restart denial, symlink and permissive-directory denial, symlinked-root rejection, and socket inode substitution detection. The test runs unprivileged in the GE-04 Linux CI lane.
+
+**Limits:** Socket owner/mode and `SO_PEERCRED` observations do not establish the authorized ALiX coordinator role. The expected owner and fixture root are caller-supplied. Same-UID processes may still control the directory and replace or impersonate the endpoint; the pathname can be replaced between checks and connection establishment. No independent root-owned configuration bootstrap, credential-role allowlist, protected IPC protocol, FD delegation checks, request nonce, crash-safe socket re-adoption, lease revocation fence, worker isolation or authenticated receipt has been established. These fixtures do not connect to a real mutation helper or production `UnavailableScopedMutationService`.
+
+**Next:** Independently provision and pin the real coordinator/supervisor roles; verify credentials and endpoint identity at both ends of a connection; test stale restart/recovery, confused-deputy requests, and file-descriptor passing before any execution integration. Do not merge PR #1039.
