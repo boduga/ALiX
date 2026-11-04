@@ -466,6 +466,8 @@ jobs:
           grep -Fq 'GE04 SUP-07 cooperative fence PASS' /tmp/ge04-sup07-fence.log
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-supervisor-composition-root.py | tee /tmp/ge04-sup08-composition.log
           grep -Fq 'GE04 SUP-08 inert supervisor composition PASS' /tmp/ge04-sup08-composition.log
+          sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-supervisor-peercred.py | tee /tmp/ge04-sup09-peercred.log
+          grep -Fq 'GE04 SUP-09 peercred PASS' /tmp/ge04-sup09-peercred.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |

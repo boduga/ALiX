@@ -1,0 +1,11 @@
+# GE-04 SUP-09 — Kernel-observed Unix socket peer identity (experiment)
+
+**SECURITY HOLD — observation only; no coordinator authentication, admission, helper launch, mutation, or receipt.**
+
+`experiments/ge04/supervisor-peercred-observation.py` inspects `SO_PEERCRED` on an accepted Linux AF_UNIX stream connection and compares the kernel-reported PID and UID against independently provided **fixture values**. It rejects claimed UID/PID mismatches, duplicate JSON keys, malformed framing, unexpected fields and oversized requests. The sole positive result is `PEER_OBSERVED_UNTRUSTED`; this is not an authority grant.
+
+`test-supervisor-peercred.py` creates real bound/listening Unix sockets and connects independent client processes. It exercises valid process identity, forged declared PID and UID, wrong expected PID, duplicate keys, oversized/trailing payloads and invalid schema. When run as root, it also drops a client to UID/GID 65534 and tests both correct and forged distinct-UID observations. The privileged case is registered in the GE-04 CI security lane. The socket mode in the test is intentionally permissive to exercise adversarial connections and **must not** be adopted for production.
+
+**Limits:** `SO_PEERCRED` attests an observed local process credential at connection establishment, not its ALiX role, binary provenance, authority over a particular approval, current lease or policy revision, or future operations. Fixture-provided expected UID/PID is not an authenticated coordinator identity; same-UID processes, compromised processes and credential/FD delegation remain unresolved. No protected socket directory, independently provisioned trust root, signed supervisor installation, IPC channel protocol, transferred fd provenance, approval consumption, cross-process revocation fence, OS-enforced confinement, or authenticated receipt is established. This experiment is intentionally disconnected from SUP-08 and production `UnavailableScopedMutationService`. PR #1039 must remain unmerged.
+
+**Next:** Independently bootstrap supervisor and coordinator identities, restrict and authenticate the connection endpoint, define a replay-safe request protocol, and test PID/FD transfer, peer termination and impersonation before composing with any mutation path.
