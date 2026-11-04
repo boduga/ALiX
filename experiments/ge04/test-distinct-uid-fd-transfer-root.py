@@ -74,7 +74,12 @@ with tempfile.TemporaryDirectory(prefix='ge04-sup16-') as dirname:
                                      array.array('i', [offered.fileno()]))])
         offered.close()
         parent.settimeout(5)
-        actual = transport.read_frame(parent)
+        try:
+            actual = transport.read_frame(parent)
+        except (OSError, ConnectionError, TimeoutError) as exc:
+            out, err = proc.communicate(timeout=8)
+            raise AssertionError(('delegated child failed before inert request',
+                                  proc.returncode, out, err)) from exc
         result = fixture.request(actual)
         out, err = proc.communicate(timeout=8)
         assert proc.returncode == 0, (out, err)
