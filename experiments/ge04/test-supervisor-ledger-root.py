@@ -19,6 +19,7 @@ def load(name):
 
 preflight = load('supervisor-preflight')
 recovery = load('supervisor-ledger-reconcile')
+audit = load('supervisor-ledger-audit')
 with tempfile.TemporaryDirectory(prefix='ge04-ledger-', dir='/run') as temp:
     root = Path(temp)
     root.chmod(0o700)
@@ -30,6 +31,11 @@ with tempfile.TemporaryDirectory(prefix='ge04-ledger-', dir='/run') as temp:
     attempt = preflight.prepare(helper, hashlib.sha256(helper.read_bytes()).hexdigest(), evidence)
     entry = evidence / (attempt + '.json')
     assert recovery.classify(evidence, attempt) == 'NOT_AUTHORIZED'
+    assert audit.audit(evidence) == ('NOT_AUTHORIZED_ONLY', (attempt,))
+    rogue = evidence / 'rogue.tmp'
+    rogue.write_bytes(b'partial')
+    assert audit.audit(evidence) == ('UNCERTAIN', ()), 'orphan staging file was ignored'
+    rogue.unlink()
     assert recovery.classify(evidence, '../' + attempt) == 'UNCERTAIN'
     assert recovery.classify(evidence, '00000000-0000-4000-8000-000000000000') == 'UNCERTAIN'
     original = entry.read_bytes()
