@@ -1,0 +1,11 @@
+# GE-04 SUP-08 — Inert supervisor composition experiment
+
+**SECURITY HOLD. This is not a trusted supervisor, admission protocol, mutation backend, or terminal receipt.**
+
+`experiments/ge04/supervisor-composition-fixture.py` composes SUP-05 signed claim matching, SUP-06 single-use claim nonce reservation and SUP-07 cooperative lease/policy fixture ordering. All trust inputs (signing key pin, expected binding, clock, revocation state, directories) are supplied by the test caller and must be treated as unauthenticated. The only action is SUP-07's harmless marker; no actual governed helper is spawned and SUP-04 pidfd lifecycle is **not** integrated here. A completed fixture returns `PROCESS_OUTCOME_UNVERIFIED` and read-only `inspect` always returns `UNCERTAIN` because no authenticated terminal receipt exists.
+
+`experiments/ge04/test-supervisor-composition-root.py` exercises a valid signed fixture, signed-message replay rejection, forged binding denial, revocation between signature matching and fixture admission, a process exit immediately after exclusive nonce creation, and a process exit after in-flight fence publication. Both crash cases must remain uncertain and non-replayable. The regression is root-only, so on machines disallowing privileged test commands it is registered in GE-04 Linux CI but remains unverified locally.
+
+**Unresolved trust boundaries:** No authenticated coordinator-to-supervisor IPC or OS-attested peer, supervisor-owned signing-key root, durable single-use *approval-store* consumption, kernel-held policy/lease revocation exclusion, reliable expiry policy, helper process credential isolation, pinned fd-relative governed write, authenticated terminal receipt, power-loss recovery, or independent security review. Cooperative `flock` can be bypassed by nonparticipants; the caller-provided fixture clock and state do not establish authority. The signature and reservation do not authorize execution. Production `UnavailableScopedMutationService` remains unchanged and PR #1039 must not merge.
+
+**Next:** Define the OS-authenticated coordinator/supervisor interface and its bootstrap trust roots. Separate admission authority from untrusted worker data and require fail-closed peer/credential and crash semantics before any real mutation composition.
