@@ -1,0 +1,11 @@
+# GE-04 SUP-03 — durable unverified outcome evidence
+
+**SECURITY HOLD. No authenticated success receipts, admission, helper launch, or production integration.**
+
+`experiments/ge04/supervisor-unverified-evidence.py` adds a deliberately non-authorizing evidence format to the isolated Linux supervisor experiment. Given an existing validated `pre_spawn` attempt record, it writes one exclusive `.unverified` observation bound to the SHA-256 of that pre-spawn record, fsyncs the file and its pinned protected directory, and forbids rewriting the same attempt. The supported outcomes are restricted to `*_UNVERIFIED`. It rejects success claims, receipt-durable claims, and arbitrary child notification text as states. It never consumes an approval or declares a mutation successful.
+
+A read-only classifier validates owner, mode, link count, descriptor identity, strict schema, unique JSON keys, pre-spawn digest, and absence of a conflicting denial record. A valid entry is classified **UNVERIFIED**; corruption, a forged success state, a duplicated key, invalid permissions, symlink substitution, or missing evidence is **UNCERTAIN**. The older global inventory audit intentionally treats the new file type as unknown and returns **UNCERTAIN** rather than granting any authority.
+
+`test-supervisor-unverified-evidence-root.py` is a root-only, CI-gated adversarial fixture covering success forgery, duplicate attempt recording, unsafe modes, symlink and duplicate-key tampering, pre-spawn binding, and conservative inventory classification. Its green result proves negative state semantics and exclusive fsynced file writes on CI's Linux runner, **not** authenticated terminal success or crash/power-loss durability.
+
+**Remaining blockers:** This standalone API accepts a caller-supplied outcome. It does not yet bind a pidfd-attested child, exact invocation/lease/policy authority, kernel credentials, file identity, or a privileged notification channel to the evidence. Privileged same-UID tampering, concurrent admission fencing, process crashes during state transitions, and malicious supervisor compromise are unqualified. Fsync cannot by itself authenticate a result. No `RECEIPT_DURABLE`, `RECONCILED_SUCCESS`, replay, or production writer path is implemented. Keep `UnavailableScopedMutationService` unchanged and PR #1039 unmerged.
