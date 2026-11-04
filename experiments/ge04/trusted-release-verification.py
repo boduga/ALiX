@@ -14,7 +14,8 @@ def load(name):
     return module
 
 
-def verify(config_path, release_path, owner_uid=0, floor_path=None, return_signed_sequence=False):
+def verify(config_path, release_path, owner_uid=0, floor_path=None, return_signed_sequence=False,
+           return_verified_bytes=False):
     walk = load('trusted-path')
     reader = load('signed-installation')
     signer = load('signed-release')
@@ -41,6 +42,8 @@ def verify(config_path, release_path, owner_uid=0, floor_path=None, return_signe
             if floor_path is not None:
                 sequenced = load('signed-sequence')
                 digest = sequenced.verify(manifest, signature, key, helper, release, floor_path, owner_uid)
+                if return_verified_bytes:
+                    return digest, helper, json.loads(manifest)['sequence']
                 if return_signed_sequence:
                     return digest, json.loads(manifest)['sequence']
                 return digest
@@ -48,7 +51,10 @@ def verify(config_path, release_path, owner_uid=0, floor_path=None, return_signe
                 raise PermissionError('signed sequence requires protected floor')
             if json.loads(manifest).get('version') != 1:
                 raise PermissionError('version-2 release requires protected floor')
-            return signer.verify_release(manifest, signature, key, helper, release)
+            digest = signer.verify_release(manifest, signature, key, helper, release)
+            if return_verified_bytes:
+                return digest, helper, None
+            return digest
         finally:
             os.close(release_fd)
     finally:

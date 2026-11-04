@@ -450,6 +450,8 @@ jobs:
           grep -Fq 'GE04 signed-to-sealed snapshot PASS' /tmp/ge04-signed-sealed.log
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-signed-release-root.py | tee /tmp/ge04-signed-install.log
           grep -Fq 'GE04 signed installation distinct-UID PASS' /tmp/ge04-signed-install.log
+          sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-trusted-supervisor-preparation-root.py | tee /tmp/ge04-trusted-preparation.log
+          grep -Fq 'GE04 trusted supervisor preparation PASS' /tmp/ge04-trusted-preparation.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |
