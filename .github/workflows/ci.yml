@@ -476,6 +476,8 @@ jobs:
           grep -Fq 'GE04 SUP-12 ephemeral IPC authentication PASS' /tmp/ge04-sup12-session.log
           "$(command -v python)" -B experiments/ge04/test-real-ipc-session-transport.py | tee /tmp/ge04-sup13-transport.log
           grep -Fq 'GE04 SUP-13 real IPC transport PASS' /tmp/ge04-sup13-transport.log
+          "$(command -v python)" -B experiments/ge04/test-ipc-lifecycle.py | tee /tmp/ge04-sup14-lifecycle.log
+          grep -Fq 'GE04 SUP-14 lifecycle PASS' /tmp/ge04-sup14-lifecycle.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |
