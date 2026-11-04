@@ -1,0 +1,11 @@
+# GE-04 SUP-13 — Real Unix-socket IPC transport experiment
+
+**SECURITY HOLD. This is an inert test-only transport, NOT authenticated coordinator authority or governed execution.**
+
+`experiments/ge04/real-ipc-session-transport.py` connects the SUP-10 protected Unix-socket endpoint, SUP-11 Linux peer-process observations, and SUP-12 session challenge-response and per-request HMAC. It exchanges newline-framed messages with strict length limits, verifies the fixture-supplied expected peer PID/UID/executable/start-time against kernel observations, then performs one challenge, one handshake, and one inert digest request. Every successful message is marked `UNTRUSTED`; the server returns only `TRANSPORT_OUTCOME_UNVERIFIED`. Disconnects, malformed frames, failed MACs, and mismatched peer identity return `UNCERTAIN`. Connections are closed after a single request.
+
+`experiments/ge04/test-real-ipc-session-transport.py` exercises independent real Linux client processes and socket connections: a valid inert exchange, request tampering, invalid proof, oversize frame, early disconnect, post-handshake disconnect, wrong shared secret, wrong claimed peer label, and wrong expected kernel PID. It runs unprivileged in the existing GE-04 Linux CI lane.
+
+**Unresolved trust:** The expected peer identity, secret, and role label are fixture inputs, not an independent coordinator identity or protected key custody. A valid secret held by another process or transferred connected descriptor is not prevented by this experiment; SUP-11 documents that `SO_PEERCRED` identifies the original connector, not the current holder. Challenge/session state is volatile, and there is no durability or power-loss qualification. No approval consumption, policy/lease revocation fence integration, durable replay ledger, authentic success receipt, helper process execution, or kernel final-write isolation is present. Production `UnavailableScopedMutationService` is unchanged; PR #1039 must not merge.
+
+**Next gate:** Independently provision roles and secrets; test actual interprocess FD transfer, restart, and key compromise recovery across the live transport; require authenticated durable terminal results and final mutation-boundary fencing before proposing real execution.
