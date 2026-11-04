@@ -34,12 +34,33 @@ def load_trust_config(config_dir: Path, required_owner_uid: int = 0) -> tuple[st
         os.close(fd)
 
 
-def verify_from_trust_config(installation: Path, config_dir: Path, owner_uid: int = 0) -> str:
-    """Experimental owner_uid override is test-only; production must hardcode root."""
-    if installation.resolve() == config_dir.resolve():
-        raise PermissionError('trust configuration must be outside release installation')
-    digest, release = load_trust_config(config_dir, owner_uid)
+def _installation_module():
     spec = importlib.util.spec_from_file_location('ge04_install', Path(__file__).with_name('signed-installation.py'))
     install = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(install)
-    return install.verify_installation(installation, owner_uid, release, digest)
+    return install
+
+
+def _trusted_inputs(installation: Path, config_dir: Path, owner_uid: int) -> tuple[str, str]:
+    if installation.resolve() == config_dir.resolve():
+        raise PermissionError('trust configuration must be outside release installation')
+    return load_trust_config(config_dir, owner_uid)
+
+
+def verify_from_trust_config(installation: Path, config_dir: Path, owner_uid: int = 0) -> str:
+    """Experimental owner_uid override is test-only; production must hardcode root."""
+    digest, release = _trusted_inputs(installation, config_dir, owner_uid)
+    return _installation_module().verify_installation(installation, owner_uid, release, digest)
+
+
+def prepare_sealed_from_trust_config(installation: Path, config_dir: Path,
+                                     owner_uid: int = 0) -> tuple[int, str]:
+    """Seals signed bytes using a separately stored trust pin; NO launch/admission.
+
+    This prototype accepts paths and a test UID from its caller. A trusted
+    supervisor bootstrap must pin those independently before real use.
+    Caller owns and must close the returned descriptor.
+    """
+    digest, release = _trusted_inputs(installation, config_dir, owner_uid)
+    return _installation_module().prepare_verified_sealed_helper(
+        installation, owner_uid, release, digest)

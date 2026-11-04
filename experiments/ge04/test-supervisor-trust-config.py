@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Standalone GE04 protected-config adversarial fixture, unprivileged mode."""
+import fcntl
 import hashlib
 import importlib.util
 import json
@@ -35,6 +36,38 @@ with tempfile.TemporaryDirectory(prefix='ge04-trust-config-') as temp:
     trust.chmod(0o400)
     uid = os.geteuid()
     assert module.verify_from_trust_config(install, config, uid) == hashlib.sha256(helper).hexdigest()
+    fd, sealed_digest = module.prepare_sealed_from_trust_config(install, config, uid)
+    try:
+        assert sealed_digest == hashlib.sha256(helper).hexdigest()
+        seals = fcntl.F_SEAL_WRITE | fcntl.F_SEAL_GROW | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_SEAL
+        assert fcntl.fcntl(fd, fcntl.F_GET_SEALS) & seals == seals
+        try:
+            os.pwrite(fd, b'X', 0)
+        except OSError:
+            pass
+        else:
+            raise AssertionError('trusted signed snapshot was writable')
+        # Change the original inode after sealing, without replacing its path.
+        helper_file = install / 'helper'
+        before_inode = helper_file.stat().st_ino
+        helper_file.chmod(0o600)
+        helper_file.write_bytes(b'mutated original helper')
+        helper_file.chmod(0o400)
+        assert helper_file.stat().st_ino == before_inode
+        os.lseek(fd, 0, os.SEEK_SET)
+        assert hashlib.sha256(os.read(fd, len(helper) + 1)).hexdigest() == sealed_digest
+        try:
+            module.prepare_sealed_from_trust_config(install, config, uid)
+        except PermissionError:
+            pass
+        else:
+            raise AssertionError('tampered installation produced a new trusted snapshot')
+        # Restore the fixture for subsequent denial cases.
+        helper_file.chmod(0o600)
+        helper_file.write_bytes(helper)
+        helper_file.chmod(0o400)
+    finally:
+        os.close(fd)
 
     def denied():
         try:
