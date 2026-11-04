@@ -41,6 +41,18 @@ with tempfile.TemporaryDirectory(prefix='ge04-ledger-', dir='/run') as temp:
     entry.chmod(0o666)
     assert recovery.classify(evidence, attempt) == 'UNCERTAIN', 'writable ledger accepted'
     entry.chmod(0o600)
+    entry.write_bytes(b'{incomplete')
+    assert recovery.classify(evidence, attempt) == 'UNCERTAIN', 'torn record accepted'
+    entry.write_bytes(original)
+    record = json.loads(original)
+    record['state'] = 'RECEIPT_DURABLE'
+    entry.write_text(json.dumps(record))
+    assert recovery.classify(evidence, attempt) == 'UNCERTAIN', 'forged terminal state accepted'
+    entry.write_bytes(original)
+    hardlink = root / 'hardlink'
+    os.link(entry, hardlink)
+    assert recovery.classify(evidence, attempt) == 'UNCERTAIN', 'multi-link evidence accepted'
+    hardlink.unlink()
     entry.unlink()
     entry.symlink_to(helper)
     assert recovery.classify(evidence, attempt) == 'UNCERTAIN', 'symlink accepted'
