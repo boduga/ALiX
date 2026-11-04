@@ -460,6 +460,8 @@ jobs:
           grep -Fq 'GE04 SUP-04 pidfd attempt binding PASS' /tmp/ge04-sup04-pidfd-attempt.log
           "$(command -v python)" -B experiments/ge04/test-signed-authority-claim.py | tee /tmp/ge04-sup05-claim.log
           grep -Fq 'GE04 SUP-05 signed claim matching PASS' /tmp/ge04-sup05-claim.log
+          sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-single-use-claim-reservation-root.py | tee /tmp/ge04-sup06-reservation.log
+          grep -Fq 'GE04 SUP-06 single-use claim reservation PASS' /tmp/ge04-sup06-reservation.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |
