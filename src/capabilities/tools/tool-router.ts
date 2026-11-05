@@ -7,6 +7,7 @@ import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./s
 import { constants, existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { lstat, mkdir, open, writeFile } from "node:fs/promises";
+import { OwnedReplaceAmbiguousError, replaceOwnedFileStaged } from "./owned-file-replace.js";
 import { applyPatch } from "../../execution/patch/patch-engine.js";
 import { PatchRejectedError } from "../../execution/patch/patch-engine.js";
 import { buildEditFormatPolicy, type EditFormatPolicy, type EditFormat } from "../../execution/patch/edit-format-policy.js";
@@ -260,36 +261,18 @@ export class FileToolRouter implements ToolRouter {
             if (existingEntry.nlink !== 1) {
               return { kind: "error", message: `Hard-linked file cannot be overwritten: ${path}`, retryable: false };
             }
-            const handle = await open(resolvedPath, constants.O_RDWR | constants.O_NOFOLLOW);
-            try {
-              const pinned = await handle.stat();
-              if (!pinned.isFile() || pinned.dev !== existingEntry.dev ||
-                  pinned.ino !== existingEntry.ino || pinned.nlink !== 1) {
-                return { kind: "error", message: `File changed or is hard-linked: ${path}`, retryable: false };
-              }
-              // Detect a concurrent content change between read-only compare
-              // and opening the writable descriptor; do not overwrite stale data.
-              if (await handle.readFile("utf8") !== existing) {
-                return { kind: "error", message: `File contents changed during authorization: ${path}`, retryable: false };
-              }
-              // The write uses the same verified descriptor, not a pathname.
-              const bytes = Buffer.from(content, "utf8");
-              let offset = 0;
-              while (offset < bytes.length) {
-                const { bytesWritten } = await handle.write(bytes, offset, bytes.length - offset, offset);
-                if (bytesWritten === 0) throw new Error("Short write while replacing owned file");
-                offset += bytesWritten;
-              }
-              await handle.truncate(bytes.length);
-              overwritten = true;
-            } finally {
-              await handle.close();
-            }
+            // Stage all bytes on a separate inode, then commit with a rename.
+            // This eliminates partial in-place writes and prevents writes
+            // through a hard link created to the old inode mid-flight. It does
+            // NOT solve malicious concurrent parent/leaf path swaps.
+            await replaceOwnedFileStaged(resolvedPath, content, existingEntry, existing);
+            overwritten = true;
           } catch (compareError) {
             return {
               kind: "error",
               message: `Could not safely compare existing file ${path}: ${compareError instanceof Error ? compareError.message : String(compareError)}`,
               retryable: false,
+              outcomeUnknown: compareError instanceof OwnedReplaceAmbiguousError,
             };
           }
         }
