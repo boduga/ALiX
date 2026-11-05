@@ -133,7 +133,11 @@ try:
         time.sleep(0.05)
     assert endpoint.exists(), service_status()
     s = endpoint.stat()
-    assert stat.S_ISSOCK(s.st_mode) and s.st_uid == 0 and s.st_mode & 0o077 == 0
+    # Socket mode 0666 is intentional for the distinct-UID inert sender;
+    # security comes from the kernel sender pin and non-writable 0711 parent.
+    assert stat.S_ISSOCK(s.st_mode) and s.st_uid == 0 and s.st_mode & 0o777 == 0o666
+    public_meta = ROOTS['public'].stat()
+    assert public_meta.st_uid == 0 and public_meta.st_mode & 0o777 == 0o711
     coordinator.stdin.write('SEND\n')
     coordinator.stdin.flush()
     assert coordinator.stdout.readline().strip() == 'SYSTEMD_INERT_SENT'
