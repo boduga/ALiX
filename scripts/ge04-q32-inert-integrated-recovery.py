@@ -15,6 +15,7 @@ def load(name, filename):
 
 journal = load('ge04_inert_journal_integrated', 'ge04-q32-inert-effect-journal.py')
 target = load('ge04_inert_target_integrated', 'ge04-q32-inert-target-reconcile.py')
+custody = load('ge04_inert_custody_integrated', 'ge04-q32-inert-custody.py')
 
 
 # Test-only immutable binding in the SAME unprotected scratch journal.
@@ -71,6 +72,15 @@ def reconcile(journal_db, target_db, attempt, key, digest, revision=1):
     if observation == 'CONFLICT':
         return 'HOLD_INTEGRITY_CONFLICT'
     return 'HOLD_UNRESOLVED'
+
+
+def reconcile_with_authority(journal_db, target_db, authority_db, attempt, key, digest,
+                             revision=1, audience='supervisor', generation=1):
+    """Independent-handle synthetic check before untrusted journal reconciliation."""
+    verdict = custody.verify(authority_db, attempt, key, digest, revision, audience, generation)
+    if verdict != 'MATCH_SYNTHETIC_ONLY':
+        return verdict
+    return reconcile(journal_db, target_db, attempt, key, digest, revision)
 
 
 def main():

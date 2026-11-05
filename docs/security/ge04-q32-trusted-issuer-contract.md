@@ -214,3 +214,25 @@ Production reconciliation must obtain expected bindings from a separately
 protected authority, independently authenticate target receipts, and verify
 operation/target identity, approval revision, attempt generation and audience.
 No production mutation path is enabled. GE-04 SECURITY HOLD persists.
+
+## Separate synthetic authority registry (logical separation only; HOLD)
+
+`scripts/ge04-q32-inert-custody.py` introduces a second SQLite registry with
+immutable `(attempt, idempotency_key, request_digest, revision, audience,
+generation)` records. `reconcile_with_authority` checks that independent
+*database handle* before the existing journal/target lookup. Adversarial
+fixture tests modify coordinator-side journal bindings and demonstrate
+mismatches against the separate authority record; they also reject forged
+keys/digests, stale revisions, incorrect audience/generation and missing
+attempts. A matching authority record plus missing target receipt remains
+`HOLD_UNRESOLVED`. The new test suite has 14 tests.
+
+**No security boundary is qualified.** Both scratch databases are accessible
+to the same test UID; the test code can call `issue()` on the authority store.
+The registry has no independent issuer, authenticated signature, secret,
+permission boundary, authenticated receipt, or real effect. A coordinator
+with write access to the authority database can forge matching rows. Cross-UID
+ownership, path traversal, descriptor delegation, process credentials, and
+protected custody have **not** been tested by this slice. The real trusted
+issuer must control issuance and protect its state independently before any
+claim of resistance to a compromised coordinator. GE-04 SECURITY HOLD remains.
