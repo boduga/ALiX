@@ -190,3 +190,27 @@ and verify the exact key/digest/attempt binding in protected state, verify
 receipt provenance, and ensure the receipt attests to the actual effect.
 `RECONCILED_SYNTHETIC_ONLY` never grants effect authority. No external effect,
 protected custody or independent issuer is involved. GE-04 HOLD persists.
+
+## Synthetic attempt-to-receipt binding checks (HOLD)
+
+The integrated test-only workflow now stores one immutable mapping from
+`attempt` to `(idempotency_key, request_digest, revision)` in a
+`synthetic_bindings` table in the **same unprotected scratch journal**.
+Bindings can be inserted only for an `INTENT` at its matching revision; a
+unique key prevents two attempts from claiming one synthetic target key.
+Read-only reconciliation requires the caller-supplied attempt, key, digest,
+and revision to match this stored mapping before looking up the target.
+Adversarial tests reject swapped keys, wrong digests, stale revisions,
+missing bindings, duplicate keys, and cross-attempt receipt substitution.
+
+**Threat-model limitation:** The caller-controlled scratch SQLite database
+is not protected against a writer that can alter both the attempt and its
+binding. The target simulator is also caller-controlled and its receipts are
+not authenticated. These tests prove *internal consistency* only, not
+issuer identity, independent custody, cryptographic integrity, real target
+attestation, or final-effect authorization. The existing journal `revision`
+is a synthetic attempt revision, not a real policy/approval revision.
+Production reconciliation must obtain expected bindings from a separately
+protected authority, independently authenticate target receipts, and verify
+operation/target identity, approval revision, attempt generation and audience.
+No production mutation path is enabled. GE-04 SECURITY HOLD persists.

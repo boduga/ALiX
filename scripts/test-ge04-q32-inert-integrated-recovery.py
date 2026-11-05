@@ -18,6 +18,7 @@ class Tests(unittest.TestCase):
         self.j=m.journal.connect(root/'journal.sqlite')
         self.t=m.target.connect(root/'target.sqlite')
         m.journal.begin(self.j,'a',1)
+        self.assertTrue(m.bind_synthetic(self.j,'a','k','d',1))
         m.journal.mark_possible(self.j,'a',1)
         m.journal.recover(self.j,'a')
     def tearDown(self):
@@ -43,6 +44,38 @@ class Tests(unittest.TestCase):
         for _ in range(4): m.reconcile(self.j,self.t,'a','k','d')
         self.assertEqual(before_j,self.j.execute('SELECT * FROM attempts').fetchall())
         self.assertEqual(before_t,self.t.execute('SELECT * FROM target_receipts').fetchall())
+    def test_swapped_key_rejected_even_with_valid_receipt(self):
+        m.target.submit(self.t,'other-key','d')
+        self.assertEqual(m.reconcile(self.j,self.t,'a','other-key','d'),'HOLD_BINDING_MISMATCH')
+
+    def test_swapped_digest_rejected_even_with_valid_receipt(self):
+        m.target.submit(self.t,'k','other-digest')
+        self.assertEqual(m.reconcile(self.j,self.t,'a','k','other-digest'),'HOLD_BINDING_MISMATCH')
+
+    def test_stale_revision_rejected(self):
+        m.target.submit(self.t,'k','d')
+        self.assertEqual(m.reconcile(self.j,self.t,'a','k','d',2),'HOLD_BINDING_MISMATCH')
+
+    def test_binding_immutable_and_key_unique(self):
+        self.assertFalse(m.bind_synthetic(self.j,'a','other-key','d',1))
+        m.journal.begin(self.j,'b',1)
+        self.assertFalse(m.bind_synthetic(self.j,'b','k','d',1))
+        self.assertEqual(self.j.execute('SELECT count(*) FROM synthetic_bindings').fetchone()[0],1)
+
+    def test_missing_binding_rejected(self):
+        m.journal.begin(self.j,'b',1)
+        m.journal.mark_possible(self.j,'b',1)
+        m.journal.recover(self.j,'b')
+        self.assertEqual(m.reconcile(self.j,self.t,'b','k','d'),'HOLD_MISSING_BINDING')
+
+    def test_wrong_attempt_cannot_claim_other_receipt(self):
+        m.journal.begin(self.j,'b',1)
+        self.assertTrue(m.bind_synthetic(self.j,'b','kb','db',1))
+        m.journal.mark_possible(self.j,'b',1)
+        m.journal.recover(self.j,'b')
+        m.target.submit(self.t,'k','d')
+        self.assertEqual(m.reconcile(self.j,self.t,'b','k','d'),'HOLD_BINDING_MISMATCH')
+
     def test_cli_hold(self):
         root=Path(self.tmp.name)
         p=subprocess.run([sys.executable,'-B',str(P),'--isolated-test','--journal',str(root/'cli-j.sqlite'),

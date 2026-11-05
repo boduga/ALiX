@@ -17,14 +17,54 @@ journal = load('ge04_inert_journal_integrated', 'ge04-q32-inert-effect-journal.p
 target = load('ge04_inert_target_integrated', 'ge04-q32-inert-target-reconcile.py')
 
 
-def reconcile(journal_db, target_db, attempt, key, digest):
-    """Only observe persisted records. A missing receipt never authorizes retry."""
-    row = journal_db.execute('SELECT phase FROM attempts WHERE id=?', (attempt,)).fetchone()
+# Test-only immutable binding in the SAME unprotected scratch journal.
+# This is not independent issuer custody or an authenticated artifact.
+BINDING_SCHEMA = """CREATE TABLE IF NOT EXISTS synthetic_bindings (
+ attempt TEXT PRIMARY KEY, idempotency_key TEXT NOT NULL UNIQUE,
+ request_digest TEXT NOT NULL, revision INTEGER NOT NULL,
+ FOREIGN KEY(attempt) REFERENCES attempts(id))"""
+
+
+def bind_synthetic(journal_db, attempt, key, digest, revision):
+    """Create one immutable scratch binding before recovery, never overwrite."""
+    if not attempt or not key or not digest or revision < 1:
+        return False
+    journal_db.execute(BINDING_SCHEMA)
+    journal_db.execute('BEGIN IMMEDIATE')
+    try:
+        row = journal_db.execute('SELECT revision, phase FROM attempts WHERE id=?', (attempt,)).fetchone()
+        if row is None or row != (revision, 'INTENT'):
+            journal_db.execute('ROLLBACK')
+            return False
+        cursor = journal_db.execute(
+            'INSERT OR IGNORE INTO synthetic_bindings VALUES (?,?,?,?)',
+            (attempt, key, digest, revision))
+        journal_db.execute('COMMIT')
+        return cursor.rowcount == 1
+    except BaseException:
+        journal_db.execute('ROLLBACK')
+        raise
+
+
+def reconcile(journal_db, target_db, attempt, key, digest, revision=1):
+    """Read-only binding check, then read-only target lookup; never retry."""
+    row = journal_db.execute('SELECT phase, revision FROM attempts WHERE id=?', (attempt,)).fetchone()
     if row is None:
         return 'HOLD_NO_ATTEMPT'
-    phase = row[0]
+    phase, stored_revision = row
     if phase != 'UNKNOWN_RECOVERY':
         return 'HOLD_NOT_AMBIGUOUS'
+    binding_exists = journal_db.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='synthetic_bindings'").fetchone()
+    if not binding_exists:
+        return 'HOLD_MISSING_BINDING'
+    binding = journal_db.execute(
+        'SELECT idempotency_key, request_digest, revision FROM synthetic_bindings WHERE attempt=?',
+        (attempt,)).fetchone()
+    if binding is None:
+        return 'HOLD_MISSING_BINDING'
+    if binding != (key, digest, revision) or stored_revision != revision:
+        return 'HOLD_BINDING_MISMATCH'
     observation = target.lookup(target_db, key, digest)
     if observation == 'CONFIRMED_SYNTHETIC':
         return 'RECONCILED_SYNTHETIC_ONLY'
@@ -48,6 +88,7 @@ def main():
     try:
         with journal.connect(args.journal) as j, target.connect(args.target) as t:
             journal.begin(j, 'synthetic-attempt', 1)
+            bind_synthetic(j, 'synthetic-attempt', 'synthetic-key', 'synthetic-digest', 1)
             journal.mark_possible(j, 'synthetic-attempt', 1)
             journal.recover(j, 'synthetic-attempt')
             outcome = reconcile(j, t, 'synthetic-attempt', 'synthetic-key', 'synthetic-digest')
