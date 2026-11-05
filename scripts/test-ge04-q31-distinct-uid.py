@@ -7,6 +7,7 @@ import sys
 import unittest
 
 SCRIPT = Path(__file__).with_name("ge04-q31-distinct-uid.py")
+DELEGATION = Path(__file__).with_name("ge04-q31-fd-delegation.py")
 
 
 class Q31GateTests(unittest.TestCase):
@@ -17,6 +18,26 @@ class Q31GateTests(unittest.TestCase):
     def assert_hold(self, result):
         self.assertEqual(result.returncode, 78, result.stderr)
         self.assertEqual(json.loads(result.stdout)["disposition"], "HOLD")
+
+    def test_fd_delegation_probe_requires_explicit_isolated_test(self):
+        result = subprocess.run([sys.executable, str(DELEGATION)],
+                                capture_output=True, text=True, timeout=8)
+        self.assert_hold(result)
+
+    def test_fd_delegation_worker_rejects_nonisolated_path(self):
+        result = subprocess.run([sys.executable, str(DELEGATION), '--worker', 'attacker',
+                                 '--directory', '/etc', '--channel', '4'],
+                                capture_output=True, text=True, timeout=8)
+        self.assert_hold(result)
+
+    def test_fd_delegation_requires_privileged_launcher(self):
+        if sys.platform != 'linux' or __import__('os').geteuid() == 0:
+            self.skipTest('Unprivileged Linux only')
+        result = subprocess.run([sys.executable, str(DELEGATION), '--isolated-test',
+                                 '--supervisor', 'nobody', '--coordinator', 'nobody',
+                                 '--attacker', 'nobody', '--group', 'nogroup'],
+                                capture_output=True, text=True, timeout=8)
+        self.assert_hold(result)
 
     def test_entrypoint_refuses_unqualified_start(self):
         self.assert_hold(self.run_fixture())

@@ -24,3 +24,27 @@ The script does not create accounts, install services, generate keys, or activat
 - An unprivileged **same-UID** fork/inherited-connected-FD negative test now demonstrates that `SO_PEERCRED` still matches the original connector when another process sends a forged approval frame; the fixture still replies `DENIED`. This proves a credential-attribution limitation, **not cross-UID FD delegation resistance**. Empty-frame rejection is also covered. Cross-UID descriptor delegation, peer replacement, stale attempt binding, namespace/path races, socket substitution and protected runtime/loader provenance remain unqualified.
 - Signing-key and protected policy/approval/lease custody, rollback floor, final-effect authorization, crash/effect receipt qualification, and independent human signoff are absent.
 - The Q3.1 script is a **partial probe**, not acceptance of issue #1050's complete negative-test matrix. GE-04 SECURITY HOLD remains active.
+
+## Q3.1 FD delegation adversarial probe (pending operator execution)
+
+`scripts/ge04-q31-fd-delegation.py` is a separate deny-only, root-launched
+**disposable-host** probe. It creates a real connection under the coordinator UID,
+passes that connected socket through `SCM_RIGHTS` to the unrelated attacker UID,
+and records the kernel's original-peer credential match alongside the actual
+sender UID and fixed `DENIED` response. An exit code of zero establishes the
+**attribution weakness**, not authorization, safety, or independent custody.
+The unprivileged tests only prove the launcher's fail-closed prerequisites.
+
+Stage the scripts in a root-owned, non-writable directory and invoke as an
+independent operator (never through a model-controlled privileged command):
+
+```sh
+sudo python3 -B /opt/alix-ge04-q31-test/ge04-q31-fd-delegation.py \
+  --isolated-test --supervisor alixge04supervisor \
+  --coordinator alixge04coordinator --attacker alixge04attacker \
+  --group alixge04transport
+```
+
+The fixture does not authenticate a request's *current* sender, and the
+fixed denial is not a substitute for an effect-time authorization boundary.
+GE-04 SECURITY HOLD remains active regardless of the probe outcome.
