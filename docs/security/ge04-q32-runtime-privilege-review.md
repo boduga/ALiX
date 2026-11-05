@@ -132,3 +132,30 @@ validates the tested mode-0600 socket and issuer-owned private directory
 under the test conditions, **not** an independent issuer authority, an
 authorization protocol, sudo/polkit boundaries, FD delegation safety,
 protected credentials, or effect-time checks. GE-04 SECURITY HOLD remains.
+
+## Connected-descriptor delegation adversarial test (operator run pending)
+
+`scripts/ge04-q32-issuer-fd-delegation.py` is an opt-in, root-launched,
+**disposable-host-only** experiment. It launches the fixed-denial issuer
+listener as the issuer UID, connects to the private socket as that UID,
+passes the *already connected* descriptor to a distinct attacker UID using
+`SCM_RIGHTS`, and sends a forged approval over the delegated descriptor.
+A passing test requires the attacker to receive `DENIED GE04_SECURITY_HOLD`;
+JSON always reports `HOLD` and `qualified_independent_issuance: false`.
+The experiment is not evidence that a real authorization service can detect
+who subsequently holds a delegated connection. `SO_PEERCRED` ordinarily
+reflects the original connector, not the later holder of the FD. A
+credential-based allow decision on that descriptor would therefore be unsafe.
+
+After reviewing both scripts, the operator may run on **microcloud3 only**:
+
+```sh
+sudo install -o root -g root -m 644 \
+  ~/ge04-q31-staging/ge04-q32-issuer-fd-delegation.py \
+  /opt/alix-ge04-q31-test/
+sudo python3 -B /opt/alix-ge04-q31-test/ge04-q32-issuer-fd-delegation.py \
+  --isolated-test --issuer alixge04issuer --attacker alixge04attacker
+```
+
+The companion `ge04-q32-deny-issuer-service.py` must already be installed
+beside the runner. This is no authority-bearing issuer, key or effect test.
