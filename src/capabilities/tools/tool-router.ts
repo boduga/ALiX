@@ -228,15 +228,17 @@ export class FileToolRouter implements ToolRouter {
                 retryable: false,
               };
             }
-            // Pin the existing leaf inode and refuse symlinks. A separate
-            // readFile(path) then writeFile(path) can follow a replaced leaf.
-            const handle = await open(resolvedPath, constants.O_RDWR | constants.O_NOFOLLOW);
+            // A no-op needs READ authority only: an existing readable 0444
+            // file must not require O_RDWR just to compare identical content.
+            // Pin the inode for comparison, never follow the leaf symlink.
+            const comparison = await open(resolvedPath, constants.O_RDONLY | constants.O_NOFOLLOW);
+            let existing: string;
             try {
-              const pinned = await handle.stat();
+              const pinned = await comparison.stat();
               if (!pinned.isFile() || pinned.dev !== existingEntry.dev || pinned.ino !== existingEntry.ino) {
                 return { kind: "error", message: `File changed during authorization: ${path}`, retryable: false };
               }
-              const existing = await handle.readFile("utf8");
+              existing = await comparison.readFile("utf8");
               if (existing === content) {
                 return {
                   kind: "success",
@@ -247,11 +249,30 @@ export class FileToolRouter implements ToolRouter {
                   changedFiles: [],
                 };
               }
-              if (!this.isOwnedWriteTarget(request, resolvedPath)) {
-                return { kind: "error", message: `File already exists with different content: ${path}`, retryable: false };
+            } finally {
+              await comparison.close();
+            }
+            if (!this.isOwnedWriteTarget(request, resolvedPath)) {
+              return { kind: "error", message: `File already exists with different content: ${path}`, retryable: false };
+            }
+            // Never rewrite an inode with multiple names: an owned-path hard
+            // link can alias and mutate a file outside the worker's scope.
+            if (existingEntry.nlink !== 1) {
+              return { kind: "error", message: `Hard-linked file cannot be overwritten: ${path}`, retryable: false };
+            }
+            const handle = await open(resolvedPath, constants.O_RDWR | constants.O_NOFOLLOW);
+            try {
+              const pinned = await handle.stat();
+              if (!pinned.isFile() || pinned.dev !== existingEntry.dev ||
+                  pinned.ino !== existingEntry.ino || pinned.nlink !== 1) {
+                return { kind: "error", message: `File changed or is hard-linked: ${path}`, retryable: false };
               }
-              // Write through the pinned descriptor rather than reopening a
-              // pathname that could now refer to a different leaf.
+              // Detect a concurrent content change between read-only compare
+              // and opening the writable descriptor; do not overwrite stale data.
+              if (await handle.readFile("utf8") !== existing) {
+                return { kind: "error", message: `File contents changed during authorization: ${path}`, retryable: false };
+              }
+              // The write uses the same verified descriptor, not a pathname.
               const bytes = Buffer.from(content, "utf8");
               let offset = 0;
               while (offset < bytes.length) {
