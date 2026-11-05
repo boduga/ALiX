@@ -541,6 +541,8 @@ jobs:
           grep -Fq 'GE04 protected supervisor installation PASS' /tmp/ge04-protected-installation.log
           "$(command -v python)" -B experiments/ge04/test-systemd-inert-prototype.py | tee /tmp/ge04-systemd-inert-prototype.log
           grep -Fq 'GE04 systemd inert prototype PASS' /tmp/ge04-systemd-inert-prototype.log
+          "$(command -v python)" -B experiments/ge04/test-final-boundary-protocol-model.py | tee /tmp/ge04-final-boundary-model.log
+          grep -Fq 'GE04 final-boundary ordering model PASS' /tmp/ge04-final-boundary-model.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |
