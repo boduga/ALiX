@@ -41,6 +41,7 @@ with tempfile.TemporaryDirectory(prefix='ge04-composed-') as name:
         capture_output=True, text=True, timeout=20)
     assert build.returncode == 0, build.stderr
     binary.chmod(0o700)
+    binary_digest = __import__('hashlib').sha256(binary.read_bytes()).hexdigest()
 
     def setup(label):
         private, public, owned = (root / (label + suffix) for suffix in
@@ -59,8 +60,22 @@ with tempfile.TemporaryDirectory(prefix='ge04-composed-') as name:
     def run(case, checkpoint=None):
         private, public, owned, pin, anchor = case
         return composed.run_fixed_fixture(
-            private, public, owned, pin, binary, anchor_dir=anchor, now_ms=1, effect_now_ms=1,
+            private, public, owned, pin, binary, anchor_dir=anchor, expected_binary_digest=binary_digest, now_ms=1, effect_now_ms=1,
             crash_checkpoint=checkpoint)
+
+    # Reject a mismatched expected digest before consuming any authority.
+    mismatched = setup('bad-binary-digest')
+    try:
+        composed.run_fixed_fixture(
+            mismatched[0], mismatched[1], mismatched[2], mismatched[3],
+            binary, anchor_dir=mismatched[4],
+            expected_binary_digest='0' * 64, now_ms=1, effect_now_ms=1)
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError('wrong native binary digest accepted')
+    assert auth.inspect(mismatched[0])['approvalState'] == 'approved'
+    assert not (mismatched[2] / observed.LEAF).exists()
 
     good = setup('normal')
     assert composed.recover_read_only(good[0], good[2], good[1], good[3], anchor_dir=good[4]) == UNKNOWN
@@ -137,7 +152,7 @@ with tempfile.TemporaryDirectory(prefix='ge04-composed-') as name:
 
     expired = setup('expired')
     try:
-        composed.run_fixed_fixture(*expired[:3], expired[3], binary, anchor_dir=expired[4], now_ms=1000, effect_now_ms=1000)
+        composed.run_fixed_fixture(*expired[:3], expired[3], binary, anchor_dir=expired[4], expected_binary_digest=binary_digest, now_ms=1000, effect_now_ms=1000)
     except PermissionError:
         pass
     else:
@@ -151,7 +166,7 @@ with tempfile.TemporaryDirectory(prefix='ge04-composed-') as name:
     try:
         composed.run_fixed_fixture(
             crossed[0], crossed[1], crossed[2], crossed[3], binary,
-            anchor_dir=crossed[4], now_ms=1, effect_now_ms=1000)
+            anchor_dir=crossed[4], expected_binary_digest=binary_digest, now_ms=1, effect_now_ms=1000)
     except PermissionError:
         pass
     else:
@@ -173,7 +188,7 @@ with tempfile.TemporaryDirectory(prefix='ge04-composed-') as name:
         try:
             composed.run_fixed_fixture(
                 racing[0], racing[1], racing[2], racing[3], binary,
-                anchor_dir=racing[4], now_ms=1, effect_now_ms=1,
+                anchor_dir=racing[4], expected_binary_digest=binary_digest, now_ms=1, effect_now_ms=1,
                 before_native_entered=entered, before_native_resume=resume)
         except BaseException:
             os._exit(91)
