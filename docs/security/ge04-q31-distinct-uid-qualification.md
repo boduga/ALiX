@@ -48,3 +48,26 @@ sudo python3 -B /opt/alix-ge04-q31-test/ge04-q31-fd-delegation.py \
 The fixture does not authenticate a request's *current* sender, and the
 fixed denial is not a substitute for an effect-time authorization boundary.
 GE-04 SECURITY HOLD remains active regardless of the probe outcome.
+
+## Operator-reported cross-UID connected-FD delegation result
+
+The operator supplied the following output from the disposable-host privileged
+`ge04-q31-fd-delegation.py` run. It has **not** been independently attested or
+reproduced by the repository reviewer:
+
+```json
+{"actual_sender_uid":993,"cross_uid_delegation_observed":true,"disposition":"HOLD","gate":"GE04_Q31_FD","kernel_credential_match":true,"original_connector_uid":994,"qualified_independent_custody":false,"response_denied":true,"supervisor_uid":995}
+```
+
+The reported result reproduces a security-relevant limitation: the kernel
+credential match reflects the coordinator's original connection (UID 994)
+although the attacker (UID 993) sends the payload through a delegated FD. The
+fixture's fixed `DENIED` reply is not proof that a future authorization-bearing
+supervisor resists delegation. **Do not accept SO_PEERCRED as per-request
+sender identity or promote this result to independent custody clearance.**
+
+Next required design gate: bind each effect authorization to the independently
+verified request, attempt, capability, policy revision, and effect-time fence;
+reject stale/replayed or delegated requests, and independently test the
+protected runtime, key custody, crash recovery and human signoff. The GE-04
+SECURITY HOLD remains active.
