@@ -49,7 +49,7 @@ def spawn_user(user: pwd.struct_passwd, group: int, args: list[str]):
         [sys.executable, str(Path(__file__).resolve()), "--worker", *args],
         pass_fds=(), close_fds=True, stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-        preexec_fn=lambda: (os.setgroups([group]), os.setgid(user.pw_gid), os.setuid(user.pw_uid)),
+        preexec_fn=lambda: (os.setgroups([]), os.setgid(group), os.setuid(user.pw_uid)),
     )
 
 
@@ -127,7 +127,7 @@ def qualify(args: argparse.Namespace) -> int:
                 if data.get("uid") != coordinator.pw_uid or data.get("reply") != fixture_mod.DENIED.decode("ascii"):
                     raise ValueError("Coordinator did not receive fixed DENIED")
                 server_out, server_err = server.communicate(timeout=5)
-                if server.returncode != 0 or '"credential_match": true' not in server_out:
+                if server.returncode != 0 or not any(json.loads(line).get("credential_match") is True for line in server_out.splitlines()):
                     raise ValueError("Supervisor credential diagnostic failed: " + server_err[:200])
                 evidence = {"gate": "GE04_Q31", "disposition": "HOLD",
                             "transport_observed": True, "qualified_independent_custody": False,
