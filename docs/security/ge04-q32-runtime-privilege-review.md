@@ -1,0 +1,71 @@
+# GE-04 Q3.2 — Runtime privilege and delegation review
+
+**Status: SECURITY HOLD. Evidence request only; not an authorization gate.**
+
+## Observation so far
+
+On `microcloud3`, a read-only `systemctl list-unit-files '*alix*'`
+returned no ALiX-named unit files. This does **not** establish that no
+service exists under another name, that no process runs, or that the host is
+secure. Prior probes exercised synthetic files and unprivileged process
+snapshots, not an independently administered issuer runtime.
+
+## Operator-reviewed evidence collection (disposable host only)
+
+Run these read-only commands locally on `microcloud3`, inspect output for
+sensitive paths or service environment values, and share only redacted
+observations. Do not print environment variables, private keys, tokens,
+credentials, or full privileged configuration files.
+
+```sh
+# Exact account and group resolution
+getent passwd alixge04issuer alixge04supervisor alixge04coordinator alixge04attacker
+id alixge04issuer
+id alixge04supervisor
+id alixge04coordinator
+id alixge04attacker
+
+# Running processes (not proof of their parent/launcher integrity)
+ps -eo pid,ppid,uid,gid,comm --sort=pid
+
+# Unit names only; then inspect specifically identified relevant units
+systemctl list-units --all --type=service --no-pager
+systemctl list-unit-files --type=service --no-pager
+
+# Filesystem and mount context; choose explicit, nonsecret directories
+findmnt -T /opt/alix-ge04-q31-test -o TARGET,SOURCE,FSTYPE,OPTIONS
+namei -l /opt/alix-ge04-q31-test
+```
+
+For each **actual** issuer/supervisor service, independently review
+`systemctl show UNIT --property=User,Group,SupplementaryGroups,DynamicUser,NoNewPrivileges,CapabilityBoundingSet,AmbientCapabilities,ProtectSystem,ProtectHome,PrivateTmp,ReadWritePaths,ExecStart`.
+`ExecStart` may reveal sensitive arguments: redact before sharing. Check
+whether service binaries, their ancestors, unit definitions and drop-ins are
+writable by coordinator or attacker. Check service credential loading and
+whether privileges change after startup. An inactive or nonexistent unit is
+**unqualified**, not a passing security boundary.
+
+For sudo delegation, a trusted operator must inspect **effective** sudoers
+policy for each test identity (including includes, groups and command
+arguments). A noninteractive negative check alone cannot prove that no
+privilege path exists; sudoers, polkit, setuid executables, Linux capabilities,
+service manager APIs and inherited file descriptors also matter. Do not grant
+any additional privilege to perform this review.
+
+## Evidence classification
+
+| Requirement | Present evidence | Status |
+|---|---|---|
+| Four nonroot test identities | Operator host snapshot | Observed, limited |
+| Synthetic issuer file isolation | 39/39 negative writes reported denied | Observed, limited |
+| Real issuer service identity and launcher | No identified service | Missing |
+| Protected issuer binary, unit and credential custody | None | Missing |
+| Sudo/polkit/setuid and capability escalation exclusion | None | Missing |
+| ACL, mount namespace and ancestor trust | None | Missing |
+| Authenticated nondelegable effect request | None | Missing |
+| Effect-time revocation and crash protocol | None | Missing |
+| Independent reviewer and human acceptance | None | Missing |
+
+**Decision: HOLD.** Do not instantiate production keys, trust a diagnostic
+match as authorization, enable `createScopedMutationService()`, or promote
+synthetic observations into independent qualification.
