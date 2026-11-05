@@ -113,3 +113,23 @@ and supply a recovery oracle for ambiguous target outcomes. These properties
 cannot be established by permutations of in-memory events. Before any
 implementation of effect authority, review the linearization point and
 fault-injection matrix with an independent security reviewer. HOLD persists.
+
+## Synthetic durable effect-intent journal (HOLD)
+
+`scripts/ge04-q32-inert-effect-journal.py` uses a **caller-owned scratch** SQLite
+journal to model durable `INTENT` → `EFFECT_POSSIBLE` and reopening the store
+for recovery. `INTENT` becomes `ABORTED`; `EFFECT_POSSIBLE` becomes
+`UNKNOWN_RECOVERY`, which cannot be claimed or started again. Duplicate
+attempt IDs and stale revision transitions are rejected. SQLite uses WAL and
+`FULL` synchronous mode for this test. The CLI requires explicit isolated-test
+opt-in, returns 78 and reports zero real effects.
+
+This is **not** a protected store, a real effect adapter, a proven power-loss
+recovery protocol, or an authorization-bearing implementation. Tests reopen
+a database connection but do not kill processes at every write boundary or
+simulate torn writes/power loss. A journal entry does not make an external
+operation atomic with the journal transaction; `UNKNOWN_RECOVERY` cannot be
+resolved automatically without a trusted target-side idempotency/reconciliation
+protocol. No `CONFIRMED` transition is implemented because there is no real
+trusted receipt. The simulated `mark_possible` does not hold a fence across
+any real effect. GE-04 SECURITY HOLD remains.
