@@ -494,6 +494,8 @@ jobs:
           grep -Fq 'GE04 SUP-19 custody fixture PASS' /tmp/ge04-sup19-custody.log
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-kernel-message-credentials-root.py | tee /tmp/ge04-sup20-kernel-message.log
           grep -Fq 'GE04 SUP-20 kernel message credentials PASS' /tmp/ge04-sup20-kernel-message.log
+          "$(command -v python)" -B experiments/ge04/test-kernel-message-identity-regression.py | tee /tmp/ge04-sup21-message-identity.log
+          grep -Fq 'GE04 SUP-21 message identity PASS' /tmp/ge04-sup21-message-identity.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |
