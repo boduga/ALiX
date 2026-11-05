@@ -315,3 +315,15 @@ integrity, Linux capabilities, parent service integrity, operator separation,
 privileged compromise, or production issuer key custody is established. A
 snapshot is raceable and can never qualify independent issuance. Inspecting
 paths is opt-in; do not pass private key paths or secret contents.
+
+### Operator-host read-only identity snapshot (tool-observed, not independent attestation)
+
+On `microcloud3`, the staged script's four unprivileged tests passed (4/4).
+The read-only preflight returned exit 78 / `HOLD`, with no warnings and these
+reported identity/group-database values: issuer UID 990, GID 982, groups [982];
+supervisor UID 995, GID 985, groups [985]; coordinator UID 994, GID 984,
+groups [984, 986]; attacker UID 993, GID 983, groups [983]. No optional paths
+were inspected (`path_observations: {}`). This is a point-in-time observation
+through the operator-controlled host, **not** independent attestation of
+service process credentials, issuer administration, privilege delegation,
+protected material or effect authorization. GE-04 SECURITY HOLD remains active.
