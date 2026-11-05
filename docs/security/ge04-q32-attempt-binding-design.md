@@ -95,7 +95,7 @@ slice needs an independent operator-controlled root, descriptor-pinned path
 walk and actual untrusted-UID negative write tests. A passing snapshot cannot
 be used as a trust decision or to clear the GE-04 HOLD.
 
-## Q3.2 distinct-UID negative-write host probe (operator execution pending)
+## Q3.2 distinct-UID negative-write host probe (operator-reported execution)
 
 `scripts/ge04-q32-negative-write.py` is an **opt-in disposable Linux host**
 probe. A root-launched, independently operated test process creates three
@@ -122,3 +122,20 @@ Do not use real policy, keys, or protected runtime paths. The probe only tests
 basic DAC on temporary synthetic files; it does not establish independence,
 protected issuance, path-race resistance, mount/ACL integrity, or actual
 production supervisor custody. The GE-04 SECURITY HOLD remains active.
+
+## Operator-reported disposable-host negative-write result
+
+The operator supplied JSON for `GE04_Q32_NEGATIVE_WRITE` reporting supervisor
+UID 995, coordinator UID 994 and attacker UID 993. Both non-supervisor UIDs
+reported `DENIED` for each of ten operations: overwrite, rename and unlink
+for each of `claims.sqlite`, `issuer.pub` and `policy.json`, plus directory
+entry creation. Totals: **20/20 attempted writes denied**,
+`synthetic_fixtures_unchanged: true`, `negative_writes_denied: true`,
+`disposition: HOLD`, and `qualified_independent_custody: false`.
+
+This is **operator-reported evidence**, not independently witnessed, attested
+or reproduced by the reviewer. It demonstrates reported Linux DAC denial on
+temporary synthetic files only. It does not prove protected issuer custody,
+ancestor/mount integrity, release provenance, post-check race resistance,
+last-effect authorization, crash recovery or independent administration.
+No gate status changes: **GE-04 SECURITY HOLD remains active**.
