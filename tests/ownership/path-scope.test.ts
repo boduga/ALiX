@@ -1,8 +1,10 @@
 import { unscopableChannelDenial } from "../../src/coordination/ownership/owned-scope-channels.js";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { pathScopesOverlap, scopeContains, pathInScope, normalizePathScope, resolveOwnedScopePrefix, claimScopesOverlap } from "../../src/coordination/ownership/path-scope.js";
-import { resolve } from "node:path";
+import { pathScopesOverlap, scopeContains, pathInScope, normalizePathScope, resolveOwnedScopePrefix, isWithinOwnedScope, claimScopesOverlap } from "../../src/coordination/ownership/path-scope.js";
+import { resolve, join } from "node:path";
+import { mkdtempSync, mkdirSync, symlinkSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import type { PathScope } from "../../src/coordination/ownership/ownership-types.js";
 
 function makeScope(root: string, recursive: boolean): PathScope {
@@ -368,4 +370,43 @@ describe("owned-scope channel authorization parity", () => {
       assert.equal(unscopableChannelDenial({ toolName, capability }), null);
     });
   }
+});
+
+
+describe("GE-04 canonical owned-scope enforcement", () => {
+  it("denies writes through an owned symlink into an unowned sibling", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "alix-ge04-"));
+    try {
+      mkdirSync(join(cwd, "owned"));
+      mkdirSync(join(cwd, "unowned"));
+      symlinkSync("../unowned", join(cwd, "owned", "link"));
+      assert.equal(isWithinOwnedScope(join(cwd, "owned", "link", "new.txt"), ["owned/**"], cwd), false);
+      assert.equal(isWithinOwnedScope(join(cwd, "owned", "safe.txt"), ["owned/**"], cwd), true);
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  });
+
+  it("denies an owned root that aliases an unowned sibling", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "alix-ge04-root-"));
+    try {
+      mkdirSync(join(cwd, "unowned"));
+      symlinkSync("unowned", join(cwd, "owned"));
+      assert.equal(isWithinOwnedScope(join(cwd, "owned", "new.txt"), ["owned/**"], cwd), false);
+      mkdirSync(join(cwd, "nested"));
+      symlinkSync("../unowned", join(cwd, "nested", "alias"));
+      assert.equal(isWithinOwnedScope(join(cwd, "nested", "alias", "new.txt"), ["nested/alias/**"], cwd), false);
+      assert.equal(isWithinOwnedScope(join(cwd, "missing", "new.txt"), ["missing/**"], cwd), true);
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  });
+
+  it("denies workspace-wide grants that traverse a symlink outside workspace", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "alix-ge04-ws-"));
+    const outside = mkdtempSync(join(tmpdir(), "alix-ge04-out-"));
+    try {
+      symlinkSync(outside, join(cwd, "link"));
+      assert.equal(isWithinOwnedScope(join(cwd, "link", "new.txt"), ["."], cwd), false);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
 });
