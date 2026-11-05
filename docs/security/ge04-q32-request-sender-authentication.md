@@ -52,3 +52,11 @@ Implement a **deny-only**, synthetic request-envelope validator and negative tes
 ## Operator-run cross-UID replay-ledger DAC probe (host evidence pending)
 
 `scripts/ge04-q32-replay-cross-uid.py` is an opt-in root-launched **disposable-host** test that drops each child to four distinct nonroot UIDs. The synthetic SQLite replay ledger is created in an issuer-owned `0700` directory with a `0600` database. Supervisor, coordinator and attacker children attempt read, write, replace, unlink, hard link, directory traversal and SQL deletion; the parent compares the original ledger hash and confirms no hard link was created. The launcher always exits 78 and reports HOLD, zero real effects. Its two local unprivileged entry tests pass. Operator execution on microcloud3 is pending. This proves at most path-based DAC under the tested host setup, **not** FD delegation containment, ACL/mount/namespace isolation, durable authorization, or positive issuer qualification.
+
+## Operator-reported cross-UID replay ledger DAC result
+
+On microcloud3, the operator reported all 21 negative path-based operations denied (read, write, replace, unlink, link, traverse, SQL delete) for supervisor UID 995, coordinator UID 994 and attacker UID 993; the fixture remained unchanged. This is synthetic host evidence for tested pathname DAC, not descriptor containment or issuer qualification.
+
+## Replay SQLite descriptor delegation probe (operator execution pending)
+
+`scripts/ge04-q32-replay-fd-delegation.py` is an opt-in operator-root disposable Linux fixture requiring distinct nonroot issuer and attacker accounts. The issuer child opens a synthetic SQLite database in an issuer-owned `0700` directory (`0600` database) and delegates its descriptor via `SCM_RIGHTS` to the attacker child. A read-only transfer should allow header reading but deny `pwrite`; a writable transfer should allow the attacker to overwrite the SQLite header, changing the file hash despite pathname DAC. This demonstrates potential corruption of replay evidence through delegated writable handles, **not** an authenticated SQL operation, a production descriptor leak, or a safe positive verifier. The two unprivileged entry tests pass locally; host observation is pending. HOLD remains.
