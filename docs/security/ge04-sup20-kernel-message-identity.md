@@ -1,0 +1,11 @@
+# GE-04 SUP-20 — Kernel-attested datagram sender identity
+
+**SECURITY HOLD: Experimental Linux-only mitigation of the SUP-16 descriptor-holder identity gap. No production admission.**
+
+The SUP-16 stream-socket counterexample remains valid: `SO_PEERCRED` identifies the original connector, even when the connected descriptor is intentionally passed with `SCM_RIGHTS` to a different UID. A stream `recv` does not identify the current writer. Do not attempt to solve this with repeated `SO_PEERCRED` reads.
+
+`experiments/ge04/kernel-message-credentials.py` is a separate inert AF_UNIX `SOCK_DGRAM` receiver. It requires `SO_PASSCRED` on the receiving socket and exactly one kernel-provided `SCM_CREDENTIALS` record on each message; it checks the sender UID and optionally the exact PID, rejects unexpected ancillary records and any `SCM_RIGHTS` descriptor, and closes received descriptors even on rejection. `experiments/ge04/test-kernel-message-credentials-root.py` uses a privileged root sender and deliberately delegates the sending socket via `SCM_RIGHTS` to a child dropped to UID 65534. The root-only CI test expects the delegated child's message to be denied, while the original root process's messages remain accepted.
+
+**Important scope:** This is a **new datagram transport experiment**, not a patch to the existing stream protocol. The kernel reports the identity of the process that sent a datagram, not whether that process is authorized to execute an action. A malicious process with the authorized UID or a compromised authorized process remains in scope; PID reuse, PID namespace translation, process lifecycle binding, message forwarding by an authorized proxy, and possession of request signing material still require independent controls. The fixture does not establish a privileged service boundary, secure bootstrapping, authenticated durable receipt, final-boundary approval/lease serialization, or revocation semantics. It cannot revoke preexisting stream sessions. Do not connect it to a production mutation path.
+
+SUP-16's stream delegation reproduction must remain in CI as evidence that the old transport is unsuitable for holder identity. PR #1039 remains unmerged and production `UnavailableScopedMutationService` stays disabled until independent review and remaining security gates pass.

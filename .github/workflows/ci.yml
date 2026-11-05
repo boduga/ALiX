@@ -492,6 +492,8 @@ jobs:
           grep -Fq 'GE04 SUP-18 ancillary containment PASS' /tmp/ge04-sup18-ancillary.log
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-credential-custody-root.py | tee /tmp/ge04-sup19-custody.log
           grep -Fq 'GE04 SUP-19 custody fixture PASS' /tmp/ge04-sup19-custody.log
+          sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-kernel-message-credentials-root.py | tee /tmp/ge04-sup20-kernel-message.log
+          grep -Fq 'GE04 SUP-20 kernel message credentials PASS' /tmp/ge04-sup20-kernel-message.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |
