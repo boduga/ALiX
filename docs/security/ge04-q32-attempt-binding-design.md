@@ -240,7 +240,7 @@ observations. Nine tests demonstrate mismatch rejection. Even fully matching
 facts return `qualified_independent_issuance: false` and `HOLD`. No key,
 credential format, issuer service, policy read or mutation authority exists.
 
-## Q3.2 disposable-host issuer-owned negative-write probe (awaiting privileged execution)
+## Q3.2 disposable-host issuer-owned negative-write probe (operator-reported execution)
 
 `scripts/ge04-q32-issuer-negative-write.py` is an opt-in, root-launched,
 **disposable-host-only** experiment. It requires four independently provisioned
@@ -268,3 +268,24 @@ all denials and unchanged files; the JSON **always** states `HOLD` and
 only fail-closed prerequisites; they are not privileged host evidence. This
 experiment does not inspect real service privileges, ACLs, mount namespaces,
 ancestor trust, sudo policy, privileged compromise or protected issuance.
+
+## Operator-reported four-UID issuer negative-write evidence
+
+The operator supplied JSON for `GE04_Q32_ISSUER_NEGATIVE_WRITE` reporting
+issuer UID **990**, supervisor UID **995**, coordinator UID **994**, and attacker
+UID **993**. Each non-issuer identity reported `DENIED` for thirteen attempts:
+overwrite, unlink, rename, chmod, hardlink, and symlink replacement against
+each of `issuer.synthetic` and `policy.synthetic`, plus a create attempt.
+Total: **39/39 denied**. The result reports
+`synthetic_fixtures_unchanged: true`, `negative_writes_denied: true`,
+`disposition: HOLD`, and `qualified_independent_issuance: false`.
+
+**Provenance:** operator-provided JSON, not independently witnessed,
+attested, or reproduced by the reviewer. It demonstrates reported denial of
+filesystem writes by three distinct non-issuer UIDs against disposable
+issuer-owned synthetic fixtures. It does not establish protected signing-key
+custody, trusted approval ingestion, issuer runtime integrity, independent
+administration, privileged-actor resistance, ACL/mount/ancestor integrity,
+credential anti-delegation, or an effect-time revocation fence.
+
+**Gate disposition remains GE-04 SECURITY HOLD.**
