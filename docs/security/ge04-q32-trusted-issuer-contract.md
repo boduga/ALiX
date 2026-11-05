@@ -300,3 +300,19 @@ The cross-UID FD experiment **requires an operator rerun on microcloud3**;
 no positive or negative cross-UID result is yet claimed. This does not
 exercise all descriptor types, ACLs, namespaces, service credential handling,
 or real key custody. GE-04 SECURITY HOLD remains active.
+
+### microcloud3 operator observations and next boundary
+
+The operator subsequently reported the corrected cross-UID fixture result:
+`negative_operations_denied=true`, `fixture_unchanged=true`,
+`issuer_positive_observed=true`, exit 78/HOLD. The separate delegated-FD
+probe reported read-only delegation (attacker read allowed, write denied,
+fixture unchanged) and writable delegation (attacker read/write allowed,
+fixture changed), exit 78/HOLD. These are **operator-reported synthetic
+observations**, not independently attested host qualification or evidence
+of a production ALiX FD leak. The earlier pending-execution statements above
+are retained as point-in-time history, superseded by these reported reruns.
+
+See `docs/security/ge04-q32-supervisor-verification-boundary.md` for the
+proposed deny-first supervisor-only verification contract and unqualified
+acceptance criteria. GE-04 SECURITY HOLD remains active.
