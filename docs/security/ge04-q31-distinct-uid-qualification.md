@@ -21,11 +21,11 @@ The script does not create accounts, install services, generate keys, or activat
 ## Remaining blockers
 
 - The disposable `microcloud3` host (`10.1.1.22`) has three provisioned distinct non-root test UIDs. The operator supplied the deny-only launcher output reporting supervisor UID 995, coordinator UID 994, attacker UID 993, transport GID 986, `attacker_denied: true`, `coordinator_denied: true`, `credential_match: true`, directory `0710`, socket `0660`, and `disposition: HOLD`. This is operator-reported evidence, **not independently witnessed or attested** by the harness or a reviewer. It establishes a reported cross-UID transport experiment, not independent custody.
-- An unprivileged **same-UID** fork/inherited-connected-FD negative test now demonstrates that `SO_PEERCRED` still matches the original connector when another process sends a forged approval frame; the fixture still replies `DENIED`. This proves a credential-attribution limitation, **not cross-UID FD delegation resistance**. Empty-frame rejection is also covered. Cross-UID descriptor delegation, peer replacement, stale attempt binding, namespace/path races, socket substitution and protected runtime/loader provenance remain unqualified.
+- An unprivileged **same-UID** fork/inherited-connected-FD negative test now demonstrates that `SO_PEERCRED` still matches the original connector when another process sends a forged approval frame; the fixture still replies `DENIED`. This proves a credential-attribution limitation, **not cross-UID FD delegation resistance**. Empty-frame rejection is also covered. Cross-UID descriptor delegation has now been reproduced as a negative attribution finding (operator-reported; see below), not qualified as safe. Peer replacement, stale attempt binding, namespace/path races, socket substitution and protected runtime/loader provenance remain unqualified.
 - Signing-key and protected policy/approval/lease custody, rollback floor, final-effect authorization, crash/effect receipt qualification, and independent human signoff are absent.
 - The Q3.1 script is a **partial probe**, not acceptance of issue #1050's complete negative-test matrix. GE-04 SECURITY HOLD remains active.
 
-## Q3.1 FD delegation adversarial probe (pending operator execution)
+## Q3.1 FD delegation adversarial probe (operator-reported execution)
 
 `scripts/ge04-q31-fd-delegation.py` is a separate deny-only, root-launched
 **disposable-host** probe. It creates a real connection under the coordinator UID,
@@ -71,3 +71,5 @@ verified request, attempt, capability, policy revision, and effect-time fence;
 reject stale/replayed or delegated requests, and independently test the
 protected runtime, key custody, crash recovery and human signoff. The GE-04
 SECURITY HOLD remains active.
+
+Next design-only gate: [Q3.2 attempt binding and last-effect fence](ge04-q32-attempt-binding-design.md).
