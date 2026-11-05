@@ -133,7 +133,7 @@ under the test conditions, **not** an independent issuer authority, an
 authorization protocol, sudo/polkit boundaries, FD delegation safety,
 protected credentials, or effect-time checks. GE-04 SECURITY HOLD remains.
 
-## Connected-descriptor delegation adversarial test (operator run pending)
+## Connected-descriptor delegation adversarial test (operator-reported result)
 
 `scripts/ge04-q32-issuer-fd-delegation.py` is an opt-in, root-launched,
 **disposable-host-only** experiment. It launches the fixed-denial issuer
@@ -159,3 +159,19 @@ sudo python3 -B /opt/alix-ge04-q31-test/ge04-q32-issuer-fd-delegation.py \
 
 The companion `ge04-q32-deny-issuer-service.py` must already be installed
 beside the runner. This is no authority-bearing issuer, key or effect test.
+
+### Operator-reported connected-FD delegation outcome
+
+The operator supplied `GE04_Q32_ISSUER_FD_DELEGATION` JSON reporting
+`original_connector_uid: 990`, `delegated_sender_uid: 993`, both child
+exit codes 0, `delegated_fd_denial_observed: true`, listener exit 78,
+`disposition: HOLD`, and `qualified_independent_issuance: false`.
+The probe's exit-code checks indicate the attacker received the fixed denial
+over the transferred descriptor. This is **operator-reported test evidence**,
+not independently attested observation. The probe does not establish
+per-message sender identity, prevent FD delegation, or test any
+authorization-bearing issuer. In particular, successful denial by an
+**unconditionally denying** listener cannot establish resistance of a future
+allow-capable protocol to descriptor delegation. The trust boundary must
+require nondelegable, attempt-scoped authorization independently of the
+transport's original connector identity. GE-04 SECURITY HOLD remains.
