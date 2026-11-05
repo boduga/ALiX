@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Linux-root-only GE-04 composed fixed native lifecycle regression."""
 import importlib.util
+import multiprocessing
+import time
 import os
 from pathlib import Path
 import subprocess
@@ -57,7 +59,7 @@ with tempfile.TemporaryDirectory(prefix='ge04-composed-') as name:
     def run(case, checkpoint=None):
         private, public, owned, pin, anchor = case
         return composed.run_fixed_fixture(
-            private, public, owned, pin, binary, anchor_dir=anchor, now_ms=1,
+            private, public, owned, pin, binary, anchor_dir=anchor, now_ms=1, effect_now_ms=1,
             crash_checkpoint=checkpoint)
 
     good = setup('normal')
@@ -135,13 +137,95 @@ with tempfile.TemporaryDirectory(prefix='ge04-composed-') as name:
 
     expired = setup('expired')
     try:
-        composed.run_fixed_fixture(*expired[:3], expired[3], binary, anchor_dir=expired[4], now_ms=1000)
+        composed.run_fixed_fixture(*expired[:3], expired[3], binary, anchor_dir=expired[4], now_ms=1000, effect_now_ms=1000)
     except PermissionError:
         pass
     else:
         raise AssertionError('expired admission accepted')
     assert auth.inspect(expired[0])['approvalState'] == 'approved'
     assert not (expired[2] / observed.LEAF).exists()
+
+    # PREPARED is durable before a second (fixture-controlled) clock
+    # observation. Expiry blocks native effect but cannot restore approval.
+    crossed = setup('expires-between-admission-and-effect')
+    try:
+        composed.run_fixed_fixture(
+            crossed[0], crossed[1], crossed[2], crossed[3], binary,
+            anchor_dir=crossed[4], now_ms=1, effect_now_ms=1000)
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError('late expiry permitted native effect')
+    assert auth.inspect(crossed[0])['consumed'] == [observed.ATTEMPT]
+    assert auth.inspect(crossed[0])['inFlight'] == observed.ATTEMPT
+    assert not (crossed[2] / observed.LEAF).exists()
+    assert composed.recover_read_only(
+        crossed[0], crossed[2], crossed[1], crossed[3], anchor_dir=crossed[4]) == UNKNOWN
+
+    # Use independent processes (not same-process flock, not a sleep-only
+    # timing assertion): revocation must wait for the held fixture lock.
+    racing = setup('revocation-after-prepared')
+    entered = multiprocessing.Event()
+    resume = multiprocessing.Event()
+    revoked = multiprocessing.Event()
+    ctx = multiprocessing.get_context('fork')
+    def effect_actor():
+        try:
+            composed.run_fixed_fixture(
+                racing[0], racing[1], racing[2], racing[3], binary,
+                anchor_dir=racing[4], now_ms=1, effect_now_ms=1,
+                before_native_entered=entered, before_native_resume=resume)
+        except BaseException:
+            os._exit(91)
+
+    def revoker_actor():
+        try:
+            auth.revoke(racing[0], 8)
+            revoked.set()
+        except BaseException:
+            os._exit(92)
+
+    worker = ctx.Process(target=effect_actor)
+    revoker = ctx.Process(target=revoker_actor)
+    worker.start()
+    try:
+        assert entered.wait(8), 'effect did not reach prepared boundary'
+        revoker.start()
+        # The revoker has no ability to update the record while the worker
+        # owns the lock. This check alone is timing-dependent; final state is
+        # also checked after both child processes have exited.
+        assert not revoked.wait(0.15), 'revocation bypassed held fixture lock'
+    finally:
+        resume.set()
+        worker.join(10)
+        if worker.is_alive():
+            worker.terminate()
+            worker.join()
+        if revoker.pid is not None:
+            revoker.join(10)
+            if revoker.is_alive():
+                revoker.terminate()
+                revoker.join()
+    assert worker.exitcode == 0, worker.exitcode
+    assert revoker.exitcode == 0 and revoked.is_set(), 'revocation did not serialize'
+    assert auth.inspect(racing[0])['revoked'] is True
+    assert auth.inspect(racing[0])['consumed'] == [observed.ATTEMPT]
+    assert (racing[2] / observed.LEAF).read_bytes() == observed.BODY
+    # Revocation changes authority, so read-only recovery remains uncertain.
+    assert composed.recover_read_only(
+        racing[0], racing[2], racing[1], racing[3], anchor_dir=racing[4]) == UNKNOWN
+
+    # Revocation linearized before the request: no approval consumption.
+    revoked_first = setup('revocation-before-admission')
+    auth.revoke(revoked_first[0], 8)
+    try:
+        run(revoked_first)
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError('revoked request accepted')
+    assert auth.inspect(revoked_first[0])['consumed'] == []
+    assert not (revoked_first[2] / observed.LEAF).exists()
 
     for checkpoint in sorted(composed.CHECKPOINTS):
         case = setup(checkpoint)
