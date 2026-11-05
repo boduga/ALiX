@@ -31,3 +31,7 @@ Repository search of inspected `src` paths found no `SCM_RIGHTS` usage. This is 
 5. Obtain independent security review of authentication, replay consumption and final-effect fence. No positive-path activation until that review and operator authorization.
 
 **Disposition: GE-04 SECURITY HOLD.** Zero real effects authorized; independent issuance not qualified.
+
+## Synthetic Node runtime descriptor observation (microcloud3 pending)
+
+`scripts/ge04-q32-fd-runtime-fixture.cjs` creates a temporary synthetic regular file, keeps it open in the parent, and starts Node subprocesses with four-channel subagent-shaped stdio, three-channel daemon-like stdio, and an explicit descriptor at slot 9. Child `fstat` results are reduced to descriptor numbers and file types; no secrets, pathnames or descriptor contents are emitted. The experiment verifies that regular files are not observed in the first two child shapes, that FD 9 is observed in the explicit handoff, and that the synthetic fixture remains unchanged. `scripts/test-ge04-q32-fd-runtime-fixture.py` runs this fixture locally. The fixture uses `spawnSync` with an observed three-entry configuration for the daemon-like case, **not** the real daemon's `stdio: "ignore"` configuration; it is not an ALiX runtime trace or proof of the actual subagent's fourth-pipe behavior. It intentionally does not use `strace`, attach to live processes, inspect private data or establish cross-UID custody. Microcloud3 execution and any real-process syscall trace require separate operator evidence. GE-04 HOLD remains.
