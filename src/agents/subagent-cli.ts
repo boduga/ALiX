@@ -6,12 +6,12 @@ import { parseArgs } from "util";
 import { pathToFileURL } from "node:url";
 import { basename, isAbsolute, relative, resolve } from "path";
 import { mkdir } from "fs/promises";
-import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole, SubagentStyle, ModelSelectionPolicy } from "../operations/config/schema.js";
 import { resolvePolicyPath } from "../governance/policy/policy-gate.js";
 import { WorkspacePathResolver } from "../runtime-state/runtime/workspace-path.js";
 import { ALIX_BUILTIN_EXECUTORS } from "./tool-manifest.js";
+import { readWorkerCredentialSnapshot } from "./credential-fd-reader.js";
 import { createModelResolver } from "../operations/config/model-resolver.js";
 import { getSubagentRole } from "../operations/config/subagent-config.js";
 import { SUBAGENT_EVENT_TYPES } from "../runtime-state/events/types.js";
@@ -581,15 +581,7 @@ export class SubagentCLI {
     // Load config from current working directory (user's project, not ALiX source tree)
     const projectRoot = process.cwd();
     const loadConfig = (await import("../operations/config/loader.js")).loadConfig;
-    let resolvedApiKeys: Record<string, string> | undefined;
-    if (Number.isInteger(credentialFd) && credentialFd >= 3) {
-      const inherited = JSON.parse(readFileSync(credentialFd, "utf8")) as unknown;
-      if (inherited && typeof inherited === "object" && !Array.isArray(inherited)) {
-        resolvedApiKeys = Object.fromEntries(
-          Object.entries(inherited).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
-        );
-      }
-    }
+    const resolvedApiKeys = readWorkerCredentialSnapshot(credentialFd);
     const config = await loadConfig(projectRoot, { resolvedApiKeys }) as AlixConfig;
     // Propagate parent sessionMode so bypass/auto parents don't strand
     // headless children in ask with no approval store (shell.run fail-closed).
