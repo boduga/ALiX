@@ -556,6 +556,8 @@ jobs:
           grep -Fq 'GE04 composed fixture PASS' /tmp/ge04-supervisor-composed-lifecycle.log
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-supervisor-pinned-native-root.py | tee /tmp/ge04-supervisor-pinned-native.log
           grep -Fq 'GE04 pinned native descriptor PASS' /tmp/ge04-supervisor-pinned-native.log
+          sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-supervisor-signed-sealed-lifecycle-root.py | tee /tmp/ge04-supervisor-signed-sealed-lifecycle.log
+          grep -Fq 'GE04 signed sealed lifecycle PASS' /tmp/ge04-supervisor-signed-sealed-lifecycle.log
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-supervisor-lifecycle-anchor-root.py
           sudo -n env PATH="$PATH" /usr/bin/python3 -B experiments/ge04/test-final-boundary-kernel-root.py | tee /tmp/ge04-final-boundary-kernel.log
           grep -Fq 'GE04 pinned kernel create fixture PASS' /tmp/ge04-final-boundary-kernel.log
