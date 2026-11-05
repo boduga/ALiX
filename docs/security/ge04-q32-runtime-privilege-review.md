@@ -69,3 +69,21 @@ any additional privilege to perform this review.
 **Decision: HOLD.** Do not instantiate production keys, trust a diagnostic
 match as authorization, enable `createScopedMutationService()`, or promote
 synthetic observations into independent qualification.
+
+## Experimental deny-only issuer process (not installed as a service)
+
+`scripts/ge04-q32-deny-issuer-service.py` is a bounded, opt-in, Linux-only
+`SOCK_SEQPACKET` listener. It requires a nonroot effective UID and a private
+`0700` directory owned by that UID, creates a mode `0600` socket, reads at most
+4097 bytes per connection, and always responds with the fixed text
+`DENIED GE04_SECURITY_HOLD`. It does not parse requests into authority,
+create signing material, use an approval store, or perform effects. It exits
+78 / `HOLD` even after a successful diagnostic. Five unprivileged tests cover
+fail-closed prerequisites and an attempted forged approval message.
+
+The script is **not** a persistent issuer, service unit, or production
+security boundary. The next host test must run it under the already-created
+`alixge04issuer` UID using an operator-reviewed, bounded disposable invocation,
+then separately observe actual process credentials and attempted connections
+from coordinator, supervisor and attacker. Do not install a long-lived unit,
+change sudoers, or lift the hold on the basis of this experiment.
