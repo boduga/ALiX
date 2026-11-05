@@ -171,3 +171,22 @@ A future adapter must prove that its idempotency key is enforced at the
 actual effect boundary, receipts are durable and authentic, the query is
 side-effect-free, and ambiguous outcomes never trigger a blind retry.
 GE-04 SECURITY HOLD remains active.
+
+## Integrated synthetic journal-to-target reconciliation (HOLD)
+
+`scripts/ge04-q32-inert-integrated-recovery.py` reads the existing journal
+attempt phase and target receipt registry without submitting an effect,
+retrying, or mutating either store during reconciliation. An ambiguous
+`UNKNOWN_RECOVERY` attempt plus a matching synthetic receipt yields
+`RECONCILED_SYNTHETIC_ONLY`; missing receipt yields `HOLD_UNRESOLVED`;
+conflicting digest yields `HOLD_INTEGRITY_CONFLICT`. Missing or nonambiguous
+attempts fail closed. Eight tests cover these outcomes, read-only repeat
+lookups, and the CLI's HOLD/zero-retry contract.
+
+This integration does **not** authenticate or bind the journal attempt to
+the target receipt: the caller supplies the attempt, idempotency key and
+digest independently. A real trusted reconciliation protocol must persist
+and verify the exact key/digest/attempt binding in protected state, verify
+receipt provenance, and ensure the receipt attests to the actual effect.
+`RECONCILED_SYNTHETIC_ONLY` never grants effect authority. No external effect,
+protected custody or independent issuer is involved. GE-04 HOLD persists.
