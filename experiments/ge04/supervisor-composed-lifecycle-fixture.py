@@ -35,7 +35,8 @@ CHECKPOINTS = frozenset({'after_prepare', 'after_native', 'after_observation',
 
 def run_fixed_fixture(private, public, owned, pinned_key_digest, binary, *,
                       anchor_dir,
-                      now_ms, crash_checkpoint=None):
+                      now_ms, effect_now_ms, crash_checkpoint=None,
+                      before_native_entered=None, before_native_resume=None):
     """One fixed test effect, with consumed approval under one lock.
 
     No caller observation, effect digest, status, or success flag accepted.
@@ -43,7 +44,8 @@ def run_fixed_fixture(private, public, owned, pinned_key_digest, binary, *,
     """
     if os.geteuid() != 0:
         raise PermissionError('privileged experimental supervisor fixture only')
-    if type(now_ms) is not int or now_ms < 0:
+    if (type(now_ms) is not int or now_ms < 0 or
+            type(effect_now_ms) is not int or effect_now_ms < now_ms):
         raise ValueError('invalid clock fixture')
     if crash_checkpoint is not None and crash_checkpoint not in CHECKPOINTS:
         raise ValueError('unknown test crash checkpoint')
@@ -69,6 +71,16 @@ def run_fixed_fixture(private, public, owned, pinned_key_digest, binary, *,
                 authority._save(fd, state)
                 journal.append(fd, request_digest, 'PREPARED')
                 _crash(crash_checkpoint, 'after_prepare')
+
+                # Testing-only interleaving: still inside the SUP-25 cooperative
+                # exclusion domain. Real trusted time and native syscall-adjacent
+                # enforcement are not established by caller-provided fixture time.
+                if before_native_entered is not None:
+                    before_native_entered.set()
+                if before_native_resume is not None and not before_native_resume.wait(8):
+                    raise TimeoutError('test fixture interleaving timed out: UNCERTAIN')
+                if effect_now_ms >= state['expiresAtMs']:
+                    raise PermissionError('fixture expiry before native effect: UNCERTAIN_NO_REPLAY')
 
                 # Fixed disposable native experiment; not trusted binary origin.
                 result = subprocess.run(
