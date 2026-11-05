@@ -133,3 +133,18 @@ resolved automatically without a trusted target-side idempotency/reconciliation
 protocol. No `CONFIRMED` transition is implemented because there is no real
 trusted receipt. The simulated `mark_possible` does not hold a fence across
 any real effect. GE-04 SECURITY HOLD remains.
+
+## Disposable SIGKILL fault injection (HOLD)
+
+`scripts/ge04-q32-inert-crash-worker.py` is a test-only child process that
+commits either synthetic `INTENT` or `EFFECT_POSSIBLE` to a scratch SQLite
+journal, flushes a checkpoint marker and blocks. Its test parent sends
+`SIGKILL`, waits for signal termination, reopens the database and checks
+recovery to `ABORTED` or `UNKNOWN_RECOVERY`, respectively. Both states reject
+reusing the attempt. A missing `--isolated-test` flag fails closed before
+opening a journal. This is actual process-kill injection at **two post-commit
+checkpoints**, not arbitrary-instruction crash injection, torn-write testing,
+power-loss durability, concurrency proof, or real effect execution. The
+checkpoint's stdout marker is test synchronization, not a production commit
+receipt. No authorization, keys, target-side idempotency or reconciliation
+oracle exists; ambiguous outcomes remain unresolved. GE-04 HOLD persists.
