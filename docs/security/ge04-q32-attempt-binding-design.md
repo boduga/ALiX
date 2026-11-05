@@ -50,3 +50,15 @@ The ordering, durability and recovery model are **open design questions**, not v
 ## Acceptance boundary
 
 Q3.2 cannot be marked qualified until an independent operator/reviewer witnesses the real distinct-UID adversarial tests, independently controlled trust material and runtime, crash recovery, durable atomicity, and effect-time fence. Tests of a **deny-only fixture** may demonstrate rejection or expose weaknesses but cannot establish authorization safety. No release, merge, or gate transition may be inferred from a green test suite alone. Final human signoff remains mandatory.
+
+## Q3.2 initial inert diagnostic slice
+
+`scripts/ge04-q32-deny-validator.py` and its unit suite compare a bounded,
+strict JSON request to a **test-provided expected binding**. They reject
+malformed, duplicate, missing, extra, mismatched, stale-policy and replay-marked
+inputs. Even an exact match returns `DENIED GE04_SECURITY_HOLD` and
+`authorized=False`. This is a pure comparison, **not an authorization
+implementation**: the expected binding has no protected provenance, nonce
+state is not durably or atomically claimed, no authenticated issuer exists,
+no current-sender identity is established, and no effect-time fence or mutation
+is attempted. The tests cannot establish cross-process or cross-UID safety.
