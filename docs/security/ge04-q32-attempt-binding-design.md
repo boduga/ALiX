@@ -175,3 +175,21 @@ filesystem metadata may be changed by a privileged attacker. Multi-component
 paths, mount replacement, ACLs, file mutation through other descriptors,
 concurrent races, issuer custody, policy revocation, and crash behavior remain
 unqualified. Production code must not reuse this as an authorization check.
+
+## Q3.2 synthetic revocation-ordering diagnostic
+
+`scripts/ge04-q32-revocation-probe.py` exercises a disposable SQLite state row
+and nonce table. `BEGIN IMMEDIATE` serializes a diagnostic revision/active
+check with a synthetic nonce insertion, and separately serializes revocation.
+The tests cover stale revision, revoke-before-check, replay, concurrent
+revoke/check and missing storage. Every diagnostic result has
+`authorized: false`; the executable always exits 78 with `HOLD`.
+
+**Not an effect-time fence:** neither the state row nor the caller-provided
+revision has independent provenance; there is no trusted issuer, approval
+scope, expiry, effect or protected storage. The check transaction ends before
+any possible effect, so revocation *after* the check is not fenced. SQLite
+serialization only orders these synthetic database operations. A real last-
+effect fence needs an independently protected authority and a carefully
+specified synchronization/revocation protocol spanning the effect boundary,
+plus crash and recovery evidence. No gate transition is justified.
