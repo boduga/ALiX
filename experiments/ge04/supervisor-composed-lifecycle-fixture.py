@@ -25,6 +25,7 @@ authority = load('sup25-atomic-authority-fixture')
 observed = load('native-effect-observation-fixture')
 derived = load('supervisor-derived-effect-fixture')
 signed = load('signed-native-observation-fixture')
+journal = load('supervisor-lifecycle-journal')
 
 # Non-public test harness injection only.
 CHECKPOINTS = frozenset({'after_prepare', 'after_native', 'after_observation',
@@ -57,10 +58,14 @@ def run_fixed_fixture(private, public, owned, pinned_key_digest, binary, *,
             pinned = os.open(owned, os.O_RDONLY | os.O_DIRECTORY |
                              os.O_NOFOLLOW | os.O_CLOEXEC)
             try:
+                request_digest = journal.fingerprint(journal.fixed_request(state, pinned))
+                if journal.read_chain(fd, request_digest)[0]:
+                    raise PermissionError('prior journal attempt exists')
                 state['approvalState'] = 'consumed'
                 state['inFlight'] = observed.ATTEMPT
                 state['consumed'] = [observed.ATTEMPT]
                 authority._save(fd, state)
+                journal.append(fd, request_digest, 'PREPARED')
                 _crash(crash_checkpoint, 'after_prepare')
 
                 # Fixed disposable native experiment; not trusted binary origin.
@@ -73,10 +78,12 @@ def run_fixed_fixture(private, public, owned, pinned_key_digest, binary, *,
                     raise PermissionError('native fixture did not produce required marker')
                 _crash(crash_checkpoint, 'after_native')
                 observed.persist_locked(fd, private, pinned, state, result.stdout.strip())
+                journal.append(fd, request_digest, 'OBSERVED')
                 _crash(crash_checkpoint, 'after_observation')
 
                 state['inFlight'] = None
                 authority._save(fd, state)
+                journal.append(fd, request_digest, 'SETTLED')
                 _crash(crash_checkpoint, 'after_settlement')
 
                 # Do not re-enter derived.publish's flock while already locked.
@@ -85,6 +92,7 @@ def run_fixed_fixture(private, public, owned, pinned_key_digest, binary, *,
                 marker = signed.sign_observation(
                     private, public, state, observation_bytes,
                     effect_hash, pinned_key_digest)
+                journal.append(fd, request_digest, 'SIGNED')
                 _crash(crash_checkpoint, 'after_signature')
                 if not marker.endswith('_UNVERIFIED'):
                     raise PermissionError('unexpected fixture signing marker')
@@ -104,4 +112,35 @@ def _crash(configured, stage):
 
 def recover_read_only(private, owned, public, pinned_key_digest):
     """Only inspect; incomplete or contradictory evidence means no replay."""
-    return derived.recover_read_only(private, owned, public, pinned_key_digest)
+    try:
+        if os.geteuid() != 0:
+            return 'UNCERTAIN_NO_REPLAY'
+        fd = authority._directory(private)
+        try:
+            lock = authority._lock(fd)
+            try:
+                state = authority._load(fd)
+                if (state['approvalState'] != 'consumed' or
+                        state['inFlight'] is not None or
+                        state['consumed'] != [observed.ATTEMPT] or
+                        state['revoked']):
+                    return 'UNCERTAIN_NO_REPLAY'
+                pinned = os.open(owned, os.O_RDONLY | os.O_DIRECTORY |
+                                 os.O_NOFOLLOW | os.O_CLOEXEC)
+                try:
+                    request_digest = journal.fingerprint(
+                        journal.fixed_request(state, pinned))
+                    if journal.classify(fd, request_digest) != 'CHAIN_COMPLETE_UNVERIFIED':
+                        return 'UNCERTAIN_NO_REPLAY'
+                    obs_hash, effect_hash, _raw = derived._inspect_locked(
+                        fd, private, pinned, state)
+                    return signed.verify_observation(
+                        public, pinned_key_digest, obs_hash, effect_hash)
+                finally:
+                    os.close(pinned)
+            finally:
+                os.close(lock)
+        finally:
+            os.close(fd)
+    except (OSError, ValueError, TypeError, KeyError, PermissionError):
+        return 'UNCERTAIN_NO_REPLAY'
