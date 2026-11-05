@@ -99,4 +99,20 @@ print('GE04_COORDINATOR_PUBLIC_VERIFICATION_PASS')
     receipt.write_bytes(original)
     assert signed.verify_observation(public, pin, obs_digest, digest).endswith('_UNVERIFIED')
 
+    # Explicit RELEASE BLOCKER: a compromised root fixture owner can sign
+    # invented input bytes without running any kernel mutation. A public
+    # signature alone does not prove effect provenance.
+    fake_private = root / 'fabricated-root'
+    fake_private.mkdir(mode=0o700)
+    fake_public = root / 'fabricated-public'
+    fake_public.mkdir(mode=0o755)
+    fake_pin = signed.provision(fake_private, fake_public)
+    assert signed.sign_observation(fake_private, fake_public, state,
+                                   b'FABRICATED_NO_KERNEL_EFFECT', digest,
+                                   fake_pin).endswith('_UNVERIFIED')
+    assert signed.verify_observation(fake_public, fake_pin,
+                                     hashlib.sha256(b'FABRICATED_NO_KERNEL_EFFECT').hexdigest(),
+                                     digest).endswith('_UNVERIFIED')
+    print('GE04 ROOT_FIXTURE_FORGERY_REPRODUCED_UNVERIFIED')
+
 print('GE04 signed fixture custody PASS: distinct UID denied; public signature verified; forgery, binding mismatch, replay denied')
