@@ -53,3 +53,7 @@ On microcloud3 the operator reported issuer UID 990, coordinator UID 994, and at
 ## Connected socket descriptor delegation probe (operator execution pending)
 
 `scripts/ge04-q32-supervisor-connected-fd-probe.py` is a disposable-host, operator-root-launched fixture requiring `--isolated-test` and distinct nonroot supervisor/attacker accounts. A supervisor-UID connector opens the protected supervisor-owned socket, transfers that *connected socket descriptor* through `SCM_RIGHTS` to an attacker-UID process, and the attacker sends a synthetic forged approval request. The service must still respond HOLD with zero effects. A successful delegation shows that socket path DAC and connection-time identity alone do not establish the identity of a later sender. It does not test production ALiX authority or qualify sender authentication. The local unprivileged entry tests pass 2/2; privileged host evidence is pending.
+
+## Operator-reported connected descriptor result
+
+On microcloud3, supervisor UID 995 passed a connected supervisor-owned socket descriptor to attacker UID 993; the attacker sent a synthetic forged approval request. The deny-only verifier responded `DENIED_SECURITY_HOLD`, no authorization or real effects, and exited 78. This demonstrates descriptor delegation bypassing direct-connect DAC in the synthetic fixture, **not** positive-path authentication safety or a production ALiX leak. The request-level sender-authentication design and outstanding negative matrix are in `docs/security/ge04-q32-request-sender-authentication.md`.
