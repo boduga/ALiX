@@ -370,6 +370,25 @@ jobs:
             tests/security/continuation-cancellation.vitest.ts \
             tests/security/continuation-unknown-outcome.vitest.ts
 
+  # Real systemd manager smoke, but only in a disposable hosted runner.
+  # Never deploy or enable this prototype on a persistent host.
+  ge04-live-systemd-inert:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/ge04-linux-backend-adapter'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Exercise inert supervisor under real systemd and clean up
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo -n env CI=true ALIX_GE04_EPHEMERAL_SYSTEMD_TEST=1 \
+            /usr/bin/python3 -B experiments/ge04/test-live-systemd-inert-root.py \
+            | tee /tmp/ge04-live-systemd.log
+          grep -Fq 'GE04 live systemd inert lifecycle PASS' /tmp/ge04-live-systemd.log
+
   # GE-04 experimental branch-only security gate. Runs only for the unmerged
   # GE-04 PR, never as a production deployment or blanket privileged test.
   ge04-cross-uid-denial:

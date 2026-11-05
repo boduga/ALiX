@@ -23,7 +23,8 @@ expect = {
     'NoNewPrivileges': 'yes', 'ProtectSystem': 'strict', 'ProtectHome': 'yes',
     'PrivateTmp': 'yes', 'PrivateDevices': 'yes', 'RestrictNamespaces': 'yes',
     'RestrictSUIDSGID': 'yes', 'KillMode': 'control-group',
-    'RuntimeDirectoryMode': '0700', 'StateDirectoryMode': '0700',
+    'RuntimeDirectoryMode': '0711', 'RuntimeDirectoryPreserve': 'yes',
+    'StateDirectoryMode': '0700',
     'CapabilityBoundingSet': '', 'AmbientCapabilities': '',
     'RestrictAddressFamilies': 'AF_UNIX', 'UMask': '0077',
 }
