@@ -87,3 +87,31 @@ security boundary. The next host test must run it under the already-created
 then separately observe actual process credentials and attempted connections
 from coordinator, supervisor and attacker. Do not install a long-lived unit,
 change sudoers, or lift the hold on the basis of this experiment.
+
+## Bounded cross-UID listener experiment (operator execution pending)
+
+`scripts/ge04-q32-issuer-cross-uid.py` is a **root-launched**, explicit
+`--isolated-test` orchestration of the previously tested deny-only listener.
+It uses four distinct nonroot accounts, a disposable root-owned traversal-only
+parent and issuer-owned `0700` child, starts the listener as the issuer UID,
+then attempts three cross-UID connections and one issuer-UID forged-approval
+message. Expected results: supervisor, coordinator and attacker receive OS
+permission denial; the issuer connection receives the fixed `DENIED` reply.
+It checks bounded listener termination and cleans temporary paths. Even a
+passing run returns JSON `disposition: HOLD` and
+`qualified_independent_issuance: false`; exit 0 signifies **only** the
+synthetic experiment passed. No credentials or production service are created.
+
+After reviewing both staged scripts, the operator may run **only on the
+isolated disposable host**:
+
+```sh
+sudo python3 -B /opt/alix-ge04-q31-test/ge04-q32-issuer-cross-uid.py \
+  --isolated-test --issuer alixge04issuer \
+  --supervisor alixge04supervisor --coordinator alixge04coordinator \
+  --attacker alixge04attacker
+```
+
+This is not evidence of sudo/polkit confinement, trusted issuer code,
+independent administration, delegated-FD protection, real credential custody,
+or effect-time authorization. Do not run against production paths.
