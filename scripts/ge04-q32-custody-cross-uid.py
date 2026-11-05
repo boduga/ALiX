@@ -9,7 +9,6 @@ import json
 import os
 from pathlib import Path
 import pwd
-import stat
 import sys
 import tempfile
 
@@ -24,7 +23,7 @@ def identities(names):
 
 
 def child_attempt(user, directory, fixture):
-    """Attempt read/write/replace/link and inherited-FD access as an unprivileged child."""
+    """Attempt read/write/replace/link/traverse as a dropped-privilege child."""
     read_fd, write_fd = os.pipe()
     pid = os.fork()
     if pid == 0:
@@ -80,14 +79,31 @@ def run(users):
         os.chown(fixture, users['issuer'].pw_uid, users['issuer'].pw_gid)
         fixture.chmod(0o600)
         (directory / 'replacement').write_text('FORGED')
-        results = {role: child_attempt(users[role], directory, fixture) for role in ROLES}
+        # Never run authorized issuer mutations against the negative-test fixture.
+        results = {role: child_attempt(users[role], directory, fixture)
+                   for role in ('supervisor', 'coordinator', 'attacker')}
+        # Issuer positive access uses an independent disposable directory/fixture.
+        issuer_dir = root / 'issuer-positive'
+        issuer_dir.mkdir(mode=0o700)
+        os.chown(issuer_dir, users['issuer'].pw_uid, users['issuer'].pw_gid)
+        issuer_fixture = issuer_dir / 'synthetic-positive.txt'
+        issuer_fixture.write_text('ISSUER_POSITIVE_ONLY\n')
+        os.chown(issuer_fixture, users['issuer'].pw_uid, users['issuer'].pw_gid)
+        issuer_fixture.chmod(0o600)
+        (issuer_dir / 'replacement').write_text('FORGED')
+        results['issuer'] = child_attempt(users['issuer'], issuer_dir, issuer_fixture)
         expected_denials = ('read', 'write', 'replace', 'link', 'traverse')
         negative = all(all(results[role].get(key) == 'DENIED' for key in expected_denials)
                        for role in ('supervisor', 'coordinator', 'attacker'))
-        original = fixture.read_text() == 'SYNTHETIC_BINDING_ONLY\n'
+        original = (fixture.read_text() == 'SYNTHETIC_BINDING_ONLY\n'
+                    and not (directory / 'link').exists()
+                    and (directory / 'replacement').read_text() == 'FORGED')
+        issuer_positive = all(results['issuer'].get(key) == 'ALLOWED'
+                              for key in ('read', 'write', 'replace', 'traverse'))
         return {'gate': 'GE04_Q32_CUSTODY_CROSS_UID', 'disposition': 'HOLD',
                 'qualified_independent_issuance': False, 'real_effects_performed': 0,
                 'negative_operations_denied': negative, 'fixture_unchanged': original,
+                'issuer_positive_observed': issuer_positive,
                 'results': results, 'uids': {role: user.pw_uid for role, user in users.items()},
                 'limits': 'fixture_only_no_fd_delegation_acl_mount_namespace_or_authentication_proof'}
 

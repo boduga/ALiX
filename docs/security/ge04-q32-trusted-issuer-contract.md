@@ -267,3 +267,16 @@ sudo python3 -B scripts/ge04-q32-custody-cross-uid.py \\
   --issuer alixge04issuer --supervisor alixge04supervisor \\
   --coordinator alixge04coordinator --attacker alixge04attacker
 ```
+
+### Cross-UID fixture-contamination correction
+
+The first operator run on microcloud3 reported `negative_operations_denied:
+true` but `fixture_unchanged: false`. Investigation found the probe ran
+*authorized issuer mutations against the same fixture* used for negative
+access checks. That result is invalid as an integrity qualification, not
+proof of a nonissuer bypass. The corrected probe dispatches negative
+operations only to supervisor/coordinator/attacker, and uses a separate
+issuer-owned positive-control fixture for issuer access. A regression test
+checks that issuer mutation is excluded from the negative fixture dispatch.
+The corrected probe **has not yet been rerun on microcloud3**; previous
+host output remains historical evidence of the harness defect. HOLD persists.
