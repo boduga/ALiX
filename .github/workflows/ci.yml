@@ -520,6 +520,8 @@ jobs:
           grep -Fq 'GE04 isolated endpoint recovery PASS' /tmp/ge04-isolated-endpoint-recovery.log
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-protected-supervisor-installation-root.py | tee /tmp/ge04-protected-installation.log
           grep -Fq 'GE04 protected supervisor installation PASS' /tmp/ge04-protected-installation.log
+          "$(command -v python)" -B experiments/ge04/test-systemd-inert-prototype.py | tee /tmp/ge04-systemd-inert-prototype.log
+          grep -Fq 'GE04 systemd inert prototype PASS' /tmp/ge04-systemd-inert-prototype.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |

@@ -24,17 +24,20 @@ def load(name):
     return mod
 
 installer = load('protected-supervisor-installation')
+managed = load('managed-supervisor-entry')
 authority = load('sup25-atomic-authority-fixture')
 keys = load('fixture-credential-provisioning')
 
 UNTRUSTED = """
 import os, pathlib, sys
-installation, private, public = map(pathlib.Path, sys.argv[1:])
+installation, private, public, config = map(pathlib.Path, sys.argv[1:])
 assert os.geteuid() == 65534 and os.getegid() == 65534
 for action in (
     lambda: (installation / 'installation.json').write_text('forged'),
     lambda: (installation / 'isolated-uid-supervisor-fixture.py').write_text('forged'),
     lambda: (installation / 'kernel-bound-datagram-sender.py').unlink(),
+    lambda: (installation / 'managed-supervisor-entry.py').write_text('forged'),
+    lambda: config.write_text('forged'),
     lambda: installation.chmod(0o777),
     lambda: (private / 'state.json').write_text('forged'),
 ):
@@ -103,17 +106,34 @@ with tempfile.TemporaryDirectory(prefix='ge04-install-') as name:
     keys.install_fixture_key(private)
     authority.initialize(private, revision=7, lease='fixture-lease',
                          expiry=1000, approval='fixture-approval')
+    config_dir = root / 'bootstrap'
+    config_dir.mkdir(mode=0o700)
+    config = config_dir / 'bootstrap.json'
+    bootstrap = {'version': 1, 'installation': str(installation),
+                 'private': str(private), 'public': str(public),
+                 'coordinatorPid': 1, 'coordinatorUid': 65534}
+    config.write_text(json.dumps(bootstrap, sort_keys=True) + '\n')
+    config.chmod(0o600)
+    assert managed.verify_startup(config)['coordinatorPid'] == 1
+    config.chmod(0o666)
+    rejected(lambda: managed.verify_startup(config))
+    config.chmod(0o600)
     coordinator = subprocess.Popen(
         [sys.executable, '-B', '-c', UNTRUSTED, str(installation),
-         str(private), str(public)], preexec_fn=drop,
+         str(private), str(public), str(config)], preexec_fn=drop,
         close_fds=True, pass_fds=(),
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, bufsize=1)
     supervisor = None
     try:
         assert coordinator.stdout.readline().strip() == 'GE04_INSTALLATION_UNTRUSTED_DENIED'
-        supervisor = installer.launch(installation, private, public,
-                                      coordinator.pid, 65534)
+        bootstrap['coordinatorPid'] = coordinator.pid
+        config.write_text(json.dumps(bootstrap, sort_keys=True) + '\n')
+        assert managed.verify_startup(config)['coordinatorPid'] == coordinator.pid
+        supervisor = subprocess.Popen(
+            [sys.executable, '-I', '-B', str(installation / 'managed-supervisor-entry.py'),
+             str(config)], close_fds=True, pass_fds=(),
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
         assert supervisor.stdout.readline().strip() == 'GE04_ISOLATED_SUPERVISOR_READY'
         coordinator.stdin.write('GO\n')
         coordinator.stdin.flush()

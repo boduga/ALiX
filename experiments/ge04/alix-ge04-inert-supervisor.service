@@ -1,0 +1,47 @@
+# GE-04 INERT supervisor systemd *prototype* only. DO NOT INSTALL OR ENABLE.
+# This unit is deliberately not installable by systemctl enable (no [Install]).
+# Production mutation authority is unavailable and SECURITY HOLD is mandatory.
+[Unit]
+Description=ALiX GE-04 inert supervisor security research (NOT FOR DEPLOYMENT)
+Documentation=man:systemd.service(5)
+After=local-fs.target
+ConditionPathExists=/etc/alix-ge04-inert/bootstrap.json
+StartLimitIntervalSec=60
+StartLimitBurst=1
+
+[Service]
+Type=exec
+User=root
+Group=root
+UMask=0077
+ExecStart=/usr/bin/python3 -I -B /opt/alix/ge04/managed-supervisor-entry.py /etc/alix-ge04-inert/bootstrap.json
+Restart=no
+TimeoutStartSec=15
+TimeoutStopSec=5
+KillMode=control-group
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+DevicePolicy=closed
+RuntimeDirectory=alix-ge04-inert
+RuntimeDirectoryMode=0700
+StateDirectory=alix-ge04-inert
+StateDirectoryMode=0700
+ReadWritePaths=/run/alix-ge04-inert /var/lib/alix-ge04-inert

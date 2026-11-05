@@ -19,6 +19,8 @@ MODULES = (
     'sup25-atomic-authority-fixture.py',
     'sup26-inert-terminal-evidence.py',
     'fixture-credential-provisioning.py',
+    'protected-supervisor-installation.py',
+    'managed-supervisor-entry.py',
 )
 MANIFEST = 'installation.json'
 
