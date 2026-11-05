@@ -75,3 +75,22 @@ policy or effect is authorized. No effect is performed. The experiment does not
 prove OS-level custody, crash durability under power loss, post-claim revocation,
 atomic authorization-plus-effect, recovery or delegated-FD resistance. Its
 entrypoint always exits 78 and prints `DENIED GE04_SECURITY_HOLD`.
+
+## Q3.2 read-only custody snapshot preflight (not independent custody)
+
+`scripts/ge04-q32-custody-preflight.py` inspects an explicitly supplied
+filesystem root and three fixture filenames (`policy.json`, `claims.sqlite`,
+`issuer.pub`) using `lstat`. It flags wrong owners, non-private modes,
+symlinks, hardlinks, missing files and a same-UID supervisor/coordinator. The
+fixture names and mode requirements are **test assumptions**, not an approved
+production layout. The CLI always returns exit 78 and disposition HOLD,
+including when the snapshot passes. No files are created or modified.
+
+**Limitations:** `lstat` checks are vulnerable to TOCTOU and do not validate
+ancestor-directory trust, mount namespaces, bind mounts, ACLs, capabilities,
+loader provenance, protected key issuance, DB integrity, or independent
+administration. A compromised privileged supervisor can replace its own
+files; ownership alone cannot prove issuer separation. The next acceptance
+slice needs an independent operator-controlled root, descriptor-pinned path
+walk and actual untrusted-UID negative write tests. A passing snapshot cannot
+be used as a trust decision or to clear the GE-04 HOLD.
