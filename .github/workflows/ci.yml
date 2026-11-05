@@ -506,6 +506,8 @@ jobs:
           grep -Fq 'GE04 SUP-23 root supervisor fixture PASS' /tmp/ge04-sup23-root-supervisor.log
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-sup24-session-lifecycle-root.py | tee /tmp/ge04-sup24-lifecycle.log
           grep -Fq 'GE04 SUP-24 session lifecycle PASS' /tmp/ge04-sup24-lifecycle.log
+          "$(command -v python)" -B experiments/ge04/test-sup25-atomic-authority.py | tee /tmp/ge04-sup25-atomic.log
+          grep -Fq 'GE04 SUP-25 atomic inert authority PASS' /tmp/ge04-sup25-atomic.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |
