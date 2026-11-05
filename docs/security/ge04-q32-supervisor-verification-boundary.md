@@ -37,3 +37,11 @@ The synthetic `scripts/ge04-q32-deny-supervisor-verifier.py` accepts one bounded
 ## Supervisor host protocol probe (operator rerun pending)
 
 `scripts/ge04-q32-supervisor-socket-host-probe.py` starts the deny-only service as its own nonroot UID in a scratch directory and sends four synthetic messages: apparently valid, wrong audience, invalid JSON, and SCM_RIGHTS file descriptor. Each must return `authorized=false`, `disposition=HOLD`, zero real effects and exit 78; the delegated descriptor must be rejected. Local test suite: 2/2. Operator rerun under `alixge04supervisor` on microcloud3 is pending. Same-UID client and service are not cross-UID issuer authentication; the fixture is not a production effect gate.
+
+## Operator-reported microcloud3 supervisor protocol result
+
+The operator reported the supervisor-host protocol fixture under UID 995: `all_denied=true`; four cases `apparently_valid`, `delegated_fd`, `invalid_json`, and `wrong_audience` each returned their expected denial reasons, with per-case exit 78, zero real effects, and overall exit 78. This is host-specific same-UID client/service evidence, not independent attestation, cross-UID issuer authentication, or authorization qualification.
+
+## Cross-UID socket isolation probe (operator execution pending)
+
+`scripts/ge04-q32-supervisor-cross-uid-probe.py` is an operator-root-launched, disposable-host synthetic fixture with explicit opt-in and four distinct nonroot UIDs. The root launcher makes a supervisor-owned traversable scratch directory; the service creates a mode-0600 supervisor-owned socket. Issuer, coordinator and attacker connection attempts should fail; the supervisor can connect but only receives HOLD. This is intentionally a **negative isolation test**: the issuer is not permitted to connect, so it cannot establish a usable authenticated issuer-to-supervisor verification interface. It does not prove absence of inherited/delegated connected descriptors, and no production authority is exercised. Local entry tests: 2/2. GE-04 HOLD remains.
