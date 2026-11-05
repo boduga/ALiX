@@ -280,3 +280,23 @@ issuer-owned positive-control fixture for issuer access. A regression test
 checks that issuer mutation is excluded from the negative fixture dispatch.
 The corrected probe **has not yet been rerun on microcloud3**; previous
 host output remains historical evidence of the harness defect. HOLD persists.
+
+### Delegated authority-file descriptor probe prepared (HOLD)
+
+`scripts/ge04-q32-custody-fd-delegation.py` is an operator-only Linux root
+launcher with explicit `--isolated-test` and distinct issuer/attacker nonroot
+UIDs. It creates an issuer-owned 0700 directory with a 0600 *synthetic*
+fixture. The issuer opens a descriptor before passing it to the attacker
+via Unix `SCM_RIGHTS`; two isolated cases compare read-only and writable
+open modes. The attacker attempts `pread` and `pwrite` using the delegated
+file descriptor, and the launcher checks whether the synthetic fixture was
+modified. This deliberately tests the risk that path permissions do not
+protect against access via an already-open transferred descriptor. The
+script always exits 78/HOLD, even if the risk is observed; no actual
+issuance, approval, receipt, or effect authority exists.
+
+Only unprivileged fail-closed entry tests were run by the author (3/3).
+The cross-UID FD experiment **requires an operator rerun on microcloud3**;
+no positive or negative cross-UID result is yet claimed. This does not
+exercise all descriptor types, ACLs, namespaces, service credential handling,
+or real key custody. GE-04 SECURITY HOLD remains active.
