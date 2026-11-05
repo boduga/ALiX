@@ -60,3 +60,7 @@ On microcloud3, the operator reported all 21 negative path-based operations deni
 ## Replay SQLite descriptor delegation probe (operator execution pending)
 
 `scripts/ge04-q32-replay-fd-delegation.py` is an opt-in operator-root disposable Linux fixture requiring distinct nonroot issuer and attacker accounts. The issuer child opens a synthetic SQLite database in an issuer-owned `0700` directory (`0600` database) and delegates its descriptor via `SCM_RIGHTS` to the attacker child. A read-only transfer should allow header reading but deny `pwrite`; a writable transfer should allow the attacker to overwrite the SQLite header, changing the file hash despite pathname DAC. This demonstrates potential corruption of replay evidence through delegated writable handles, **not** an authenticated SQL operation, a production descriptor leak, or a safe positive verifier. The two unprivileged entry tests pass locally; host observation is pending. HOLD remains.
+
+## Descriptor-containment source audit
+
+The selective production spawn/IPC audit and its narrow regression tripwires are recorded in `docs/security/ge04-q32-descriptor-boundary-audit.md`. The audit identifies the intentional `flock` FD-9 handoff and does **not** claim a production replay-ledger descriptor leak or qualification. Synthetic microcloud3 delegated-write evidence remains distinct from production findings.
