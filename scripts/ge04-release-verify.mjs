@@ -6,7 +6,7 @@
  * This program does not sign, install, execute, update a rollback floor, or
  * activate any filesystem mutation. It cannot be called by production ALiX.
  */
-import { constants } from "node:fs";
+import { constants, statSync } from "node:fs";
 import { open, lstat, realpath } from "node:fs/promises";
 import { createHash, createPublicKey, verify } from "node:crypto";
 import { dirname, isAbsolute, parse, resolve } from "node:path";
@@ -166,7 +166,19 @@ export async function verifyRootProvisionedRelease() {
   });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Match the actual program inode, not only the spelling of argv[1]. A
+// symlink/hardlink launcher must not accidentally bypass the deny-only CLI.
+function invokedAsProgram() {
+  if (!process.argv[1]) return false;
+  try {
+    const entry = statSync(process.argv[1]);
+    const source = statSync(fileURLToPath(import.meta.url));
+    return entry.dev === source.dev && entry.ino === source.ino;
+  } catch {
+    return false;
+  }
+}
+if (invokedAsProgram()) {
   // Even when verified, no service launch or mutation is permitted.
   try {
     if (process.argv.length !== 2) fail("Command-line trust or release overrides are prohibited");

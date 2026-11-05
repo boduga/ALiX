@@ -21,6 +21,6 @@ test("GE-04 release signature, rollback-floor, and inert entrypoint regression s
     timeout: 30_000,
   });
   assert.equal(result.status, 0, [result.stdout, result.stderr, result.error?.message].join("\n"));
-  assert.match(result.stdout, /# tests 9/);
-  assert.match(result.stdout, /# pass 9/);
+  assert.match(result.stdout, /# tests 10/);
+  assert.match(result.stdout, /# pass 10/);
 });

@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, createHash, sign } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { symlinkSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
@@ -105,4 +107,21 @@ test("mutating signed release fields after signature creation fails verification
   assert.throws(() => verifyReleasePayload({
     ...input, release: { ...input.release, sequence: input.release.sequence + 1 },
   }), /signature verification failed/);
+});
+
+
+test("symlink executable alias also refuses startup rather than silently returning zero", () => {
+  if (process.platform === "win32") return;
+  const folder = mkdtempSync(join(tmpdir(), "alix-ge04-release-alias-"));
+  try {
+    const alias = join(folder, "verifier-alias.mjs");
+    symlinkSync(join(dirname(fileURLToPath(import.meta.url)), "ge04-release-verify.mjs"), alias);
+    const proc = spawnSync(process.execPath, [alias], {
+      encoding: "utf8", timeout: 5_000,
+    });
+    assert.equal(proc.status, 78, proc.stderr);
+    assert.match(proc.stderr, /GE-04 release verification denied|SECURITY HOLD/);
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
 });
