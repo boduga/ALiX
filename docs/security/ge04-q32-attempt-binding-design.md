@@ -327,3 +327,21 @@ were inspected (`path_observations: {}`). This is a point-in-time observation
 through the operator-controlled host, **not** independent attestation of
 service process credentials, issuer administration, privilege delegation,
 protected material or effect authorization. GE-04 SECURITY HOLD remains active.
+
+## Q3.2 read-only privilege and ACL snapshot
+
+`scripts/ge04-q32-host-privilege-snapshot.py` records selected nonsecret
+`/proc/self/status` fields for **its own process** (real/effective/saved UID,
+GID, supplementary groups, capabilities, `NoNewPrivs`, seccomp), whether
+`/proc/self/mountinfo` is accessible, and optional `getfacl` output for
+explicitly supplied paths. No sudo, polkit, other-process inspection, mount
+mutation, secret reading or authority-bearing issuance occurs. The program
+always exits 78 and reports `HOLD` and
+`qualified_independent_issuance: false`.
+
+**Important:** A process launched by the operator is not an issuer or
+supervisor process; its credentials do not establish theirs. Mountinfo
+accessibility does not verify mounts. Sudo delegation, service unit settings,
+Linux capabilities of actual services, ACL inheritance, namespaces and
+protected runtime custody still require independently witnessed examination.
+Do not infer a gate pass from an empty warning list.
