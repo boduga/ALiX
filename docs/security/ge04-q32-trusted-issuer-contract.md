@@ -1,0 +1,77 @@
+# GE-04 Q3.2 — Trusted issuer and effect-fence contract
+
+**Status: DESIGN / SECURITY HOLD. Not an approved implementation or gate qualification.**
+
+## Decision boundary
+
+Separate four principals and two distinct forms of evidence:
+
+1. **Operator / approval authority:** independently administered human and policy source. Neither coordinator nor model may create, amend, or revoke approval records.
+2. **Issuer:** a separately controlled process with exclusive access to protected issuance state. It authenticates the operator-approved authorization intent against trusted policy and current attempt state. Its output is not accepted solely because a caller claims an issuer identity.
+3. **Supervisor / effect executor:** separately controlled runtime with the *only* narrow effect capability. It independently verifies protected authorization and performs the final fence. The issuer has **no effect capability**.
+4. **Coordinator / workers / model / transport:** untrusted requesters. Their task fields, sockets, environment and delegated descriptors are never authority.
+
+**Important:** Separate UIDs alone are insufficient. Trusted launch chain, binary provenance, filesystem ancestry, service manager privileges, ACLs, sudo/polkit/setuid/capabilities, credential injection and operational separation require review. Issuer compromise must not automatically yield effect capability; supervisor compromise remains a critical threat requiring isolation and detection.
+
+## Proposed authorization artifact (schema contract only)
+
+All fields must be canonical and typed, with explicit domain separation and protocol version. No serialization, signature algorithm, key type or token format is approved.
+
+| Field | Source of truth | Rule |
+|---|---|---|
+| `protocol_version`, `issuer_id`, `issuer_release_digest` | Independently trusted issuer metadata | Reject unknown version, release, issuer |
+| `authorization_id`, `nonce` | Protected issuer state | Unique and single use; never caller-chosen |
+| `run_id`, `worker_id`, `attempt_id`, `retry_generation` | Protected execution ledger | Exact match; changed retry invalidates |
+| `principal_id`, `capability`, `operation` | Trusted policy and approval | Narrow scope; no wildcard expansion |
+| `target_identity`, `arguments_digest` | Canonical operation descriptor | Exact effect binding; never path text alone |
+| `approval_id`, `approval_revision`, `policy_revision` | Protected approval/policy store | Current at final fence, not just issue time |
+| `not_before`, `expires_at` | Trusted time source | Fail closed on clock uncertainty |
+| `supervisor_release_digest`, `audience` | Protected deployment metadata | Bind to one authorized effect executor |
+
+Every field is an *input to verification*, not self-authenticating proof. The verifier must independently authenticate the complete canonical artifact and its protected source, then check the current ledger. A matching JSON object or `SO_PEERCRED` is not sufficient.
+
+## Issuance protocol — proposed
+
+1. Receive a bounded intent. Reject malformed/ambiguous fields, unexpected ancillary descriptors and unsupported operations. Transport identity only determines who may submit requests.
+2. Independently resolve protected approval, policy, principal, attempt generation, release and target metadata. Never accept caller-supplied approval status as truth.
+3. Require an independently authorized approval action and an issuance policy that cannot be modified by coordinator/worker/model UIDs.
+4. Reserve a unique authorization ID/nonce in protected durable state, bound to the exact attempt and effect descriptor. Do not create transferable broad bearer authority.
+5. Produce an authenticated, narrowly scoped artifact only after custody and anti-delegation design review. Until then, the implementation must always return `DENIED GE04_SECURITY_HOLD`.
+
+**FD delegation hazard:** `SO_PEERCRED` on a connected Unix socket describes the original connector, not necessarily the process sending a later message. A delegated FD may deliver a request with the connector's credentials. Therefore connection identity cannot be the authorization subject. An authorization artifact may itself be copied; preventing replay requires protected one-time claim and per-effect binding, not an assertion that signatures alone are nondelegable.
+
+## Final-effect and crash-safety contract
+
+A protected, serialized authorization decision must cover the **final mutation boundary**. A transaction that commits before an unprotected effect leaves a revocation window. The design must select and independently validate one of:
+
+- A fence that keeps the relevant protected policy/approval/attempt revision stable through the effect boundary, with explicit concurrency and deadlock behavior; or
+- A versioned, durable intent protocol where revocation and effect execution share a formally defined ordering, and a stale effect is impossible after a completed revocation.
+
+The chosen mechanism must distinguish `UNCLAIMED`, `CLAIMED`, `EFFECT_POSSIBLE`, `EFFECT_CONFIRMED`, `ABORTED` and `UNKNOWN_RECOVERY`. A crash after an external non-idempotent effect but before durable receipt is **ambiguous**; do not automatically retry. Idempotency keys must be enforced by the effect target, not assumed from a local journal. Supervisor must reject stale attempt generations, substituted targets, changed arguments, expired approvals, changed policy revisions, replayed authorization IDs, or unverifiable issuer provenance.
+
+## Rejection / adversarial acceptance matrix
+
+| Adversary / event | Mandatory outcome |
+|---|---|
+| Forged issuer JSON, claimed UID or copied token | No effect without independently authenticated issuance and live binding |
+| Connected FD transferred from trusted connector | No effect from socket provenance alone |
+| Coordinator/worker changes approval or issuer store | OS-level denial and auditable tamper evidence |
+| Two workers race one nonce | At most one durable claim and one permitted effect |
+| Approval revoked before final fence | No effect |
+| Revocation races effect | Defined serialized order; no unaccounted effect after completed revocation |
+| Crash before/after effect and before receipt | No blind replay; explicit recovery state |
+| Symlink, mount, regular-file or inode substitution | No wrong-target effect; descriptor identity and mount assumptions verified |
+| Issuer, store, clock, policy or audit unavailable | Fail closed |
+| Compromised issuer but intact supervisor | No arbitrary effect; supervisor checks narrow scope and current protected policy |
+| Compromised supervisor or privileged operator | Outside current demonstrated boundary; requires independent threat analysis |
+
+## Independent evidence required before design approval
+
+- Concrete issuer and supervisor deployment model with trusted administrators and negative privilege escalation review.
+- Protected state ownership, backup/recovery, issuer release provenance, revocation authority and rotation protocol.
+- Selected canonical encoding, cryptographic verification and anti-replay protocol with reviewable test vectors.
+- Formal concurrency/linearization argument for revocation vs effect, plus fault-injection tests across crash points.
+- Real target-specific effect adapter idempotency/recovery contract and adversarial tests.
+- Independent reviewer signoff and explicit human gate decision.
+
+**Non-goals of this document:** creating a key, running an issuer, authorizing a mutation, changing ALiX's public APIs, or clearing the hold. `createScopedMutationService()` remains unavailable.

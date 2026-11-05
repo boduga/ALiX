@@ -355,3 +355,11 @@ process with UID/GID 1000, `CapEff=0`, `CapPrm=0`, `CapAmb=0`,
 were supplied. This says **nothing** about actual issuer or supervisor
 service-process credentials, sudo delegation or mount integrity. No gate
 transition follows.
+
+## Trusted issuer contract (design only)
+
+See [`ge04-q32-trusted-issuer-contract.md`](ge04-q32-trusted-issuer-contract.md)
+for the explicit four-principal trust model, proposed artifact schema,
+issuance rules, descriptor-delegation hazard, effect/revocation ordering,
+crash states and independent acceptance evidence. This is a design proposal,
+not an authorization implementation or a GE-04 gate transition.
