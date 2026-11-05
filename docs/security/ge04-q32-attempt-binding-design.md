@@ -345,3 +345,13 @@ accessibility does not verify mounts. Sudo delegation, service unit settings,
 Linux capabilities of actual services, ACL inheritance, namespaces and
 protected runtime custody still require independently witnessed examination.
 Do not infer a gate pass from an empty warning list.
+
+### microcloud3 unprivileged privilege snapshot (observed, limited)
+
+The staged script's four tests passed on `microcloud3`. Its read-only
+execution returned exit 78 / `HOLD` and observed the invoking operator
+process with UID/GID 1000, `CapEff=0`, `CapPrm=0`, `CapAmb=0`,
+`NoNewPrivs=0`, `Seccomp=0`, and readable `/proc/self/mountinfo`. No ACL paths
+were supplied. This says **nothing** about actual issuer or supervisor
+service-process credentials, sudo delegation or mount integrity. No gate
+transition follows.
