@@ -33,3 +33,7 @@
 ## Deny-only supervisor socket fixture (unqualified)
 
 The synthetic `scripts/ge04-q32-deny-supervisor-verifier.py` accepts one bounded Unix seqpacket request and always responds `authorized=false`, `disposition=HOLD`, then exits 78. It rejects malformed bindings, wrong audience, truncation, and ancillary descriptor transfers; received SCM_RIGHTS descriptors are closed. The five local tests cover validation, opt-in and a socket exchange. This is not a production verifier, credential-bound issuer, effect authorization, or independent qualification.
+
+## Supervisor host protocol probe (operator rerun pending)
+
+`scripts/ge04-q32-supervisor-socket-host-probe.py` starts the deny-only service as its own nonroot UID in a scratch directory and sends four synthetic messages: apparently valid, wrong audience, invalid JSON, and SCM_RIGHTS file descriptor. Each must return `authorized=false`, `disposition=HOLD`, zero real effects and exit 78; the delegated descriptor must be rejected. Local test suite: 2/2. Operator rerun under `alixge04supervisor` on microcloud3 is pending. Same-UID client and service are not cross-UID issuer authentication; the fixture is not a production effect gate.
