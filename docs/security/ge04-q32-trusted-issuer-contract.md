@@ -75,3 +75,21 @@ The chosen mechanism must distinguish `UNCLAIMED`, `CLAIMED`, `EFFECT_POSSIBLE`,
 - Independent reviewer signoff and explicit human gate decision.
 
 **Non-goals of this document:** creating a key, running an issuer, authorizing a mutation, changing ALiX's public APIs, or clearing the hold. `createScopedMutationService()` remains unavailable.
+
+## Inert transition model (synthetic only)
+
+`scripts/ge04-q32-inert-fence-model.py` defines immutable `State` transitions
+for `UNCLAIMED`, `CLAIMED`, `EFFECT_POSSIBLE`, `EFFECT_CONFIRMED`, `ABORTED`,
+and `UNKNOWN_RECOVERY`. Its eight tests cover one-time synthetic claim,
+wrong nonce/attempt/revision, revocation before effect start, ordered
+revocation after start, and crash ambiguity. It performs **zero real effects**;
+its CLI returns exit 78 and `HOLD` regardless of transitions.
+
+**Critical modeling limits:** the sequential loop is not a concurrent durable
+transaction, a security fence, an effect adapter, or an issuer. Its `fence`
+integer is only a model clock; `accepted=True` means a simulated transition,
+not authorization. The test labeled racing claims is a *sequential replay*
+check, not a simultaneous-claim race. A post-start revocation prevents a
+synthetic confirmation but cannot undo an external effect that may already
+have happened. Crash after effect start is intentionally `UNKNOWN_RECOVERY`;
+no replay is permitted. No qualification follows from these unit tests.
