@@ -193,3 +193,49 @@ serialization only orders these synthetic database operations. A real last-
 effect fence needs an independently protected authority and a carefully
 specified synchronization/revocation protocol spanning the effect boundary,
 plus crash and recovery evidence. No gate transition is justified.
+
+## Q3.2 independently administered issuer boundary — proposed contract, not qualified
+
+**Trust separation:** The operator (not ALiX) must provision and control an
+issuer identity, a supervisor identity, and separately untrusted coordinator
+and attacker identities. An issuer controlled by the coordinator, the model,
+or the effect-executing supervisor is not independent for this gate. A distinct
+UID is necessary for the proposed Linux deployment, but **not sufficient**:
+operator control of service definitions, runtime binary, mount namespace,
+parent directories, privileges, key material, backups, logs and updates must
+also be evidenced. Root/host administrators remain in the trusted computing
+base. Avoid an argument-unrestricted sudoers delegation for any untrusted UID.
+
+**Authority flow (proposed, not implemented):**
+
+1. The independent issuer observes a trusted approval, policy revision and
+   live attempt state from independently protected sources; it must not treat
+   coordinator JSON, a socket peer UID or a previously approved bearer token
+   as sufficient proof.
+2. The issuer may produce a *single-effect* authorization record scoped to the
+   exact attempt/generation, principal, capability, canonical target, argument
+   digest, protected release, expiry and unique nonce. Token syntax, key type
+   and signing strategy remain undecided pending custody review.
+3. The supervisor independently retrieves/verifies the issuer record and
+   current policy/approval/attempt state. Mere possession of a delegated
+   socket **or transferable authorization artifact** must not grant a second
+   principal authority. The design must explicitly define how the intended
+   principal is authenticated per effect and whether delegation is permitted.
+4. The supervisor must atomically claim single use in protected custody and
+   perform an effect-time check under a specified synchronization/fencing
+   protocol. A DB transaction committed before an effect does **not** fence
+   revocation between the check and effect. Crash intent/receipt recovery
+   and the semantics of concurrent revocation must be reviewed independently.
+
+**Evidence still required:** independently witnessed effective UID/GID and
+privilege inspection; ownership/mode/ACL/mount/ancestor verification; denied
+write/rename/link/replace attempts against issuer material and service files;
+failed forged issuance and stolen/delegated artifact attempts; expiry,
+revocation, replay and concurrent claim negatives; a protected target and
+last-effect protocol; restart/crash recovery; and explicit human signoff.
+
+`ge04-q32-issuer-boundary.py` is only a *synthetic configuration lint*: its
+caller supplies all identity and mode facts, so they are not authenticated
+observations. Nine tests demonstrate mismatch rejection. Even fully matching
+facts return `qualified_independent_issuance: false` and `HOLD`. No key,
+credential format, issuer service, policy read or mutation authority exists.
