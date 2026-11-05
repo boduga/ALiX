@@ -139,3 +139,21 @@ temporary synthetic files only. It does not prove protected issuer custody,
 ancestor/mount integrity, release provenance, post-check race resistance,
 last-effect authorization, crash recovery or independent administration.
 No gate status changes: **GE-04 SECURITY HOLD remains active**.
+
+## Q3.2 pathname substitution / pinned-descriptor diagnostic
+
+`scripts/ge04-q32-path-race-probe.py` performs an unprivileged, synthetic
+pathname substitution experiment. It opens an original file through a pinned
+directory FD, then replaces its pathname with a symlink to different content.
+A naïve pathname reopen follows the symlink, while `pread` on the already-open
+file FD still reads the original content. `O_NOFOLLOW` rejects the symlink at
+the final path component, **but does not reject a replacement regular file**:
+the probe separately demonstrates that weakness. The CLI always exits 78 and
+reports `HOLD`, even when all observations match expectations.
+
+This is a controlled sequence, **not** a concurrent race proof, `openat2`
+qualification, immutable target binding, protected root verification, or an
+authorization/effect fence. An attacker able to mutate the directory may still
+substitute regular files; the effect boundary must verify protected identity
+and containment against a pinned descriptor and trusted policy, and must
+address races and mount/ancestor substitution. No mutation service is enabled.
