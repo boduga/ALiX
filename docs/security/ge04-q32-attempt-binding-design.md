@@ -239,3 +239,32 @@ caller supplies all identity and mode facts, so they are not authenticated
 observations. Nine tests demonstrate mismatch rejection. Even fully matching
 facts return `qualified_independent_issuance: false` and `HOLD`. No key,
 credential format, issuer service, policy read or mutation authority exists.
+
+## Q3.2 disposable-host issuer-owned negative-write probe (awaiting privileged execution)
+
+`scripts/ge04-q32-issuer-negative-write.py` is an opt-in, root-launched,
+**disposable-host-only** experiment. It requires four independently provisioned
+nonroot UIDs (`issuer`, `supervisor`, `coordinator`, `attacker`), creates only
+synthetic issuer-owned files inside a temporary issuer-owned `0700` directory,
+and drops to each other UID for thirteen negative-write attempts (overwrite,
+unlink, rename, chmod, hardlink and symlink replacement on two files, plus
+creation). It checks original content, inode, ownership and mode afterward.
+No actual signing material, issuer service or protected policy is involved.
+
+After separately provisioning an `alixge04issuer` nonroot user on the isolated
+host, copying the script into a root-owned non-writable staging directory,
+and reviewing the script, the operator may run:
+
+```sh
+sudo python3 -B /opt/alix-ge04-q31-test/ge04-q32-issuer-negative-write.py \
+  --isolated-test --issuer alixge04issuer \
+  --supervisor alixge04supervisor --coordinator alixge04coordinator \
+  --attacker alixge04attacker
+```
+
+An exit 0 means only that the synthetic negative-write experiment observed
+all denials and unchanged files; the JSON **always** states `HOLD` and
+`qualified_independent_issuance: false`. The four nonprivileged tests cover
+only fail-closed prerequisites; they are not privileged host evidence. This
+experiment does not inspect real service privileges, ACLs, mount namespaces,
+ancestor trust, sudo policy, privileged compromise or protected issuance.
