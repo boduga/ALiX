@@ -4,9 +4,9 @@ import { relativeIsOutside } from "../../runtime-state/runtime/workspace-path.js
 import { readFile, grepSearch, globMatch } from "./file-tools.js";
 import { runCommand } from "./shell-tool.js";
 import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./safe-shell.js";
-import { existsSync } from "node:fs";
+import { constants, existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
-import { lstat, mkdir, readFile as readFileFs, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, writeFile } from "node:fs/promises";
 import { applyPatch } from "../../execution/patch/patch-engine.js";
 import { PatchRejectedError } from "../../execution/patch/patch-engine.js";
 import { buildEditFormatPolicy, type EditFormatPolicy, type EditFormat } from "../../execution/patch/edit-format-policy.js";
@@ -228,30 +228,63 @@ export class FileToolRouter implements ToolRouter {
                 retryable: false,
               };
             }
-            const existing = await readFileFs(resolvedPath, "utf8");
-            if (existing === content) {
-              return {
-                kind: "success",
-                outcome: "already_exists_identical",
-                changed: false,
-                output: `File already exists with identical content: ${path}`,
-                createdPath: path,
-                changedFiles: [],
-              };
+            // A no-op needs READ authority only: an existing readable 0444
+            // file must not require O_RDWR just to compare identical content.
+            // Pin the inode for comparison, never follow the leaf symlink.
+            const comparison = await open(resolvedPath, constants.O_RDONLY | constants.O_NOFOLLOW);
+            let existing: string;
+            try {
+              const pinned = await comparison.stat();
+              if (!pinned.isFile() || pinned.dev !== existingEntry.dev || pinned.ino !== existingEntry.ino) {
+                return { kind: "error", message: `File changed during authorization: ${path}`, retryable: false };
+              }
+              existing = await comparison.readFile("utf8");
+              if (existing === content) {
+                return {
+                  kind: "success",
+                  outcome: "already_exists_identical",
+                  changed: false,
+                  output: `File already exists with identical content: ${path}`,
+                  createdPath: path,
+                  changedFiles: [],
+                };
+              }
+            } finally {
+              await comparison.close();
             }
             if (!this.isOwnedWriteTarget(request, resolvedPath)) {
-              return {
-                kind: "error",
-                message: `File already exists with different content: ${path}`,
-                retryable: false,
-              };
+              return { kind: "error", message: `File already exists with different content: ${path}`, retryable: false };
             }
-            // The worker owns this path: rewriting its own output is the whole
-            // point of ownership. Without this, re-running the same goal in the
-            // same workspace fails structurally (`file.create` is the only
-            // creation tool, and it refuses differing content).
-            await writeFile(resolvedPath, content, { encoding: "utf8" });
-            overwritten = true;
+            // Never rewrite an inode with multiple names: an owned-path hard
+            // link can alias and mutate a file outside the worker's scope.
+            if (existingEntry.nlink !== 1) {
+              return { kind: "error", message: `Hard-linked file cannot be overwritten: ${path}`, retryable: false };
+            }
+            const handle = await open(resolvedPath, constants.O_RDWR | constants.O_NOFOLLOW);
+            try {
+              const pinned = await handle.stat();
+              if (!pinned.isFile() || pinned.dev !== existingEntry.dev ||
+                  pinned.ino !== existingEntry.ino || pinned.nlink !== 1) {
+                return { kind: "error", message: `File changed or is hard-linked: ${path}`, retryable: false };
+              }
+              // Detect a concurrent content change between read-only compare
+              // and opening the writable descriptor; do not overwrite stale data.
+              if (await handle.readFile("utf8") !== existing) {
+                return { kind: "error", message: `File contents changed during authorization: ${path}`, retryable: false };
+              }
+              // The write uses the same verified descriptor, not a pathname.
+              const bytes = Buffer.from(content, "utf8");
+              let offset = 0;
+              while (offset < bytes.length) {
+                const { bytesWritten } = await handle.write(bytes, offset, bytes.length - offset, offset);
+                if (bytesWritten === 0) throw new Error("Short write while replacing owned file");
+                offset += bytesWritten;
+              }
+              await handle.truncate(bytes.length);
+              overwritten = true;
+            } finally {
+              await handle.close();
+            }
           } catch (compareError) {
             return {
               kind: "error",
