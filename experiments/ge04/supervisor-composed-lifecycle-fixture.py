@@ -26,13 +26,15 @@ observed = load('native-effect-observation-fixture')
 derived = load('supervisor-derived-effect-fixture')
 signed = load('signed-native-observation-fixture')
 journal = load('supervisor-lifecycle-journal')
+anchor = load('supervisor-lifecycle-anchor')
 
 # Non-public test harness injection only.
 CHECKPOINTS = frozenset({'after_prepare', 'after_native', 'after_observation',
-                         'after_settlement', 'after_signature'})
+                         'after_settlement', 'after_signature', 'after_anchor'})
 
 
 def run_fixed_fixture(private, public, owned, pinned_key_digest, binary, *,
+                      anchor_dir,
                       now_ms, crash_checkpoint=None):
     """One fixed test effect, with consumed approval under one lock.
 
@@ -94,6 +96,11 @@ def run_fixed_fixture(private, public, owned, pinned_key_digest, binary, *,
                     effect_hash, pinned_key_digest)
                 journal.append(fd, request_digest, 'SIGNED')
                 _crash(crash_checkpoint, 'after_signature')
+                records, chain_digest = journal.read_chain(fd, request_digest)
+                if len(records) != len(journal.STAGES):
+                    raise PermissionError('incomplete fixture chain')
+                anchor.publish(anchor_dir, request_digest, chain_digest)
+                _crash(crash_checkpoint, 'after_anchor')
                 if not marker.endswith('_UNVERIFIED'):
                     raise PermissionError('unexpected fixture signing marker')
                 return 'GE04_COMPOSED_FIXTURE_SETTLED_UNVERIFIED'
@@ -110,7 +117,7 @@ def _crash(configured, stage):
         os._exit(88)
 
 
-def recover_read_only(private, owned, public, pinned_key_digest):
+def recover_read_only(private, owned, public, pinned_key_digest, *, anchor_dir):
     """Only inspect; incomplete or contradictory evidence means no replay."""
     try:
         if os.geteuid() != 0:
@@ -131,6 +138,10 @@ def recover_read_only(private, owned, public, pinned_key_digest):
                     request_digest = journal.fingerprint(
                         journal.fixed_request(state, pinned))
                     if journal.classify(fd, request_digest) != 'CHAIN_COMPLETE_UNVERIFIED':
+                        return 'UNCERTAIN_NO_REPLAY'
+                    records, chain_digest = journal.read_chain(fd, request_digest)
+                    if (len(records) != len(journal.STAGES) or
+                            not anchor.matches(anchor_dir, request_digest, chain_digest)):
                         return 'UNCERTAIN_NO_REPLAY'
                     obs_hash, effect_hash, _raw = derived._inspect_locked(
                         fd, private, pinned, state)
