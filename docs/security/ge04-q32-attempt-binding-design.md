@@ -157,3 +157,21 @@ authorization/effect fence. An attacker able to mutate the directory may still
 substitute regular files; the effect boundary must verify protected identity
 and containment against a pinned descriptor and trusted policy, and must
 address races and mount/ancestor substitution. No mutation service is enabled.
+
+## Q3.2 descriptor target identity diagnostic
+
+`scripts/ge04-q32-descriptor-target-probe.py` compares `(st_dev, st_ino,
+file type)` of a file opened relative to a pinned directory descriptor against
+a previously captured synthetic identity. Its five tests show an initial
+match, detection of regular-file replacement, continued access to the original
+file through an already-open descriptor, and rejection of final-component
+symlinks and simple `../` traversal. It performs no authorized effects and
+always exits 78 with `HOLD`.
+
+**This is not a secure resolver or last-effect fence.** The trusted root and
+expected identity are test-provided, not independently verified. Inode identity
+is not a content digest or authorization binding and can be reused after close;
+filesystem metadata may be changed by a privileged attacker. Multi-component
+paths, mount replacement, ACLs, file mutation through other descriptors,
+concurrent races, issuer custody, policy revocation, and crash behavior remain
+unqualified. Production code must not reuse this as an authorization check.
