@@ -62,3 +62,16 @@ implementation**: the expected binding has no protected provenance, nonce
 state is not durably or atomically claimed, no authenticated issuer exists,
 no current-sender identity is established, and no effect-time fence or mutation
 is attempted. The tests cannot establish cross-process or cross-UID safety.
+
+## Q3.2 disposable durable-claim experiment (not protected custody)
+
+`scripts/ge04-q32-claim-probe.py` uses a SQLite unique nonce constraint and
+`BEGIN IMMEDIATE` to test single-use claims, concurrent claim contention and
+reopen-after-commit replay rejection. Its tests also check missing/corrupt-store
+fail-closed behavior. The database is caller-selected and **not** independently
+administered; anyone with write access can modify it. A `True` result means
+only that a test nonce was inserted, **not** that a principal, attempt, approval,
+policy or effect is authorized. No effect is performed. The experiment does not
+prove OS-level custody, crash durability under power loss, post-claim revocation,
+atomic authorization-plus-effect, recovery or delegated-FD resistance. Its
+entrypoint always exits 78 and prints `DENIED GE04_SECURITY_HOLD`.
