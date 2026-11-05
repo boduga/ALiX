@@ -236,3 +236,34 @@ ownership, path traversal, descriptor delegation, process credentials, and
 protected custody have **not** been tested by this slice. The real trusted
 issuer must control issuance and protect its state independently before any
 claim of resistance to a compromised coordinator. GE-04 SECURITY HOLD remains.
+
+## Cross-UID custody probe prepared — operator execution pending (HOLD)
+
+`scripts/ge04-q32-custody-cross-uid.py` is a Linux-only disposable fixture
+probe requiring an explicit `--isolated-test`, four distinct nonroot role
+accounts, and **operator-controlled root invocation**. It creates a temporary
+issuer-owned 0700 directory and 0600 synthetic binding file; separate
+children drop supplementary groups and assume the requested UID/GID before
+attempting file read, write, replacement, hard-link creation and directory
+listing. Results record each observed UID and operation outcome; the fixture
+is checked for unchanged contents. It always exits 78/HOLD, including when
+all negative checks pass. The three unprivileged tests only exercise entry
+and fail-closed behavior, not the actual four-UID security boundary.
+
+**Not executed with privilege by the agent.** A disposable host operator must
+run the privileged probe and retain its raw output. This fixture does not
+test an inherited/delegated open file descriptor, Linux ACLs, namespaces,
+mount attacks, symlink swaps, target receipt authentication, or a supervisor
+read-only verification service. In particular, DAC denial of a path cannot
+revoke access to an already-open delegated descriptor. No cross-UID result
+is claimed until operator evidence is available. GE-04 HOLD remains active.
+
+Operator-only example (after independently verifying disposable host and
+account identities; do not run on production):
+
+```sh
+sudo python3 -B scripts/ge04-q32-custody-cross-uid.py \\
+  --isolated-test \\
+  --issuer alixge04issuer --supervisor alixge04supervisor \\
+  --coordinator alixge04coordinator --attacker alixge04attacker
+```
