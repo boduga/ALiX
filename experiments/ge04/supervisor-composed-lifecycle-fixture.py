@@ -6,6 +6,8 @@ boundary. The lower-level signer and test binary remain root-controlled.
 Never register this module with the production mutation service.
 """
 import importlib.util
+import fcntl
+import hashlib
 import os
 from pathlib import Path
 import subprocess
@@ -37,7 +39,8 @@ CHECKPOINTS = frozenset({'after_prepare', 'after_native', 'after_observation',
 def run_fixed_fixture(private, public, owned, pinned_key_digest, binary, *,
                       anchor_dir, expected_binary_digest,
                       now_ms, effect_now_ms, crash_checkpoint=None,
-                      before_native_entered=None, before_native_resume=None):
+                      before_native_entered=None, before_native_resume=None,
+                      sealed_native_fd=None):
     """One fixed test effect, with consumed approval under one lock.
 
     No caller observation, effect digest, status, or success flag accepted.
@@ -62,7 +65,24 @@ def run_fixed_fixture(private, public, owned, pinned_key_digest, binary, *,
                 raise PermissionError('fixture admission denied')
             # Verify and pin the exact ELF before spending the approval.
             # The caller-controlled digest is experimental, not a release root.
-            binary_fd = native.pin_binary(binary, expected_binary_digest)
+            if sealed_native_fd is None:
+                binary_fd = native.pin_binary(binary, expected_binary_digest)
+                close_binary_fd = True
+            else:
+                # Fixture-internal only; arbitrary FDs are not release authority.
+                required = (fcntl.F_SEAL_WRITE | fcntl.F_SEAL_GROW |
+                            fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_SEAL)
+                if fcntl.fcntl(sealed_native_fd, fcntl.F_GET_SEALS) & required != required:
+                    raise PermissionError('unsealed native image')
+                meta = os.fstat(sealed_native_fd)
+                if meta.st_uid != 0 or not 0 < meta.st_size <= 4 * 1024 * 1024:
+                    raise PermissionError('untrusted sealed image')
+                data = os.pread(sealed_native_fd, meta.st_size + 1, 0)
+                if (len(data) != meta.st_size or not data.startswith(bytes.fromhex('7f454c46')) or
+                        hashlib.sha256(data).hexdigest() != expected_binary_digest):
+                    raise PermissionError('sealed image digest mismatch')
+                binary_fd = sealed_native_fd
+                close_binary_fd = False
             try:
                 pinned = os.open(owned, os.O_RDONLY | os.O_DIRECTORY |
                                  os.O_NOFOLLOW | os.O_CLOEXEC)
@@ -120,7 +140,8 @@ def run_fixed_fixture(private, public, owned, pinned_key_digest, binary, *,
                 finally:
                     os.close(pinned)
             finally:
-                os.close(binary_fd)
+                if close_binary_fd:
+                    os.close(binary_fd)
         finally:
             os.close(lock)
     finally:
