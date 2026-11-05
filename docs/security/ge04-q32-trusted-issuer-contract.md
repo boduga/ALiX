@@ -148,3 +148,26 @@ power-loss durability, concurrency proof, or real effect execution. The
 checkpoint's stdout marker is test synchronization, not a production commit
 receipt. No authorization, keys, target-side idempotency or reconciliation
 oracle exists; ambiguous outcomes remain unresolved. GE-04 HOLD persists.
+
+## Synthetic target-side idempotency and reconciliation (HOLD)
+
+`scripts/ge04-q32-inert-target-reconcile.py` models a *separate caller-owned
+scratch SQLite target* with a unique idempotency key, immutable request digest
+and synthetic result. The first request inserts a durable synthetic receipt;
+a repeat of the same key and digest returns the existing result; a different
+digest with the same key is a conflict. Read-only `lookup` distinguishes
+`CONFIRMED_SYNTHETIC`, `CONFLICT` and `NOT_OBSERVED`. The lost-acknowledgement
+test commits, discards the returned status, reopens the database and finds the
+receipt without issuing a second submit. All test invocations return HOLD;
+zero real effects are performed.
+
+**Non-qualification:** This is an idealized target contract, not a real
+external API, trusted target, independent custody, authorization protocol,
+crash-atomic target adapter or reconciliation oracle. A missing receipt is
+**not** evidence that an external effect did not occur, and a synthetic
+receipt is not an independently verified real-world effect. The target's
+atomic insert does not prove atomicity between a real effect and receipt.
+A future adapter must prove that its idempotency key is enforced at the
+actual effect boundary, receipts are durable and authentic, the query is
+side-effect-free, and ambiguous outcomes never trigger a blind retry.
+GE-04 SECURITY HOLD remains active.
