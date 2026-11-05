@@ -289,3 +289,29 @@ administration, privileged-actor resistance, ACL/mount/ancestor integrity,
 credential anti-delegation, or an effect-time revocation fence.
 
 **Gate disposition remains GE-04 SECURITY HOLD.**
+
+## Q3.2 issuer host identity and path snapshot (read-only)
+
+`scripts/ge04-q32-issuer-host-preflight.py` is an unprivileged, read-only
+host observation tool. It records the four named accounts' UID, primary GID,
+and group-database supplementary memberships; warns about absent/duplicate
+identities and issuer primary-group overlap. For explicitly supplied absolute
+paths, it records `lstat` ownership/mode/device on the path and ancestors,
+and warns about symlinks and world-writable components. It never requests
+privilege, reads signing material, changes state, or returns success: exit 78,
+`HOLD`, `qualified_independent_issuance: false` regardless of observations.
+
+Run on the disposable host after reviewing the staged script:
+
+```sh
+python3 -B ~/ge04-q31-staging/ge04-q32-issuer-host-preflight.py \
+  --issuer alixge04issuer --supervisor alixge04supervisor \
+  --coordinator alixge04coordinator --attacker alixge04attacker
+```
+
+**Limits:** the group database may not equal effective process credentials;
+no `/proc` live-service inspection, sudoers/polkit review, ACLs, mount/namespace
+integrity, Linux capabilities, parent service integrity, operator separation,
+privileged compromise, or production issuer key custody is established. A
+snapshot is raceable and can never qualify independent issuance. Inspecting
+paths is opt-in; do not pass private key paths or secret contents.
