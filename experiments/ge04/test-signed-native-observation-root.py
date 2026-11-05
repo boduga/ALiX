@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -56,6 +57,12 @@ with tempfile.TemporaryDirectory(prefix='ge04-signed-native-') as folder:
 
     # An untrusted, separately executed coordinator cannot read/replace the
     # signer secret or mint a new signed receipt, but can verify public evidence.
+    # Runner checkouts can have non-traversable parents for UID 65534;
+    # publish only the verifier source, never a private signing credential.
+    verifier_source = public / 'public-verifier.py'
+    shutil.copyfile(Path(__file__).with_name('signed-native-observation-fixture.py'),
+                    verifier_source)
+    verifier_source.chmod(0o644)
     script = """
 import importlib.util, os, pathlib, sys
 directory, public, module_path, pin, obs, effect = sys.argv[1:]
@@ -79,7 +86,7 @@ print('GE04_COORDINATOR_PUBLIC_VERIFICATION_PASS')
 """
     child = subprocess.run(
         [sys.executable, '-B', '-c', script, str(private), str(public),
-         str(Path(__file__).with_name('signed-native-observation-fixture.py')),
+         str(verifier_source),
          pin, obs_digest, digest],
         preexec_fn=dropped, capture_output=True, text=True, timeout=10)
     assert child.returncode == 0, (child.stdout, child.stderr)
