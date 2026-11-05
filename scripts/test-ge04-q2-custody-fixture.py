@@ -24,6 +24,11 @@ sys.modules[spec.name] = mod
 spec.loader.exec_module(mod)
 
 
+def inherited_sender(fd: int):
+    with socket.socket(fileno=fd) as conn:
+        conn.sendall(b'{"approved":true,"uid":0}')
+
+
 def serve(root: str, coordinator_uid: int, supervisor_uid: int,
           group: int, ready, verdict):
     fixture = mod.DenyOnlyCustodyFixture(Path(root), coordinator_uid, supervisor_uid, group)
@@ -115,6 +120,43 @@ class Q2CustodyTests(unittest.TestCase):
         finally:
             os.close(r)
             os.close(w)
+
+    def test_inherited_connected_fd_does_not_grant_authorization(self):
+        # SO_PEERCRED is fixed at connect time. A forked sender can use an
+        # inherited connection while the listener still sees the parent UID.
+        # This is a *negative security finding*, not proof of FD isolation.
+        mp = multiprocessing.get_context("fork")
+        rx_ready, tx_ready = mp.Pipe(duplex=False)
+        rx_result, tx_result = mp.Pipe(duplex=False)
+        child = mp.Process(target=serve, args=(str(self.root), os.getuid(),
+                            os.getuid() + 1, os.getgid(), tx_ready, tx_result))
+        child.start()
+        tx_ready.close()
+        tx_result.close()
+        try:
+            self.assertTrue(rx_ready.poll(4))
+            self.assertEqual(rx_ready.recv()[0], "ready")
+            with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET) as conn:
+                conn.settimeout(3)
+                conn.connect(str(self.sock))
+                sender = mp.Process(target=inherited_sender, args=(conn.fileno(),))
+                sender.start()
+                sender.join(4)
+                self.assertEqual(sender.exitcode, 0)
+                self.assertEqual(conn.recv(128), mod.DENIED)
+            self.assertTrue(rx_result.poll(4))
+            self.assertTrue(rx_result.recv(), "SO_PEERCRED still matches original connector")
+        finally:
+            child.join(5)
+            if child.is_alive():
+                child.terminate()
+                child.join(5)
+            rx_ready.close()
+            rx_result.close()
+            self.assertEqual(child.exitcode, 0)
+
+    def test_empty_frame_is_not_accepted(self):
+        self.assertFalse(self.exchange(os.getuid(), os.getuid() + 1, data=b""))
 
     def test_socket_directory_not_traversable_for_group_is_rejected(self):
         os.chmod(self.root, 0o700)
