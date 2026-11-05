@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -117,7 +118,7 @@ with tempfile.TemporaryDirectory(prefix='ge04-signed-sealed-', dir='/run') as te
     def deny_without_consumption(item):
         try:
             execute(item)
-        except (PermissionError, ValueError):
+        except (PermissionError, ValueError, InvalidSignature):
             pass
         else:
             raise AssertionError('untrusted release executed')
