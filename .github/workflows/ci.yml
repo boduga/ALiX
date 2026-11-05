@@ -498,6 +498,10 @@ jobs:
           grep -Fq 'GE04 SUP-21 message identity PASS' /tmp/ge04-sup21-message-identity.log
           "$(command -v python)" -B experiments/ge04/test-pidfd-message-lifecycle.py | tee /tmp/ge04-sup22-lifecycle.log
           grep -Fq 'GE04 SUP-22 pidfd lifecycle PASS' /tmp/ge04-sup22-lifecycle.log
+          "$(command -v python)" -B experiments/ge04/test-kernel-bound-datagram-sender.py | tee /tmp/ge04-sup22b-pidfd-message.log
+          grep -Fq 'GE04 SUP-22b message pidfd PASS' /tmp/ge04-sup22b-pidfd-message.log
+          sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-kernel-bound-datagram-root.py | tee /tmp/ge04-sup22b-cross-uid.log
+          grep -Fq 'GE04 SUP-22b cross-UID pidfd PASS' /tmp/ge04-sup22b-cross-uid.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |
