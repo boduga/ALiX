@@ -88,7 +88,7 @@ then separately observe actual process credentials and attempted connections
 from coordinator, supervisor and attacker. Do not install a long-lived unit,
 change sudoers, or lift the hold on the basis of this experiment.
 
-## Bounded cross-UID listener experiment (operator execution pending)
+## Bounded cross-UID listener experiment (operator-reported result)
 
 `scripts/ge04-q32-issuer-cross-uid.py` is a **root-launched**, explicit
 `--isolated-test` orchestration of the previously tested deny-only listener.
@@ -115,3 +115,20 @@ sudo python3 -B /opt/alix-ge04-q31-test/ge04-q32-issuer-cross-uid.py \
 This is not evidence of sudo/polkit confinement, trusted issuer code,
 independent administration, delegated-FD protection, real credential custody,
 or effect-time authorization. Do not run against production paths.
+
+### Cross-UID execution evidence — operator-reported
+
+The operator supplied `GE04_Q32_ISSUER_CROSS_UID` JSON after installing the
+missing deny-only listener alongside the runner on `microcloud3`. It reports
+three denied cross-UID connections (`attacker` UID 993, `coordinator` UID 994,
+`supervisor` UID 995; each exit code 13), and a successful issuer-UID 990
+connection that received the fixed denial (`issuer_denial_received: true`).
+The listener exited 78 and the result reported
+`negative_connects_denied: true`, `disposition: HOLD`, and
+`qualified_independent_issuance: false`.
+
+**Provenance:** operator-provided output, not independently attested. This
+validates the tested mode-0600 socket and issuer-owned private directory
+under the test conditions, **not** an independent issuer authority, an
+authorization protocol, sudo/polkit boundaries, FD delegation safety,
+protected credentials, or effect-time checks. GE-04 SECURITY HOLD remains.
