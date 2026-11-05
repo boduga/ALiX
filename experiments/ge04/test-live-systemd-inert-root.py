@@ -160,10 +160,15 @@ try:
     cmd('systemctl', 'reset-failed', UNIT, check=False)
     # Orphaned endpoint must block restart; service remains deny-default.
     cmd('systemctl', 'start', UNIT, check=False)
-    deadline = time.monotonic() + 6
+    # The stale endpoint is detected by the restarted child only after its
+    # coordinator-pinned datagram receive times out (8s). The previous 6s
+    # deadline could observe a still-running process and falsely fail CI.
+    # Wait beyond that bounded receive timeout plus manager/process scheduling,
+    # while STILL requiring the real nonzero child exit (never a start-limit).
+    deadline = time.monotonic() + 18
     while time.monotonic() < deadline:
         st = service_status()
-        if 'ActiveState=failed' in st:
+        if 'ActiveState=failed' in st or ('ActiveState=inactive' in st and 'Result=success' in st):
             break
         time.sleep(0.1)
     # Rejection must be an actual process exit, not merely systemd rate-limit.
