@@ -488,6 +488,8 @@ jobs:
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-distinct-uid-fd-transfer-root.py | tee /tmp/ge04-sup16-cross-uid-fd.log
           grep -Fq 'GE04 SUP-16 distinct-UID FD transfer PASS' /tmp/ge04-sup16-cross-uid-fd.log
           grep -Fq 'delegated authenticated request REPRODUCED_UNTRUSTED' /tmp/ge04-sup16-cross-uid-fd.log
+          "$(command -v python)" -B experiments/ge04/test-ancillary-fd-denial.py | tee /tmp/ge04-sup18-ancillary.log
+          grep -Fq 'GE04 SUP-18 ancillary containment PASS' /tmp/ge04-sup18-ancillary.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |
