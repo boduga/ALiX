@@ -45,3 +45,11 @@ The operator reported the supervisor-host protocol fixture under UID 995: `all_d
 ## Cross-UID socket isolation probe (operator execution pending)
 
 `scripts/ge04-q32-supervisor-cross-uid-probe.py` is an operator-root-launched, disposable-host synthetic fixture with explicit opt-in and four distinct nonroot UIDs. The root launcher makes a supervisor-owned traversable scratch directory; the service creates a mode-0600 supervisor-owned socket. Issuer, coordinator and attacker connection attempts should fail; the supervisor can connect but only receives HOLD. This is intentionally a **negative isolation test**: the issuer is not permitted to connect, so it cannot establish a usable authenticated issuer-to-supervisor verification interface. It does not prove absence of inherited/delegated connected descriptors, and no production authority is exercised. Local entry tests: 2/2. GE-04 HOLD remains.
+
+## Operator-reported cross-UID direct socket isolation
+
+On microcloud3 the operator reported issuer UID 990, coordinator UID 994, and attacker UID 993 direct connections denied with errno 13; supervisor UID 995 connected but received `authorized=false`, `DENIED_SECURITY_HOLD`. Service exit 78, zero real effects, `all_denied_or_held=true`. This proves only direct path-based connection isolation in the synthetic fixture, not an authenticated issuer channel.
+
+## Connected socket descriptor delegation probe (operator execution pending)
+
+`scripts/ge04-q32-supervisor-connected-fd-probe.py` is a disposable-host, operator-root-launched fixture requiring `--isolated-test` and distinct nonroot supervisor/attacker accounts. A supervisor-UID connector opens the protected supervisor-owned socket, transfers that *connected socket descriptor* through `SCM_RIGHTS` to an attacker-UID process, and the attacker sends a synthetic forged approval request. The service must still respond HOLD with zero effects. A successful delegation shows that socket path DAC and connection-time identity alone do not establish the identity of a later sender. It does not test production ALiX authority or qualify sender authentication. The local unprivileged entry tests pass 2/2; privileged host evidence is pending.
