@@ -94,3 +94,31 @@ files; ownership alone cannot prove issuer separation. The next acceptance
 slice needs an independent operator-controlled root, descriptor-pinned path
 walk and actual untrusted-UID negative write tests. A passing snapshot cannot
 be used as a trust decision or to clear the GE-04 HOLD.
+
+## Q3.2 distinct-UID negative-write host probe (operator execution pending)
+
+`scripts/ge04-q32-negative-write.py` is an **opt-in disposable Linux host**
+probe. A root-launched, independently operated test process creates three
+synthetic supervisor-owned files in a temporary `0700` directory, with `0600`
+file modes. It drops to the separately provisioned coordinator and attacker
+UIDs and attempts overwrite, unlink, rename, and create operations. It checks
+that both identities were denied and the original synthetic files remained
+unchanged. A successful probe exits zero only for **negative-write experiment
+completion**; its JSON always says `disposition: HOLD` and
+`qualified_independent_custody: false`. Its CI tests only verify fail-closed
+prerequisites, **not** cross-UID enforcement.
+
+Operator-only disposable host invocation (after copying the script to a
+root-owned, non-writable test directory):
+
+```sh
+sudo python3 -B /opt/alix-ge04-q31-test/ge04-q32-negative-write.py \
+  --isolated-test --supervisor alixge04supervisor \
+  --coordinator alixge04coordinator --attacker alixge04attacker \
+  --group alixge04transport
+```
+
+Do not use real policy, keys, or protected runtime paths. The probe only tests
+basic DAC on temporary synthetic files; it does not establish independence,
+protected issuance, path-race resistance, mount/ACL integrity, or actual
+production supervisor custody. The GE-04 SECURITY HOLD remains active.
