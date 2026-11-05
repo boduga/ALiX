@@ -155,9 +155,9 @@ try:
     coordinator.stdin.write('DONE\n')
     coordinator.stdin.flush()
     assert coordinator.wait(timeout=5) == 0, coordinator.stderr.read()
-    # Clear test-only start rate limit so the next failure can be attributed
-    # to the orphaned endpoint, rather than StartLimitBurst policy.
-    cmd('systemctl', 'reset-failed', UNIT)
+    # Systemd may garbage-collect this inactive, unenabled test unit.
+    # Clearing a start limit is best-effort when the unit is already unloaded.
+    cmd('systemctl', 'reset-failed', UNIT, check=False)
     # Orphaned endpoint must block restart; service remains deny-default.
     cmd('systemctl', 'start', UNIT, check=False)
     deadline = time.monotonic() + 6
@@ -166,7 +166,9 @@ try:
         if 'ActiveState=failed' in st:
             break
         time.sleep(0.1)
-    assert 'ActiveState=failed' in st and 'NRestarts=0' in st, st
+    # Rejection must be an actual process exit, not merely systemd rate-limit.
+    assert ('ActiveState=failed' in st and 'Result=exit-code' in st and
+            'NRestarts=0' in st), st
     assert authority.inspect(ROOTS['private'])['consumed'] == ['isolated-inert-attempt']
     print('GE04 live systemd inert lifecycle PASS: real manager startup; distinct UID denied; inert request; stale restart fail closed')
 except BaseException:
