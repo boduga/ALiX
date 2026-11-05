@@ -73,6 +73,20 @@ with tempfile.TemporaryDirectory(prefix='ge04-composed-') as name:
     (good[2] / observed.LEAF).write_bytes(b'TAMPERED')
     assert composed.recover_read_only(good[0], good[2], good[1], good[3]) == UNKNOWN
 
+    # A valid signed fixture is not sufficient when protected lifecycle
+    # sequence is truncated, duplicated, or its request binding changes.
+    chain = setup('journal-tamper')
+    assert run(chain) == 'GE04_COMPOSED_FIXTURE_SETTLED_UNVERIFIED'
+    assert composed.recover_read_only(chain[0], chain[2], chain[1], chain[3]) == MATCH
+    record = chain[0] / 'ge04-lifecycle-2.json'
+    raw = record.read_bytes()
+    record.write_bytes(raw.replace(b'OBSERVED', b'PREPARED'))
+    assert composed.recover_read_only(chain[0], chain[2], chain[1], chain[3]) == UNKNOWN
+    record.write_bytes(raw)
+    assert composed.recover_read_only(chain[0], chain[2], chain[1], chain[3]) == MATCH
+    (chain[0] / 'ge04-lifecycle-3.json').unlink()
+    assert composed.recover_read_only(chain[0], chain[2], chain[1], chain[3]) == UNKNOWN
+
     expired = setup('expired')
     try:
         composed.run_fixed_fixture(*expired[:3], expired[3], binary, now_ms=1000)
