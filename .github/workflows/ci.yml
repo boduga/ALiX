@@ -554,6 +554,7 @@ jobs:
           "$(command -v python)" -B experiments/ge04/test-supervisor-lifecycle-journal.py
           sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-supervisor-composed-lifecycle-root.py | tee /tmp/ge04-supervisor-composed-lifecycle.log
           grep -Fq 'GE04 composed fixture PASS' /tmp/ge04-supervisor-composed-lifecycle.log
+          sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-supervisor-lifecycle-anchor-root.py
           sudo -n env PATH="$PATH" /usr/bin/python3 -B experiments/ge04/test-final-boundary-kernel-root.py | tee /tmp/ge04-final-boundary-kernel.log
           grep -Fq 'GE04 pinned kernel create fixture PASS' /tmp/ge04-final-boundary-kernel.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
