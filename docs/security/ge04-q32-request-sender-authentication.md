@@ -36,3 +36,7 @@ Socket pathname DAC controls who can **establish** a connection, not who can **u
 Implement a **deny-only**, synthetic request-envelope validator and negative test corpus for missing, altered, replayed and cross-attempt fields. This may test parser and binding completeness, but cannot establish authentication without independently reviewed issuer custody and a positive-path design. Never convert its success to qualification. An independent security reviewer must evaluate the proposed protocol and custody before implementing any positive authority.
 
 **Disposition: HOLD.** `createScopedMutationService()` remains unavailable.
+
+## Synthetic deny-only envelope validator (implemented; not qualification)
+
+`scripts/ge04-q32-deny-envelope.py` implements a pure comparison of 18 nonempty string fields against a caller-supplied synthetic expectation, requiring the exact field set, `synthetic-v1` protocol and `supervisor` audience. Every path returns `authorized=false`, `HOLD`, zero real effects. Its `seen` input only models a replay marker **provided by the caller**; it is neither a durable replay store nor trustworthy authentication evidence. The CLI is inert and always exits 78. `scripts/test-ge04-q32-deny-envelope.py` covers 7 test groups, including field-by-field mutation and cross-attempt mismatch. No trusted expectation source, canonical signing format, issuer key, positive verification, expiry clock check, or atomic consume exists. The apparent completeness of the envelope does not qualify issuance or a final-effect fence.
