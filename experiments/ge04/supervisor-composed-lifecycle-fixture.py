@@ -27,6 +27,7 @@ derived = load('supervisor-derived-effect-fixture')
 signed = load('signed-native-observation-fixture')
 journal = load('supervisor-lifecycle-journal')
 anchor = load('supervisor-lifecycle-anchor')
+native = load('supervisor-pinned-native-fixture')
 
 # Non-public test harness injection only.
 CHECKPOINTS = frozenset({'after_prepare', 'after_native', 'after_observation',
@@ -34,7 +35,7 @@ CHECKPOINTS = frozenset({'after_prepare', 'after_native', 'after_observation',
 
 
 def run_fixed_fixture(private, public, owned, pinned_key_digest, binary, *,
-                      anchor_dir,
+                      anchor_dir, expected_binary_digest,
                       now_ms, effect_now_ms, crash_checkpoint=None,
                       before_native_entered=None, before_native_resume=None):
     """One fixed test effect, with consumed approval under one lock.
@@ -59,65 +60,67 @@ def run_fixed_fixture(private, public, owned, pinned_key_digest, binary, *,
                     state['policyRevision'] != 7 or state['inFlight'] is not None or
                     state['consumed'] or now_ms >= state['expiresAtMs']):
                 raise PermissionError('fixture admission denied')
-            pinned = os.open(owned, os.O_RDONLY | os.O_DIRECTORY |
-                             os.O_NOFOLLOW | os.O_CLOEXEC)
+            # Verify and pin the exact ELF before spending the approval.
+            # The caller-controlled digest is experimental, not a release root.
+            binary_fd = native.pin_binary(binary, expected_binary_digest)
             try:
-                request_digest = journal.fingerprint(journal.fixed_request(state, pinned))
-                if journal.read_chain(fd, request_digest)[0]:
-                    raise PermissionError('prior journal attempt exists')
-                state['approvalState'] = 'consumed'
-                state['inFlight'] = observed.ATTEMPT
-                state['consumed'] = [observed.ATTEMPT]
-                authority._save(fd, state)
-                journal.append(fd, request_digest, 'PREPARED')
-                _crash(crash_checkpoint, 'after_prepare')
+                pinned = os.open(owned, os.O_RDONLY | os.O_DIRECTORY |
+                                 os.O_NOFOLLOW | os.O_CLOEXEC)
+                try:
+                    request_digest = journal.fingerprint(journal.fixed_request(state, pinned))
+                    if journal.read_chain(fd, request_digest)[0]:
+                        raise PermissionError('prior journal attempt exists')
+                    state['approvalState'] = 'consumed'
+                    state['inFlight'] = observed.ATTEMPT
+                    state['consumed'] = [observed.ATTEMPT]
+                    authority._save(fd, state)
+                    journal.append(fd, request_digest, 'PREPARED')
+                    _crash(crash_checkpoint, 'after_prepare')
 
-                # Testing-only interleaving: still inside the SUP-25 cooperative
-                # exclusion domain. Real trusted time and native syscall-adjacent
-                # enforcement are not established by caller-provided fixture time.
-                if before_native_entered is not None:
-                    before_native_entered.set()
-                if before_native_resume is not None and not before_native_resume.wait(8):
-                    raise TimeoutError('test fixture interleaving timed out: UNCERTAIN')
-                if effect_now_ms >= state['expiresAtMs']:
-                    raise PermissionError('fixture expiry before native effect: UNCERTAIN_NO_REPLAY')
+                    # Testing-only interleaving: still inside the SUP-25 cooperative
+                    # exclusion domain. Real trusted time and native syscall-adjacent
+                    # enforcement are not established by caller-provided fixture time.
+                    if before_native_entered is not None:
+                        before_native_entered.set()
+                    if before_native_resume is not None and not before_native_resume.wait(8):
+                        raise TimeoutError('test fixture interleaving timed out: UNCERTAIN')
+                    if effect_now_ms >= state['expiresAtMs']:
+                        raise PermissionError('fixture expiry before native effect: UNCERTAIN_NO_REPLAY')
 
-                # Fixed disposable native experiment; not trusted binary origin.
-                result = subprocess.run(
-                    [os.fspath(binary), 'GE04-INERT-FIXTURE-V1', str(pinned)],
-                    pass_fds=(pinned,), close_fds=True,
-                    env={'PATH': '/usr/bin:/bin'}, capture_output=True,
-                    text=True, timeout=8, check=False)
-                if result.returncode != 0 or result.stdout.strip() != observed.MARKER:
-                    raise PermissionError('native fixture did not produce required marker')
-                _crash(crash_checkpoint, 'after_native')
-                observed.persist_locked(fd, private, pinned, state, result.stdout.strip())
-                journal.append(fd, request_digest, 'OBSERVED')
-                _crash(crash_checkpoint, 'after_observation')
+                    # Fixed disposable native experiment; not trusted binary origin.
+                    result = native.run_pinned(binary_fd, pinned)
+                    if result.returncode != 0 or result.stdout.strip() != observed.MARKER:
+                        raise PermissionError('native fixture did not produce required marker')
+                    _crash(crash_checkpoint, 'after_native')
+                    observed.persist_locked(fd, private, pinned, state, result.stdout.strip())
+                    journal.append(fd, request_digest, 'OBSERVED')
+                    _crash(crash_checkpoint, 'after_observation')
 
-                state['inFlight'] = None
-                authority._save(fd, state)
-                journal.append(fd, request_digest, 'SETTLED')
-                _crash(crash_checkpoint, 'after_settlement')
+                    state['inFlight'] = None
+                    authority._save(fd, state)
+                    journal.append(fd, request_digest, 'SETTLED')
+                    _crash(crash_checkpoint, 'after_settlement')
 
-                # Do not re-enter derived.publish's flock while already locked.
-                _obs_hash, effect_hash, observation_bytes = derived._inspect_locked(
-                    fd, private, pinned, state)
-                marker = signed.sign_observation(
-                    private, public, state, observation_bytes,
-                    effect_hash, pinned_key_digest)
-                journal.append(fd, request_digest, 'SIGNED')
-                _crash(crash_checkpoint, 'after_signature')
-                records, chain_digest = journal.read_chain(fd, request_digest)
-                if len(records) != len(journal.STAGES):
-                    raise PermissionError('incomplete fixture chain')
-                anchor.publish(anchor_dir, request_digest, chain_digest)
-                _crash(crash_checkpoint, 'after_anchor')
-                if not marker.endswith('_UNVERIFIED'):
-                    raise PermissionError('unexpected fixture signing marker')
-                return 'GE04_COMPOSED_FIXTURE_SETTLED_UNVERIFIED'
+                    # Do not re-enter derived.publish's flock while already locked.
+                    _obs_hash, effect_hash, observation_bytes = derived._inspect_locked(
+                        fd, private, pinned, state)
+                    marker = signed.sign_observation(
+                        private, public, state, observation_bytes,
+                        effect_hash, pinned_key_digest)
+                    journal.append(fd, request_digest, 'SIGNED')
+                    _crash(crash_checkpoint, 'after_signature')
+                    records, chain_digest = journal.read_chain(fd, request_digest)
+                    if len(records) != len(journal.STAGES):
+                        raise PermissionError('incomplete fixture chain')
+                    anchor.publish(anchor_dir, request_digest, chain_digest)
+                    _crash(crash_checkpoint, 'after_anchor')
+                    if not marker.endswith('_UNVERIFIED'):
+                        raise PermissionError('unexpected fixture signing marker')
+                    return 'GE04_COMPOSED_FIXTURE_SETTLED_UNVERIFIED'
+                finally:
+                    os.close(pinned)
             finally:
-                os.close(pinned)
+                os.close(binary_fd)
         finally:
             os.close(lock)
     finally:
