@@ -514,6 +514,8 @@ jobs:
           grep -Fq 'GE04 SUP-27 FINDING-1 REPRODUCED' /tmp/ge04-sup27-adversarial.log
           grep -Fq 'GE04 SUP-27 FINDING-2 REPRODUCED' /tmp/ge04-sup27-adversarial.log
           grep -Fq 'GE04 SUP-27 adversarial reproductions PASS' /tmp/ge04-sup27-adversarial.log
+          sudo -n env PATH="$PATH" "$(command -v python)" -B experiments/ge04/test-isolated-uid-supervisor-root.py | tee /tmp/ge04-isolated-uid-supervisor.log
+          grep -Fq 'GE04 isolated supervisor UID boundary PASS' /tmp/ge04-isolated-uid-supervisor.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID
         shell: bash
         run: |
