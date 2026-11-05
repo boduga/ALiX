@@ -1,0 +1,11 @@
+# GE-04 SUP-24 — Inert root-supervisor session freshness across restarts
+
+**GE-04 SECURITY HOLD. This is an experiment, not authentication, admission, or authorization.**
+
+The SUP-23 separate-root-process fixture accepts a fixed inert datagram. SUP-24 adds an independent experimental subprocess `sup24-root-supervisor.py` that binds the supervisor root-owned datagram endpoint and validates each incoming message with SUP-22b's kernel-delivered per-message sender pidfd and a pinned coordinator process. The supervisor sends a freshly generated 32-byte random challenge to a protected fixture reply socket after receiving a fixed `SUP24_HELLO`, then accepts exactly one `SUP24_RESPONSE:<challenge>` message. An invalid or stale response fails closed, terminates the session, and never returns the inert success marker. A fresh process run generates its own challenge; stale responses from a prior run are rejected. The supervisor's protected credential is read only by its own process and is not returned to the coordinator. It is not used as a shared authenticator.
+
+The root-only CI regression `test-sup24-session-lifecycle-root.py` exercises successful fresh process exchanges, challenge renewal, cross-restart replay denial, an incorrect challenge, and successful recovery in a later separately exec'd process. Fresh isolated fixture directories avoid automatically unlinking stale endpoint paths. The coordinator and supervisor exchange only inert fixed protocol strings. No mutation is performed.
+
+**Non-goals and remaining gaps:** The nonce is visible to the coordinator and merely enforces one-session freshness. It is **not** a cryptographic proof of independent authorization, an anti-replay guarantee for real actions, a durable single-use claim/receipt, a defense against a compromised allowed process or privileged root, or an atomic lease/policy/revocation check. The root coordinator creates the root supervisor, so authority separation is still incomplete. No production protocol or `UnavailableScopedMutationService` is changed. A crash during any future real mutation still requires durable reconciliation, and nonce freshness by itself cannot prevent a duplicate effect after a lost response.
+
+SUP-16's existing stream delegation weakness remains documented. PR #1039 must remain unmerged while GE-04 is under SECURITY HOLD.
