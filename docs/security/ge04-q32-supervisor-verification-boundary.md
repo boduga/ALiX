@@ -29,3 +29,7 @@
 - Operator captures host identity, script hash, invocation, output, exit status, and independent review. The authority design requires separate custody and key-management review before implementation or release.
 
 **Disposition: HOLD.** The next implementable slice should be a *deny-only* supervisor verification service with synthetic request binding and explicit no-FD-response assertions. Its tests must not be described as authorization proof.
+
+## Deny-only supervisor socket fixture (unqualified)
+
+The synthetic `scripts/ge04-q32-deny-supervisor-verifier.py` accepts one bounded Unix seqpacket request and always responds `authorized=false`, `disposition=HOLD`, then exits 78. It rejects malformed bindings, wrong audience, truncation, and ancillary descriptor transfers; received SCM_RIGHTS descriptors are closed. The five local tests cover validation, opt-in and a socket exchange. This is not a production verifier, credential-bound issuer, effect authorization, or independent qualification.
