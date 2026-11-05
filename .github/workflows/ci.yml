@@ -543,6 +543,8 @@ jobs:
           grep -Fq 'GE04 systemd inert prototype PASS' /tmp/ge04-systemd-inert-prototype.log
           "$(command -v python)" -B experiments/ge04/test-final-boundary-protocol-model.py | tee /tmp/ge04-final-boundary-model.log
           grep -Fq 'GE04 final-boundary ordering model PASS' /tmp/ge04-final-boundary-model.log
+          /usr/bin/python3 -B experiments/ge04/test-native-effect-observation.py | tee /tmp/ge04-native-observation-format.log
+          grep -Fq 'GE04 native effect observation format PASS' /tmp/ge04-native-observation-format.log
           sudo -n env PATH="$PATH" /usr/bin/python3 -B experiments/ge04/test-final-boundary-kernel-root.py | tee /tmp/ge04-final-boundary-kernel.log
           grep -Fq 'GE04 pinned kernel create fixture PASS' /tmp/ge04-final-boundary-kernel.log
       - name: Verify kernel-observed GE04 helper gate with real distinct UID

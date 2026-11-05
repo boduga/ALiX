@@ -1,0 +1,19 @@
+# GE-04 — Native effect observation with durable fixture evidence
+
+**Status: EXPERIMENTAL / SECURITY HOLD. Not an authenticated production effect receipt.**
+
+The GE-04 native `openat2` fixed-operation fixture can perform and fsync a real file creation while its root-owned test controller holds a cooperative SUP-25 lock. Previously the harness relied on a stdout marker and settled its state without preserving any receipt tied to the actual file. The new `native-effect-observation-fixture.py` closes **that limited test-evidence gap**, not the broader independent-authority requirement.
+
+The controller now requires the exact fixed native completion marker and the already-durably-prepared `fixed-kernel-attempt`. **While retaining the same lock and the pinned directory FD**, it opens the fixed leaf with `O_NOFOLLOW`, checks the exact fixture bytes and a protected regular-file identity, and writes one `O_EXCL` observation under the root-owned authority directory. This JSON binds attempt, approval, lease, policy revision, exact content digest, device/inode identity of the file and containing directory, and an HMAC computed using the previously provisioned protected test credential. It fsyncs the record and directory before the controller settles `inFlight` to null and fsyncs authority state. Reconciliation checks the protected state, file identity/content, receipt schema and HMAC, and **only returns `GE04_NATIVE_EFFECT_OBSERVATION_MATCHED_UNVERIFIED`**. It NEVER returns a verified mutation success or permits replay.
+
+The tests cover wrong terminal marker, duplicate receipt creation, missing receipt after actual kernel write but lost marker, tampered receipt, mutated effect content, a crash window **after** durable observation but **before** settlement, and single-use approval denial. In either crash window `inFlight` remains set; recovery returns `UNCERTAIN_NO_REPLAY`. Privileged CI runs the integrated actual-kernel fixture; an unprivileged test separately verifies record schema and classification.
+
+## Residual release blockers
+
+1. **Not independently authenticated:** Both receipt credential and authority files are controlled by the root test provisioner, which can fabricate marker, state, record, or effect. A valid HMAC proves only consistency relative to that fixture key. This is not an OS/native attestation, remote signer, or independently established production authority.
+2. **Not immutable effect proof:** File content and inode checks are a snapshot. A privileged actor can alter and restore bytes, replace state/key, or exploit an unmodeled file lifecycle. HMAC and fsync do not prove an operation originated from the approved helper or that storage persisted across power loss.
+3. **Not real authorization:** The supplied permission state, policy revision and lease are fixed test inputs, not reloaded from ALiX's actual protected authoritative stores; the cooperative fixture lock does not serialize every production policy/lease publisher. Cross-process and syscall-adjacent lease-expiry safety remain open.
+4. **Not complete crash recovery:** The absence of native terminal evidence, and evidence persisted without settled authority, remain UNCERTAIN forever. The experiment intentionally neither auto-retries nor promotes file existence to success. There is no independently trusted committed-effect journal or full power-loss test.
+5. **Not production routing:** The C binary writes one innocuous fixed file in an isolated test directory, never arbitrary content, replace, delete, shell or workspace operations. `UnavailableScopedMutationService` is unchanged and PR #1039 stays unmerged.
+
+**Release decision: GE-04 SECURITY HOLD remains active pending an independently protected supervisor-owned state and terminal attestation design, actual operation-level authority integration, fault qualification, and independent review.**
