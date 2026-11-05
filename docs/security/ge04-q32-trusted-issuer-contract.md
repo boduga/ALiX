@@ -93,3 +93,23 @@ check, not a simultaneous-claim race. A post-start revocation prevents a
 synthetic confirmation but cannot undo an external effect that may already
 have happened. Crash after effect start is intentionally `UNKNOWN_RECOVERY`;
 no replay is permitted. No qualification follows from these unit tests.
+
+## Q3.2 synthetic ordering explorer (not real fault injection)
+
+`scripts/ge04-q32-inert-interleavings.py` enumerates all 120 permutations of
+five abstract events: claim, effect start, revoke, crash, effect confirm.
+It checks that no model effect-start succeeds after revocation and that
+`UNKNOWN_RECOVERY` cannot be confirmed or retried. It is a *sequential
+interleaving explorer*, not thread concurrency, process crash injection,
+transaction linearizability, persistence, or a real effect-time fence. It
+always exits 78 with `HOLD` and reports zero real effects.
+
+**Open critical gap:** the existing inert model treats `effect_start` as one
+atomic abstract transition and permits revocation after that point, but
+`effect_confirm` may be denied even if an external effect already occurred.
+A real implementation must explicitly define revocation completion versus
+in-flight effects, record a durable intent before any irreversible operation,
+and supply a recovery oracle for ambiguous target outcomes. These properties
+cannot be established by permutations of in-memory events. Before any
+implementation of effect authority, review the linearization point and
+fault-injection matrix with an independent security reviewer. HOLD persists.
