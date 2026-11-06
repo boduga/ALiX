@@ -26,6 +26,8 @@ This is a **targeted GE-04 inventory**, not an assertion that every legacy calle
 
 Initial source-backed inventory: [`ge04-r0-worker-execution-inventory.md`](./ge04-r0-worker-execution-inventory.md). This inventory is explicitly incomplete and does not close R0.
 
+Proposed canonical authority and credential flow: [`ge04-r1-credential-and-execution-authority-design.md`](./ge04-r1-credential-and-execution-authority-design.md). This is a review proposal, not an admitted production boundary.
+
 ## Replacement invariants (no optional production bypass)
 
 1. All worker creation routes (CLI, daemon, coordination, APIs, subagents, recovery) use one trusted supervisor and a canonical execution contract. Unsupported routes fail closed with actionable errors.
