@@ -28,6 +28,11 @@ export type SubagentManagerOptions = {
   spawnOverride?: { command: string; args?: string[] };
   /** Event log for emitting subagent lifecycle events into the session stream. */
   eventLog?: EventLog;
+  /** GE-04 qualification-only observer. No credential authority or admission. */
+  ge04WorkerLifecycle?: {
+    onSpawned: (identity: { pid: number; uid: number; coordinationRunId: string; workerId: string; attempt: number }) => Promise<void>;
+    onExited: (pid: number) => void;
+  };
 };
 
 type RunningSubagent = {
@@ -345,6 +350,7 @@ export class SubagentManager {
           ...(task.coordinationRunId && task.coordinationOwnershipClaims
             ? ["--ownership-claims-json", JSON.stringify(task.coordinationOwnershipClaims)] : []),
           ...(task.coordinationRunId ? ["--credential-fd", "3"] : []),
+          ...(this.options.ge04WorkerLifecycle ? ["--ge04-startup-fd", "4"] : []),
           ...(task.ownedPaths?.length ? ["--owned-paths", task.ownedPaths.join(",")] : []),
           ...(task.inputPaths?.length ? ["--input-paths", JSON.stringify(task.inputPaths)] : []),
         ];
@@ -364,10 +370,15 @@ export class SubagentManager {
           commandArgs = [resolve(repoRoot, "dist", "src", "cli.js"), ...cliArgs];
         }
 
-        const credentialPayload = task.coordinationRunId ? resolvedCredentialPayload(this.options.config) : undefined;
+        // Qualification observer never receives a credential-bearing FD.
+        // Existing credential delivery remains unchanged when the observer is absent.
+        const credentialPayload = task.coordinationRunId && !this.options.ge04WorkerLifecycle
+          ? resolvedCredentialPayload(this.options.config) : undefined;
         const child = spawn(command, commandArgs, {
           cwd: task.cwd,
-          stdio: ["pipe", "pipe", "pipe", "pipe"] as const,
+          stdio: this.options.ge04WorkerLifecycle
+            ? ["pipe", "pipe", "pipe", "pipe", "pipe"] as const
+            : ["pipe", "pipe", "pipe", "pipe"] as const,
           // Own process group on POSIX so terminateProcessTree can reap the
           // whole tree; the stdin pipe still closes on host death, which
           // the child's watchdog turns into a clean exit.
@@ -393,7 +404,34 @@ export class SubagentManager {
         const credentialPipe = child.stdio[3];
         if (credentialPipe && "end" in credentialPipe) {
           credentialPipe.on("error", () => { /* child may exit before consuming the optional snapshot */ });
+          // No credential bytes or positive admission during GE-04 qualification.
           credentialPipe.end(credentialPayload ?? "{}");
+        }
+        const lifecycle = this.options.ge04WorkerLifecycle;
+        if (lifecycle) {
+          const pid = child.pid;
+          const uid = process.getuid?.();
+          if (!task.coordinationRunId || task.coordinationWorkerAttempt === undefined ||
+              !Number.isSafeInteger(pid) || !Number.isSafeInteger(uid)) {
+            terminateProcessTree(child);
+            throw new Error("GE-04 qualification requires a coordinated worker and known PID/UID");
+          }
+          // Cooperative startup gate: release FD4 only after supervisor callback.
+          // No secret is written to FD4. This is NOT OS process suspension.
+          const gate = child.stdio[4];
+          if (!gate || !("end" in gate)) {
+            terminateProcessTree(child);
+            throw new Error("GE-04 startup gate unavailable");
+          }
+          gate.on("error", () => { /* exited before release */ });
+          void lifecycle.onSpawned({pid:pid!,uid:uid!,coordinationRunId:task.coordinationRunId,
+            workerId:task.id,attempt:task.coordinationWorkerAttempt}).then(() => {
+            if (child.exitCode === null && !child.killed) gate.end("GE04_READY\n");
+          }).catch(() => {
+            gate.end();
+            terminateProcessTree(child);
+          });
+          child.once("exit", () => lifecycle.onExited(pid!));
         }
 
         const running: RunningSubagent = { task, process: child, resolve: resolvePromise, reject, cancelled: false };

@@ -530,6 +530,7 @@ export class SubagentCLI {
         "assigned-objective": { type: "string" },
         "ge04-route-preflight": { type: "boolean" },
         "ge04-owner-id": { type: "string" },
+        "ge04-startup-fd": { type: "string" },
       },
       allowPositionals: false,
     });
@@ -578,6 +579,13 @@ export class SubagentCLI {
     if (coordinationRunId && (!Number.isInteger(workerAttempt) || (workerAttempt ?? -1) < 0)) {
       console.error("Coordination workers require a non-negative --worker-attempt");
       process.exit(1);
+    }
+
+    // Cooperative GE-04 startup handshake, before config/credential reads.
+    // A compromised child can bypass this; it is not a kernel-enforced barrier.
+    if (args.values["ge04-startup-fd"] !== undefined) {
+      const { awaitGe04StartupRelease } = await import("./worker-ge04-startup-gate.js");
+      awaitGe04StartupRelease(Number(args.values["ge04-startup-fd"]));
     }
 
     // Load config from current working directory (user's project, not ALiX source tree)
