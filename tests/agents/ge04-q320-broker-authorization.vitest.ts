@@ -1,0 +1,13 @@
+import {describe,it,expect} from 'vitest';
+import {createIsolatedBrokerAuthorizer} from '../../src/agents/worker-broker-authorization.js';
+const identity={coordinationRunId:'r',workerId:'w',attempt:1};
+const route={provider:'openai',name:'main',routing:{fallbacks:[{provider:'anthropic',name:'backup'}]}};
+const record={runId:'r',workerId:'w',attempt:1,status:'running',executionOwnerId:'daemon',planRevision:2,routeRevision:3,revoked:false};
+function setup(){let now=1000;const current={...record};const currentRoute=structuredClone(route);const authority={readClaim:async()=>({...current}),resolveRoute:async()=>structuredClone(currentRoute)};const broker=createIsolatedBrokerAuthorizer(authority,Buffer.alloc(32,7),()=>now);return {broker,current,currentRoute,advance:(ms:number)=>{now+=ms;}};}
+describe('GE-04 Q3.20 isolated broker authorization prototype',()=>{
+ it('authorizes exact primary or fallback provider, single use',async()=>{const f=setup();const t=await f.broker.issue(identity,'daemon');expect(t.providers).toEqual(['openai','anthropic']);await expect(f.broker.authorize(t,'anthropic')).resolves.toBeUndefined();await expect(f.broker.authorize(t,'openai')).rejects.toThrow(/consumed/);});
+ it('rejects unauthorized provider without consuming a valid ticket',async()=>{const f=setup();const t=await f.broker.issue(identity,'daemon');await expect(f.broker.authorize(t,'google')).rejects.toThrow(/not authorized/);await expect(f.broker.authorize(t,'openai')).resolves.toBeUndefined();});
+ it('rejects tampering and expiry',async()=>{const f=setup();const t=await f.broker.issue(identity,'daemon',100);await expect(f.broker.authorize({...t,ownerId:'other'},'openai')).rejects.toThrow(/authentication/);f.advance(100);await expect(f.broker.authorize(t,'openai')).rejects.toThrow(/expired/);});
+ it('rejects changed claim, revocation and route expansion',async()=>{const f=setup();let t=await f.broker.issue(identity,'daemon');f.current.planRevision++;await expect(f.broker.authorize(t,'openai')).rejects.toThrow();f.current.planRevision--;t=await f.broker.issue(identity,'daemon');f.current.revoked=true;await expect(f.broker.authorize(t,'openai')).rejects.toThrow();f.current.revoked=false;t=await f.broker.issue(identity,'daemon');f.currentRoute.routing.fallbacks.push({provider:'google',name:'extra'});await expect(f.broker.authorize(t,'openai')).rejects.toThrow(/stale/);});
+ it('rejects forged worker identity and short broker keys',async()=>{const f=setup();await expect(f.broker.issue({...identity,attempt:2},'daemon')).rejects.toThrow();expect(()=>createIsolatedBrokerAuthorizer({readClaim:async()=>record,resolveRoute:async()=>route},Buffer.alloc(4))).toThrow();});
+});
