@@ -7,3 +7,7 @@ Next: redesign the worker startup as a true suspended/blocked handshake under a 
 ## Cooperative startup gate (second slice)
 
 With the opt-in hook, the supervisor provides a separate FD4 pipe and releases the exact `GE04_READY\n` marker only after the asynchronous registration callback succeeds. The real subagent CLI waits for the marker before loading configuration or reading FD3. EOF, missing descriptor and malformed release fail closed. This is a **cooperative** barrier only: the child process already exists and may execute imports, and a compromised child or test override can ignore the handshake. The callback must be trusted and registration must not be interpreted as native kernel attestation. No secrets are sent via FD4.
+
+## Broker-owned Linux registry adapter
+
+`createGe04LinuxWorkerLifecycle()` supplies the opt-in manager callback contract using `createLinuxBrokerProcessRegistry()` and procfs process identity. It registers the spawned PID/UID/run/worker/attempt, revokes on exit, rejects duplicate registrations and mismatched UID, and handles exit during asynchronous registration. A pending exited PID cannot be reused until the original registration settles. It is **not enabled by default** or connected to a privileged supervisor deployment. `resolveAttestedPeer` is diagnostic only and must never receive worker-supplied peer objects as authority. Same-UID workers and pre-gate imports remain security gaps. No positive credential admission.
