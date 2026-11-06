@@ -6,14 +6,19 @@ import {join,resolve} from 'node:path';
 
 const enabled=process.env.ALIX_GE04_NATIVE_BOUNDARY_TEST==='1';
 const brokerUid=10001,authorizedUid=10002,unauthorizedUid=10003;
+type Outcome={code:number|null,stdout:string,stderr:string};
+const outcomes=new WeakMap<ChildProcessWithoutNullStreams,Promise<Outcome>>();
 function asUid(uid:number,command:string,args:string[]){
- return spawn('setpriv',['--reuid',String(uid),'--regid',String(uid),'--clear-groups',command,...args],{stdio:['pipe','pipe','pipe']});
-}
-function collect(child:ChildProcessWithoutNullStreams):Promise<{code:number|null,stdout:string,stderr:string}>{
- return new Promise((resolve,reject)=>{
+ const child=spawn('setpriv',['--reuid',String(uid),'--regid',String(uid),'--clear-groups',command,...args],{stdio:['pipe','pipe','pipe']});
+ // Register completion immediately: a one-shot server can exit before the client finishes.
+ outcomes.set(child,new Promise((resolve,reject)=>{
   let stdout='',stderr='';child.stdout.on('data',(d:Buffer)=>stdout+=d.toString());child.stderr.on('data',(d:Buffer)=>stderr+=d.toString());
-  child.on('error',reject);child.on('close',code=>resolve({code,stdout,stderr}));
- });
+  child.once('error',reject);child.once('close',code=>resolve({code,stdout,stderr}));
+ }));
+ return child;
+}
+function collect(child:ChildProcessWithoutNullStreams):Promise<Outcome>{
+ const outcome=outcomes.get(child);if(!outcome)throw new Error('Missing child lifecycle tracking');return outcome;
 }
 async function ready(child:ChildProcessWithoutNullStreams){
  return new Promise<void>((resolve,reject)=>{
