@@ -12,7 +12,8 @@
 
 /* Q3.25 credential-free, one-shot qualification probe. NOT a credential broker. */
 int main(int argc, char **argv) {
-  if (argc != 4) { fprintf(stderr, "usage: probe SOCKET BROKER_UID ALLOWED_UID\n"); return 64; }
+  if (argc != 4 && argc != 5) { fprintf(stderr, "usage: probe SOCKET BROKER_UID ALLOWED_UID\n"); return 64; }
+  if (argc == 5 && strcmp(argv[4], "--test-public-socket") != 0) return 64;
   char *end = NULL;
   errno = 0; unsigned long broker = strtoul(argv[2], &end, 10);
   if (errno || !end || *end || broker > 4294967295UL) return 64;
@@ -25,7 +26,7 @@ int main(int argc, char **argv) {
   int listener = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
   if (listener < 0) return 1;
   if (bind(listener, (struct sockaddr *)&addr, sizeof(addr)) != 0) { perror("bind"); close(listener); return 1; }
-  if (chmod(argv[1], 0600) != 0 || listen(listener, 1) != 0) { perror("listen/chmod"); close(listener); unlink(argv[1]); return 1; }
+  if (chmod(argv[1], argc == 5 ? 0666 : 0600) != 0 || listen(listener, 1) != 0) { perror("listen/chmod"); close(listener); unlink(argv[1]); return 1; }
   puts("READY"); fflush(stdout);
   int client = accept4(listener, NULL, NULL, SOCK_CLOEXEC);
   int result = 1;
