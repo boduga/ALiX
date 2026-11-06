@@ -22,10 +22,10 @@ async function probe(path:string,uid:number){
 }
 async function ready(child:ChildProcessWithoutNullStreams):Promise<void>{
  return new Promise((resolve,reject)=>{
-  let output='';const timer=setTimeout(()=>reject(new Error('Broker readiness timeout: '+output)),5000);
+  let output='',stderr='';child.stderr.on('data',(chunk:Buffer)=>{stderr+=chunk.toString();});const timer=setTimeout(()=>reject(new Error('Broker readiness timeout: '+output+' stderr: '+stderr)),5000);
   const onData=(chunk:Buffer)=>{output+=chunk.toString();if(output.includes('READY\n')){clearTimeout(timer);child.stdout.off('data',onData);resolve();}};
   child.stdout.on('data',onData);child.once('error',err=>{clearTimeout(timer);reject(err);});
-  child.once('exit',code=>{clearTimeout(timer);reject(new Error('Broker exited before ready: '+code));});
+  child.once('exit',code=>{clearTimeout(timer);reject(new Error('Broker exited before ready: '+code+' stderr: '+stderr+' stdout: '+output));});
  });
 }
 describe.skipIf(!enabled)('GE-04 Q3.22 distinct UID probe (Linux)',()=>{
