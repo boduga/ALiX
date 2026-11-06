@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {execFileSync,spawn,type ChildProcessWithoutNullStreams} from 'node:child_process';
-import {chmodSync,chownSync,mkdtempSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
+import {accessSync,chmodSync,chownSync,mkdtempSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -42,7 +42,12 @@ describe.skipIf(!enabled)('GE-04 Q3.22 distinct UID probe (Linux)',()=>{
    chmodSync(dir,0o711);
    execFileSync('cc',['-O2','-Wall','-Wextra','-Werror','-o',helper,resolve('native/ge04/peercred.c')]);chmodSync(helper,0o755);
    writeFileSync(secret,'broker-owned-test-secret',{mode:0o600});chownSync(secret,brokerUid,brokerUid);chmodSync(secret,0o600);
-   const transport=pathToFileURL(resolve('dist/src/agents/worker-broker-transport.js')).href;
+   // The disposable container copy may inherit host checkout directory modes.
+   // Permit non-root broker traversal of compiled test modules (not the broker secret).
+   for(const path of ['.','dist','dist/src','dist/src/agents'])chmodSync(resolve(path),0o755);
+   const transportPath=resolve('dist/src/agents/worker-broker-transport.js');
+   accessSync(transportPath);
+   const transport=pathToFileURL(transportPath).href;
    const attestor=pathToFileURL(resolve('dist/src/agents/worker-broker-linux-peercred.js')).href;
    writeFileSync(script,`import {chmodSync} from 'node:fs';\nimport {createBrokerProbeServer} from ${JSON.stringify(transport)};\nimport {createLinuxPeerCredentialAttestor} from ${JSON.stringify(attestor)};\nconst server=createBrokerProbeServer({socketPath:${JSON.stringify(sock)},peerPolicy:{brokerUid:${brokerUid},allowedWorkerUids:[${authorizedUid}]},attestPeer:createLinuxPeerCredentialAttestor(${JSON.stringify(helper)}),onAuthorizedPeer:async()=>{}});\nserver.listen(${JSON.stringify(sock)},()=>{chmodSync(${JSON.stringify(sock)},0o666);process.stdout.write('READY\\n')});\n`,{mode:0o644});
    const started=asUid(brokerUid,process.execPath,[script]);broker=started;await ready(started);
