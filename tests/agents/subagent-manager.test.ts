@@ -419,3 +419,22 @@ describe("resolveRenewalResult (lease release/renew race regression)", () => {
     assert.deepEqual(resolveRenewalResult(true, []), { action: "delete", releaseIds: [] });
   });
 });
+
+test('GE-04 opt-in worker lifecycle observes real spawn and exit without passing credentials', async () => {
+  if (process.platform === 'win32') return;
+  const cwd=tmpCwd();
+  const observed: Array<{pid:number;uid:number;coordinationRunId:string;workerId:string;attempt:number}>=[];
+  const exited:number[]=[];
+  const manager=new SubagentManager({sessionId:'ge04-test',cwd,
+    config:{subagents:TEST_SUBAGENT_CFG,models:TEST_MODELS,apiKeys:{openai:'DO_NOT_SEND_GE04_SECRET'}} as unknown as AlixConfig,
+    spawnOverride:{command:process.execPath,args:['-e',`let s='';process.stdin.resume();process.stdin.on('end',()=>{});const fs=require('fs');try{s=fs.readFileSync(3,'utf8')}catch{};if(s.includes('DO_NOT_SEND_GE04_SECRET'))process.exit(81);process.exit(0)`]},
+    ge04WorkerLifecycle:{onSpawned:async identity=>{observed.push(identity);},onExited:pid=>{exited.push(pid);}},
+  });
+  const result=await manager.spawn(makeTask({id:'ge04-worker',coordinationRunId:'coord-ge04',coordinationWorkerAttempt:1}));
+  assert.equal(observed.length,1);
+  assert.equal(observed[0]?.workerId,'ge04-worker');
+  assert.equal(observed[0]?.attempt,1);
+  assert.equal(observed[0]?.coordinationRunId,'coord-ge04');
+  assert.equal(exited[0],observed[0]?.pid);
+  assert.notEqual(result.status,'failed');
+});

@@ -28,6 +28,11 @@ export type SubagentManagerOptions = {
   spawnOverride?: { command: string; args?: string[] };
   /** Event log for emitting subagent lifecycle events into the session stream. */
   eventLog?: EventLog;
+  /** GE-04 qualification-only observer. No credential authority or admission. */
+  ge04WorkerLifecycle?: {
+    onSpawned: (identity: { pid: number; uid: number; coordinationRunId: string; workerId: string; attempt: number }) => Promise<void>;
+    onExited: (pid: number) => void;
+  };
 };
 
 type RunningSubagent = {
@@ -364,7 +369,10 @@ export class SubagentManager {
           commandArgs = [resolve(repoRoot, "dist", "src", "cli.js"), ...cliArgs];
         }
 
-        const credentialPayload = task.coordinationRunId ? resolvedCredentialPayload(this.options.config) : undefined;
+        // Qualification observer never receives a credential-bearing FD.
+        // Existing credential delivery remains unchanged when the observer is absent.
+        const credentialPayload = task.coordinationRunId && !this.options.ge04WorkerLifecycle
+          ? resolvedCredentialPayload(this.options.config) : undefined;
         const child = spawn(command, commandArgs, {
           cwd: task.cwd,
           stdio: ["pipe", "pipe", "pipe", "pipe"] as const,
@@ -393,7 +401,24 @@ export class SubagentManager {
         const credentialPipe = child.stdio[3];
         if (credentialPipe && "end" in credentialPipe) {
           credentialPipe.on("error", () => { /* child may exit before consuming the optional snapshot */ });
+          // No credential bytes or positive admission during GE-04 qualification.
           credentialPipe.end(credentialPayload ?? "{}");
+        }
+        const lifecycle = this.options.ge04WorkerLifecycle;
+        if (lifecycle) {
+          const pid = child.pid;
+          const uid = process.getuid?.();
+          if (!task.coordinationRunId || task.coordinationWorkerAttempt === undefined ||
+              !Number.isSafeInteger(pid) || !Number.isSafeInteger(uid)) {
+            terminateProcessTree(child);
+            throw new Error("GE-04 qualification requires a coordinated worker and known PID/UID");
+          }
+          // This observes a spawn; it does NOT prevent execution before registration.
+          void lifecycle.onSpawned({pid:pid!,uid:uid!,coordinationRunId:task.coordinationRunId,
+            workerId:task.id,attempt:task.coordinationWorkerAttempt}).catch(() => {
+            terminateProcessTree(child);
+          });
+          child.once("exit", () => lifecycle.onExited(pid!));
         }
 
         const running: RunningSubagent = { task, process: child, resolve: resolvePromise, reject, cancelled: false };

@@ -1,0 +1,5 @@
+# GE-04 production worker lifecycle integration — first slice
+
+This opt-in `SubagentManagerOptions.ge04WorkerLifecycle` hook observes actual child process spawn/exit and supplies the coordinator's run/worker/attempt identity to a trusted, caller-supplied supervisor callback. It deliberately suppresses credential payload transfer on FD3 when enabled. It does **not** turn on positive admission, does not authenticate native IPC, and does not prove worker execution is blocked before registration: the child may execute immediately after spawn. Registration callback rejection kills the child, but that is **not** a security boundary against pre-registration execution. Existing legacy credential delivery is unchanged when the hook is disabled. Do not enable this option in production or claim it isolates worker credentials. GE-04 SECURITY HOLD remains active.
+
+Next: redesign the worker startup as a true suspended/blocked handshake under a trusted supervisor, with no credential access before authenticated registration; verify Linux UID isolation and kernel-attested IPC before any positive governance admission.
