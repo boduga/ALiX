@@ -39,6 +39,15 @@ describe.skipIf(!linux)('GE-04 Q3.23 root-owned trusted helper preflight',()=>{
   try {
    execFileSync('cc',['-O2','-Wall','-Wextra','-Werror','-o',helper,'native/ge04/peercred.c']);
    execFileSync('cc',['-O2','-Wall','-Wextra','-Werror','-o',launcher,'native/ge04/exec-pinned.c']);
+   // Q3.24 negative qualification: reject launcher substitution and unsafe metadata.
+   chmodSync(launcher,0o777);
+   expect(()=>createLinuxPeerCredentialAttestor(helper,{requireTrustedHelper:true,trustedLauncherPath:launcher})).toThrow();
+   chmodSync(launcher,0o755);
+   const launcherAlias=join(dir,'launcher-alias');symlinkSync(launcher,launcherAlias);
+   expect(()=>createLinuxPeerCredentialAttestor(helper,{requireTrustedHelper:true,trustedLauncherPath:launcherAlias})).toThrow();
+   const missingLauncher=join(dir,'missing-launcher');
+   expect(()=>createLinuxPeerCredentialAttestor(helper,{requireTrustedHelper:true,trustedLauncherPath:missingLauncher})).toThrow();
+   expect(()=>createLinuxPeerCredentialAttestor(helper,{requireTrustedHelper:true})).toThrow();
    const attest=createLinuxPeerCredentialAttestor(helper,{requireTrustedHelper:true,trustedLauncherPath:launcher});
    let observed:{pid:number;uid:number}|undefined;
    const server=createServer(socket=>{void attest(socket).then(peer=>{observed=peer;socket.end('OK\n');}).catch(()=>socket.destroy());});
