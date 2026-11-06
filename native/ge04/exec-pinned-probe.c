@@ -9,8 +9,9 @@
  * The launcher itself still needs immutable trusted deployment.
  */
 int main(int argc, char **argv) {
-  if (argc != 4 && argc != 5) return 64;
-  execveat(3, "", argv, (char *const[]){"PATH=/usr/bin:/bin", NULL}, AT_EMPTY_PATH);
+  /* argv[0] is the launcher, argv[1] is the pinned probe identity. */
+  if (argc != 5 && argc != 6) return 64;
+  execveat(3, "", argv + 1, (char *const[]){"PATH=/usr/bin:/bin", NULL}, AT_EMPTY_PATH);
   fprintf(stderr, "execveat pinned probe failed: %s\n", strerror(errno));
   return 126;
 }

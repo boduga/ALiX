@@ -9,3 +9,7 @@ Q3.28's credential-free `runSupervisedNativeProbe` now supports opt-in `trustedL
 ## Privileged integration gate
 
 `tests/agents/ge04-q330-pinned-linux.vitest.ts` compiles the native binaries under root-owned `/root`, exercises the Q3.30 supervisor with fd-pinned execution, and connects clients as UIDs 10002 (allowed), 10003 (denied), and 10001 (broker UID, denied). It uses a world-connectable test-only socket in `/tmp`, enabled only with `ALIX_GE04_Q330_LINUX_TEST=1`. Run in a disposable root-capable Linux container. This test does **not** authenticate the stdout channel or bind a process to a live ALiX worker claim. The native probe is a diagnostic, not a credential broker.
+
+## Q3.30 privileged failure correction
+
+The initial independent run failed with native exit 64 because the pinned launcher forwarded its own `argv[0]` into the probe and required the wrong argument count. The launcher now requires five or six launcher arguments (including launcher `argv[0]`) and invokes `execveat` with `argv + 1`, so the probe sees the expected four or five arguments. The test also observes early supervisor rejection immediately to avoid unhandled promise rejections during socket readiness polling. This correction requires a new independent privileged run; local unprivileged tests alone do not close the gate.

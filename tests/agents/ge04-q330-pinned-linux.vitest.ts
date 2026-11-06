@@ -2,7 +2,6 @@ import {describe,it,expect} from 'vitest';
 import {execFileSync,spawn} from 'node:child_process';
 import {mkdirSync,rmSync,statSync} from 'node:fs';
 import {join,resolve} from 'node:path';
-import {connect} from 'node:net';
 import {runSupervisedNativeProbe} from '../../src/agents/worker-broker-supervised-probe.js';
 const enabled=process.env.ALIX_GE04_Q330_LINUX_TEST==='1';
 function client(uid:number,socketPath:string):Promise<{code:number|null,out:string}>{
@@ -28,10 +27,17 @@ describe.skipIf(!enabled)('GE-04 Q3.30 pinned supervised distinct-UID Linux inte
    for(const [uid,authorized,reply] of [[10002,true,'OK\n'],[10003,false,'DENIED\n'],[10001,false,'DENIED\n']] as const){
     const socketPath=join('/tmp',`alix-ge04-q330-${process.pid}-${uid}.sock`);
     const pending=runSupervisedNativeProbe({executable,trustedLauncherPath:launcher,socketPath,brokerUid:10001,allowedUid:10002,testPublicSocket:true,timeoutMs:5000});
-    await waitForSocket(socketPath);
+    // Attach a rejection handler immediately so early native failures are not unhandled.
+    const outcome=pending.then(value=>({value,error:null as Error|null}),error=>({value:null,error:error as Error}));
+    try { await waitForSocket(socketPath); } catch(error) {
+      const settled=await outcome;
+      throw settled.error ?? error;
+    }
     const result=await client(uid,socketPath);
     expect(result.code).toBe(0);expect(result.out).toBe(reply);
-    const handoff=await pending;
+    const settled=await outcome;
+    if(settled.error)throw settled.error;
+    const handoff=settled.value!;
     expect(handoff.peer.uid).toBe(uid);expect(handoff.authorized).toBe(authorized);
   }
   }finally{rmSync(dir,{recursive:true,force:true});}
