@@ -11,3 +11,7 @@ With the opt-in hook, the supervisor provides a separate FD4 pipe and releases t
 ## Broker-owned Linux registry adapter
 
 `createGe04LinuxWorkerLifecycle()` supplies the opt-in manager callback contract using `createLinuxBrokerProcessRegistry()` and procfs process identity. It registers the spawned PID/UID/run/worker/attempt, revokes on exit, rejects duplicate registrations and mismatched UID, and handles exit during asynchronous registration. A pending exited PID cannot be reused until the original registration settles. It is **not enabled by default** or connected to a privileged supervisor deployment. `resolveAttestedPeer` is diagnostic only and must never receive worker-supplied peer objects as authority. Same-UID workers and pre-gate imports remain security gaps. No positive credential admission.
+
+## Real Linux lifecycle integration qualification
+
+`tests/agents/ge04-real-worker-lifecycle.test.ts` exercises actual `SubagentManager.spawn` with Linux `/proc` registration, FD4 cooperative release, empty FD3 snapshot, exit revocation, and registration failure termination. It uses a Node fixture as the worker, not the complete production ALiX CLI. The resolver call in this test supplies a synthetic `VerifiedBrokerPeer` object: it does **not** demonstrate kernel-attested IPC, distinct UIDs, or secure credential isolation. The hook is still opt-in; no production activation or positive admission is allowed.
