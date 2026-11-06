@@ -3,11 +3,14 @@
  */
 import {spawn} from 'node:child_process';
 import type {Socket} from 'node:net';
+import {assertTrustedPeercredHelper} from './worker-broker-trusted-helper.js';
 import type {VerifiedBrokerPeer} from './worker-broker-ipc-boundary.js';
 
-export function createLinuxPeerCredentialAttestor(helperPath:string) {
+export function createLinuxPeerCredentialAttestor(helperPath:string, options?:{requireTrustedHelper?:boolean}) {
   if (process.platform!=='linux' || !helperPath.startsWith('/')) throw new Error('Linux peercred requires absolute trusted helper path');
+  if(options?.requireTrustedHelper)assertTrustedPeercredHelper(helperPath);
   return async (socket:Socket):Promise<VerifiedBrokerPeer>=>{
+    if(options?.requireTrustedHelper)assertTrustedPeercredHelper(helperPath);
     const fd=(socket as Socket & {_handle?:{fd?:number}})._handle?.fd;
     if (!Number.isSafeInteger(fd) || fd!<0 || socket.destroyed) throw new Error('Accepted Unix socket FD unavailable');
     return new Promise<VerifiedBrokerPeer>((resolve,reject)=>{
