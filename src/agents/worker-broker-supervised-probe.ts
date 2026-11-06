@@ -12,6 +12,8 @@ export type SupervisedProbeOptions=Readonly<{
   timeoutMs?:number;
   /** Opt-in Q3.30 descriptor-pinned native launch. Requires root-owned deployment. */
   trustedLauncherPath?:string;
+  /** Disposable Linux test only: enables world-connectable test socket. */
+  testPublicSocket?:boolean;
 }>;
 export async function runSupervisedNativeProbe(options:SupervisedProbeOptions):Promise<NativePeerHandoff>{
   if (!options || !options.executable?.startsWith('/') || !options.socketPath?.startsWith('/') ||
@@ -21,7 +23,10 @@ export async function runSupervisedNativeProbe(options:SupervisedProbeOptions):P
   const timeoutMs=options.timeoutMs??5000;
   if (!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>30000)throw new Error('Invalid probe timeout');
   // No shell, no inherited stdin, no arbitrary inherited file descriptors.
-  const args=[options.socketPath,String(options.brokerUid),String(options.allowedUid)];
+  if(options.testPublicSocket && process.env.ALIX_GE04_Q330_LINUX_TEST!=='1')
+    throw new Error('Public test socket requires explicit Q3.30 qualification gate');
+  const args=[options.socketPath,String(options.brokerUid),String(options.allowedUid),
+    ...(options.testPublicSocket?['--test-public-socket']:[])];
   const child=options.trustedLauncherPath
     ? spawnPinnedNativeProbe(options.executable,options.trustedLauncherPath,args)
     : spawn(options.executable,args,{stdio:['ignore','pipe','pipe'],shell:false,env:{PATH:'/usr/bin:/bin'}});
