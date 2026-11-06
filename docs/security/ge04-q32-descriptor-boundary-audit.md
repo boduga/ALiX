@@ -61,3 +61,7 @@ The source at `src/agents/subagent-manager.ts` explicitly writes `resolvedCreden
 `tests/agents/ge04-credential-lifecycle.vitest.ts` spawns Node subprocesses importing the compiled ALiX `installParentLivenessWatchdog` and `readWorkerCredentialSnapshot`. It checks stdin EOF while pending, stdin EOF before FD-3 delivery, and truncated synthetic JSON rejection without credential stdout/stderr. These tests do **not** launch a complete `SubagentManager`/`SubagentCLI` worker, prove OS parent death, cross-UID containment, or authorize any real effect.
 
 **Credential minimization gap (not qualified):** `resolvedCredentialPayload` in `src/agents/subagent-manager.ts` currently includes every nonempty, non-`cred://` configured provider key for coordination workers. The FD-3 reader filters value types but not provider names. No provider-specific least-privilege property can be claimed until the sender and receiver enforce a verified provider allowlist, including model fallback and role resolution. Do not change this policy under a test-only qualification without a separately reviewed design.
+
+## Q3.3 design handoff
+
+Provider credential minimization design and its unresolved credential-store/environment bypasses are recorded in `docs/security/ge04-q33-provider-credential-minimization-design.md`. Design only; no behavior or GE-04 disposition changed.
