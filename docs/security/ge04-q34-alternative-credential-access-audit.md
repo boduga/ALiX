@@ -49,3 +49,7 @@
 ## Q3.5 pure worker grant binding prototype
 
 `src/agents/worker-grant-binding.ts` binds a caller-supplied resolved route to `coordinationRunId`, `workerId`, and nonnegative integer `attempt`, recomputing the provider set through the existing routing planner. `tests/agents/worker-grant-binding.vitest.ts` exercises identity substitution, model substitution, fallback expansion, malformed identities and forged provider-list expansion. **This is an in-process consistency check, not authentication or authorization:** a caller able to replace both the binding and model can manufacture a matching pair. It has no signature, durable issuer record, single-use consumption, runtime scheduler authority, or credential-store isolation. No production integration is authorized under GE-04 HOLD.
+
+## Q3.6 in-memory synthetic issuer fixture
+
+`src/agents/worker-grant-issuer.ts` records test-supplied execution plans and checks identity/attempt, route, and one-time consumption against the stored binding. Five tests exercise unknown identity, substitutions, stale attempts, replay, and altered grants. **Not an authoritative production issuer:** the same returned object exposes `registerTrustedPlan`, `issue`, and `consume`; any holder can register plans. Grant identity relies on in-process object reference equality, not cryptographic proof, durable state, or process isolation. Production authority must separate registration from worker-facing interfaces and provide authenticated binding and durable replay controls. GE-04 HOLD continues.
