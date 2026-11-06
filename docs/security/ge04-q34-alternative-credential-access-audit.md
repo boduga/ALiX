@@ -53,3 +53,7 @@
 ## Q3.6 in-memory synthetic issuer fixture
 
 `src/agents/worker-grant-issuer.ts` records test-supplied execution plans and checks identity/attempt, route, and one-time consumption against the stored binding. Five tests exercise unknown identity, substitutions, stale attempts, replay, and altered grants. **Not an authoritative production issuer:** the same returned object exposes `registerTrustedPlan`, `issue`, and `consume`; any holder can register plans. Grant identity relies on in-process object reference equality, not cryptographic proof, durable state, or process isolation. Production authority must separate registration from worker-facing interfaces and provide authenticated binding and durable replay controls. GE-04 HOLD continues.
+
+## Q3.7 synthetic authority port separation
+
+`src/agents/worker-grant-authority.ts` provides two frozen ports backed by the Q3.6 in-memory fixture: `scheduler.registerTrustedPlan` and worker-facing `access.issue`/`access.consume`. The access port has no registration method, and independent factories do not share state. Four tests cover surface separation, unknown identities/replay, stale attempts, and instance independence. **This is capability-shaped API separation only:** the factory returns both ports to its caller, no caller identity is authenticated, and a process able to import/call the factory can create its own authority. It does not isolate same-UID processes, authorize real scheduler records, persist consumption, or narrow production credentials. GE-04 HOLD remains active.
