@@ -52,3 +52,7 @@ Stop and retain HOLD if any fallback provider is reachable without a matching gr
 ## Synthetic FD-3 sender containment evidence
 
 `src/agents/credential-grant-fixture.ts` projects synthetic provider canaries using an explicitly supplied authorized-provider set and the test-only grant plan; it rejects mismatched, duplicated or malformed provider grants. `tests/agents/ge04-credential-sender-containment.vitest.ts` spawns real Node children importing the **compiled production credential reader** over FD 3. It verifies primary-only and explicit fallback delivery, exclusion of an unrelated synthetic canary, malformed/expanded grant rejection and early child exit without canary output. These are synthetic test-only sender semantics; neither this fixture nor the grant planner is connected to the production `resolvedCredentialPayload` call. The caller-supplied authorized set is a test oracle, **not** a tamper-resistant production authorization binding. No credential-store, environment, full worker or cross-UID containment claim follows.
+
+## Q3.4 source-audit dependency
+
+`docs/security/ge04-q34-alternative-credential-access-audit.md` documents confirmed config reload, full provider-key merge, keyring fallback, environment injection, configurable child environment, and routing consistency gaps. **Do not connect the test-only grant planner to the production sender as a security claim** until these paths are contained or explicitly excluded from the claim.
