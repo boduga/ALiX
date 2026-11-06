@@ -22,6 +22,10 @@
 
 This is a **targeted GE-04 inventory**, not an assertion that every legacy caller, deployment route, secret store or supported historical format has been enumerated. Expand via static and dynamic entry-point mapping before deleting production code.
 
+## R0 inventory evidence
+
+Initial source-backed inventory: [`ge04-r0-worker-execution-inventory.md`](./ge04-r0-worker-execution-inventory.md). This inventory is explicitly incomplete and does not close R0.
+
 ## Replacement invariants (no optional production bypass)
 
 1. All worker creation routes (CLI, daemon, coordination, APIs, subagents, recovery) use one trusted supervisor and a canonical execution contract. Unsupported routes fail closed with actionable errors.
