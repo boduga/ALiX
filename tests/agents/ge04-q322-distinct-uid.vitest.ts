@@ -39,7 +39,7 @@ describe.skipIf(!enabled)('GE-04 Q3.22 distinct UID probe (Linux)',()=>{
   const sock=join(dir,'broker.sock'),helper=join(dir,'peercred'),secret=join(dir,'broker.key'),script=join(dir,'broker.mjs');
   let broker:ChildProcessWithoutNullStreams|undefined;
   try{
-   chmodSync(dir,0o711);
+   chownSync(dir,brokerUid,brokerUid);chmodSync(dir,0o711);
    execFileSync('cc',['-O2','-Wall','-Wextra','-Werror','-o',helper,resolve('native/ge04/peercred.c')]);chmodSync(helper,0o755);
    writeFileSync(secret,'broker-owned-test-secret',{mode:0o600});chownSync(secret,brokerUid,brokerUid);chmodSync(secret,0o600);
    // The disposable container copy may inherit host checkout directory modes.
