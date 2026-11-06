@@ -13,3 +13,7 @@ Before any positive native admission, implement a protected broker-owned IPC bou
 ## Linux procfs identity reader
 
 `readLinuxProcessIdentity` reads `/proc/<pid>/stat` starttime (field 22), `/proc/<pid>/status` UID quartet and stat again. It rejects UID transitions, malformed procfs records and starttime changes; absent processes return undefined. The PID must originate from kernel peer credentials, never a worker request. A starttime comparison is a stale/PID-reuse guard, **not** a process handle or a substitute for pidfd-based lifetime pinning. A process may exit after this read. This remains qualification-only and cannot authorize credentials.
+
+## Supervisor-owned registration seam
+
+`createLinuxBrokerProcessRegistry` captures live `/proc` identity during trusted supervisor registration, rejects missing processes and UID mismatches, and resolves only registered PID/UID/starttime identities. It exposes explicit revocation for worker exit/restart. This remains an **unwired candidate**: the actual supervisor spawn path does not yet register processes, and the caller of `resolveAttestedPeer` must provide independently kernel-attested peer credentials. It is not safe to use this API with worker-supplied PID/UID or stdout diagnostics. No positive native admission or secret delivery is enabled.
