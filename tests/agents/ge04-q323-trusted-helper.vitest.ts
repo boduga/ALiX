@@ -20,10 +20,12 @@ describe.skipIf(!linux)('GE-04 Q3.23 root-owned trusted helper preflight',()=>{
    const source=join(parent,'helper.c');
    writeFileSync(source,'#include <stdio.h>\nint main(void){puts(\"ORIGINAL\");return 0;}\n');
    execFileSync('cc',['-o',helper,source]);
+   const launcher=join(parent,'launcher');
+   execFileSync('cc',['-O2','-Wall','-Wextra','-Werror','-o',launcher,'native/ge04/exec-pinned.c']);
    const pinned=openPinnedPeercredHelper(helper);
    try {
     const moved=join(parent,'original');renameSync(helper,moved);writeFileSync(source,'#include <stdio.h>\nint main(void){puts(\"REPLACEMENT\");return 0;}\n');execFileSync('cc',['-o',helper,source]);
-    const result=spawnSync('/proc/self/fd/4',[],{stdio:['ignore','pipe','pipe',pinned]});
+    const result=spawnSync(launcher,[],{stdio:['ignore','pipe','pipe','ignore',pinned]});
     expect(result.error).toBeUndefined();expect(result.status).toBe(0);expect(result.stdout.toString()).toBe('ORIGINAL\n');
    } finally {closeSync(pinned);}
   }finally{rmSync(dir,{recursive:true,force:true});}

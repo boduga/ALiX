@@ -1,5 +1,5 @@
 /** GE-04 Q3.23: fail-closed filesystem qualification for a production peercred helper.
- * Preflight checks path metadata; descriptor-pinned exec below prevents later pathname swaps.
+ * Preflight checks path metadata; a separate native launcher execs the pinned helper fd.
  * A trusted immutable deployment and review of mount races remain required.
  */
 import {closeSync, constants, fstatSync, lstatSync, openSync, realpathSync} from 'node:fs';

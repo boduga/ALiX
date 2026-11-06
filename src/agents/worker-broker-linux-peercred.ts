@@ -7,18 +7,22 @@ import type {Socket} from 'node:net';
 import {assertTrustedPeercredHelper,openPinnedPeercredHelper} from './worker-broker-trusted-helper.js';
 import type {VerifiedBrokerPeer} from './worker-broker-ipc-boundary.js';
 
-export function createLinuxPeerCredentialAttestor(helperPath:string, options?:{requireTrustedHelper?:boolean}) {
+export function createLinuxPeerCredentialAttestor(helperPath:string, options?:{requireTrustedHelper?:boolean;trustedLauncherPath?:string}) {
   if (process.platform!=='linux' || !helperPath.startsWith('/')) throw new Error('Linux peercred requires absolute trusted helper path');
-  if(options?.requireTrustedHelper)assertTrustedPeercredHelper(helperPath);
+  if(options?.requireTrustedHelper){
+    assertTrustedPeercredHelper(helperPath);
+    if(!options.trustedLauncherPath)throw new Error('Trusted peercred requires trusted native launcher');
+    assertTrustedPeercredHelper(options.trustedLauncherPath);
+  }
   return async (socket:Socket):Promise<VerifiedBrokerPeer>=>{
-    if(options?.requireTrustedHelper)assertTrustedPeercredHelper(helperPath);
+    if(options?.requireTrustedHelper){assertTrustedPeercredHelper(helperPath);assertTrustedPeercredHelper(options.trustedLauncherPath!);}
     const fd=(socket as Socket & {_handle?:{fd?:number}})._handle?.fd;
     if (!Number.isSafeInteger(fd) || fd!<0 || socket.destroyed) throw new Error('Accepted Unix socket FD unavailable');
     return new Promise<VerifiedBrokerPeer>((resolve,reject)=>{
       let child;
       if(options?.requireTrustedHelper){
         const pinned=openPinnedPeercredHelper(helperPath);
-        try {child=spawn('/proc/self/fd/4',[],{stdio:['ignore','pipe','pipe',fd!,pinned]});}
+        try {child=spawn(options!.trustedLauncherPath!,[],{stdio:['ignore','pipe','pipe',fd!,pinned]});}
         finally {closeSync(pinned);}
       } else child=spawn(helperPath,[],{stdio:['ignore','pipe','pipe',fd!]});
       let output='';let error='';let settled=false;
