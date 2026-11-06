@@ -8,7 +8,7 @@ import type { ModelConfig } from '../operations/config/schema.js';
  * Route reconstruction only validates persisted evidence consistency; it does not
  * establish provenance, grant access, or replace the later canonical route check.
  */
-export async function assertPrecredentialWorkerRouteClaim(args:{store:CoordinationStore;identity:WorkerGrantIdentity;ownerId:string}):Promise<void>{
+export async function assertPrecredentialWorkerRouteClaim(args:{store:Pick<CoordinationStore, "load">;identity:WorkerGrantIdentity;ownerId:string}):Promise<void>{
   const {identity,ownerId}=args;
   if (!identity.coordinationRunId || !identity.workerId || !Number.isSafeInteger(identity.attempt) || identity.attempt<1 || !ownerId)
     throw new Error('Invalid precredential worker identity');

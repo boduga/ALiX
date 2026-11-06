@@ -589,9 +589,9 @@ export class SubagentCLI {
       if (!coordinationRunId || !taskId || workerAttempt === undefined || !args.values["ge04-owner-id"]) {
         throw new Error("GE-04 precredential gate requires worker identity and owner");
       }
-      const { CoordinationStore } = await import("../coordination/kernel/coordination-store.js");
+      const { openCoordinationRouteReadStore } = await import("../coordination/kernel/coordination-view.js");
       const { assertPrecredentialWorkerRouteClaim } = await import("./worker-precredential-route-gate.js");
-      await assertPrecredentialWorkerRouteClaim({store:new CoordinationStore(projectRoot),
+      await assertPrecredentialWorkerRouteClaim({store:openCoordinationRouteReadStore(projectRoot),
         identity:{coordinationRunId,workerId:taskId,attempt:workerAttempt},ownerId:args.values["ge04-owner-id"]});
     }
     const resolvedApiKeys = readWorkerCredentialSnapshot(credentialFd);
@@ -706,10 +706,10 @@ export class SubagentCLI {
       if (!coordinationRunId || workerAttempt === undefined || !args.values["ge04-owner-id"]) {
         throw new Error("GE-04 route preflight requires coordination identity and execution owner");
       }
-      const { CoordinationStore } = await import("../coordination/kernel/coordination-store.js");
+      const { openCoordinationRouteReadStore } = await import("../coordination/kernel/coordination-view.js");
       const { qualifyDurableExecutorRouteContract } = await import("./worker-executor-route-contract.js");
       const contract = await qualifyDurableExecutorRouteContract({
-        store: new CoordinationStore(projectRoot),
+        store: openCoordinationRouteReadStore(projectRoot),
         identity: {coordinationRunId,workerId:taskId,attempt:workerAttempt},
         ownerId:args.values["ge04-owner-id"],schedulerConfig:config,
         schedulerTier:roleStyle,

@@ -361,3 +361,10 @@ export async function buildCoordinationRunView(
     conflicts,
   };
 }
+
+/** Coordination-owned read-only store acquisition for GE-04 child route checks.
+ * The CLI must not construct or import the protected store implementation. */
+export function openCoordinationRouteReadStore(projectRoot: string): Pick<CoordinationStore, "load"> {
+  const store = new CoordinationStore(projectRoot);
+  return { load: (runId: string) => store.load(runId) };
+}

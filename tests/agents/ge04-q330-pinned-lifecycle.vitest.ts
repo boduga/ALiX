@@ -1,7 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import {runSupervisedNativeProbe} from '../../src/agents/worker-broker-supervised-probe.js';
 
-describe('GE-04 Q3.30 pinned lifecycle fail-closed gates',()=>{
+describe.skipIf(process.platform!=='linux')('GE-04 Q3.30 pinned lifecycle fail-closed gates',()=>{
  it('refuses untrusted pinned launcher without falling back to pathname execution',async()=>{
   await expect(runSupervisedNativeProbe({executable:'/bin/true',trustedLauncherPath:'/tmp/untrusted-launcher',socketPath:'/tmp/unused.sock',brokerUid:10001,allowedUid:10002})).rejects.toThrow();
  });

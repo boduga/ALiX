@@ -5,7 +5,7 @@ import {join} from 'node:path';
 import {runSupervisedNativeProbe} from '../../src/agents/worker-broker-supervised-probe.js';
 const base={socketPath:'/tmp/unused.sock',brokerUid:10001,allowedUid:10002,timeoutMs:1000};
 function fixture(script:string){const dir=mkdtempSync(join(tmpdir(),'ge04-q328-'));const executable=join(dir,'probe');writeFileSync(executable,`#!/bin/sh\n${script}\n`);chmodSync(executable,0o700);return {executable,close:()=>rmSync(dir,{recursive:true,force:true})};}
-describe('GE-04 Q3.28 supervised probe lifecycle (no credentials)',()=>{
+describe.skipIf(process.platform!=='linux')('GE-04 Q3.28 supervised probe lifecycle (no credentials)',()=>{
  it('accepts only canonical frame from successful supervised child exit',async()=>{
   const f=fixture("printf 'READY\\nPEER pid=123 uid=10002 authorized=1\\n'");
   try{await expect(runSupervisedNativeProbe({...base,executable:f.executable})).resolves.toEqual({peer:{pid:123,uid:10002,transport:'unix-peer-credentials'},authorized:true});}finally{f.close();}

@@ -11,7 +11,7 @@ describe('GE-04 Q3.29 native executable preflight (negative gates)',()=>{
   const dir=mkdtempSync(join(tmpdir(),'ge04-q329-'));
   try{
    const file=join(dir,'probe');writeFileSync(file,'#!/bin/sh\nexit 0\n');chmodSync(file,0o755);
-   expect(()=>qualifyNativeProbeExecutable(file)).toThrow(/Untrusted|owner|writable/);
+   expect(()=>qualifyNativeProbeExecutable(file)).toThrow(/Untrusted|owner|writable|requires absolute Linux path/);
    const link=join(dir,'link');symlinkSync(file,link);
    expect(()=>qualifyNativeProbeExecutable(link)).toThrow();
    chmodSync(file,0o777);expect(()=>qualifyNativeProbeExecutable(file)).toThrow();

@@ -17,7 +17,7 @@ test("GE-04 Q2: distinct-process deny-only custody fixture", {
     cwd: root, encoding: "utf8", timeout: 30_000,
   });
   assert.equal(run.status, 0, [run.stdout, run.stderr, run.error?.message].join("\n"));
-  assert.match(run.stderr, /Ran 11 tests/);
+  assert.match(run.stderr, /Ran 13 tests/);
   assert.match(run.stderr, /OK/);
 });
 

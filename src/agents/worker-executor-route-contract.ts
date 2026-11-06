@@ -19,7 +19,7 @@ export type QualifiedExecutorRouteContract = Readonly<{
 
 /** Read the authoritative run again. Never use the caller's cached worker snapshot. */
 export async function qualifyDurableExecutorRouteContract(args: {
-  store: CoordinationStore;
+  store: Pick<CoordinationStore, "load">;
   identity: WorkerGrantIdentity;
   ownerId: string;
   schedulerConfig: ModelSourceConfig;
