@@ -44,3 +44,7 @@ An untrusted, compromised or merely overprivileged coordination worker must not 
 ## Stop conditions
 
 Stop and retain HOLD if any fallback provider is reachable without a matching grant, if excluded provider credentials remain accessible through child config/environment/keyring, if an untrusted worker can forge grant expansion, or if real effects would be needed to demonstrate the test. No branch merge, production activation, or issuance authorization is implied by passing unit tests.
+
+## Test-only grant planner implementation
+
+`src/agents/credential-grant-planner.ts` implements `planWorkerCredentialGrant(ModelConfig)` using the existing `buildFallbackChain()` authority. It requires a concrete resolved primary model, rejects malformed provider names and fallback model names, deduplicates the primary and configured fallback providers in routing order, and freezes the returned plan. `tests/agents/credential-grant-planner.vitest.ts` exercises eight synthetic positive and fail-closed cases. The planner is **not connected** to `SubagentManager`, FD 3, `loadConfig`, or production credential resolution; it neither reads nor transfers credentials. This is an architectural unit test, **not** a worker confidentiality qualification. Dynamic selection, authorization binding and credential-store/environment bypass remain open.
