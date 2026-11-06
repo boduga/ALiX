@@ -9,3 +9,7 @@ Before any positive native admission, implement a protected broker-owned IPC bou
 ## Live process identity binding candidate
 
 `BrokerLivePeerBindings` provides a broker-owned registration and lookup seam. It compares kernel-attested PID/UID with registered process identity and re-reads the process start-time token to detect PID reuse. Registrations are immutable snapshots; duplicate PIDs, missing workers, mismatched UID, stale start times and concurrent revocation fail closed. The process reader is injected for deterministic tests; **no trusted Linux `/proc` reader, protected supervisor registration, or accepted-socket attestation is wired in this increment**. The start-time token must come from a trusted kernel source, not worker input. A successful lookup alone does not establish credential authorization or make stdout frames trustworthy.
+
+## Linux procfs identity reader
+
+`readLinuxProcessIdentity` reads `/proc/<pid>/stat` starttime (field 22), `/proc/<pid>/status` UID quartet and stat again. It rejects UID transitions, malformed procfs records and starttime changes; absent processes return undefined. The PID must originate from kernel peer credentials, never a worker request. A starttime comparison is a stale/PID-reuse guard, **not** a process handle or a substitute for pidfd-based lifetime pinning. A process may exit after this read. This remains qualification-only and cannot authorize credentials.
