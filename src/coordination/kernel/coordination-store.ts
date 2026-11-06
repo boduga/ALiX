@@ -16,6 +16,8 @@ import { randomUUID } from "node:crypto";
 import type { CoordinationRun, CoordinationRunOutcome, CoordinationRunStatus, WorkerAssignment, WorkerStatus } from "./coordination-types.js";
 import { transitionWorkerStatus, recomputeRunStatus } from "./coordination-types.js";
 import { CoordinationRunLock } from "./coordination-run-lock.js";
+import type { ModelConfig } from "../../operations/config/schema.js";
+import { createSyntheticRouteSnapshot } from "../../agents/worker-route-snapshot.js";
 import { getSharedLedger, appendFact, type LedgerFactCounters } from "../../runtime-state/storage/runtime-ledger.js";
 import { serializeStoreMutation, StoreMutationQueueTimeoutError } from "../../runtime-state/storage/mutation-queue.js";
 
@@ -435,6 +437,14 @@ export class CoordinationStore {
     });
   }
 
+  /** Opt-in GE-04 route qualification; caller model is NOT authenticated as scheduler-owned. */
+  async claimPendingWorkerWithRoute(
+    runId: string, workerId: string, expectedAttempt: number, patch: WorkerPatch,
+    route: { model: ModelConfig; expectedPlanRevision: number; routeRevision: number },
+  ): Promise<boolean> {
+    return this.claimPendingWorkerInternal(runId, workerId, expectedAttempt, patch, route);
+  }
+
   /** Atomically claim a pending worker for execution under the durable per-run lock.
    * A stale scheduler snapshot must never dispatch an already-claimed worker.
    */
@@ -443,6 +453,13 @@ export class CoordinationStore {
     workerId: string,
     expectedAttempt: number,
     patch: WorkerPatch,
+  ): Promise<boolean> {
+    return this.claimPendingWorkerInternal(runId, workerId, expectedAttempt, patch);
+  }
+
+  private async claimPendingWorkerInternal(
+    runId: string, workerId: string, expectedAttempt: number, patch: WorkerPatch,
+    route?: { model: ModelConfig; expectedPlanRevision: number; routeRevision: number },
   ): Promise<boolean> {
     return this.serializeRunMutation<boolean>(runId, false, async () => {
       const lock = new CoordinationRunLock(this.cwd, runId);
@@ -454,7 +471,17 @@ export class CoordinationStore {
         if (!worker || worker.status !== "pending" || worker.blockReason || worker.attempt !== expectedAttempt) {
           return false; // No ledger event or JSON projection for rejected claims.
         }
-        Object.assign(worker, patch, { status: "running", attempt: expectedAttempt + 1 });
+        if (route && (run.planRevision !== route.expectedPlanRevision ||
+            !patch.executionOwnerId || worker.trustedRouteSnapshot !== undefined)) return false;
+        // Qualify before mutating the authoritative run: invalid routes append no ledger fact.
+        const snapshot = route ? createSyntheticRouteSnapshot(
+          { runId, workerId, attempt: expectedAttempt + 1, status: "running",
+            executionOwnerId: patch.executionOwnerId, planRevision: run.planRevision },
+          { coordinationRunId: runId, workerId, attempt: expectedAttempt + 1 },
+          patch.executionOwnerId!, run.planRevision, route.model, route.routeRevision,
+        ) : undefined;
+        Object.assign(worker, patch, { status: "running", attempt: expectedAttempt + 1 },
+          snapshot ? { trustedRouteSnapshot: snapshot } : {});
         run.status = recomputeRunStatus(run);
         run.updatedAt = new Date().toISOString();
         this.commitToLedger(runId, "snapshot", runLedgerPayload(run), run.updatedAt);

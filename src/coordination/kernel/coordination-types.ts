@@ -210,6 +210,8 @@ export interface WorkerAssignment {
   failureKind?: WorkerFailureKind;
   approvalId?: string;
   authorizationEvidence?: WorkerAuthorizationEvidence;
+  /** GE-04 Q3.14 opt-in durable route record; not production credential authority. */
+  trustedRouteSnapshot?: import("../../agents/worker-route-snapshot.js").SyntheticRouteSnapshot;
   failureProvenance?: WorkerFailureProvenance;
   contextManifestRef?: string;
   contextFingerprint?: string;
