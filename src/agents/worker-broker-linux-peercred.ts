@@ -2,8 +2,9 @@
  * Prototype uses Node's undocumented socket._handle.fd; fail closed if unavailable.
  */
 import {spawn} from 'node:child_process';
+import {closeSync} from 'node:fs';
 import type {Socket} from 'node:net';
-import {assertTrustedPeercredHelper} from './worker-broker-trusted-helper.js';
+import {assertTrustedPeercredHelper,openPinnedPeercredHelper} from './worker-broker-trusted-helper.js';
 import type {VerifiedBrokerPeer} from './worker-broker-ipc-boundary.js';
 
 export function createLinuxPeerCredentialAttestor(helperPath:string, options?:{requireTrustedHelper?:boolean}) {
@@ -14,7 +15,12 @@ export function createLinuxPeerCredentialAttestor(helperPath:string, options?:{r
     const fd=(socket as Socket & {_handle?:{fd?:number}})._handle?.fd;
     if (!Number.isSafeInteger(fd) || fd!<0 || socket.destroyed) throw new Error('Accepted Unix socket FD unavailable');
     return new Promise<VerifiedBrokerPeer>((resolve,reject)=>{
-      const child=spawn(helperPath,[],{stdio:['ignore','pipe','pipe',fd!]});
+      let child;
+      if(options?.requireTrustedHelper){
+        const pinned=openPinnedPeercredHelper(helperPath);
+        try {child=spawn('/proc/self/fd/4',[],{stdio:['ignore','pipe','pipe',fd!,pinned]});}
+        finally {closeSync(pinned);}
+      } else child=spawn(helperPath,[],{stdio:['ignore','pipe','pipe',fd!]});
       let output='';let error='';let settled=false;
       const finish=(err?:Error,peer?:VerifiedBrokerPeer)=>{if(settled)return;settled=true;clearTimeout(timer);if(err)reject(err);else resolve(peer!);};
       const timer=setTimeout(()=>{child.kill('SIGKILL');finish(new Error('Kernel peercred helper timeout'));},1000);

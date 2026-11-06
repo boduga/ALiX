@@ -1,7 +1,9 @@
 import {describe,it,expect} from 'vitest';
 import {chmodSync,mkdtempSync,mkdirSync,rmSync,symlinkSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {assertTrustedPeercredHelper} from '../../src/agents/worker-broker-trusted-helper.js';
+import {assertTrustedPeercredHelper,openPinnedPeercredHelper} from '../../src/agents/worker-broker-trusted-helper.js';
+import {closeSync,renameSync} from 'node:fs';
+import {execFileSync,spawnSync} from 'node:child_process';
 const linux=process.platform==='linux' && process.getuid?.()===0;
 describe.skipIf(!linux)('GE-04 Q3.23 root-owned trusted helper preflight',()=>{
  it('rejects writable helper, writable ancestors, symlinks, non-executable and setuid helpers',()=>{
@@ -15,6 +17,15 @@ describe.skipIf(!linux)('GE-04 Q3.23 root-owned trusted helper preflight',()=>{
    chmodSync(helper,0o644);expect(()=>assertTrustedPeercredHelper(helper)).toThrow();chmodSync(helper,0o755);
    chmodSync(helper,0o4755);expect(()=>assertTrustedPeercredHelper(helper)).toThrow();chmodSync(helper,0o755);
    const alias=join(parent,'alias');symlinkSync(helper,alias);expect(()=>assertTrustedPeercredHelper(alias)).toThrow();
+   const source=join(parent,'helper.c');
+   writeFileSync(source,'#include <stdio.h>\nint main(void){puts(\"ORIGINAL\");return 0;}\n');
+   execFileSync('cc',['-o',helper,source]);
+   const pinned=openPinnedPeercredHelper(helper);
+   try {
+    const moved=join(parent,'original');renameSync(helper,moved);writeFileSync(source,'#include <stdio.h>\nint main(void){puts(\"REPLACEMENT\");return 0;}\n');execFileSync('cc',['-o',helper,source]);
+    const result=spawnSync('/proc/self/fd/4',[],{stdio:['ignore','pipe','pipe',pinned]});
+    expect(result.error).toBeUndefined();expect(result.status).toBe(0);expect(result.stdout.toString()).toBe('ORIGINAL\n');
+   } finally {closeSync(pinned);}
   }finally{rmSync(dir,{recursive:true,force:true});}
  });
 });
