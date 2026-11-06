@@ -4,6 +4,8 @@ import {join} from 'node:path';
 import {assertTrustedPeercredHelper,openPinnedPeercredHelper} from '../../src/agents/worker-broker-trusted-helper.js';
 import {closeSync,renameSync} from 'node:fs';
 import {execFileSync,spawnSync} from 'node:child_process';
+import {createServer,createConnection} from 'node:net';
+import {createLinuxPeerCredentialAttestor} from '../../src/agents/worker-broker-linux-peercred.js';
 const linux=process.platform==='linux' && process.getuid?.()===0;
 describe.skipIf(!linux)('GE-04 Q3.23 root-owned trusted helper preflight',()=>{
  it('rejects writable helper, writable ancestors, symlinks, non-executable and setuid helpers',()=>{
@@ -30,4 +32,25 @@ describe.skipIf(!linux)('GE-04 Q3.23 root-owned trusted helper preflight',()=>{
    } finally {closeSync(pinned);}
   }finally{rmSync(dir,{recursive:true,force:true});}
  });
+ it('attests a real Unix socket through trusted launcher and pinned peercred helper',async()=>{
+  const dir=mkdtempSync('/root/ge04-q323-socket-');
+  const helper=join(dir,'peercred');const launcher=join(dir,'launcher');const sock=join(dir,'broker.sock');
+  chmodSync(dir,0o755);
+  try {
+   execFileSync('cc',['-O2','-Wall','-Wextra','-Werror','-o',helper,'native/ge04/peercred.c']);
+   execFileSync('cc',['-O2','-Wall','-Wextra','-Werror','-o',launcher,'native/ge04/exec-pinned.c']);
+   const attest=createLinuxPeerCredentialAttestor(helper,{requireTrustedHelper:true,trustedLauncherPath:launcher});
+   let observed:{pid:number;uid:number}|undefined;
+   const server=createServer(socket=>{void attest(socket).then(peer=>{observed=peer;socket.end('OK\n');}).catch(()=>socket.destroy());});
+   try {
+    await new Promise<void>(resolve=>server.listen(sock,resolve));
+    const response=await new Promise<string>((resolve,reject)=>{
+     const client=createConnection(sock);let output='';
+     client.on('data',chunk=>output+=chunk.toString());client.on('error',reject);client.on('close',()=>resolve(output));
+    });
+    expect(response).toBe('OK\n');expect(observed?.uid).toBe(process.getuid!());expect(observed?.pid).toBe(process.pid);
+   } finally {await new Promise<void>(resolve=>server.close(()=>resolve()));}
+  } finally {rmSync(dir,{recursive:true,force:true});}
+ },15000);
+
 });
