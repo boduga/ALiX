@@ -6,12 +6,12 @@ import { parseArgs } from "util";
 import { pathToFileURL } from "node:url";
 import { basename, isAbsolute, relative, resolve } from "path";
 import { mkdir } from "fs/promises";
-import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole, SubagentStyle, ModelSelectionPolicy } from "../operations/config/schema.js";
 import { resolvePolicyPath } from "../governance/policy/policy-gate.js";
 import { WorkspacePathResolver } from "../runtime-state/runtime/workspace-path.js";
 import { ALIX_BUILTIN_EXECUTORS } from "./tool-manifest.js";
+import { readWorkerCredentialSnapshot } from "./credential-fd-reader.js";
 import { createModelResolver } from "../operations/config/model-resolver.js";
 import { getSubagentRole } from "../operations/config/subagent-config.js";
 import { SUBAGENT_EVENT_TYPES } from "../runtime-state/events/types.js";
@@ -528,6 +528,8 @@ export class SubagentCLI {
         "ownership-claims-json": { type: "string" },
         "credential-fd": { type: "string" },
         "assigned-objective": { type: "string" },
+        "ge04-route-preflight": { type: "boolean" },
+        "ge04-owner-id": { type: "string" },
       },
       allowPositionals: false,
     });
@@ -581,15 +583,18 @@ export class SubagentCLI {
     // Load config from current working directory (user's project, not ALiX source tree)
     const projectRoot = process.cwd();
     const loadConfig = (await import("../operations/config/loader.js")).loadConfig;
-    let resolvedApiKeys: Record<string, string> | undefined;
-    if (Number.isInteger(credentialFd) && credentialFd >= 3) {
-      const inherited = JSON.parse(readFileSync(credentialFd, "utf8")) as unknown;
-      if (inherited && typeof inherited === "object" && !Array.isArray(inherited)) {
-        resolvedApiKeys = Object.fromEntries(
-          Object.entries(inherited).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
-        );
+    // GE-04 Q3.19: reject absent/stale/revoked durable claims before
+    // reading FD3 or loading config. This is not broker authentication.
+    if (args.values["ge04-route-preflight"]) {
+      if (!coordinationRunId || !taskId || workerAttempt === undefined || !args.values["ge04-owner-id"]) {
+        throw new Error("GE-04 precredential gate requires worker identity and owner");
       }
+      const { openCoordinationRouteReadStore } = await import("../coordination/kernel/coordination-view.js");
+      const { assertPrecredentialWorkerRouteClaim } = await import("./worker-precredential-route-gate.js");
+      await assertPrecredentialWorkerRouteClaim({store:openCoordinationRouteReadStore(projectRoot),
+        identity:{coordinationRunId,workerId:taskId,attempt:workerAttempt},ownerId:args.values["ge04-owner-id"]});
     }
+    const resolvedApiKeys = readWorkerCredentialSnapshot(credentialFd);
     const config = await loadConfig(projectRoot, { resolvedApiKeys }) as AlixConfig;
     // Propagate parent sessionMode so bypass/auto parents don't strand
     // headless children in ask with no approval store (shell.run fail-closed).
@@ -694,6 +699,27 @@ export class SubagentCLI {
     const modelEntry = Object.values(config.models ?? {}).find(
       entry => entry?.provider === effectiveProvider && entry?.name === effectiveName,
     );
+    // GE-04 Q3.18: opt-in fail-closed pre-provider route check.
+    // This is NOT a credential security boundary: loadConfig already ran,
+    // and the current child provider path cannot execute configured fallbacks.
+    if (args.values["ge04-route-preflight"]) {
+      if (!coordinationRunId || workerAttempt === undefined || !args.values["ge04-owner-id"]) {
+        throw new Error("GE-04 route preflight requires coordination identity and execution owner");
+      }
+      const { openCoordinationRouteReadStore } = await import("../coordination/kernel/coordination-view.js");
+      const { qualifyDurableExecutorRouteContract } = await import("./worker-executor-route-contract.js");
+      const contract = await qualifyDurableExecutorRouteContract({
+        store: openCoordinationRouteReadStore(projectRoot),
+        identity: {coordinationRunId,workerId:taskId,attempt:workerAttempt},
+        ownerId:args.values["ge04-owner-id"],schedulerConfig:config,
+        schedulerTier:roleStyle,
+        executorRoute:{provider:effectiveProvider,name:effectiveName,
+          ...(effectiveSelection!==undefined?{selection:effectiveSelection}:{})},
+      });
+      const { assertChildProviderRouteSupported } = await import("./worker-child-route-preflight.js");
+      assertChildProviderRouteSupported(contract,{provider:effectiveProvider,name:effectiveName,
+        ...(effectiveSelection!==undefined?{selection:effectiveSelection}:{})});
+    }
     const provider = await createProvider({
       provider: effectiveProvider,
       name: effectiveName,
