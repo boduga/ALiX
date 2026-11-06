@@ -20,3 +20,15 @@ describe('GE-04 Q3.21 credential-free broker transport seam',()=>{
  it('rejects same-UID and unknown-UID peers',async()=>{for(const uid of [1000,1002])expect(await scenario(async()=>({uid,pid:42,transport:'unix-peer-credentials'}))).toEqual({result:'',accepted:0});});
  it('accepts only attested allowed UID; never reads request identity',async()=>expect(await scenario(async()=>({uid:1001,pid:42,transport:'unix-peer-credentials'}))).toEqual({result:'OK\n',accepted:1}));
 });
+
+describe('GE-04 Q3.21 attestation lifecycle',()=>{
+ it('rejects invalid timeout configuration',()=>expect(()=>createBrokerProbeServer({socketPath:'/tmp/probe.sock',peerPolicy:policy,attestPeer:async()=>({uid:1001,pid:42,transport:'unix-peer-credentials'}),onAuthorizedPeer:async()=>{},attestationTimeoutMs:0})).toThrow(/timeout/));
+ it('destroys connection when attestor never resolves',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'ge04-q321-timeout-'));const socketPath=join(dir,'probe.sock');let accepted=0;
+  const server=createBrokerProbeServer({socketPath,peerPolicy:policy,attestPeer:async()=>new Promise<any>(()=>{}),onAuthorizedPeer:async()=>{accepted++;},attestationTimeoutMs:30});
+  try{await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(socketPath,resolve);});
+   const output=await new Promise<string>(resolve=>{const client=createConnection(socketPath);let data='';client.on('data',c=>data+=c.toString());client.on('error',()=>resolve(data));client.on('close',()=>resolve(data));});
+   expect(output).toBe('');expect(accepted).toBe(0);
+  }finally{await new Promise<void>(resolve=>server.close(()=>resolve()));rmSync(dir,{recursive:true,force:true});}
+ });
+});
