@@ -41,3 +41,7 @@
 5. Perform authorized cross-UID/filesystem/IPC tests before any claim of worker confidentiality. Independent security review remains required.
 
 **Stop condition:** Do not connect the Q3.3 planner to production `resolvedCredentialPayload` as a purported security fix while alternative secret paths remain accessible. Do not relax GE-04 HOLD.
+
+## Test-only restricted worker metadata prototype
+
+`src/agents/worker-config-view.ts` projects a minimal immutable provider/model identity and a copied provider-name list from a caller-supplied grant. `tests/agents/worker-config-view.vitest.ts` verifies that extra model properties, including synthetic secret-like data, are not serialized, and rejects malformed grants and unresolved selections. This **does not** authenticate the grant, prove correspondence to actual runtime routing, block access to on-disk config, or change production `loadConfig`/spawn behavior. A syntactically valid but overbroad caller grant is not prevented by this projection. Production integration remains prohibited under GE-04 HOLD.
