@@ -27,6 +27,22 @@
 | Native peer credentials | `src/agents/worker-broker-linux-peercred.ts`, `worker-broker-native-handoff.ts`, `worker-broker-native-admission-gate.ts` | Native peercred probe exists; diagnostic stdout is not admissible authorization. Build authenticated transport to broker. |
 | Governed broker admission | `src/agents/worker-broker-governed-admission.ts`, `worker-broker-authorization.ts` | Review final effect authorization, replay atomicity and live peer binding before positive admission. |
 
+## Entry-point tracing (static, provisional)
+
+- Daemon: `src/operations/daemon/daemon-server.ts:91-92` constructs `SubagentWorkerExecutor` when subagents are enabled; otherwise it selects `DefaultWorkerExecutor`. The latter is a distinct execution mode requiring separate governance and worker-vs-in-process classification.
+- Coordination tools: `src/coordination/kernel/coordination-tools.ts:295-296` constructs `SubagentWorkerExecutor`.
+- HTTP server: `src/interfaces/server/coordination-routes.ts:415-416` constructs `SubagentWorkerExecutor`.
+- Runtime/chat: `src/runtime-state/runtime/runtime-builder.ts:76`, `src/agents/agent/agent.ts:166` construct `SubagentManager` directly.
+- Evaluation: `src/operations/evals/drivers/delegate-driver.ts:67` constructs `SubagentManager`.
+
+These are source references, **not proof of complete runtime route coverage**. Trace the associated call chains, capability checks and recovery paths before R0 closure.
+
+## Additional critical credential finding
+
+`src/operations/config/loader.ts:189-277` resolves `cred://` references during config loading and injects resolved provider keys into `process.env` (including `GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` and others). `src/agents/subagent-cli.ts:605-606` loads this config **inside the worker**, so simply deleting FD3 and the inherited DBus address is insufficient. The replacement must stop worker-side secret resolution **and** environment injection, including user/project plaintext `apiKeys`, before loading provider clients. Credential-backed model inference must use a brokered operation or another independently reviewed no-raw-secret protocol. This is a production-blocking design requirement.
+
+`src/runtime-state/runtime/child-env.ts` always forwards its default environment variables plus the configured allowlist, then applies explicit overrides. R0 must audit `HOME`, user-controlled allowlists and environment-based provider credentials for secret reachability; `HOME` may expose a same-UID worker to the user's credential files even without DBus. A separate UID alone is not proof of isolation without filesystem and mount/namespace checks.
+
 ## Other subprocess execution surfaces — separate classification required
 
 The following spawn/exec sites are **not automatically ALiX workers**. R0 must classify their privilege, secret inheritance, and ability to launch a worker or bypass governance before deciding whether to route through the canonical worker supervisor or another governed process authority.
