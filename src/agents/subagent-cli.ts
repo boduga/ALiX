@@ -583,6 +583,17 @@ export class SubagentCLI {
     // Load config from current working directory (user's project, not ALiX source tree)
     const projectRoot = process.cwd();
     const loadConfig = (await import("../operations/config/loader.js")).loadConfig;
+    // GE-04 Q3.19: reject absent/stale/revoked durable claims before
+    // reading FD3 or loading config. This is not broker authentication.
+    if (args.values["ge04-route-preflight"]) {
+      if (!coordinationRunId || !taskId || workerAttempt === undefined || !args.values["ge04-owner-id"]) {
+        throw new Error("GE-04 precredential gate requires worker identity and owner");
+      }
+      const { CoordinationStore } = await import("../coordination/kernel/coordination-store.js");
+      const { assertPrecredentialWorkerRouteClaim } = await import("./worker-precredential-route-gate.js");
+      await assertPrecredentialWorkerRouteClaim({store:new CoordinationStore(projectRoot),
+        identity:{coordinationRunId,workerId:taskId,attempt:workerAttempt},ownerId:args.values["ge04-owner-id"]});
+    }
     const resolvedApiKeys = readWorkerCredentialSnapshot(credentialFd);
     const config = await loadConfig(projectRoot, { resolvedApiKeys }) as AlixConfig;
     // Propagate parent sessionMode so bypass/auto parents don't strand
