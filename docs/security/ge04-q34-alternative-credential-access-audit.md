@@ -45,3 +45,7 @@
 ## Test-only restricted worker metadata prototype
 
 `src/agents/worker-config-view.ts` projects a minimal immutable provider/model identity and a copied provider-name list from a caller-supplied grant. `tests/agents/worker-config-view.vitest.ts` verifies that extra model properties, including synthetic secret-like data, are not serialized, and rejects malformed grants and unresolved selections. This **does not** authenticate the grant, prove correspondence to actual runtime routing, block access to on-disk config, or change production `loadConfig`/spawn behavior. A syntactically valid but overbroad caller grant is not prevented by this projection. Production integration remains prohibited under GE-04 HOLD.
+
+## Q3.5 pure worker grant binding prototype
+
+`src/agents/worker-grant-binding.ts` binds a caller-supplied resolved route to `coordinationRunId`, `workerId`, and nonnegative integer `attempt`, recomputing the provider set through the existing routing planner. `tests/agents/worker-grant-binding.vitest.ts` exercises identity substitution, model substitution, fallback expansion, malformed identities and forged provider-list expansion. **This is an in-process consistency check, not authentication or authorization:** a caller able to replace both the binding and model can manufacture a matching pair. It has no signature, durable issuer record, single-use consumption, runtime scheduler authority, or credential-store isolation. No production integration is authorized under GE-04 HOLD.
