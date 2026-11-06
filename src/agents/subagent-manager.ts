@@ -350,6 +350,7 @@ export class SubagentManager {
           ...(task.coordinationRunId && task.coordinationOwnershipClaims
             ? ["--ownership-claims-json", JSON.stringify(task.coordinationOwnershipClaims)] : []),
           ...(task.coordinationRunId ? ["--credential-fd", "3"] : []),
+          ...(this.options.ge04WorkerLifecycle ? ["--ge04-startup-fd", "4"] : []),
           ...(task.ownedPaths?.length ? ["--owned-paths", task.ownedPaths.join(",")] : []),
           ...(task.inputPaths?.length ? ["--input-paths", JSON.stringify(task.inputPaths)] : []),
         ];
@@ -375,7 +376,9 @@ export class SubagentManager {
           ? resolvedCredentialPayload(this.options.config) : undefined;
         const child = spawn(command, commandArgs, {
           cwd: task.cwd,
-          stdio: ["pipe", "pipe", "pipe", "pipe"] as const,
+          stdio: this.options.ge04WorkerLifecycle
+            ? ["pipe", "pipe", "pipe", "pipe", "pipe"] as const
+            : ["pipe", "pipe", "pipe", "pipe"] as const,
           // Own process group on POSIX so terminateProcessTree can reap the
           // whole tree; the stdin pipe still closes on host death, which
           // the child's watchdog turns into a clean exit.
@@ -413,9 +416,19 @@ export class SubagentManager {
             terminateProcessTree(child);
             throw new Error("GE-04 qualification requires a coordinated worker and known PID/UID");
           }
-          // This observes a spawn; it does NOT prevent execution before registration.
+          // Cooperative startup gate: release FD4 only after supervisor callback.
+          // No secret is written to FD4. This is NOT OS process suspension.
+          const gate = child.stdio[4];
+          if (!gate || !("end" in gate)) {
+            terminateProcessTree(child);
+            throw new Error("GE-04 startup gate unavailable");
+          }
+          gate.on("error", () => { /* exited before release */ });
           void lifecycle.onSpawned({pid:pid!,uid:uid!,coordinationRunId:task.coordinationRunId,
-            workerId:task.id,attempt:task.coordinationWorkerAttempt}).catch(() => {
+            workerId:task.id,attempt:task.coordinationWorkerAttempt}).then(() => {
+            if (child.exitCode === null && !child.killed) gate.end("GE04_READY\n");
+          }).catch(() => {
+            gate.end();
             terminateProcessTree(child);
           });
           child.once("exit", () => lifecycle.onExited(pid!));
