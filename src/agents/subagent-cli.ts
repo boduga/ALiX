@@ -528,6 +528,8 @@ export class SubagentCLI {
         "ownership-claims-json": { type: "string" },
         "credential-fd": { type: "string" },
         "assigned-objective": { type: "string" },
+        "ge04-route-preflight": { type: "boolean" },
+        "ge04-owner-id": { type: "string" },
       },
       allowPositionals: false,
     });
@@ -686,6 +688,27 @@ export class SubagentCLI {
     const modelEntry = Object.values(config.models ?? {}).find(
       entry => entry?.provider === effectiveProvider && entry?.name === effectiveName,
     );
+    // GE-04 Q3.18: opt-in fail-closed pre-provider route check.
+    // This is NOT a credential security boundary: loadConfig already ran,
+    // and the current child provider path cannot execute configured fallbacks.
+    if (args.values["ge04-route-preflight"]) {
+      if (!coordinationRunId || workerAttempt === undefined || !args.values["ge04-owner-id"]) {
+        throw new Error("GE-04 route preflight requires coordination identity and execution owner");
+      }
+      const { CoordinationStore } = await import("../coordination/kernel/coordination-store.js");
+      const { qualifyDurableExecutorRouteContract } = await import("./worker-executor-route-contract.js");
+      const contract = await qualifyDurableExecutorRouteContract({
+        store: new CoordinationStore(projectRoot),
+        identity: {coordinationRunId,workerId:taskId,attempt:workerAttempt},
+        ownerId:args.values["ge04-owner-id"],schedulerConfig:config,
+        schedulerTier:roleStyle,
+        executorRoute:{provider:effectiveProvider,name:effectiveName,
+          ...(effectiveSelection!==undefined?{selection:effectiveSelection}:{})},
+      });
+      const { assertChildProviderRouteSupported } = await import("./worker-child-route-preflight.js");
+      assertChildProviderRouteSupported(contract,{provider:effectiveProvider,name:effectiveName,
+        ...(effectiveSelection!==undefined?{selection:effectiveSelection}:{})});
+    }
     const provider = await createProvider({
       provider: effectiveProvider,
       name: effectiveName,
