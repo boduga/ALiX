@@ -1,5 +1,5 @@
-import {describe,it,expect} from 'vitest';
-import {parseLinuxProcessStat,parseLinuxProcessStatusUid,readLinuxProcessIdentity} from '../../src/agents/worker-broker-linux-process.js';
+import {describe,it,test,expect} from 'vitest';
+import {parseLinuxProcessStat,parseLinuxStoppedProcessStat,readLinuxStoppedProcessIdentity,parseLinuxProcessStatusUid,readLinuxProcessIdentity} from '../../src/agents/worker-broker-linux-process.js';
 import {BrokerLivePeerBindings} from '../../src/agents/worker-broker-live-peer-binding.js';
 const stat=(pid:number,comm:string,start:string)=>`${pid} (${comm}) S ${Array(18).fill('1').slice(0,18).join(' ')} ${start} 0 0\n`;
 describe('GE-04 Q3.31 Linux procfs identity parser',()=>{
@@ -31,4 +31,16 @@ describe.skipIf(process.platform!=='linux')('GE-04 Q3.31 live Linux process qual
   await expect(readLinuxProcessIdentity(2147483647)).resolves.toBeUndefined();
   await expect(readLinuxProcessIdentity(-1)).rejects.toThrow();
  });
+});
+
+test('stopped-process observer refuses live caller and invalid PID',async()=>{
+ if(process.platform!=='linux')return;
+ await expect(readLinuxStoppedProcessIdentity(process.pid)).rejects.toThrow(/not stopped/);
+ await expect(readLinuxStoppedProcessIdentity(-1)).rejects.toThrow(/Invalid stopped/);
+ await expect(readLinuxStoppedProcessIdentity(2147483647)).resolves.toBeNull();
+});
+test('stopped-process parser requires actual T state, not merely matching starttime',()=>{
+ const stopped=stat(42,'agent','123').replace(') S ',') T ');
+ expect(parseLinuxStoppedProcessStat(stopped,42)).toEqual({startTimeTicks:'123',state:'T'});
+ expect(()=>parseLinuxStoppedProcessStat(stat(42,'agent','123'),42)).toThrow(/not stopped/);
 });

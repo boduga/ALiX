@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
   examineRecovery, fixtureAppend, fixtureCheckpoint, GENESIS_HASH,
-  GE04_RECOVERY_DENIAL,
+  SUPERVISOR_RECOVERY_DENIAL,
   type RecoveryEvent,
 } from "../../../src/execution/filesystem/recovery-evidence.js";
 import { createScopedMutationService, UnavailableScopedMutationService } from "../../../src/execution/filesystem/scoped-mutation.js";
@@ -30,7 +30,7 @@ function receipt(previous: RecoveryEvent[], claimedOutcome: "success" | "failed"
 function assertDenied(events: unknown, anchor: unknown = fixtureCheckpoint(events as RecoveryEvent[]), id: unknown = attemptId) {
   const verdict = examineRecovery(events, anchor, id);
   assert.equal(verdict.disposition, "DENY");
-  assert.equal(verdict.code, GE04_RECOVERY_DENIAL);
+  assert.equal(verdict.code, SUPERVISOR_RECOVERY_DENIAL);
   assert.equal("authorized" in verdict, false);
   assert.equal("receipt" in verdict, false);
   assert.equal("replay" in verdict, false);

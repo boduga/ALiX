@@ -17,7 +17,7 @@ export function createSupervisorLinuxWorkerLifecycle(reader?:ReadLiveProcessIden
   return Object.freeze({
     async onSpawned(identity:SupervisorSpawnIdentity):Promise<void> {
       const {pid,uid,coordinationRunId,workerId,attempt}=identity;
-      if(generations.has(pid) || !Number.isSafeInteger(pid) || pid<1) throw new Error('GE-04 duplicate or invalid worker PID');
+      if(generations.has(pid) || !Number.isSafeInteger(pid) || pid<1) throw new Error('Worker duplicate or invalid PID');
       const generation=++nextGeneration;
       generations.set(pid,generation);
       exited.delete(pid);
@@ -27,7 +27,7 @@ export function createSupervisorLinuxWorkerLifecycle(reader?:ReadLiveProcessIden
         await registration;
         if(generations.get(pid)!==generation || exited.has(pid)) {
           registry.revokeSpawnedWorker(pid);
-          throw new Error('GE-04 worker exited during registration');
+          throw new Error('Worker exited during registration');
         }
       } catch(error) {
         registry.revokeSpawnedWorker(pid);

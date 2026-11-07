@@ -12,10 +12,10 @@ import { createHash, createPublicKey, verify } from "node:crypto";
 import { dirname, isAbsolute, parse, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const GE04_RELEASE_PROTOCOL = "ALIX_GE04_RELEASE_V1";
-export const GE04_TRUST_PATH = "/etc/alix/ge04/trust.json";
-export const GE04_RELEASE_PATH = "/usr/local/lib/alix/ge04/release.json";
-export const GE04_ARTIFACT_PATH = "/usr/local/lib/alix/ge04/supervisor.bin";
+export const SUPERVISOR_RELEASE_PROTOCOL = "ALIX_GE04_RELEASE_V1";
+export const SUPERVISOR_TRUST_PATH = "/etc/alix/ge04/trust.json";
+export const SUPERVISOR_RELEASE_PATH = "/usr/local/lib/alix/ge04/release.json";
+export const SUPERVISOR_ARTIFACT_PATH = "/usr/local/lib/alix/ge04/supervisor.bin";
 export const MAX_METADATA_BYTES = 8192;
 export const MAX_ARTIFACT_BYTES = 32 * 1024 * 1024;
 
@@ -39,11 +39,11 @@ const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 /** Signed bytes are a canonical fixed-order JSON object followed by LF. */
 export function canonicalReleaseBytes(release) {
   keysExactly(release, ["protocol", "sequence", "artifactSha256"]);
-  if (release.protocol !== GE04_RELEASE_PROTOCOL) fail("Unknown release protocol");
+  if (release.protocol !== SUPERVISOR_RELEASE_PROTOCOL) fail("Unknown release protocol");
   if (!Number.isSafeInteger(release.sequence) || release.sequence < 1) fail("Invalid release sequence");
   if (!hexSha256(release.artifactSha256)) fail("Invalid artifact digest");
   return Buffer.from(JSON.stringify({
-    protocol: GE04_RELEASE_PROTOCOL,
+    protocol: SUPERVISOR_RELEASE_PROTOCOL,
     sequence: release.sequence,
     artifactSha256: release.artifactSha256,
   }) + "\n", "utf8");
@@ -81,7 +81,7 @@ export function verifyReleasePayload({ release, signatureBase64, artifactBytes, 
   const signature = decodeStrictBase64(signatureBase64);
   if (!verify(null, signed, key, signature)) fail("Release signature verification failed");
   return Object.freeze({
-    protocol: GE04_RELEASE_PROTOCOL,
+    protocol: SUPERVISOR_RELEASE_PROTOCOL,
     sequence: release.sequence,
     artifactSha256: release.artifactSha256,
     // Evidence only, not an authorization token.
@@ -145,20 +145,20 @@ function parseStrictJson(buffer, fields) {
 
 /** The ONLY production-path verifier. Does not return an authorization. */
 export async function verifyRootProvisionedRelease() {
-  if (process.platform !== "linux") fail("Root-provisioned GE-04 verification is Linux-only");
+  if (process.platform !== "linux") fail("Root-provisioned supervisor verification is Linux-only");
   const trust = parseStrictJson(
-    await readPrivilegedRegular(GE04_TRUST_PATH, MAX_METADATA_BYTES),
+    await readPrivilegedRegular(SUPERVISOR_TRUST_PATH, MAX_METADATA_BYTES),
     ["protocol", "publicKeyPem", "minimumSequence"],
   );
-  if (trust.protocol !== GE04_RELEASE_PROTOCOL) fail("Unknown trusted release protocol");
+  if (trust.protocol !== SUPERVISOR_RELEASE_PROTOCOL) fail("Unknown trusted release protocol");
   // The trust root is separately administered. Never write back, silently
   // create a floor, accept a caller-selected public key, or auto-advance.
   const manifest = parseStrictJson(
-    await readPrivilegedRegular(GE04_RELEASE_PATH, MAX_METADATA_BYTES),
+    await readPrivilegedRegular(SUPERVISOR_RELEASE_PATH, MAX_METADATA_BYTES),
     ["protocol", "sequence", "artifactSha256", "signatureBase64"],
   );
   const { signatureBase64, ...release } = manifest;
-  const artifactBytes = await readPrivilegedRegular(GE04_ARTIFACT_PATH, MAX_ARTIFACT_BYTES);
+  const artifactBytes = await readPrivilegedRegular(SUPERVISOR_ARTIFACT_PATH, MAX_ARTIFACT_BYTES);
   return verifyReleasePayload({
     release, signatureBase64, artifactBytes,
     publicKeyPem: trust.publicKeyPem,
@@ -184,10 +184,10 @@ if (invokedAsProgram()) {
     if (process.argv.length !== 2) fail("Command-line trust or release overrides are prohibited");
     const evidence = await verifyRootProvisionedRelease();
     process.stdout.write(JSON.stringify(evidence) + "\n");
-    process.stderr.write("GE-04 SECURITY HOLD: release evidence is NOT permission to start a supervisor\n");
+    process.stderr.write("SUPERVISOR_SECURITY_HOLD: release evidence is NOT permission to start a supervisor\n");
     process.exitCode = 78;
   } catch (error) {
-    process.stderr.write("GE-04 release verification denied: " +
+    process.stderr.write("Supervisor release verification denied: " +
       (error instanceof ReleaseVerificationError ? error.message : "unverified privileged input") + "\n");
     process.exitCode = 78;
   }
