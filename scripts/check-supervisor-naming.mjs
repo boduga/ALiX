@@ -9,10 +9,14 @@ import { join } from 'node:path';
 
 const files = [
   ...readdirSync('src/agents').filter(name => /^worker-supervisor(?:-|\.)/.test(name) && name.endsWith('.ts')).map(name => join('src/agents', name)),
+  'src/agents/subagent-cli.ts',
+  'src/agents/subagent-manager.ts',
+  'src/agents/worker-ge04-startup-gate.ts',
+  'src/agents/worker-ge04-linux-lifecycle.ts',
   'scripts/ge04-release-verify.mjs',
   'native/ge04/isolated-worker-launcher.c',
 ];
-const banned = /\b(?:[A-Z][A-Z0-9]*_)*GE04_[A-Z][A-Z0-9_]*\b|\bge04_[a-z][a-z0-9_]*\b/g;
+const banned = /\b(?:[A-Z][A-Z0-9]*_)*GE04_[A-Z][A-Z0-9_]*\b|\b(?:ge04|Ge04)[A-Z][A-Za-z0-9]*\b|--ge04-[a-z-]+|\bge04_[a-z][a-z0-9_]*\b/g;
 let failures = 0;
 for (const file of files) {
   const lines = readFileSync(file, 'utf8').split('\n');
