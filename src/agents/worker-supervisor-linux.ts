@@ -47,7 +47,7 @@ export function createLinuxWorkerSupervisor(
   readProcess:ReadLiveProcessIdentity=readLinuxProcessIdentity,
 ):WorkerSupervisor {
   if(process.platform!=='linux' || typeof backend?.launch!=='function' || typeof readProcess!=='function')
-    throw new Error('GE-04 requires a trusted Linux supervisor backend');
+    throw new Error('WorkerSupervisor requires a trusted Linux supervisor backend');
   const active=new Map<string,{native:NativeIsolatedWorker;registrationId:string;termination?:Promise<void>;waiting?:Promise<Readonly<{exitCode:number|null;signal:string|null}>>}>();
   type PendingLaunch={revoked:boolean;settled:Promise<void>;resolve:()=>void};
   const pending=new Map<string,PendingLaunch>();
@@ -104,7 +104,7 @@ export function createLinuxWorkerSupervisor(
       let native:NativeIsolatedWorker|undefined;
       try {
         native=await backend.launch(request);
-        if(pendingLaunch.revoked)throw new Error('GE-04 worker launch revoked before qualification');
+        if(pendingLaunch.revoked)throw new Error('WorkerSupervisor worker launch revoked before qualification');
         if(!Number.isSafeInteger(native?.pid)||native!.pid<1 ||
            !Number.isSafeInteger(native!.uid)||native!.uid<0 ||
            native!.uid===process.getuid?.() ||
@@ -113,7 +113,7 @@ export function createLinuxWorkerSupervisor(
           throw new Error('Untrusted or same-UID worker launch evidence');
         const observed=await readProcess(native!.pid);
         if(!sameProcess(observed,native!))throw new Error('Worker launch process identity mismatch');
-        if(pendingLaunch.revoked)throw new Error('GE-04 worker launch revoked during qualification');
+        if(pendingLaunch.revoked)throw new Error('WorkerSupervisor worker launch revoked during qualification');
         const registrationId=randomUUID();
         active.set(key,{native:native!,registrationId});
         const evidence=Object.freeze({identity:Object.freeze({...request.identity}),pid:native!.pid,
@@ -148,7 +148,7 @@ export function createLinuxWorkerSupervisor(
           // original qualification error or permit a replacement launch.
           if(typeof native.terminate==='function'){
             quarantined.set(key,{native});
-            try {await terminateQuarantined(key,'GE-04 failed launch qualification');}
+            try {await terminateQuarantined(key,'WorkerSupervisor failed launch qualification');}
             catch { /* SECURITY HOLD: unresolved child remains quarantined. */ }
           }else{
             // No callable termination capability exists. The supervisor
@@ -171,16 +171,16 @@ export function createLinuxWorkerSupervisor(
         launching.revoked=true;
         await launching.settled;
       }
-      await revokeEntry(key,'GE-04 worker revoked');
-      await terminateQuarantined(key,'GE-04 unqualified worker revoked');
-      if(quarantined.has(key))throw new Error('GE-04 unresolved quarantined worker');
+      await revokeEntry(key,'WorkerSupervisor worker revoked');
+      await terminateQuarantined(key,'WorkerSupervisor unqualified worker revoked');
+      if(quarantined.has(key))throw new Error('WorkerSupervisor unresolved quarantined worker');
     },
     async reconcile():Promise<void>{
       for(const key of quarantined.keys())
-        await terminateQuarantined(key,'GE-04 quarantined worker reconciliation');
+        await terminateQuarantined(key,'WorkerSupervisor quarantined worker reconciliation');
       for(const [key,entry] of active){
         const observed=await readProcess(entry.native.pid).catch(()=>undefined);
-        if(!sameProcess(observed,entry.native))await revokeEntry(key,'GE-04 stale worker identity');
+        if(!sameProcess(observed,entry.native))await revokeEntry(key,'WorkerSupervisor stale worker identity');
       }
     },
   });
