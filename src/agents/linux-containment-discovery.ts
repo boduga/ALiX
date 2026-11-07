@@ -95,6 +95,8 @@ export async function discoverLinuxContainment(io:DiscoveryIO=discoveryIO,os=pla
   'stopped-child-attach-not-tested','kernel-authenticated-ipc-not-qualified'];
  if(os!=='linux')denialReasons.push('non-linux-platform');
  if(mount.status!=='observed')denialReasons.push('unified-cgroup2-mount-unverified');
+ const mountRoot=mount.detail.match(/(?:^|;)mount-root=([^;]+)/)?.[1];
+ if(mount.status==='observed'&&mountRoot!==undefined&&mountRoot!=='/')denialReasons.push('cgroup-mount-root-not-host-root');
  if(cgroupMembership.status!=='observed')denialReasons.push('unified-cgroup-membership-unverified');
  if(runtime.family==='unknown'||runtime.family==='lxc-unresolved')denialReasons.push('runtime-identity-unverified');
  if(runtime.reasons.includes('runtime-markers-absent-native-host-unverified'))denialReasons.push('absence-of-container-markers-does-not-prove-native-host');

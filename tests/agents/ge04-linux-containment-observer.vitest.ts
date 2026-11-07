@@ -1,8 +1,9 @@
 import {describe,expect,it} from 'vitest';
 import {observeLinuxContainment,type ReadOnlySource} from '../../src/agents/linux-containment-observer.js';
+import {discoverLinuxContainment} from '../../src/agents/linux-containment-discovery.js';
 const mount='36 29 0:32 / /sys/fs/cgroup rw,nosuid - cgroup2 cgroup rw';
-function fixture(files:Record<string,string>={},paths:string[]=[]):ReadOnlySource{
- return {read:async p=>files[p],exists:async p=>paths.includes(p)};
+function fixture(files:Record<string,string>={},paths:string[]=[],symlinks:string[]=[]):ReadOnlySource{
+ return {read:async p=>files[p],exists:async p=>paths.includes(p)&&!symlinks.includes(p)};
 }
 describe('GE-04 read-only Linux observations',()=>{
  it('reports cgroup v2 mount but never infers delegation or authorization',async()=>{
@@ -32,12 +33,38 @@ describe('GE-04 read-only Linux observations',()=>{
   expect(result.observation.cgroupVersion).toBe('unknown');
   expect(result.assessment.authorizedForWorkerLaunch).toBe(false);
  });
- it('containerenv file does not prove Podman',async()=>{
+ it('treats containerenv presence as a Podman hint without trusting its content',async()=>{
   const result=await observeLinuxContainment(fixture({'/run/.containerenv':'engine="podman"'},['/run/.containerenv']),'linux');
-  expect(result.runtime.family).toBe('unknown');
-  expect(result.observation.environment).toBe('unknown');
+  expect(result.runtime.family).toBe('podman');
+  expect(result.observation.environment).toBe('container');
   expect(result.notes).toContain('containerenv-marker-present-runtime-unverified');
+  expect(result.notes).toContain('containerenv-content-not-trusted-as-runtime-identity');
+  expect(result.runtime.eligibleForContainment).toBe(false);
   expect(result.assessment.authorizedForWorkerLaunch).toBe(false);
+ });
+ it('keeps Podman-only runtime classification consistent with discovery',async()=>{
+  const files:Record<string,string>={'/proc/self/mountinfo':mount,'/run/.containerenv':'engine="podman"'};
+  const observer=await observeLinuxContainment(fixture(files,['/run/.containerenv']),'linux');
+  const discovery=await discoverLinuxContainment({
+   read:async p=>files[p],link:async()=>undefined,
+   kind:async p=>p==='/run/.containerenv'?'file':undefined
+  },'linux');
+  expect(observer.runtime.family).toBe('podman');
+  expect(observer.runtime.family).toBe(discovery.runtime.family);
+  expect(observer.runtime.eligibleForContainment).toBe(false);
+ });
+ it('does not count symlinked runtime markers or cgroup control files as present',async()=>{
+  const killPath='/sys/fs/cgroup/user.slice/session.scope/cgroup.kill';
+  const source=fixture({
+   '/proc/self/mountinfo':mount,
+   '/proc/self/cgroup':'0::/user.slice/session.scope\n',
+   '/run/.containerenv':'engine="podman"'
+  },['/run/.containerenv',killPath],['/run/.containerenv',killPath]);
+  const result=await observeLinuxContainment(source,'linux');
+  expect(result.runtime.family).toBe('unknown');
+  expect(result.notes).not.toContain('containerenv-marker-present-runtime-unverified');
+  expect(result.notes).not.toContain('cgroup-kill-path-present-but-unverified');
+  expect(result.observation.cgroupKill).toBe(false);
  });
  it('compares namespace inodes without claiming host identity',async()=>{
   const files={'/proc/self/mountinfo':mount};

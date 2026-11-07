@@ -40,6 +40,13 @@ describe('GE-04-CAP read-only discovery',()=>{
   const r=await discoverLinuxContainment(fixture(base,{'/sys/fs/cgroup/user.slice/session.scope/cgroup.kill':'symlink'}),'linux');
   expect(r.cgroupKill.status).toBe('unknown');
  });
+ it('reports a non-root cgroup mount root as not host-root evidence',async()=>{
+  const r=await discoverLinuxContainment(fixture({...base,'/proc/self/mountinfo':mount.replace('0:32 / /sys','0:32 /nested /sys')}),'linux');
+  expect(r.mount.status).toBe('observed');
+  expect(r.mount.detail).toContain('mount-root=/nested');
+  expect(r.denialReasons).toContain('cgroup-mount-root-not-host-root');
+  expect(r.authorizedForWorkerLaunch).toBe(false);
+ });
  it('does not confuse mount read-write with delegation',async()=>{
   const r=await discoverLinuxContainment(fixture({...base,'/proc/self/mountinfo':mount.replace('rw,nosuid','ro,nosuid')}),'linux');
   expect(r.exclusiveDelegation.status).toBe('unknown');

@@ -4,6 +4,8 @@
 
 `discoverLinuxContainment()` returns a versioned, structured report with explicit `observed`, `absent`, or `unknown` evidence and denial reasons. It is safe to call without root; its default I/O reads procfs, sysfs and runtime marker files only. Tests inject a fake read-only I/O source. No subprocesses, cgroup writes, sudo, worker spawning or signals occur.
 
+The observations are **non-atomic, point-in-time reads**, not a pinned snapshot: mountinfo, membership, namespace links and filesystem markers are read separately and may change between probes. A report must not be treated as a mutually consistent or race-free view of host state. A cgroup2 mount whose reported mount root is not `/` is explicitly denied as host-root evidence.
+
 This detector is **not** an authority provider: `supportedForQualification=false` and `authorizedForWorkerLaunch=false` unconditionally. The earlier `assessLinuxContainment()` is also qualification-only. Neither can override the GE-04 security hold.
 
 ## Evidence and limitations
@@ -15,7 +17,7 @@ This detector is **not** an authority provider: `supportedForQualification=false
 | `/sys/fs/cgroup/cgroup.kill` | Regular control-file presence | Actual write permission, kernel enforcement and safe ownership |
 | `/proc/self/ns/{user,pid,cgroup}` | Namespace inode links | Host namespace equivalence (PID 1 may be container PID 1) |
 | `/proc/self/{uid,gid}_map` | Mapping syntax | Mapping to trusted host identity and ownership |
-| `/run/systemd/container`, `/.dockerenv`, `/run/.containerenv` | Runtime hints | Authenticated container identity, Incus vs standalone LXC, nesting |
+| `/run/systemd/container`, `/.dockerenv`, `/run/.containerenv` | Regular-file/runtime marker hints (including Podman marker presence) | Authenticated container identity, Incus vs standalone LXC, nesting; marker content is not trusted as runtime identity |
 | SELinux/AppArmor sysfs | Visible policy status | Policy permissions and confinement of spawned workers |
 | pidfd, stopped-child attach, exclusive delegation | Unknown | Requires separate reviewed trusted syscall/real-kernel qualification |
 
