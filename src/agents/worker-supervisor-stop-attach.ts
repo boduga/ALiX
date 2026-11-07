@@ -24,17 +24,17 @@ export async function stopAttachVerifyResume(
  child:StopAttachProcess,cgroup:StopAttachCgroup,
 ):Promise<StoppedChildIdentity>{
  if(!Number.isSafeInteger(child?.pid)||child.pid<=1)
-  throw new Error('GE-04 invalid stopped child PID');
+  throw new Error('WorkerSupervisor invalid stopped child PID');
  try{
   const before=await child.observe();
   if(!before||before.pid!==child.pid||before.state!=='T'||
      !/^[1-9][0-9]*$/.test(before.startTimeTicks))
-   throw new Error('GE-04 SECURITY HOLD: launcher not independently stopped');
+   throw new Error('WorkerSupervisor SECURITY HOLD: launcher not independently stopped');
   cgroup.attachStoppedChild(child.pid);
   const after=await child.observe();
   if(!after||after.pid!==before.pid||after.state!=='T'||
      after.startTimeTicks!==before.startTimeTicks)
-   throw new Error('GE-04 SECURITY HOLD: stopped process generation changed');
+   throw new Error('WorkerSupervisor SECURITY HOLD: stopped process generation changed');
   await child.resume();
   return after;
  }catch(error){
