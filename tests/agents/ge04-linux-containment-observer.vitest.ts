@@ -6,8 +6,8 @@ function fixture(files:Record<string,string>={},paths:string[]=[]):ReadOnlySourc
 }
 describe('GE-04 read-only Linux observations',()=>{
  it('reports cgroup v2 mount but never infers delegation or authorization',async()=>{
-  const source=fixture({'/proc/self/mountinfo':mount,'/sys/fs/cgroup/cgroup.controllers':'cpu memory pids',
-   '/proc/self/uid_map':'0 1000 1\n','/proc/self/gid_map':'0 1000 1\n'},['/sys/fs/cgroup/cgroup.kill']);
+  const source=fixture({'/proc/self/mountinfo':mount,'/proc/self/cgroup':'0::/user.slice/session.scope\n','/sys/fs/cgroup/cgroup.controllers':'cpu memory pids',
+   '/proc/self/uid_map':'0 1000 1\n','/proc/self/gid_map':'0 1000 1\n'},['/sys/fs/cgroup/user.slice/session.scope/cgroup.kill']);
   const result=await observeLinuxContainment(source,'linux');
   expect(result.observation.cgroupVersion).toBe(2);
   expect(result.observation.delegatedExclusiveSubtree).toBe(false);

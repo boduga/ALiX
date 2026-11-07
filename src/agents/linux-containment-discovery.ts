@@ -43,6 +43,19 @@ export function inspectCgroupMount(mountinfo:string|undefined):EvidenceItem{
  if(!m.root.startsWith('/'))return unknown('mount-root-malformed');
  return observed('cgroup2-mount-id='+m.mountId+';device='+m.device+';mount-root='+m.root+';options='+m.options+';mount-identity-not-pinned;delegation-not-proven');
 }
+/** Read-only candidate: namespace-relative membership cannot establish host ownership. */
+export function resolveCgroupKillPath(mountinfo:string|undefined,membership:string|undefined):string|undefined {
+ if(inspectCgroupMount(mountinfo).status!=='observed'||inspectCgroupMembership(membership).status!=='observed')return undefined;
+ const mountLine=mountinfo!.split('\n').find(line=>line.split(' - ')[0]?.split(' ')[4] && decodeMount(line.split(' - ')[0]!.split(' ')[4]!)==='/sys/fs/cgroup');
+ if(!mountLine)return undefined;
+ const root=decodeMount(mountLine.split(' - ')[0]!.split(' ')[3]!);
+ const member=membership!.trim().slice(3);
+ // Non-root mount roots may have been remapped by a cgroup namespace: do not guess.
+ if(root!=='/'||member==='/'||!member.startsWith('/'))return undefined;
+ const parts=member.slice(1).split('/');
+ if(parts.some(part=>!part||part==='.'||part==='..'||part.includes('\\')||part.includes('\0')))return undefined;
+ return '/sys/fs/cgroup/'+parts.join('/')+'/cgroup.kill';
+}
 export function inspectCgroupMembership(data:string|undefined):EvidenceItem{
  if(data===undefined)return unknown('proc-self-cgroup-unreadable');
  const lines=data.trim().split('\n');
@@ -64,12 +77,14 @@ export async function discoverLinuxContainment(io:DiscoveryIO=discoveryIO,os=pla
   '/run/systemd/container','/sys/fs/selinux/enforce','/sys/module/apparmor/parameters/enabled'];
  const [mountinfo,membership,uidMap,gidMap,systemd,selinux,apparmor]=await Promise.all(paths.map(p=>io.read(p)));
  const [userNs,pidNs,cgroupNs]=await Promise.all(['user','pid','cgroup'].map(n=>io.link('/proc/self/ns/'+n)));
- const [docker,podman,cgroupKillKind]=await Promise.all(['/.dockerenv','/run/.containerenv','/sys/fs/cgroup/cgroup.kill'].map(p=>io.kind(p)));
+ const [docker,podman]=await Promise.all(['/.dockerenv','/run/.containerenv'].map(p=>io.kind(p)));
  const runtime=classifyLinuxRuntime({systemdContainer:systemd,dockerEnvMarker:docker==='file',podmanEnvMarker:podman==='file'});
  const mount=inspectCgroupMount(mountinfo);
  const cgroupMembership=inspectCgroupMembership(membership);
- const cgroupKill=cgroupKillKind==='file'?observed('control-file-present;write-authority-unverified'):
-  cgroupKillKind===undefined?unknown('control-file-unreadable-or-absent'):unknown('control-file-not-regular');
+ const killPath=resolveCgroupKillPath(mountinfo,membership);
+ const cgroupKillKind=killPath?await io.kind(killPath):undefined;
+ const cgroupKill=cgroupKillKind==='file'?observed('non-root-control-file-present;write-authority-unverified;membership-namespace-relative'):
+  cgroupKillKind===undefined?unknown(killPath?'control-file-unreadable-or-absent':'non-root-cgroup-path-unresolved'):unknown('control-file-not-regular');
  const namespaces={user:inspectNamespace(userNs,'user'),pid:inspectNamespace(pidNs,'pid'),cgroup:inspectNamespace(cgroupNs,'cgroup'),
   uidMap:inspectIdMap(uidMap),gidMap:inspectIdMap(gidMap)};
  const lsm={selinux:selinux==='0'||selinux==='1'?observed(selinux==='1'?'selinux-enforcing':'selinux-permissive'):

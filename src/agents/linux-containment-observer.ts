@@ -3,7 +3,7 @@ import {readFile,stat,readlink} from 'node:fs/promises';
 import {platform} from 'node:process';
 import {classifyLinuxRuntime,type RuntimeEvidence} from './linux-container-runtime-evidence.js';
 import {assessLinuxContainment,type CapabilityObservation} from './linux-containment-capabilities.js';
-import {inspectCgroupMount} from './linux-containment-discovery.js';
+import {inspectCgroupMount,resolveCgroupKillPath} from './linux-containment-discovery.js';
 
 export type ReadOnlySource = {
   read(path:string):Promise<string|undefined>;
@@ -29,11 +29,13 @@ function mappingReadable(text:string|undefined):boolean {
 export async function observeLinuxContainment(source:ReadOnlySource=linuxReadOnlySource,hostPlatform=platform):Promise<LinuxContainmentEvidence>{
   const notes:string[]=[];
   if(hostPlatform!=='linux')notes.push('host-is-not-linux');
-  const [systemdContainer,containerEnvValue,dockerEnvMarker,podmanEnvMarker,mountinfo,cgroupControllers,cgroupKill,uidMap,gidMap,selfCgroup,initCgroup,selfUser,initUser]=await Promise.all([
+  const [systemdContainer,containerEnvValue,dockerEnvMarker,podmanEnvMarker,mountinfo,cgroupControllers,membership,uidMap,gidMap,selfCgroup,initCgroup,selfUser,initUser]=await Promise.all([
     source.read('/run/systemd/container'),source.read('/run/.containerenv'),source.exists('/.dockerenv'),source.exists('/run/.containerenv'),
-    source.read('/proc/self/mountinfo'),source.read('/sys/fs/cgroup/cgroup.controllers'),source.exists('/sys/fs/cgroup/cgroup.kill'),
+    source.read('/proc/self/mountinfo'),source.read('/sys/fs/cgroup/cgroup.controllers'),source.read('/proc/self/cgroup'),
     source.read('/proc/self/uid_map'),source.read('/proc/self/gid_map'),source.link?.('/proc/self/ns/cgroup'),source.link?.('/proc/1/ns/cgroup'),source.link?.('/proc/self/ns/user'),source.link?.('/proc/1/ns/user')
   ]);
+  const killPath=resolveCgroupKillPath(mountinfo,membership);
+  const cgroupKill=killPath?await source.exists(killPath):false;
   // /run/.containerenv is an INI-like file, not a runtime name. Presence is a Podman hint only.
   const runtimeEvidence:RuntimeEvidence={systemdContainer, dockerEnvMarker};
   if(podmanEnvMarker)notes.push('containerenv-marker-present-runtime-unverified');
