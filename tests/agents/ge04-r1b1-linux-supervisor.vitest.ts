@@ -55,3 +55,13 @@ test.skipIf(process.platform!=='linux')('concurrent cancellation shares one term
  await expect(supervisor.launch(request)).rejects.toThrow(/Duplicate/);
  release();await Promise.all([first,second]);
 });
+
+test.skipIf(process.platform!=='linux')('failed wait retains registration for subsequent revocation',async()=>{
+ const child=fixture();child.wait.mockRejectedValueOnce(new Error('wait interrupted'));
+ const supervisor=createLinuxWorkerSupervisor({launch:async()=>child},async()=>proc);
+ const handle=await supervisor.launch(request);
+ await expect(handle.wait()).rejects.toThrow('wait interrupted');
+ await expect(supervisor.launch(request)).rejects.toThrow(/Duplicate/);
+ await supervisor.revoke(request.identity);
+ expect(child.terminate).toHaveBeenCalledOnce();
+});

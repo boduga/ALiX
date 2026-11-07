@@ -23,12 +23,12 @@ test.skipIf(!enabled)('real root-to-worker UID transition and protected file den
   const compile=spawnSync('cc',['-Wall','-Wextra','-Werror','-O2','-o',launcher,
     resolve('native/ge04/isolated-worker-launcher.c')],{encoding:'utf8'});
   expect(compile.status,compile.stderr).toBe(0);
-  // A trusted /run path is valid; /tmp is intentionally rejected.
+  // A trusted /run path is valid; /tmp is intentionally rejected as executable ancestry.
   const uid=Number(process.env.ALIX_GE04_TEST_WORKER_UID);
   expect(Number.isSafeInteger(uid) && uid>0 && uid!==process.getuid?.()).toBe(true);
-  const denied=spawnSync(launcher,[String(uid),'/tmp','/usr/bin/id','-u'],{encoding:'utf8'});
+  const denied=spawnSync(launcher,[String(uid),'/usr','/tmp/untrusted','-u'],{encoding:'utf8'});
   expect(denied.status).toBe(125);
-  expect(denied.stderr).toMatch(/untrusted writable path/);
+  expect(denied.stderr).toMatch(/workspace or executable not a regular object|untrusted writable path/);
   // This compiled launcher is root-owned in a trusted directory; never install
   // it setuid or expose it as a general-purpose privileged service.
   const deployed=launcher;

@@ -94,11 +94,12 @@ export function createLinuxWorkerSupervisor(
           evidence,
           cancel:(reason:string)=>revokeEntry(key,reason),
           async wait(){
-            try{return await launched.wait();}
-            finally {
-              const entry=active.get(key);
-              if(entry?.registrationId===registrationId && !entry.termination)active.delete(key);
-            }
+            // A rejected wait is not evidence of process exit. Retain the
+            // registration so revoke/reconcile can still terminate the worker.
+            const result=await launched.wait();
+            const entry=active.get(key);
+            if(entry?.registrationId===registrationId && !entry.termination)active.delete(key);
+            return result;
           },
         });
       }catch(error){
