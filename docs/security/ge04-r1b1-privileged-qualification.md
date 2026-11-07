@@ -220,3 +220,19 @@ a single trusted supervisor retaining the same pinned pidfd from child creation
 through stopped-state verification, cgroup attachment, resume, cancellation,
 and reaping; it must also prove exclusive cgroup ownership and crash recovery.
 No production admission is authorized; GE-04 SECURITY HOLD remains active.
+
+### Retained pidfd lifecycle qualification prototype
+
+`native/ge04/pidfd-lifecycle-qualification.c` forks and owns an inert test
+child, opens one pidfd, and retains that descriptor across `SIGSTOP`,
+`waitpid(WUNTRACED)` stop confirmation, `SIGCONT`, `SIGKILL`, reaping, and
+post-exit signal rejection. The test compiles with warnings treated as errors
+and checks argument rejection and successful lifecycle completion.
+
+This avoids the *between-invocation* PID reuse issue of the earlier standalone
+probe for this specific owned child. It is **not** a native ALiX worker
+supervisor: it does not execute the privileged launcher, establish an
+exclusive cgroup, implement the trusted IPC/broker boundary, persist recovery
+intent, or bind credentials. Its cleanup fallback uses the known child PID
+only for its own direct child, and is not a general process-tree containment
+mechanism. GE-04 SECURITY HOLD remains active.
