@@ -4,7 +4,7 @@
 import type {WorkerSupervisor} from './worker-supervisor.js';
 import type {RecoveryRecord} from './worker-supervisor-recovery-ledger.js';
 
-export type RecoveryRecordReader=Readonly<{unresolved:()=>RecoveryRecord[]}>;
+export type RecoveryRecordReader=Readonly<{unresolved:()=>RecoveryRecord[];unresolvedIntents:()=>unknown[]}>;
 
 /**
  * Refuse all launches until the recovery ledger has been read and is empty.
@@ -17,19 +17,21 @@ export function createRecoveryGatedWorkerSupervisor(
 ):WorkerSupervisor {
   if(!supervisor||typeof supervisor.launch!=='function'||
      typeof supervisor.revoke!=='function'||typeof supervisor.reconcile!=='function'||
-     !ledger||typeof ledger.unresolved!=='function')
+     !ledger||typeof ledger.unresolved!=='function'||typeof ledger.unresolvedIntents!=='function')
     throw new Error('GE-04 recovery gate requires supervisor and durable ledger');
   let ready=false;
   let checking:Promise<void>|undefined;
   const check=async():Promise<void>=>{
     ready=false;
     const unresolved=ledger.unresolved();
-    if(!Array.isArray(unresolved)||unresolved.length)
+    const intents=ledger.unresolvedIntents();
+    if(!Array.isArray(unresolved)||unresolved.length||!Array.isArray(intents)||intents.length)
       throw new Error('GE-04 SECURITY HOLD: unresolved durable worker registrations');
     await supervisor.reconcile();
     // A concurrent writer could have registered a worker during reconciliation.
     const after=ledger.unresolved();
-    if(!Array.isArray(after)||after.length)
+    const afterIntents=ledger.unresolvedIntents();
+    if(!Array.isArray(after)||after.length||!Array.isArray(afterIntents)||afterIntents.length)
       throw new Error('GE-04 SECURITY HOLD: durable registrations changed during reconciliation');
     ready=true;
   };
@@ -39,7 +41,8 @@ export function createRecoveryGatedWorkerSupervisor(
       // Recheck durable records on each launch. This is not atomic with spawn,
       // and must not be used as a production ownership transaction.
       const unresolved=ledger.unresolved();
-      if(!Array.isArray(unresolved)||unresolved.length){ready=false;
+      const intents=ledger.unresolvedIntents();
+    if(!Array.isArray(unresolved)||unresolved.length||!Array.isArray(intents)||intents.length){ready=false;
         throw new Error('GE-04 SECURITY HOLD: unresolved durable worker registrations');}
       return supervisor.launch(request);
     },

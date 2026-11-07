@@ -8,6 +8,7 @@ import {lstatSync} from 'node:fs';
 import type {BrokerProcessIdentity} from './worker-broker-live-peer-binding.js';
 import type {WorkerGrantIdentity} from './worker-grant-binding.js';
 
+export type LaunchIntent=Readonly<{worker:WorkerGrantIdentity;registrationId:string;state:'launching'}>;
 export type RecoveryRecord=Readonly<{worker:WorkerGrantIdentity;process:BrokerProcessIdentity;registrationId:string}>;
 const key=(w:WorkerGrantIdentity)=>JSON.stringify([w.coordinationRunId,w.workerId,w.attempt]);
 export class WorkerSupervisorRecoveryLedger {
@@ -26,6 +27,48 @@ export class WorkerSupervisorRecoveryLedger {
   this.db.pragma('synchronous = FULL');
   this.db.exec(`CREATE TABLE IF NOT EXISTS unresolved_workers (
    identity TEXT PRIMARY KEY, payload TEXT NOT NULL)`);
+  this.db.exec(`CREATE TABLE IF NOT EXISTS launch_intents (
+   identity TEXT PRIMARY KEY, registration_id TEXT NOT NULL, state TEXT NOT NULL CHECK(state='launching'))`);
+ }
+ /** Commit intent BEFORE native spawn. Unknown outcome must remain blocking. */
+ beginLaunch(intent:LaunchIntent):void {
+  const w=intent?.worker;
+  if(!w||typeof w.coordinationRunId!=='string'||!w.coordinationRunId||
+   typeof w.workerId!=='string'||!w.workerId||!Number.isSafeInteger(w.attempt)||w.attempt<1||
+   typeof intent.registrationId!=='string'||!intent.registrationId||intent.state!=='launching')
+   throw new Error('Invalid GE-04 launch intent');
+  this.db.transaction(()=>{
+   if(this.db.prepare('SELECT 1 FROM unresolved_workers WHERE identity=?').get(key(w)))
+    throw new Error('GE-04 unresolved registration blocks launch intent');
+   this.db.prepare('INSERT INTO launch_intents(identity,registration_id,state) VALUES (?,?,?)')
+    .run(key(w),intent.registrationId,intent.state);
+  })();
+ }
+ /** Atomic promotion after independently observed process qualification. */
+ promoteLaunch(record:RecoveryRecord):void {
+  this.db.transaction(()=>{
+   const row=this.db.prepare('SELECT registration_id FROM launch_intents WHERE identity=?')
+    .get(key(record.worker)) as {registration_id:string}|undefined;
+   if(!row||row.registration_id!==record.registrationId)
+    throw new Error('GE-04 launch intent registration mismatch');
+   this.register(record);
+   this.db.prepare('DELETE FROM launch_intents WHERE identity=? AND registration_id=?')
+    .run(key(record.worker),record.registrationId);
+  })();
+ }
+ unresolvedIntents():LaunchIntent[]{
+  return this.db.prepare('SELECT identity,registration_id FROM launch_intents ORDER BY identity').all()
+   .map(row=>{
+    const r=row as {identity:string;registration_id:string};
+    const [coordinationRunId,workerId,attempt]=JSON.parse(r.identity) as [string,string,number];
+    return {worker:{coordinationRunId,workerId,attempt},registrationId:r.registration_id,state:'launching' as const};
+   });
+ }
+ /** Only after externally verified no spawn occurred OR complete containment. */
+ clearIntent(worker:WorkerGrantIdentity,registrationId:string):void {
+  const result=this.db.prepare('DELETE FROM launch_intents WHERE identity=? AND registration_id=?')
+   .run(key(worker),registrationId);
+  if(result.changes!==1)throw new Error('GE-04 launch intent not cleared: registration mismatch');
  }
  register(record:RecoveryRecord):void {
   const w=record?.worker,p=record?.process;

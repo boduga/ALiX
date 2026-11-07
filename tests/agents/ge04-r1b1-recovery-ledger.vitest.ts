@@ -22,3 +22,25 @@ test.skipIf(process.platform!=='linux')('unresolved worker persists across resta
   ledger.close();
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+test.skipIf(process.platform!=='linux')('durable pre-spawn intent survives restart and promotes atomically',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'ge04-intent-'));
+ const path=join(dir,'ledger.db');writeFileSync(path,'',{mode:0o600});
+ const worker={coordinationRunId:'run',workerId:'w',attempt:2};
+ const intent={worker,registrationId:'reg-2',state:'launching' as const};
+ const record={worker,registrationId:'reg-2',process:{pid:123,uid:20002,startTimeTicks:'456'}};
+ try{
+  let ledger=new WorkerSupervisorRecoveryLedger(path);
+  ledger.beginLaunch(intent);
+  expect(()=>ledger.beginLaunch(intent)).toThrow();
+  ledger.close();ledger=new WorkerSupervisorRecoveryLedger(path);
+  expect(ledger.unresolvedIntents()).toEqual([intent]);
+  expect(()=>ledger.promoteLaunch({...record,registrationId:'wrong'})).toThrow(/mismatch/);
+  expect(ledger.unresolved()).toEqual([]);
+  ledger.promoteLaunch(record);
+  expect(ledger.unresolvedIntents()).toEqual([]);
+  expect(ledger.unresolved()).toEqual([record]);
+  expect(()=>ledger.beginLaunch(intent)).toThrow(/unresolved registration/);
+  ledger.clear(worker,'reg-2');ledger.close();
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});

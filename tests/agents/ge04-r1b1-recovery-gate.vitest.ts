@@ -6,7 +6,7 @@ const fixture=()=>({launch:vi.fn(async()=>({evidence:{...request.identity},cance
 
 test('startup gate refuses launch until clean reconciliation',async()=>{
  const supervisor=fixture();let rows=[...unresolved];
- const gate=createRecoveryGatedWorkerSupervisor(supervisor,{unresolved:()=>rows});
+ const gate=createRecoveryGatedWorkerSupervisor(supervisor,{unresolved:()=>rows,unresolvedIntents:()=>[]});
  await expect(gate.launch(request)).rejects.toThrow(/startup recovery/);
  await expect(gate.reconcile()).rejects.toThrow(/unresolved durable/);
  expect(supervisor.reconcile).not.toHaveBeenCalled();
@@ -20,11 +20,19 @@ test('startup gate rejects reconciliation failures and concurrent admission',asy
  const supervisor=fixture();let release!:()=>void;
  const pending=new Promise<void>(r=>{release=r});
  supervisor.reconcile.mockImplementationOnce(async()=>{await pending});
- const gate=createRecoveryGatedWorkerSupervisor(supervisor,{unresolved:()=>[]});
+ const gate=createRecoveryGatedWorkerSupervisor(supervisor,{unresolved:()=>[],unresolvedIntents:()=>[]});
  const checking=gate.reconcile();
  await expect(gate.launch(request)).rejects.toThrow(/startup recovery/);
  release();await checking;await gate.launch(request);
  supervisor.reconcile.mockRejectedValueOnce(new Error('kernel inspection failed'));
  await expect(gate.reconcile()).rejects.toThrow(/kernel inspection failed/);
  await expect(gate.launch(request)).rejects.toThrow(/startup recovery/);
+});
+
+test('unresolved pre-spawn intent blocks startup even with no registered worker',async()=>{
+ const supervisor=fixture();let intents=[{worker:request.identity,registrationId:'r2',state:'launching'}];
+ const gate=createRecoveryGatedWorkerSupervisor(supervisor,{unresolved:()=>[],unresolvedIntents:()=>intents});
+ await expect(gate.reconcile()).rejects.toThrow(/unresolved durable/);
+ intents=[];await gate.reconcile();await gate.launch(request);
+ expect(supervisor.launch).toHaveBeenCalledOnce();
 });

@@ -112,3 +112,16 @@ records, concurrent reconciliation and failure. This is **not wired into
 production**: because native launch and ledger insertion are not yet one
 crash-safe transaction, an empty ledger cannot currently prove that no worker
 survived a crash. Neither this gate nor the ledger constitutes GE-04 approval.
+
+### Durable pre-spawn intent (prototype)
+
+The ledger now supports `beginLaunch` (durably record an unresolved launch
+intent before native spawn), `promoteLaunch` (atomically replace matching intent
+with observed worker registration), `unresolvedIntents`, and `clearIntent`
+(requires independent proof that no worker or escaped descendants remain).
+The recovery gate rejects either unresolved registrations **or** unresolved
+pre-spawn intents. Tests exercise restart persistence, duplicate rejection,
+registration mismatch, atomic promotion, and fail-closed startup. **This is not
+yet wired to native spawn**; production still needs an exclusive trusted writer,
+secure pinned storage, cgroup-backed containment and recovery, and a single
+supervisor transaction protocol spanning intent, spawn and observed identity.
