@@ -24,7 +24,10 @@ const absent=(detail:string):EvidenceItem=>({status:'absent',detail});
 function decodeMount(s:string){return s.replace(/\\([0-7]{3})/g,(_m,v:string)=>String.fromCharCode(parseInt(v,8)))}
 export function inspectCgroupMount(mountinfo:string|undefined):EvidenceItem{
  if(mountinfo===undefined)return unknown('mountinfo-unreadable');
- const matches=mountinfo.split('\n').filter(Boolean).flatMap(line=>{
+ if(mountinfo.trim()==='')return unknown('mountinfo-empty');
+ const lines=mountinfo.split('\n').filter(Boolean);
+ if(lines.some(line=>line.split(' - ').length!==2))return unknown('mountinfo-malformed');
+ const matches=lines.flatMap(line=>{
   const parts=line.split(' - ');if(parts.length!==2)return [];
   const pre=parts[0]!.split(' '),post=parts[1]!.split(' ');
   if(pre.length<6||post.length<3||decodeMount(pre[4]!)!=='/sys/fs/cgroup')return [];
@@ -33,6 +36,7 @@ export function inspectCgroupMount(mountinfo:string|undefined):EvidenceItem{
  if(matches.length!==1)return matches.length===0?absent('no-unambiguous-cgroup-mount'):unknown('multiple-cgroup-mounts');
  const m=matches[0]!;
  if(m.type!=='cgroup2')return absent('not-unified-cgroup2');
+ if(!m.root?.startsWith('/'))return unknown('mount-root-malformed');
  return observed('cgroup2-mount-root='+m.root+';options='+m.options+';delegation-not-proven');
 }
 export function inspectCgroupMembership(data:string|undefined):EvidenceItem{

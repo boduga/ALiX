@@ -44,6 +44,10 @@ describe('GE-04-CAP read-only discovery',()=>{
  });
 });
 describe('strict parsers',()=>{
+ it('rejects malformed mountinfo instead of treating it as absent',()=>{
+  expect(inspectCgroupMount('malformed').status).toBe('unknown');
+  expect(inspectCgroupMount('').status).toBe('unknown');
+ });
  it('rejects hybrid and duplicate mounts',()=>{
   expect(inspectCgroupMount(mount.replace('cgroup2 cgroup','tmpfs tmpfs')).status).toBe('absent');
   expect(inspectCgroupMount(mount+mount).status).toBe('unknown');
