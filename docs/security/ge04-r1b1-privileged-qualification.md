@@ -289,3 +289,15 @@ fail this mode, while remaining usable for non-strict traversal tests.
 This check does not establish an exclusive leaf, authenticate the caller,
 prove mount-namespace continuity across processes, or bind an actual worker
 to a cgroup. It is not production admission. GE-04 SECURITY HOLD remains.
+
+### Exclusive leaf creation qualification (simulated filesystem)
+
+`native/ge04/cgroup-leaf-ownership-qualification.c` uses `mkdirat` against
+an opened parent and refuses `EEXIST` rather than adopting a pre-existing
+leaf. It opens the newly created directory without following a symlink and
+compares the pinned inode/device to the named entry. Tests use temporary
+ordinary directories only. The caller-supplied parent path is not verified
+against a trusted cgroup2 root; no durable ownership record, descriptor
+handoff, cleanup, or hostile-worker behavior is implemented. The post-create
+path comparison alone does not prevent a later rename or substitution.
+This is NOT production admission. GE-04 SECURITY HOLD remains active.
