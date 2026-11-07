@@ -94,7 +94,7 @@ int main(int argc,char **argv){
   * still privileged, before any worker UID code can run. The parent MUST
   * independently confirm stopped state, attach to a dedicated cgroup,
   * confirm membership, and only then send SIGCONT. No automatic resume. */
- int stop_gate=(argc==6 && strcmp(argv[5],"--ge04-stop-before-exec")==0);
+ int stop_gate=(argc==6 && strcmp(argv[5],"--stop-before-exec")==0);
  if(argc==6 && !stop_gate)die("invalid stop gate");
  if(geteuid()!=0 || getuid()!=0)die("requires privileged trusted supervisor");
  uid_t target=uid_arg(argv[1]);
