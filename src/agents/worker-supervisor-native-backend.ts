@@ -11,6 +11,9 @@ import type {TrustedLinuxLaunchBackend,NativeIsolatedWorker} from './worker-supe
 export type NativeLaunchSelection=Readonly<{uid:number;executable:string;argument:string}>;
 export type NativeLaunchBackendOptions=Readonly<{
   launcherPath:string;
+  /** Deny-only containment request. This backend has no trusted pidfd/cgroup
+   * implementation; never silently fall back to the uncontained launch. */
+  requireKernelContainment?:boolean;
   /** Trusted supervisor-side projection; never accept paths or UIDs from worker messages. */
   selections:ReadonlyMap<string,NativeLaunchSelection>;
 }>;
@@ -18,6 +21,8 @@ export type NativeLaunchBackendOptions=Readonly<{
 export function createNativeLauncherQualificationBackend(options:NativeLaunchBackendOptions):TrustedLinuxLaunchBackend {
   if(process.platform!=='linux'||process.getuid?.()!==0||process.geteuid?.()!==0)
     throw new Error('WorkerSupervisor native backend requires trusted root supervisor');
+  if(options.requireKernelContainment)
+    throw new Error('WorkerSupervisor SECURITY HOLD: kernel containment backend unavailable');
   assertTrustedPeercredHelper(options.launcherPath);
   return Object.freeze({
     async launch(request):Promise<NativeIsolatedWorker>{

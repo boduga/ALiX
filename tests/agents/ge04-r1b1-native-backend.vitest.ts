@@ -33,3 +33,12 @@ test.skipIf(process.platform!=='linux'||process.getuid?.()!==0||
    expect(result.signal).toBe('SIGKILL');
   }finally{await rm(dir,{recursive:true,force:true});}
  });
+
+// A requested containment guarantee must never downgrade to the legacy
+// process-group-only backend, even on a privileged supervisor host.
+test.skipIf(process.platform!=='linux'||process.getuid?.()!==0)(
+ 'native backend rejects kernel containment request before launching',()=>{
+  expect(()=>createNativeLauncherQualificationBackend({
+   launcherPath:'/not/a/launcher',requireKernelContainment:true,selections:new Map(),
+  })).toThrow(/SECURITY HOLD: kernel containment backend unavailable/);
+ });
