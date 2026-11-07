@@ -3,7 +3,8 @@
  * confinement and broker IPC require independent security qualification.
  */
 import {spawn} from 'node:child_process';
-import {assertTrustedPeercredHelper} from './worker-broker-trusted-helper.js';
+import {closeSync} from 'node:fs';
+import {assertTrustedPeercredHelper,openPinnedPeercredHelper} from './worker-broker-trusted-helper.js';
 import {readLinuxProcessIdentity} from './worker-broker-linux-process.js';
 import type {TrustedLinuxLaunchBackend,NativeIsolatedWorker} from './worker-supervisor-linux.js';
 
@@ -28,13 +29,19 @@ export function createNativeLauncherQualificationBackend(options:NativeLaunchBac
          typeof request.workspaceRoot!=='string'||!request.workspaceRoot.startsWith('/')||
          request.workspaceRoot.includes('\0'))
         throw new Error('GE-04 launch selection not authorized');
-      // Root-owned executable and ancestry are checked by the native launcher.
-      // This path preflight is NOT race-free against a mutable deployment.
-      assertTrustedPeercredHelper(options.launcherPath);
-      const child=spawn(options.launcherPath,[String(selected.uid),request.workspaceRoot,
-        selected.executable,selected.argument],{
-        detached:true,stdio:['ignore','ignore','pipe'],env:{PATH:'/usr/bin:/bin'},
-      });
+      // Pin the qualified launcher inode before spawn. Child FD 4 references
+      // that same inode, so renaming/replacing the pathname after preflight
+      // cannot redirect exec to a different file. The trusted deployment
+      // must still prevent modification of the pinned inode itself.
+      const pinned=openPinnedPeercredHelper(options.launcherPath);
+      let child;
+      try{
+        child=spawn('/proc/self/fd/4',[String(selected.uid),request.workspaceRoot,
+          selected.executable,selected.argument],{
+          detached:true,stdio:['ignore','ignore','pipe','ignore',pinned],
+          env:{PATH:'/usr/bin:/bin'},
+        });
+      }finally{closeSync(pinned);}
       let exited=false;
       // The child can emit an error before procfs qualification finishes.
       // Retain the rejection as a handled result until the launch path awaits it.

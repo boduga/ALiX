@@ -75,3 +75,13 @@ root-owned registration journal, a verified process-group/tree containment
 mechanism (process-group signalling alone is not sufficient), crash recovery,
 and a kernel-authenticated broker channel. Never enable it for credentialed
 workers or interpret the prototype as a qualified trusted supervisor.
+
+### Pinned backend launch qualification
+
+The same root-only environment variables also enable the gated
+`tests/agents/ge04-r1b1-native-backend.vitest.ts` live test. It compiles a
+root-owned launcher under `/run`, invokes it through an inherited pinned
+executable FD (`/proc/self/fd/4`), observes the selected nonroot UID, and
+terminates/reaps a sleeping worker. **Do not treat a skipped test as passing.**
+The parent-path check still assumes a trusted immutable deployment, and this
+test does not prove containment of hostile descendants or restart recovery.
