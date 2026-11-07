@@ -45,3 +45,21 @@ and test UID in the security evidence record.
 
 **SECURITY HOLD remains active** even if this test passes. Never enable
 credential-bearing workers on the basis of this qualification alone.
+
+## Disposable container smoke probe (supplemental only)
+
+On a Docker host with the existing `alix-alix-app:latest` image, run:
+
+```sh
+scripts/ge04/container-launcher-smoke.sh
+```
+
+Set `ALIX_GE04_SMOKE_IMAGE` to another prebuilt Linux image containing `cc`,
+`/usr/bin/id`, `/usr/bin/env`, `/usr/bin/cat` and a POSIX shell if needed.
+The probe runs without network access, with a read-only container rootfs,
+read-only source mount and ephemeral `/run` and `/tmp`. It checks UID, groups,
+exact environment, root-file denial and unsafe executable rejection.
+
+**This is a container-root smoke test, not independent VM/root-host security
+qualification.** It does not qualify privileged host launch authority, kernel
+peer authentication, filesystem confinement or production credential access.
