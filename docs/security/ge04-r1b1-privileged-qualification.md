@@ -138,3 +138,17 @@ records on `wait()` or `revoke()`: the present backend cannot prove hostile
 process descendants are gone. This is **not production-wired** and does not
 replace a native cgroup-owned, crash-recoverable supervisor. Tests verify
 ordering, failed persistence, unknown spawn outcomes and promotion failures.
+
+### Cgroup v2 process-tree containment primitive (qualification-only)
+
+`worker-supervisor-cgroup-v2.ts` adds a precreated root-owned cgroup v2 leaf
+adapter: validates path and control-file provenance, supports attaching a
+**stopped** child through `cgroup.procs`, terminating the entire cgroup through
+`cgroup.kill`, and checking `populated 0` in `cgroup.events`. Unit tests cover
+control operations, unsafe paths and ambiguous events. This is NOT an actual
+containment guarantee until a privileged native supervisor creates/owns a
+unique leaf, starts children suspended and atomically attaches them **before
+untrusted code can execute**, pins kernel directory descriptors, prevents
+cgroup escape/migration, and independently qualifies crash/restart behavior.
+The local unprivileged host has a read-only cgroup filesystem, so no privileged
+cgroup enforcement was exercised here. SECURITY HOLD remains active.
