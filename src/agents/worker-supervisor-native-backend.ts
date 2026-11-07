@@ -17,7 +17,7 @@ export type NativeLaunchBackendOptions=Readonly<{
 
 export function createNativeLauncherQualificationBackend(options:NativeLaunchBackendOptions):TrustedLinuxLaunchBackend {
   if(process.platform!=='linux'||process.getuid?.()!==0||process.geteuid?.()!==0)
-    throw new Error('GE-04 native backend requires trusted root supervisor');
+    throw new Error('WorkerSupervisor native backend requires trusted root supervisor');
   assertTrustedPeercredHelper(options.launcherPath);
   return Object.freeze({
     async launch(request):Promise<NativeIsolatedWorker>{
@@ -28,7 +28,7 @@ export function createNativeLauncherQualificationBackend(options:NativeLaunchBac
          typeof selected.argument!=='string'||selected.argument.includes('\0')||
          typeof request.workspaceRoot!=='string'||!request.workspaceRoot.startsWith('/')||
          request.workspaceRoot.includes('\0'))
-        throw new Error('GE-04 launch selection not authorized');
+        throw new Error('WorkerSupervisor launch selection not authorized');
       // Pin the qualified launcher inode before spawn. Child FD 4 references
       // that same inode, so renaming/replacing the pathname after preflight
       // cannot redirect exec to a different file. The trusted deployment
