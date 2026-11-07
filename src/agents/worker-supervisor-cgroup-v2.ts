@@ -24,11 +24,11 @@ export class WorkerCgroupV2 {
  static open(leaf:string,access:CgroupFileAccess=hostAccess):WorkerCgroupV2 {
   if(process.platform!=='linux'||!leaf.startsWith('/sys/fs/cgroup/')||leaf.includes('\0')||
     leaf.split('/').some(p=>p==='.'||p==='..')||resolve(leaf)!==leaf)
-   throw new Error('GE-04 requires a canonical cgroup v2 leaf path');
+   throw new Error('WorkerSupervisor requires a canonical cgroup v2 leaf path');
   const root='/sys/fs/cgroup';
   if(access.canonical(root)!==root||access.canonical(leaf)!==leaf||
     !relative(root,leaf)||relative(root,leaf).startsWith('..'))
-   throw new Error('GE-04 cgroup path escapes trusted hierarchy');
+   throw new Error('WorkerSupervisor cgroup path escapes trusted hierarchy');
   // Inspect each component, not merely the final path. In production the
   // privileged owner must pin directory descriptors against replacement.
   let cursor=root;
@@ -36,31 +36,31 @@ export class WorkerCgroupV2 {
    cursor=join(cursor,segment);
    const stat=access.inspect(cursor);
    if(!stat.isDirectory||stat.isSymbolicLink||stat.uid!==0)
-    throw new Error('GE-04 untrusted cgroup path component');
+    throw new Error('WorkerSupervisor untrusted cgroup path component');
   }
   for(const file of ['cgroup.procs','cgroup.kill','cgroup.events']){
    const stat=access.inspect(join(leaf,file));
    if(!stat.isFile||stat.isSymbolicLink||stat.uid!==0)
-    throw new Error('GE-04 missing trusted cgroup v2 control');
+    throw new Error('WorkerSupervisor missing trusted cgroup v2 control');
   }
   return new WorkerCgroupV2(leaf,access);
  }
  /** Only attach a still-stopped child before it can fork or exec. */
  attachStoppedChild(pid:number):void {
-  if(!Number.isSafeInteger(pid)||pid<=1)throw new Error('GE-04 invalid child PID');
+  if(!Number.isSafeInteger(pid)||pid<=1)throw new Error('WorkerSupervisor invalid child PID');
   this.access.write(join(this.leaf,'cgroup.procs'),String(pid));
   // A successful write alone is not sufficient admission evidence. Verify
   // kernel-reported membership while the trusted launcher remains stopped.
   const members=this.access.read(join(this.leaf,'cgroup.procs'));
   const parsed=members.split('\n').filter(Boolean).map(line=>{
    if(!/^[1-9][0-9]*$/.test(line))
-    throw new Error('GE-04 malformed kernel cgroup membership');
+    throw new Error('WorkerSupervisor malformed kernel cgroup membership');
    const value=Number(line);
-   if(!Number.isSafeInteger(value))throw new Error('GE-04 invalid kernel cgroup PID');
+   if(!Number.isSafeInteger(value))throw new Error('WorkerSupervisor invalid kernel cgroup PID');
    return value;
   });
   if(!parsed.includes(pid))
-   throw new Error('GE-04 SECURITY HOLD: child cgroup attachment not confirmed');
+   throw new Error('WorkerSupervisor SECURITY HOLD: child cgroup attachment not confirmed');
  }
  /** cgroup.kill kills descendants even if they change sessions/process groups. */
  killTree():void {this.access.write(join(this.leaf,'cgroup.kill'),'1');}
@@ -69,10 +69,10 @@ export class WorkerCgroupV2 {
  isEmpty():boolean {
   const events=this.access.read(join(this.leaf,'cgroup.events'));
   const matches=[...events.matchAll(/^populated\s+([01])\s*$/gm)];
-  if(matches.length!==1)throw new Error('GE-04 cgroup.events lacks unambiguous populated state');
+  if(matches.length!==1)throw new Error('WorkerSupervisor cgroup.events lacks unambiguous populated state');
   return matches[0]![1]==='0';
  }
  assertEmpty():void {
-  if(!this.isEmpty())throw new Error('GE-04 SECURITY HOLD: worker cgroup still populated');
+  if(!this.isEmpty())throw new Error('WorkerSupervisor SECURITY HOLD: worker cgroup still populated');
  }
 }
