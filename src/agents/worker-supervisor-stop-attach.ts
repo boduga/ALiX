@@ -9,6 +9,8 @@ export type StopAttachProcess=Readonly<{
  pid:number;
  /** Must read kernel process state and starttime; never trust child output. */
  observe:()=>Promise<StoppedChildIdentity|null>;
+ /** Must assert a live pinned process handle (pidfd in Linux native implementation). */
+ assertPinned:()=>Promise<void>;
  /** Native implementation MUST use pidfd or equivalent generation fencing. */
  resume:()=>Promise<void>;
  /** Must kill/reap the pinned process and any contained descendants. */
@@ -29,15 +31,18 @@ export async function stopAttachVerifyResume(
   // A dedicated leaf must be empty before attachment. Otherwise a stale or
   // unrelated process could share the launch authority and cleanup target.
   cgroup.assertEmpty();
+  await child.assertPinned();
   const before=await child.observe();
   if(!before||before.pid!==child.pid||before.state!=='T'||
      !/^[1-9][0-9]*$/.test(before.startTimeTicks))
    throw new Error('WorkerSupervisor SECURITY HOLD: launcher not independently stopped');
+  await child.assertPinned();
   cgroup.attachStoppedChild(child.pid);
   const after=await child.observe();
   if(!after||after.pid!==before.pid||after.state!=='T'||
      after.startTimeTicks!==before.startTimeTicks)
    throw new Error('WorkerSupervisor SECURITY HOLD: stopped process generation changed');
+  await child.assertPinned();
   await child.resume();
   return after;
  }catch(error){
