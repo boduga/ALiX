@@ -14,7 +14,7 @@ test.skipIf(process.platform!=='linux')('native parent retains one pidfd for its
   expect(compile.status,compile.stderr).toBe(0);
   const invalid=spawnSync(binary,['123'],{encoding:'utf8',timeout:5000});
   expect(invalid.status,invalid.stderr).toBe(64);
-  for(const [mode,code] of [['--fail-pidfd-open',71],['--fail-before-resume',76]] as const){
+  for(const [mode,code] of [['--fail-pidfd-open',71],['--fail-before-resume',76],['--fail-cleanup-pidfd-signal',82]] as const){
    const denied=spawnSync(binary,[mode],{encoding:'utf8',timeout:5000});
    expect(denied.status,denied.stderr).toBe(code);
    expect(denied.stdout).not.toContain('PASS');

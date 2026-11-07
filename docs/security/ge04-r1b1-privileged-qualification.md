@@ -322,3 +322,13 @@ Its parent-root input is not yet symlink-safe ancestor traversed, and
 ordinary-file readback is NOT kernel cgroup membership verification.
 This is not a privileged worker-attachment implementation, does not establish
 exclusive ownership, and cannot release GE-04 SECURITY HOLD.
+
+### Retained-pidfd cleanup signal-failure qualification
+
+The inert-child pidfd lifecycle probe now injects a failed cleanup pidfd
+signal (`--fail-cleanup-pidfd-signal`). It must deny success and use a
+SIGKILL fallback exclusively against its own forked direct child before
+checking the reap result. This closes a possible indefinite wait after a
+failed pidfd signal in the qualification helper. It does not authorize
+PID-based fallback for general workers, nor prove cgroup containment,
+authenticated IPC, or crash recovery. GE-04 SECURITY HOLD remains active.

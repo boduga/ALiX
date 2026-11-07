@@ -29,7 +29,8 @@ int main(int argc,char **argv){
  /* Fixed fault modes are qualification-only; no external PID is accepted. */
  int fail_open=argc==2 && !strcmp(argv[1],"--fail-pidfd-open");
  int fail_before_resume=argc==2 && !strcmp(argv[1],"--fail-before-resume");
- if(argc!=1 && !fail_open && !fail_before_resume){fprintf(stderr,"invalid arguments\n");return 64;}
+ int fail_cleanup_signal=argc==2 && !strcmp(argv[1],"--fail-cleanup-pidfd-signal");
+ if(argc!=1 && !fail_open && !fail_before_resume && !fail_cleanup_signal){fprintf(stderr,"invalid arguments\n");return 64;}
 #ifdef SYS_pidfd_open
  pid_t child=fork();
  if(child<0){perror("fork");return 70;}
@@ -43,7 +44,7 @@ int main(int argc,char **argv){
  if(send_pinned(fd,SIGSTOP)<0){perror("stop");result=73;goto cleanup;}
  if(waitpid(child,&status,WUNTRACED)!=child||!WIFSTOPPED(status)||WSTOPSIG(status)!=SIGSTOP){result=74;goto cleanup;}
  if(!pinned_alive(fd)){result=75;goto cleanup;}
- if(fail_before_resume){result=76;goto cleanup;}
+ if(fail_before_resume||fail_cleanup_signal){result=76;goto cleanup;}
  if(send_pinned(fd,SIGCONT)<0){perror("resume");result=76;goto cleanup;}
  if(send_pinned(fd,SIGKILL)<0){perror("kill");result=77;goto cleanup;}
  if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}
@@ -55,9 +56,16 @@ cleanup:
  if(child>0){
   /* The direct child is still ours and has not been reaped. Prefer pidfd
    * signaling when available; fallback kill is strictly for this owned child. */
-  if(fd>=0 && send_pinned(fd,SIGKILL)<0)result=82;
-  else if(fd<0 && kill(child,SIGKILL)<0)result=82;
-  while(waitpid(child,&status,0)<0&&errno==EINTR){}
+  int signaled=fd>=0 && !fail_cleanup_signal && send_pinned(fd,SIGKILL)==0;
+  if(!signaled){
+   /* An owned direct child is the only safe PID fallback here. If the
+    * pidfd signal failed, never block waiting for a still-running child. */
+   if(kill(child,SIGKILL)<0 && errno!=ESRCH)result=82;
+   if(fd>=0)result=82;
+  }
+  pid_t reaped;
+  do {reaped=waitpid(child,&status,0);}while(reaped<0&&errno==EINTR);
+  if(reaped!=child)result=83;
  }
  if(fd>=0)close(fd);
  return result;
