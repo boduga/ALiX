@@ -43,6 +43,8 @@ jobs:
         run: bash scripts/check-package-manager.sh
       - name: Exact-pin check (verify:deps)
         run: pnpm verify:deps
+      - name: Internal supervisor naming guard
+        run: pnpm check:internal-naming
       - name: Supply-chain gate (Sf.x)
         run: bash scripts/check-supply-chain.sh
       - name: Packaged CLI smoke

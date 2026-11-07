@@ -29,6 +29,8 @@ const legacyValues = [
   'GE04_RECOVERY_NOT_QUALIFIED',
   'GE04_FINAL_EFFECT_UNQUALIFIED',
   'ALIX_GE04_Q330_LINUX_TEST',
+  'GE04_READY',
+  'ge04-startup-fd',
   'ge04-route-preflight',
   'ge04-owner-id',
 ];
