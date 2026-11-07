@@ -29,7 +29,7 @@ export type SubagentManagerOptions = {
   /** Event log for emitting subagent lifecycle events into the session stream. */
   eventLog?: EventLog;
   /** GE-04 qualification-only observer. No credential authority or admission. */
-  ge04WorkerLifecycle?: {
+  workerLifecycle?: {
     onSpawned: (identity: { pid: number; uid: number; coordinationRunId: string; workerId: string; attempt: number }) => Promise<void>;
     onExited: (pid: number) => void;
   };
@@ -350,7 +350,7 @@ export class SubagentManager {
           ...(task.coordinationRunId && task.coordinationOwnershipClaims
             ? ["--ownership-claims-json", JSON.stringify(task.coordinationOwnershipClaims)] : []),
           ...(task.coordinationRunId ? ["--credential-fd", "3"] : []),
-          ...(this.options.ge04WorkerLifecycle ? ["--ge04-startup-fd", "4"] : []),
+          ...(this.options.workerLifecycle ? ["--worker-startup-fd", "4"] : []),
           ...(task.ownedPaths?.length ? ["--owned-paths", task.ownedPaths.join(",")] : []),
           ...(task.inputPaths?.length ? ["--input-paths", JSON.stringify(task.inputPaths)] : []),
         ];
@@ -372,11 +372,11 @@ export class SubagentManager {
 
         // Qualification observer never receives a credential-bearing FD.
         // Existing credential delivery remains unchanged when the observer is absent.
-        const credentialPayload = task.coordinationRunId && !this.options.ge04WorkerLifecycle
+        const credentialPayload = task.coordinationRunId && !this.options.workerLifecycle
           ? resolvedCredentialPayload(this.options.config) : undefined;
         const child = spawn(command, commandArgs, {
           cwd: task.cwd,
-          stdio: this.options.ge04WorkerLifecycle
+          stdio: this.options.workerLifecycle
             ? ["pipe", "pipe", "pipe", "pipe", "pipe"] as const
             : ["pipe", "pipe", "pipe", "pipe"] as const,
           // Own process group on POSIX so terminateProcessTree can reap the
@@ -407,7 +407,7 @@ export class SubagentManager {
           // No credential bytes or positive admission during GE-04 qualification.
           credentialPipe.end(credentialPayload ?? "{}");
         }
-        const lifecycle = this.options.ge04WorkerLifecycle;
+        const lifecycle = this.options.workerLifecycle;
         if (lifecycle) {
           const pid = child.pid;
           const uid = process.getuid?.();
@@ -426,7 +426,7 @@ export class SubagentManager {
           gate.on("error", () => { /* exited before release */ });
           void lifecycle.onSpawned({pid:pid!,uid:uid!,coordinationRunId:task.coordinationRunId,
             workerId:task.id,attempt:task.coordinationWorkerAttempt}).then(() => {
-            if (child.exitCode === null && !child.killed) gate.end("GE04_READY\n");
+            if (child.exitCode === null && !child.killed) gate.end("WORKER_READY\n");
           }).catch(() => {
             gate.end();
             terminateProcessTree(child);
