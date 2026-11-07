@@ -255,3 +255,17 @@ that failed preflight; it does **not** prove exclusive leaf ownership or
 reliable recovery. The privileged owner must establish and retain exclusive
 cgroup identity before attachment, including descriptor pinning and durable
 cleanup state. GE-04 SECURITY HOLD remains active.
+
+### Read-only cgroup descriptor-pinning qualification
+
+`native/ge04/cgroup-dirfd-qualification.c` demonstrates opening a leaf via a
+pinned parent directory descriptor and opening named controls with `openat`
+and `O_NOFOLLOW`. Its unprivileged test uses ordinary temporary directories,
+not a real cgroup mount; it rejects symlinked leaves and control files.
+This probe does not pin or validate every ancestor of its caller-provided root,
+verify mount identity, enforce root ownership or exclusive leaf ownership,
+perform cgroup mutations, or retain descriptors for a worker lifetime. It
+must not be used as an admission gate. Production needs trusted-root traversal
+with mount/inode checks, exclusive leaf creation, durable ownership records,
+and descriptor-relative attach/kill integrated with retained pidfd handling.
+GE-04 SECURITY HOLD remains active.
