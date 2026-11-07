@@ -120,7 +120,7 @@ test("symlink executable alias also refuses startup rather than silently returni
       encoding: "utf8", timeout: 5_000,
     });
     assert.equal(proc.status, 78, proc.stderr);
-    assert.match(proc.stderr, /GE-04 release verification denied|SECURITY HOLD/);
+    assert.match(proc.stderr, /Supervisor release verification denied|SUPERVISOR_SECURITY_HOLD/);
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }
