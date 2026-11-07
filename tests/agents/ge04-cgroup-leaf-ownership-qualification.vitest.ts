@@ -1,5 +1,5 @@
 import {expect,test} from 'vitest';
-import {mkdtemp,mkdir,rm,stat} from 'node:fs/promises';
+import {mkdtemp,mkdir,rm,stat,symlink} from 'node:fs/promises';
 import {spawnSync} from 'node:child_process';
 import {join} from 'node:path';
 
@@ -11,6 +11,13 @@ test.skipIf(process.platform!=='linux')('native leaf creation refuses adoption o
   expect(compile.status,compile.stderr).toBe(0);
   const run=(name:string)=>spawnSync(bin,[dir,name],{encoding:'utf8',timeout:5000});
   expect(run('../escape').status).toBe(64);
+  expect(run('a'.repeat(256)).status).toBe(64);
+  await symlink(dir,join(dir,'alias'));
+  expect(spawnSync(bin,[join(dir,'alias'),'symlink-root'],{encoding:'utf8'}).status).toBe(70);
+  const strict=spawnSync(bin,[dir,'strict-leaf','--require-cgroup2'],{encoding:'utf8'});
+  expect(strict.status).toBe(76);
+  await expect(stat(join(dir,'strict-leaf'))).rejects.toMatchObject({code:'ENOENT'});
+  expect(spawnSync(bin,[dir,'bad-flag','--unknown'],{encoding:'utf8'}).status).toBe(64);
   await mkdir(join(dir,'occupied'));
   expect(run('occupied').status).toBe(73);
   const created=run('new-leaf');expect(created.status,created.stderr).toBe(0);

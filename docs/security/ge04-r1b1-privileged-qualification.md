@@ -301,3 +301,13 @@ against a trusted cgroup2 root; no durable ownership record, descriptor
 handoff, cleanup, or hostile-worker behavior is implemented. The post-create
 path comparison alone does not prevent a later rename or substitution.
 This is NOT production admission. GE-04 SECURITY HOLD remains active.
+
+The exclusive-leaf creation probe now pins every ancestor of the supplied
+parent root, rejects symlinked parent components, and offers a strict
+`--require-cgroup2` mode. Strict mode verifies the pinned parent is a
+root-owned, non-group/world-writable cgroup v2 filesystem *before* attempting
+`mkdirat`, and verifies the newly created leaf's filesystem identity.
+A synthetic ordinary filesystem is denied without creating a leaf. This
+still does not implement durable exclusive ownership, descriptor-relative
+worker attachment/kill, crash recovery, or authenticated native IPC.
+GE-04 SECURITY HOLD remains active.
