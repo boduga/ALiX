@@ -52,7 +52,21 @@ export function createLinuxWorkerSupervisor(
   const pending=new Set<string>();
   // A failed qualification cleanup may leave an untrusted child alive. Never
   // permit a replacement attempt until its termination is confirmed.
-  const quarantined=new Map<string,NativeIsolatedWorker>();
+  const quarantined=new Map<string,{native:NativeIsolatedWorker;termination?:Promise<void>}>();
+  const terminateQuarantined=async(key:string,reason:string):Promise<void>=>{
+    const entry=quarantined.get(key);
+    if(!entry)return;
+    if(entry.termination)return entry.termination;
+    const operation=Promise.resolve().then(()=>entry.native.terminate(reason));
+    entry.termination=operation;
+    try{
+      await operation;
+      if(quarantined.get(key)===entry)quarantined.delete(key);
+    }catch(error){
+      if(entry.termination===operation)entry.termination=undefined;
+      throw error;
+    }
+  };
   const revokeEntry=async(key:string,reason:string):Promise<void>=>{
     const entry=active.get(key);
     if(!entry)return;
@@ -110,11 +124,15 @@ export function createLinuxWorkerSupervisor(
         if(native){
           // Retain an unqualified worker if cleanup fails. Do not mask the
           // original qualification error or permit a replacement launch.
-          quarantined.set(key,native);
-          try {
-            await native.terminate('GE-04 failed launch qualification');
-            quarantined.delete(key);
-          }catch { /* SECURITY HOLD: unresolved child remains quarantined. */ }
+          if(typeof native.terminate==='function'){
+            quarantined.set(key,{native});
+            try {await terminateQuarantined(key,'GE-04 failed launch qualification');}
+            catch { /* SECURITY HOLD: unresolved child remains quarantined. */ }
+          }else{
+            // No callable termination capability exists. The supervisor
+            // cannot safely recover or authorize another launch.
+            quarantined.set(key,{native});
+          }
         }
         throw error;
       }finally{pending.delete(key);}
@@ -122,17 +140,11 @@ export function createLinuxWorkerSupervisor(
     async revoke(identity:WorkerGrantIdentity):Promise<void>{
       const key=identityKey(identity);
       await revokeEntry(key,'GE-04 worker revoked');
-      const orphan=quarantined.get(key);
-      if(orphan){
-        await orphan.terminate('GE-04 unqualified worker revoked');
-        if(quarantined.get(key)===orphan)quarantined.delete(key);
-      }
+      await terminateQuarantined(key,'GE-04 unqualified worker revoked');
     },
     async reconcile():Promise<void>{
-      for(const [key,orphan] of quarantined){
-        await orphan.terminate('GE-04 quarantined worker reconciliation');
-        if(quarantined.get(key)===orphan)quarantined.delete(key);
-      }
+      for(const key of quarantined.keys())
+        await terminateQuarantined(key,'GE-04 quarantined worker reconciliation');
       for(const [key,entry] of active){
         const observed=await readProcess(entry.native.pid).catch(()=>undefined);
         if(!sameProcess(observed,entry.native))await revokeEntry(key,'GE-04 stale worker identity');

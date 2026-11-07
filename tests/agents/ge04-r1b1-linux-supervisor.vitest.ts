@@ -74,3 +74,19 @@ test.skipIf(process.platform!=='linux')('failed qualification cleanup quarantine
  await supervisor.revoke(request.identity);
  expect(child.terminate).toHaveBeenCalledTimes(2);
 });
+
+test.skipIf(process.platform!=='linux')('concurrent quarantined revocations share termination and block relaunch',async()=>{
+ let release!:()=>void;
+ const pending=new Promise<void>(resolve=>{release=resolve});
+ const child=fixture();
+ child.terminate.mockRejectedValueOnce(new Error('cleanup failed'));
+ child.terminate.mockImplementationOnce(async()=>{await pending});
+ const supervisor=createLinuxWorkerSupervisor({launch:async()=>child},async()=>({...proc,uid:20003}));
+ await expect(supervisor.launch(request)).rejects.toThrow(/mismatch/);
+ const a=supervisor.revoke(request.identity);
+ const b=supervisor.reconcile();
+ await Promise.resolve();await Promise.resolve();
+ await expect(supervisor.launch(request)).rejects.toThrow(/quarantined/);
+ release();await Promise.all([a,b]);
+ expect(child.terminate).toHaveBeenCalledTimes(2);
+});
