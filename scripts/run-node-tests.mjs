@@ -69,7 +69,30 @@ if (process.argv.includes("--list")) {
   process.exitCode = 0;
 } else {
   const testArgs = ["--test", "--test-timeout=30000"];
-  if (onlyManual) testArgs.push("--test-concurrency=1");
-  const child = spawn(process.execPath, [...testArgs, ...files], { stdio: "inherit" });
-  child.on("exit", (code) => process.exitCode = code ?? 1);
+  // Bound concurrent test processes: the Node default scales with CPU count,
+  // which can overwhelm daemon startup and child-process timeout tests.
+  // Keep manual tests serial; allow explicit override for CI/diagnostics.
+  const configuredConcurrency = process.env.ALIX_NODE_TEST_CONCURRENCY;
+  const concurrency = onlyManual ? 1 : configuredConcurrency === undefined ? 4 : Number(configuredConcurrency);
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1) {
+    throw new Error("ALIX_NODE_TEST_CONCURRENCY must be a positive integer");
+  }
+  testArgs.push(`--test-concurrency=${concurrency}`);
+  // DaemonManager changes HOME and exercises the per-user daemon socket.
+  // Other daemon tests also spawn real processes; run this suite in its own
+  // lane to avoid cross-file ownership races, without serializing all tests.
+  const exclusive = onlyManual ? [] : files.filter((f) => f.endsWith("/daemon/daemon-manager.test.js"));
+  const parallel = files.filter((f) => !exclusive.includes(f));
+  const run = (paths, args) => new Promise((resolve) => {
+    const child = spawn(process.execPath, [...args, ...paths], { stdio: "inherit" });
+    child.on("error", () => resolve(1));
+    child.on("exit", (code) => resolve(code ?? 1));
+  });
+  const parallelExit = await run(parallel, testArgs);
+  // Always execute the exclusive lane even if the main lane failed, so the
+  // report captures both results and doesn't hide a daemon regression.
+  const exclusiveExit = exclusive.length
+    ? await run(exclusive, ["--test", "--test-timeout=30000", "--test-concurrency=1"])
+    : 0;
+  process.exitCode = parallelExit || exclusiveExit ? 1 : 0;
 }
