@@ -5,6 +5,7 @@ export function awaitWorkerStartupRelease(fd:number):void {
   // A bounded blocking read: the parent sends a single exact release marker.
   // Pipe EOF or a malformed marker is always denied.
   const bytes=readFileSync(fd);
-  if (bytes.length !== 11 || bytes.toString('utf8') !== 'WORKER_READY\n')
+  const expectedMarker = 'WORKER_READY\n';
+  if (bytes.length !== Buffer.byteLength(expectedMarker, 'utf8') || bytes.toString('utf8') !== expectedMarker)
     throw new Error('Worker startup release denied');
 }
