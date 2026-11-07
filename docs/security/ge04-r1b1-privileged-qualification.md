@@ -236,3 +236,9 @@ exclusive cgroup, implement the trusted IPC/broker boundary, persist recovery
 intent, or bind credentials. Its cleanup fallback uses the known child PID
 only for its own direct child, and is not a general process-tree containment
 mechanism. GE-04 SECURITY HOLD remains active.
+
+The retained-pidfd test also exercises explicit failure injection before
+pidfd acquisition and immediately before resume. Both paths deny success and
+reap the owned child; the latter uses the retained pidfd for cleanup. These
+are controlled unit-level faults, not evidence of containment under a hostile
+worker or supervisor crash.
