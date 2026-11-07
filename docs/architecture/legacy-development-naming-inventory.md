@@ -4,9 +4,9 @@ Scope: production `src/` at the `main` baseline. This is an inventory and migrat
 
 ## Internal rename candidates
 
-- `src/agents/worker-ge04-linux-lifecycle.ts` — milestone in production filename; inspect consumers before renaming.
+- `src/agents/worker-ge04-linux-lifecycle.ts` — renamed to `worker-supervisor-linux-lifecycle.ts` in this PR; the existing qualification-only behavior remains unchanged.
 - `src/agents/worker-ge04-startup-gate.ts` and `src/agents/subagent-cli.ts` import — milestone in production filename; preserve the `GE04_READY\\n` startup handshake unless versioned migration is approved.
-- `src/agents/subagent-manager.ts` — `ge04WorkerLifecycle` internal option; check external consumers and tests before renaming.
+- `src/agents/subagent-manager.ts` — `ge04WorkerLifecycle` renamed to `supervisorWorkerLifecycle`; TypeScript callers and tests updated. This is an internal API change, not a persisted protocol migration.
 - `src/execution/filesystem/recovery-evidence.ts` — `GE04_RECOVERY_PROTOCOL` / `GE04_RECOVERY_DENIAL` symbol names can be decoupled from their serialized string values with a compatibility review.
 - `src/interfaces/tui/workspace-manager.ts` — obsolete `Monolith` example in comment; comment-only cleanup.
 
