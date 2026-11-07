@@ -35,7 +35,7 @@
     "copy:profiles": "node scripts/copy-build-artifacts.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:unused": "tsc -p tsconfig.unused.json --noEmit",
-    "build": "tsc -p tsconfig.json && node scripts/copy-build-artifacts.mjs",
+    "build": "node scripts/clean-build-output.mjs && tsc -p tsconfig.json && node scripts/copy-build-artifacts.mjs",
     "test": "node scripts/run-all-tests.mjs",
     "test:node": "node scripts/run-node-tests.mjs",
     "test:integration": "node --test --test-concurrency=1 dist/tests/integration/*.test.js",
