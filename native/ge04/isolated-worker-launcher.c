@@ -24,43 +24,55 @@ static uid_t uid_arg(const char *s){
  if(errno||!s[0]||!end||*end||v==0||v>UINT_MAX)die("invalid isolated UID");
  return (uid_t)v;
 }
-/* An executable supplied by an untrusted directory must never run with
- * privileged launcher authority. Every path component must be root-owned and
- * not writable by group/other. openat2 pins the executable descriptor. */
-static void check_executable_path(const char *path){
- char prefix[PATH_MAX];size_t len=strlen(path);
- if(!len||len>=sizeof(prefix)||path[0]!='/')die("invalid executable path");
- /* Reject dot components, repeated separators and trailing slash. */
- if(len<2||path[len-1]=='/')die("invalid executable path component");
- size_t component=1;
- for(size_t i=1;i<=len;i++){
-  if(path[i]!='/' && path[i]!='\0')continue;
-  size_t n=i-component;
-  if(n==0||(n==1&&path[component]=='.')||
-     (n==2&&path[component]=='.'&&path[component+1]=='.'))
-    die("invalid executable path component");
-  component=i+1;
- }
- for(size_t i=1;i<=len;i++){
-  if(path[i]!='/' && path[i]!='\0')continue;
-  if(i==1)continue;
-  memcpy(prefix,path,i);prefix[i]='\0';
-  struct stat st;
-  if(lstat(prefix,&st)||st.st_uid!=0||(st.st_mode&0022))die("untrusted executable path component");
-  if(i<len && !S_ISDIR(st.st_mode))die("untrusted executable parent");
-  if(i==len && (!S_ISREG(st.st_mode)||(st.st_mode&0111)==0))die("untrusted executable file");
- }
+/* Pin each ancestor directory before inspecting it. A pathname-only lstat
+ * preflight can be raced by rename/symlink substitution; dirfd-relative opens
+ * bind the next lookup to the already verified directory inode. */
+static void trusted_directory(int fd){
+ struct stat st;
+ if(fstat(fd,&st)||!S_ISDIR(st.st_mode)||st.st_uid!=0||(st.st_mode&0022))
+   die("untrusted executable path component");
 }
 static int pin_executable(const char *path){
 #ifdef SYS_openat2
- struct open_how how={.flags=O_RDONLY|O_CLOEXEC,
-   .resolve=RESOLVE_NO_SYMLINKS|RESOLVE_NO_MAGICLINKS};
- int fd=(int)syscall(SYS_openat2,AT_FDCWD,path,&how,sizeof(how));
- if(fd<3)die("cannot pin executable descriptor");
- struct stat st;
- if(fstat(fd,&st)||!S_ISREG(st.st_mode)||st.st_uid!=0||
-    (st.st_mode&0022)||(st.st_mode&0111)==0)die("untrusted pinned executable");
- return fd;
+ size_t len=strlen(path);
+ if(len<2||len>=PATH_MAX||path[0]!='/'||path[len-1]=='/')
+   die("invalid executable path");
+ int parent=open("/",O_PATH|O_DIRECTORY|O_CLOEXEC);
+ if(parent<3)die("cannot pin executable root");
+ trusted_directory(parent);
+ size_t begin=1;
+ while(begin<len){
+  size_t end=begin;
+  while(end<len&&path[end]!='/')end++;
+  size_t n=end-begin;
+  if(n==0||(n==1&&path[begin]=='.')||
+     (n==2&&path[begin]=='.'&&path[begin+1]=='.'))
+    die("invalid executable path component");
+  char component[PATH_MAX];
+  memcpy(component,path+begin,n);component[n]='\0';
+  if(end<len){
+   struct open_how how={.flags=O_PATH|O_DIRECTORY|O_CLOEXEC,
+     .resolve=RESOLVE_BENEATH|RESOLVE_NO_SYMLINKS|RESOLVE_NO_MAGICLINKS};
+   int next=(int)syscall(SYS_openat2,parent,component,&how,sizeof(how));
+   if(next<3)die("cannot pin executable parent");
+   trusted_directory(next);
+   close(parent);parent=next;
+  }else{
+   struct open_how how={.flags=O_RDONLY|O_CLOEXEC,
+     .resolve=RESOLVE_BENEATH|RESOLVE_NO_SYMLINKS|RESOLVE_NO_MAGICLINKS};
+   int fd=(int)syscall(SYS_openat2,parent,component,&how,sizeof(how));
+   if(fd<3)die("cannot pin executable descriptor");
+   struct stat st;
+   if(fstat(fd,&st)||!S_ISREG(st.st_mode)||st.st_uid!=0||
+      (st.st_mode&0022)||(st.st_mode&0111)==0)
+     die("untrusted pinned executable");
+   close(parent);
+   return fd;
+  }
+  begin=end+1;
+ }
+ die("invalid executable path");
+ return -1;
 #else
  (void)path;die("openat2 unavailable");
 #endif
@@ -82,11 +94,10 @@ int main(int argc,char **argv){
  if(target==getuid())die("same UID is forbidden");
  if(argv[2][0]!='/'||argv[3][0]!='/'||strlen(argv[2])>=PATH_MAX||strlen(argv[3])>=PATH_MAX)
    die("absolute workspace and executable required");
- struct stat ws,exe;
- if(lstat(argv[2],&ws)||!S_ISDIR(ws.st_mode)||lstat(argv[3],&exe)||!S_ISREG(exe.st_mode))
+ struct stat ws;
+ if(lstat(argv[2],&ws)||!S_ISDIR(ws.st_mode))
    die("workspace or executable not a regular object");
- if((ws.st_mode&0022)||(exe.st_mode&0022))die("untrusted writable path");
- check_executable_path(argv[3]);
+ if(ws.st_mode&0022)die("untrusted writable path");
  int executable_fd=pin_executable(argv[3]);
  if(chdir(argv[2]))die("workspace inaccessible");
  if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0))die("no_new_privs failed");

@@ -23,5 +23,11 @@ exec docker run --rm --network none --read-only \
     if /run/launcher 20002 /usr /tmp/untrusted -u >/tmp/unsafe-output 2>/tmp/unsafe-error; then
       echo "FAIL: unsafe executable accepted" >&2; exit 1
     fi
-    echo "GE-04 container smoke: PASS (UID, groups, environment, protected file, unsafe executable)"
+    if /run/launcher 20002 /usr /bin/id -u >/tmp/symlink-output 2>/tmp/symlink-error; then
+      echo "FAIL: symlinked executable ancestry accepted" >&2; exit 1
+    fi
+    if /run/launcher 20002 /usr /usr/../usr/bin/id -u >/tmp/dotdot-output 2>/tmp/dotdot-error; then
+      echo "FAIL: dotdot executable ancestry accepted" >&2; exit 1
+    fi
+    echo "GE-04 container smoke: PASS (UID, groups, environment, protected file, unsafe executable, symlink and dotdot rejection)"
   '
