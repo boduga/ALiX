@@ -33,6 +33,21 @@ describe('GE-04 read-only Linux observations',()=>{
   expect(result.notes).toContain('containerenv-marker-present-runtime-unverified');
   expect(result.assessment.authorizedForWorkerLaunch).toBe(false);
  });
+ it('compares namespace inodes without claiming host identity',async()=>{
+  const files={'/proc/self/mountinfo':mount};
+  const links:Record<string,string>={
+   '/proc/self/ns/cgroup':'cgroup:[4026533000]', '/proc/1/ns/cgroup':'cgroup:[4026533001]',
+   '/proc/self/ns/user':'user:[4026531837]', '/proc/1/ns/user':'user:[4026531837]'};
+  const source={...fixture(files),link:async(p:string)=>links[p]};
+  const result=await observeLinuxContainment(source,'linux');
+  expect(result.namespaces.comparison).toBe('different-from-visible-pid1');
+  expect(result.observation.namespaceMappingKnown).toBe(false);
+  expect(result.notes).toContain('visible-pid1-namespace-comparison-is-not-host-namespace-proof');
+ });
+ it('malformed namespace links remain unknown',async()=>{
+  const source={...fixture(),link:async()=> 'not-a-namespace'};
+  expect((await observeLinuxContainment(source,'linux')).namespaces.comparison).toBe('unknown');
+ });
  it('non-Linux remains denied',async()=>{
   const result=await observeLinuxContainment(fixture(),'darwin');
   expect(result.assessment.reasons).toContain('non-linux-platform');
