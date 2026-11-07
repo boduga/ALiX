@@ -355,3 +355,18 @@ qualification. This is read-only mount inspection, not an attachment test.
 It does not prove cgroup delegation/writability, exclusive leaf ownership,
 pidfd-cgroup binding, hostile descendant containment, or recovery.
 Do not enable credential-bearing workers. GE-04 SECURITY HOLD remains active.
+
+Remote read-only observation on `microcloud3` (10.1.1.22): its cgroup2
+mount root exposes `cgroup.procs` but not `cgroup.events`, whereas
+`/sys/fs/cgroup/user.slice` exposes both. The preflight therefore treats
+an absent `cgroup.events` as optional for **read-only inspection only**;
+all other open errors remain fail-closed. Any subsequent worker leaf
+qualification MUST require `cgroup.events` and verify actual kernel
+membership. A read-only preflight can run without sudo, but that does not
+qualify privileged launch, leaf ownership or attachment.
+
+The existing `/etc/sudoers.d/alix-ge04-q31` permits only passwordless
+user/group management. Do not modify that file or grant arbitrary compiler,
+shell, or repository paths passwordless root execution. A future dedicated
+privileged helper needs a fixed root-owned executable, strict argument
+validation, installation review and an independent narrowly scoped rule.

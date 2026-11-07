@@ -1,5 +1,6 @@
 /* Read-only cgroup2 root preflight. Never creates cgroups or writes controls. */
 #define _GNU_SOURCE
+#include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <linux/magic.h>
@@ -35,16 +36,19 @@ int main(int argc,char **argv){
  }
  int procs=openat(fd,"cgroup.procs",O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
  int events=openat(fd,"cgroup.events",O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
- if(procs<0||events<0){
+ /* The cgroup2 mount root need not expose cgroup.events. */
+ int missing_events=events<0&&errno==ENOENT;
+ if(procs<0||(events<0&&!missing_events)){
   if(procs>=0)close(procs);
   if(events>=0)close(events);
   close(fd);return 74;
  }
  struct stat ps,es;
- int valid=!fstat(procs,&ps)&&!fstat(events,&es)&&
-   S_ISREG(ps.st_mode)&&S_ISREG(es.st_mode)&&
-   ps.st_uid==0&&es.st_uid==0&&ps.st_dev==st.st_dev&&es.st_dev==st.st_dev;
- close(procs);close(events);close(fd);
+ int valid=!fstat(procs,&ps)&&S_ISREG(ps.st_mode)&&
+   ps.st_uid==0&&ps.st_dev==st.st_dev;
+ if(events>=0)valid=valid&&!fstat(events,&es)&&S_ISREG(es.st_mode)&&
+   es.st_uid==0&&es.st_dev==st.st_dev;
+ close(procs);if(events>=0)close(events);close(fd);
  if(!valid)return 75;
  puts("read-only cgroup2 preflight: PASS");return 0;
 }
