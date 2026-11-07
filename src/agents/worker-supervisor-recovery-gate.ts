@@ -1,7 +1,8 @@
 /** GE-04 R1-B1: fail-closed startup admission gate for unresolved durable ownership.
  * Prototype only: no durable pre-spawn intent or process-tree containment.
  */
-import type {WorkerSupervisor} from './worker-supervisor.js';
+import type {WorkerSupervisor,SupervisedWorkerRequest} from './worker-supervisor.js';
+import type {WorkerGrantIdentity} from './worker-grant-binding.js';
 import type {RecoveryRecord} from './worker-supervisor-recovery-ledger.js';
 
 export type RecoveryRecordReader=Readonly<{unresolved:()=>RecoveryRecord[];unresolvedIntents:()=>unknown[]}>;
@@ -36,7 +37,7 @@ export function createRecoveryGatedWorkerSupervisor(
     ready=true;
   };
   return Object.freeze({
-    async launch(request){
+    async launch(request:SupervisedWorkerRequest){
       if(!ready||checking)throw new Error('GE-04 SECURITY HOLD: startup recovery not qualified');
       // Recheck durable records on each launch. This is not atomic with spawn,
       // and must not be used as a production ownership transaction.
@@ -46,7 +47,7 @@ export function createRecoveryGatedWorkerSupervisor(
         throw new Error('GE-04 SECURITY HOLD: unresolved durable worker registrations');}
       return supervisor.launch(request);
     },
-    revoke:identity=>supervisor.revoke(identity),
+    revoke:(identity:WorkerGrantIdentity)=>supervisor.revoke(identity),
     async reconcile(){
       if(checking)return checking;
       const operation=Promise.resolve().then(check);

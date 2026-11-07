@@ -125,3 +125,16 @@ registration mismatch, atomic promotion, and fail-closed startup. **This is not
 yet wired to native spawn**; production still needs an exclusive trusted writer,
 secure pinned storage, cgroup-backed containment and recovery, and a single
 supervisor transaction protocol spanning intent, spawn and observed identity.
+
+### Durable launch composition (qualification-only)
+
+`worker-supervisor-durable-launch.ts` now sequences a ledger intent write
+**before** delegating to `WorkerSupervisor.launch`, then promotes that intent
+atomically to a process record after the supervisor returns qualified kernel
+identity. A failed intent write prevents spawn; failed spawn or promotion leaves
+an unresolved intent, and failed promotion requests cancellation without
+assuming process-tree containment. The wrapper intentionally does not clear
+records on `wait()` or `revoke()`: the present backend cannot prove hostile
+process descendants are gone. This is **not production-wired** and does not
+replace a native cgroup-owned, crash-recoverable supervisor. Tests verify
+ordering, failed persistence, unknown spawn outcomes and promotion failures.

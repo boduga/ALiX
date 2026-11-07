@@ -2,7 +2,7 @@ import {expect,test,vi} from 'vitest';
 import {createRecoveryGatedWorkerSupervisor} from '../../src/agents/worker-supervisor-recovery-gate.js';
 const request={identity:{coordinationRunId:'r',workerId:'w',attempt:1},configurationId:'c',workspaceRoot:'/usr'};
 const unresolved=[{worker:request.identity,process:{pid:12,uid:20002,startTimeTicks:'123'},registrationId:'r1'}];
-const fixture=()=>({launch:vi.fn(async()=>({evidence:{...request.identity},cancel:async()=>{},wait:async()=>({exitCode:0,signal:null})})),revoke:vi.fn(async()=>{}),reconcile:vi.fn(async()=>{})});
+const fixture=()=>({launch:vi.fn(async()=>({evidence:{identity:request.identity,pid:101,uid:20002,startTimeTicks:'123',registrationId:'r1'},cancel:async()=>{},wait:async()=>({exitCode:0,signal:null})})),revoke:vi.fn(async()=>{}),reconcile:vi.fn(async()=>{})});
 
 test('startup gate refuses launch until clean reconciliation',async()=>{
  const supervisor=fixture();let rows=[...unresolved];
