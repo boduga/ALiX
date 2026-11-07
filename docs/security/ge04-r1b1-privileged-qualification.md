@@ -190,3 +190,18 @@ neither invocation bypasses the root-only requirement; they do not prove
 stop/attach/resume security. Parent-side integration must address PID reuse,
 concurrent cancellation, unexpected resume, timeout cleanup, and crash windows
 before any production admission. SECURITY HOLD remains active.
+
+### Parent stop/attach/verify/resume composition (qualification-only)
+
+`worker-supervisor-stop-attach.ts` implements a separately testable parent-side
+sequence: independently observe stopped child identity, attach through the
+cgroup adapter, independently re-observe the same stopped PID/starttime, then
+resume. Any error attempts both cgroup kill and child termination, and leaves
+durable launch uncertainty to the owning supervisor. Five tests cover ordering,
+unstopped children, generation changes, failed membership and failed resume.
+This is an injected orchestration protocol, **not** a native pidfd implementation
+or an integration with `worker-supervisor-native-backend.ts`. The real parent
+must prove the child was stopped before any untrusted execution, hold a pinned
+pidfd across all operations, use exclusive cgroup directory descriptors,
+prevent unsolicited resume/migration, enforce bounded timeouts, and qualify
+crash windows in a disposable privileged VM. SECURITY HOLD remains active.
