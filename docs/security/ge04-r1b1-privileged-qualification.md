@@ -370,3 +370,21 @@ user/group management. Do not modify that file or grant arbitrary compiler,
 shell, or repository paths passwordless root execution. A future dedicated
 privileged helper needs a fixed root-owned executable, strict argument
 validation, installation review and an independent narrowly scoped rule.
+
+### Fixed-target root helper candidate (not installed)
+
+`native/ge04/cgroup2-fixed-preflight.c` is a separate, read-only candidate
+for a future narrowly scoped privileged invocation. It accepts **zero**
+arguments, rejects non-root callers, and checks only the pinned
+`/sys/fs/cgroup` mount and its `user.slice` child. It cannot create a leaf,
+attach a PID, kill a cgroup, execute a worker, or accept a caller-supplied
+path. The binary must first be independently reviewed, installed into a
+root-owned non-writable directory, and verified by root; do not grant sudo
+to a binary in `/tmp`, a user home, or the repository. No sudoers rule has
+been installed or changed by this work. A privileged run has not occurred.
+
+A separate rule may eventually authorize the exact installed executable
+with **no command-line arguments**. Do not reuse the account-management
+rule in `/etc/sudoers.d/alix-ge04-q31`; do not use a wildcard command,
+compiler, shell or script as a sudo target. This preflight does not qualify
+real attachment or cleanup, and GE-04 SECURITY HOLD remains active.
