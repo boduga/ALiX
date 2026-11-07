@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/vfs.h>
+#include <linux/magic.h>
 #include <unistd.h>
 
 static int fail(const char *message,int fd){
@@ -45,16 +47,29 @@ static int pin_root(const char *path){
  return parent;
 }
 int main(int argc,char **argv){
- if(argc!=3||argv[2][0]=='\0'||argv[2][0]=='/'||strchr(argv[2],'/')||
+ if((argc!=3 && argc!=4)||argv[2][0]=='\0'||argv[2][0]=='/'||strchr(argv[2],'/')||
     !strcmp(argv[2],".")||!strcmp(argv[2],".."))return 64;
+ int require_cgroup2=argc==4 && strcmp(argv[3],"--require-cgroup2")==0;
+ if(argc==4&&!require_cgroup2)return 64;
  int root=pin_root(argv[1]);
  if(root<0)return fail("root open denied",-1);
  struct stat rs,ls;
  if(fstat(root,&rs)||!S_ISDIR(rs.st_mode))return fail("root not directory",root);
+ if(require_cgroup2){
+  struct statfs fs;
+  if(fstatfs(root,&fs)||fs.f_type!=CGROUP2_SUPER_MAGIC||rs.st_uid!=0||
+     (rs.st_mode&0022))return fail("untrusted cgroup2 root",root);
+ }
  int leaf=openat(root,argv[2],O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
  close(root);
  if(leaf<0)return fail("leaf open denied",-1);
  if(fstat(leaf,&ls)||!S_ISDIR(ls.st_mode))return fail("leaf not directory",leaf);
+ if(require_cgroup2){
+  struct statfs fs;
+  if(fstatfs(leaf,&fs)||fs.f_type!=CGROUP2_SUPER_MAGIC||ls.st_uid!=0||
+     (ls.st_mode&0022)||ls.st_dev!=rs.st_dev)
+   return fail("untrusted cgroup2 leaf",leaf);
+ }
  /* Verify identity from the pinned descriptor, not a later path lookup.
   * Ownership policy is deliberately outside this unprivileged probe. */
  if(ls.st_ino==0||ls.st_dev==0)return fail("invalid inode",leaf);
@@ -63,7 +78,10 @@ int main(int argc,char **argv){
   int fd=openat(leaf,name,O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);
   if(fd<0)return fail("control open denied",leaf);
   struct stat st;
-  if(fstat(fd,&st)||!S_ISREG(st.st_mode)){close(fd);return fail("control not regular",leaf);}
+  if(fstat(fd,&st)||!S_ISREG(st.st_mode)||
+     (require_cgroup2&&(st.st_uid!=0||st.st_dev!=ls.st_dev))){
+   close(fd);return fail("control not trusted regular file",leaf);
+  }
   close(fd);
  }
  close(leaf);

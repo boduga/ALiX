@@ -278,3 +278,14 @@ This remains a simulated-filesystem qualification only: it does not enforce
 trusted root ownership, verify cgroup v2 mount identity, pin cgroup control
 FDs across mutations, or establish exclusive leaf ownership. GE-04 SECURITY
 HOLD remains active.
+
+### Strict cgroup2 mount identity probe
+
+The read-only descriptor probe accepts `--require-cgroup2` to demand
+`fstatfs(...).f_type == CGROUP2_SUPER_MAGIC` for pinned root and leaf,
+root-owned non-group/world-writable root and leaf, and matching filesystem
+device identity for leaf and controls. A synthetic ordinary filesystem must
+fail this mode, while remaining usable for non-strict traversal tests.
+This check does not establish an exclusive leaf, authenticate the caller,
+prove mount-namespace continuity across processes, or bind an actual worker
+to a cgroup. It is not production admission. GE-04 SECURITY HOLD remains.
