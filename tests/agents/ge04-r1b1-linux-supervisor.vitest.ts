@@ -65,3 +65,12 @@ test.skipIf(process.platform!=='linux')('failed wait retains registration for su
  await supervisor.revoke(request.identity);
  expect(child.terminate).toHaveBeenCalledOnce();
 });
+
+test.skipIf(process.platform!=='linux')('failed qualification cleanup quarantines worker until revocation succeeds',async()=>{
+ const child=fixture();child.terminate.mockRejectedValueOnce(new Error('termination unavailable'));
+ const supervisor=createLinuxWorkerSupervisor({launch:async()=>child},async()=>({...proc,uid:20003}));
+ await expect(supervisor.launch(request)).rejects.toThrow(/mismatch/);
+ await expect(supervisor.launch(request)).rejects.toThrow(/quarantined/);
+ await supervisor.revoke(request.identity);
+ expect(child.terminate).toHaveBeenCalledTimes(2);
+});
