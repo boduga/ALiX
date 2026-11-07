@@ -4,20 +4,20 @@
 import {createLinuxBrokerProcessRegistry} from './worker-broker-linux-registration.js';
 import type {ReadLiveProcessIdentity} from './worker-broker-live-peer-binding.js';
 
-export type Ge04SpawnIdentity=Readonly<{
+export type WorkerSpawnIdentity=Readonly<{
   pid:number;uid:number;coordinationRunId:string;workerId:string;attempt:number;
 }>;
 
-export function createGe04LinuxWorkerLifecycle(reader?:ReadLiveProcessIdentity) {
+export function createLinuxWorkerLifecycle(reader?:ReadLiveProcessIdentity) {
   const registry=createLinuxBrokerProcessRegistry(reader);
   const generations=new Map<number,number>();
   const pending=new Map<number,Promise<void>>();
   const exited=new Set<number>();
   let nextGeneration=0;
   return Object.freeze({
-    async onSpawned(identity:Ge04SpawnIdentity):Promise<void> {
+    async onSpawned(identity:WorkerSpawnIdentity):Promise<void> {
       const {pid,uid,coordinationRunId,workerId,attempt}=identity;
-      if(generations.has(pid) || !Number.isSafeInteger(pid) || pid<1) throw new Error('GE-04 duplicate or invalid worker PID');
+      if(generations.has(pid) || !Number.isSafeInteger(pid) || pid<1) throw new Error('Worker duplicate or invalid PID');
       const generation=++nextGeneration;
       generations.set(pid,generation);
       exited.delete(pid);
@@ -27,7 +27,7 @@ export function createGe04LinuxWorkerLifecycle(reader?:ReadLiveProcessIdentity) 
         await registration;
         if(generations.get(pid)!==generation || exited.has(pid)) {
           registry.revokeSpawnedWorker(pid);
-          throw new Error('GE-04 worker exited during registration');
+          throw new Error('Worker exited during registration');
         }
       } catch(error) {
         registry.revokeSpawnedWorker(pid);
