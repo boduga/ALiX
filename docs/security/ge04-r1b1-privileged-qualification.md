@@ -63,3 +63,15 @@ exact environment, root-file denial and unsafe executable rejection.
 **This is a container-root smoke test, not independent VM/root-host security
 qualification.** It does not qualify privileged host launch authority, kernel
 peer authentication, filesystem confinement or production credential access.
+
+## Native launch backend prototype
+
+`src/agents/worker-supervisor-native-backend.ts` provides an explicitly
+qualification-only root launch backend with supervisor-owned configuration
+selection, detached process-group launch, procfs UID/start-time observation,
+and kill/reap on qualification failure. It is **not wired into production**.
+The backend still needs race-free pinned launcher invocation, a durable
+root-owned registration journal, a verified process-group/tree containment
+mechanism (process-group signalling alone is not sufficient), crash recovery,
+and a kernel-authenticated broker channel. Never enable it for credentialed
+workers or interpret the prototype as a qualified trusted supervisor.

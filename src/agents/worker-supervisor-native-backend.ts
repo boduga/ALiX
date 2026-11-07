@@ -1,0 +1,70 @@
+/** GE-04 R1-B1: root-only native launcher backend qualification prototype.
+ * NOT production admission: path replacement, crash recovery, process-tree
+ * confinement and broker IPC require independent security qualification.
+ */
+import {spawn} from 'node:child_process';
+import {assertTrustedPeercredHelper} from './worker-broker-trusted-helper.js';
+import {readLinuxProcessIdentity} from './worker-broker-linux-process.js';
+import type {TrustedLinuxLaunchBackend,NativeIsolatedWorker} from './worker-supervisor-linux.js';
+
+export type NativeLaunchSelection=Readonly<{uid:number;executable:string;argument:string}>;
+export type NativeLaunchBackendOptions=Readonly<{
+  launcherPath:string;
+  /** Trusted supervisor-side projection; never accept paths or UIDs from worker messages. */
+  selections:ReadonlyMap<string,NativeLaunchSelection>;
+}>;
+
+export function createNativeLauncherQualificationBackend(options:NativeLaunchBackendOptions):TrustedLinuxLaunchBackend {
+  if(process.platform!=='linux'||process.getuid?.()!==0||process.geteuid?.()!==0)
+    throw new Error('GE-04 native backend requires trusted root supervisor');
+  assertTrustedPeercredHelper(options.launcherPath);
+  return Object.freeze({
+    async launch(request):Promise<NativeIsolatedWorker>{
+      const selected=options.selections.get(request.configurationId);
+      if(!selected||!Number.isSafeInteger(selected.uid)||selected.uid<1||
+         selected.uid===process.getuid?.()||!selected.executable.startsWith('/')||
+         typeof selected.argument!=='string'||selected.argument.includes('\0')||
+         !request.workspaceRoot.startsWith('/'))
+        throw new Error('GE-04 launch selection not authorized');
+      // Root-owned executable and ancestry are checked by the native launcher.
+      // This path preflight is NOT race-free against a mutable deployment.
+      assertTrustedPeercredHelper(options.launcherPath);
+      const child=spawn(options.launcherPath,[String(selected.uid),request.workspaceRoot,
+        selected.executable,selected.argument],{
+        detached:true,stdio:['ignore','ignore','pipe'],env:{PATH:'/usr/bin:/bin'},
+      });
+      let exited=false;
+      const exit=new Promise<Readonly<{exitCode:number|null;signal:string|null}>>((resolve,reject)=>{
+        child.once('error',reject);
+        child.once('exit',(code,signal)=>{exited=true;resolve({exitCode:code,signal});});
+      });
+      // Observe kernel identity; never take UID/starttime from child stdout.
+      // A launch failure may race with procfs observation: kill and reap it.
+      const pid=child.pid;
+      try{
+        if(!Number.isSafeInteger(pid)||!pid||pid<1)throw new Error('Native launcher PID unavailable');
+        let observed=await readLinuxProcessIdentity(pid);
+        for(let n=0;n<20 && observed?.uid!==selected.uid && !exited;n++){
+          await new Promise<void>(resolve=>setTimeout(resolve,10));
+          observed=await readLinuxProcessIdentity(pid);
+        }
+        if(!observed||observed.uid!==selected.uid||exited)
+          throw new Error('Native launcher did not establish isolated UID');
+        const terminate=async():Promise<void>=>{
+          if(!exited){
+            // The child is a detached session leader; signal its process group.
+            try{process.kill(-pid,'SIGKILL');}
+            catch(err){if((err as NodeJS.ErrnoException).code!=='ESRCH')throw err;}
+          }
+          await exit;
+        };
+        return Object.freeze({pid,uid:observed.uid,startTimeTicks:observed.startTimeTicks,
+          terminate,wait:()=>exit});
+      }catch(error){
+        if(pid && !exited){try{process.kill(-pid,'SIGKILL');}catch{/* unqualified launch */}}
+        await exit.catch(()=>{});
+        throw error;
+      }
+    },
+  });
+}
