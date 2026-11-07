@@ -39,7 +39,7 @@ export interface WorkerSupervisor {
 }
 
 export class WorkerSupervisorUnavailableError extends Error {
-  constructor(){super('GE-04 SECURITY HOLD: canonical isolated worker supervisor unavailable');this.name='WorkerSupervisorUnavailableError';}
+  constructor(){super('WorkerSupervisor SECURITY HOLD: canonical isolated worker supervisor unavailable');this.name='WorkerSupervisorUnavailableError';}
 }
 
 /** Explicit fail-closed implementation for unsupported or unqualified hosts. */
