@@ -163,3 +163,14 @@ regression tests cover replacement after cancellation and after successful
 wait/reap. Identity-level `revoke()` remains the trusted supervisor operation
 for revoking the current attempt. This fixes a lifecycle authority bug, but
 does not establish native process-tree containment or production admission.
+
+### Kernel membership confirmation after cgroup attachment
+
+`WorkerCgroupV2.attachStoppedChild()` now checks `cgroup.procs` immediately
+after writing the stopped child's PID and fails closed if the kernel-reported
+membership does not contain the expected PID or contains malformed entries.
+Regression coverage includes absent membership, malformed membership, and
+multiple valid members. **Important:** this check is not an atomic kernel
+attestation of a stopped child; a trusted native stop/attach/verify/resume
+protocol and descriptor-pinned cgroup ownership are still missing. No live
+privileged cgroup integration was performed in this change.

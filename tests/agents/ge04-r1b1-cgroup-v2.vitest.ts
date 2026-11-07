@@ -2,10 +2,10 @@ import {expect,test,vi} from 'vitest';
 import {WorkerCgroupV2,type CgroupFileAccess} from '../../src/agents/worker-supervisor-cgroup-v2.js';
 const leaf='/sys/fs/cgroup/alix-test/worker-1';
 const fixture=()=>{
- const write=vi.fn();let events='populated 1\nfrozen 0\n';
- const access:CgroupFileAccess={read:()=>events,write,
+ const write=vi.fn();let events='populated 1\nfrozen 0\n';let members='123\n';
+ const access:CgroupFileAccess={read:path=>path.endsWith('cgroup.procs')?members:events,write,
   canonical:p=>p,inspect:p=>({isDirectory:!p.includes('cgroup.'),isFile:p.includes('cgroup.'),isSymbolicLink:false,uid:0})};
- return {access,write,setEvents:(v:string)=>{events=v}};
+ return {access,write,setEvents:(v:string)=>{events=v},setMembers:(v:string)=>{members=v}};
 };
 
 test.skipIf(process.platform!=='linux')('attaches stopped child and kills entire cgroup',()=>{
@@ -27,4 +27,14 @@ test.skipIf(process.platform!=='linux')('rejects untrusted paths, controls, and 
  expect(()=>cg.attachStoppedChild(1)).toThrow();
  f.setEvents('populated 0\npopulated 1\n');expect(()=>cg.assertEmpty()).toThrow(/unambiguous/);
  f.setEvents('frozen 0\n');expect(()=>cg.assertEmpty()).toThrow(/unambiguous/);
+});
+
+test.skipIf(process.platform!=='linux')('refuses admission when kernel membership does not confirm stopped child',()=>{
+ const f=fixture();const cg=WorkerCgroupV2.open(leaf,f.access);
+ f.setMembers('456\n');
+ expect(()=>cg.attachStoppedChild(123)).toThrow(/attachment not confirmed/);
+ f.setMembers('123\nnot-a-pid\n');
+ expect(()=>cg.attachStoppedChild(123)).toThrow(/malformed kernel/);
+ f.setMembers('123\n456\n');
+ expect(()=>cg.attachStoppedChild(123)).not.toThrow();
 });
