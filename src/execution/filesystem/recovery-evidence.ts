@@ -9,8 +9,8 @@
  */
 import { createHash, timingSafeEqual } from "node:crypto";
 
-export const GE04_RECOVERY_PROTOCOL = "ALIX_GE04_RECOVERY_V1";
-export const GE04_RECOVERY_DENIAL = "GE04_RECOVERY_NOT_QUALIFIED";
+export const SUPERVISOR_RECOVERY_PROTOCOL = "ALIX_GE04_RECOVERY_V1";
+export const SUPERVISOR_RECOVERY_DENIAL = "GE04_RECOVERY_NOT_QUALIFIED";
 export const GENESIS_HASH = "0".repeat(64);
 const HASH = /^[0-9a-f]{64}$/;
 const ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
@@ -20,7 +20,7 @@ export type RecoveryPhase = "prepared" | "effect_entered" | "receipt_reported";
 export type ClaimedOutcome = "success" | "failed" | "unknown" | null;
 
 export type RecoveryEvent = Readonly<{
-  protocol: typeof GE04_RECOVERY_PROTOCOL;
+  protocol: typeof SUPERVISOR_RECOVERY_PROTOCOL;
   sequence: number;
   previousHash: string;
   attemptId: string;
@@ -45,7 +45,7 @@ export type EvidenceCheckpoint = Readonly<{
 
 export type RecoveryDecision = Readonly<{
   disposition: "DENY";
-  code: typeof GE04_RECOVERY_DENIAL;
+  code: typeof SUPERVISOR_RECOVERY_DENIAL;
   status: "QUARANTINED" | "UNVERIFIED";
   syntacticallyConsistent: boolean;
   reasons: readonly string[];
@@ -93,7 +93,7 @@ function digest(payload: EvidencePayload): string {
 
 function validPayload(value: unknown): value is EvidencePayload {
   if (!objectWithKeys(value, FIELDS)) return false;
-  if (value.protocol !== GE04_RECOVERY_PROTOCOL) return false;
+  if (value.protocol !== SUPERVISOR_RECOVERY_PROTOCOL) return false;
   if (!Number.isSafeInteger(value.sequence) || (value.sequence as number) < 1) return false;
   if (typeof value.previousHash !== "string" || !HASH.test(value.previousHash)) return false;
   for (const key of ["attemptId", "workerId", "policyRevision", "approvalId", "leaseId"]) {
@@ -119,7 +119,7 @@ export function fixtureAppend(
 ): RecoveryEvent {
   if (previous.length >= MAX_EVENTS) throw new Error("GE-04 fixture journal size exceeded");
   const payload = {
-    ...event, protocol: GE04_RECOVERY_PROTOCOL,
+    ...event, protocol: SUPERVISOR_RECOVERY_PROTOCOL,
     sequence: previous.length + 1,
     previousHash: previous.length ? previous[previous.length - 1]!.hash : GENESIS_HASH,
   } as EvidencePayload;
@@ -144,7 +144,7 @@ export function examineRecovery(
   const attempts = new Set<string>();
   if (!Array.isArray(journal) || journal.length > MAX_EVENTS) {
     return Object.freeze({
-      disposition: "DENY", code: GE04_RECOVERY_DENIAL,
+      disposition: "DENY", code: SUPERVISOR_RECOVERY_DENIAL,
       status: "UNVERIFIED", syntacticallyConsistent: false,
       reasons: Object.freeze(["invalid_journal"]), observedAttempts: Object.freeze([]),
     });
@@ -197,7 +197,7 @@ export function examineRecovery(
   reasons.push("independent_effect_provenance_not_demonstrated");
   return Object.freeze({
     disposition: "DENY" as const,
-    code: GE04_RECOVERY_DENIAL,
+    code: SUPERVISOR_RECOVERY_DENIAL,
     status: present ? "QUARANTINED" as const : "UNVERIFIED" as const,
     syntacticallyConsistent: reasons.every(reason =>
       !["invalid_journal", "event_schema", "event_payload", "journal_chain",
