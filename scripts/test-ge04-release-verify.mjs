@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
   canonicalReleaseBytes, verifyReleasePayload,
-  GE04_RELEASE_PROTOCOL, GE04_TRUST_PATH, GE04_RELEASE_PATH, GE04_ARTIFACT_PATH,
+  SUPERVISOR_RELEASE_PROTOCOL, SUPERVISOR_TRUST_PATH, SUPERVISOR_RELEASE_PATH, SUPERVISOR_ARTIFACT_PATH,
   ReleaseVerificationError,
 } from "./ge04-release-verify.mjs";
 
@@ -17,7 +17,7 @@ function fixture() {
   const secondPair = generateKeyPairSync("ed25519");
   const artifactBytes = Buffer.from("inert fixture, never an executable");
   const release = {
-    protocol: GE04_RELEASE_PROTOCOL,
+    protocol: SUPERVISOR_RELEASE_PROTOCOL,
     sequence: 14,
     artifactSha256: createHash("sha256").update(artifactBytes).digest("hex"),
   };
@@ -34,7 +34,7 @@ test("a correctly pinned signature, digest and floor generate evidence only", ()
   const evidence = verifyReleasePayload(fixture());
   assert.equal(evidence.status, "CRYPTOGRAPHIC_EVIDENCE_ONLY");
   assert.equal(evidence.sequence, 14);
-  assert.equal(evidence.protocol, GE04_RELEASE_PROTOCOL);
+  assert.equal(evidence.protocol, SUPERVISOR_RELEASE_PROTOCOL);
   assert.equal("authorized" in evidence, false);
   assert.equal("canMutate" in evidence, false);
 });
@@ -91,9 +91,9 @@ test("artifact size limit denies even a correctly signed oversized payload", () 
 });
 
 test("trust paths are absolute constants and CLI refuses caller trust overrides", async () => {
-  assert.equal(GE04_TRUST_PATH, "/etc/alix/ge04/trust.json");
-  assert.equal(GE04_RELEASE_PATH, "/usr/local/lib/alix/ge04/release.json");
-  assert.equal(GE04_ARTIFACT_PATH, "/usr/local/lib/alix/ge04/supervisor.bin");
+  assert.equal(SUPERVISOR_TRUST_PATH, "/etc/alix/ge04/trust.json");
+  assert.equal(SUPERVISOR_RELEASE_PATH, "/usr/local/lib/alix/ge04/release.json");
+  assert.equal(SUPERVISOR_ARTIFACT_PATH, "/usr/local/lib/alix/ge04/supervisor.bin");
   const cmd = spawnSync(process.execPath, [join(dirname(fileURLToPath(import.meta.url)), "ge04-release-verify.mjs"), "--trust", "/tmp/attacker"], {
     encoding: "utf8", timeout: 5_000,
   });
