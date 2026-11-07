@@ -27,6 +27,11 @@ describe('GE-04 read-only Linux observations',()=>{
   expect(result.observation.cgroupVersion).toBe('unknown');
   expect(result.assessment.reasons).toContain('cgroup-v2-unverified');
  });
+ it('does not accept malformed mountinfo that the discovery parser rejects',async()=>{
+  const result=await observeLinuxContainment(fixture({'/proc/self/mountinfo':mount.replace('36 29 0:32','invalid 29 0:32')}),'linux');
+  expect(result.observation.cgroupVersion).toBe('unknown');
+  expect(result.assessment.authorizedForWorkerLaunch).toBe(false);
+ });
  it('containerenv file does not prove Podman',async()=>{
   const result=await observeLinuxContainment(fixture({'/run/.containerenv':'engine="podman"'},['/run/.containerenv']),'linux');
   expect(result.runtime.family).toBe('unknown');

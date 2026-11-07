@@ -27,17 +27,21 @@ export function inspectCgroupMount(mountinfo:string|undefined):EvidenceItem{
  if(mountinfo.trim()==='')return unknown('mountinfo-empty');
  const lines=mountinfo.split('\n').filter(Boolean);
  if(lines.some(line=>line.split(' - ').length!==2))return unknown('mountinfo-malformed');
- const matches=lines.flatMap(line=>{
-  const parts=line.split(' - ');if(parts.length!==2)return [];
+ type Mount = {type:string;root:string;options:string;mountId:string;device:string};
+ const matches:Mount[]=[];
+ for(const line of lines){
+  const parts=line.split(' - ');
   const pre=parts[0]!.split(' '),post=parts[1]!.split(' ');
-  if(pre.length<6||post.length<3||decodeMount(pre[4]!)!=='/sys/fs/cgroup')return [];
-  return [{type:post[0],root:decodeMount(pre[3]!),options:pre[5]}];
- });
+  if(pre.length<6||post.length<3)return unknown('mountinfo-fields-malformed');
+  if(decodeMount(pre[4]!)!=='/sys/fs/cgroup')continue;
+  if(!/^\d+$/.test(pre[0]!)||!/^\d+$/.test(pre[1]!)||!/^\d+:\d+$/.test(pre[2]!)||!pre[3]?.startsWith('/')||!pre[5]||!post[1]||!post[2])return unknown('mountinfo-fields-malformed');
+  matches.push({type:post[0]!,root:decodeMount(pre[3]!),options:pre[5]!,mountId:pre[0]!,device:pre[2]!});
+ }
  if(matches.length!==1)return matches.length===0?absent('no-unambiguous-cgroup-mount'):unknown('multiple-cgroup-mounts');
  const m=matches[0]!;
  if(m.type!=='cgroup2')return absent('not-unified-cgroup2');
- if(!m.root?.startsWith('/'))return unknown('mount-root-malformed');
- return observed('cgroup2-mount-root='+m.root+';options='+m.options+';delegation-not-proven');
+ if(!m.root.startsWith('/'))return unknown('mount-root-malformed');
+ return observed('cgroup2-mount-id='+m.mountId+';device='+m.device+';mount-root='+m.root+';options='+m.options+';mount-identity-not-pinned;delegation-not-proven');
 }
 export function inspectCgroupMembership(data:string|undefined):EvidenceItem{
  if(data===undefined)return unknown('proc-self-cgroup-unreadable');

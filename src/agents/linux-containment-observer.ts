@@ -3,6 +3,7 @@ import {readFile,stat,readlink} from 'node:fs/promises';
 import {platform} from 'node:process';
 import {classifyLinuxRuntime,type RuntimeEvidence} from './linux-container-runtime-evidence.js';
 import {assessLinuxContainment,type CapabilityObservation} from './linux-containment-capabilities.js';
+import {inspectCgroupMount} from './linux-containment-discovery.js';
 
 export type ReadOnlySource = {
   read(path:string):Promise<string|undefined>;
@@ -21,15 +22,6 @@ export type LinuxContainmentEvidence = {
   notes: string[];
   namespaces: {selfCgroup?:string; initCgroup?:string; selfUser?:string; initUser?:string; comparison: 'same-as-visible-pid1'|'different-from-visible-pid1'|'unknown'};
 };
-function parseMountinfo(text:string|undefined):boolean {
-  if(!text)return false;
-  return text.split('\n').some(line=>{
-    const parts=line.split(' - ');
-    if(parts.length!==2)return false;
-    const left=parts[0]!.split(' ');
-    return left[4]==='/sys/fs/cgroup' && parts[1]!.split(' ')[0]==='cgroup2';
-  });
-}
 function mappingReadable(text:string|undefined):boolean {
   return !!text && text.trim().split('\n').every(line=>/^\d+\s+\d+\s+\d+$/.test(line.trim()));
 }
@@ -47,7 +39,7 @@ export async function observeLinuxContainment(source:ReadOnlySource=linuxReadOnl
   if(podmanEnvMarker)notes.push('containerenv-marker-present-runtime-unverified');
   const runtime=classifyLinuxRuntime(runtimeEvidence);
   if(containerEnvValue!==undefined)notes.push('containerenv-content-not-trusted-as-runtime-identity');
-  const cgroup2Mount=parseMountinfo(mountinfo);
+  const cgroup2Mount=inspectCgroupMount(mountinfo).status==='observed';
   if(!cgroup2Mount)notes.push('cgroup2-mount-not-verified');
   if(cgroupControllers===undefined)notes.push('cgroup-controllers-unreadable');
   if(!mappingReadable(uidMap)||!mappingReadable(gidMap))notes.push('namespace-mappings-unreadable');

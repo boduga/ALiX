@@ -54,6 +54,16 @@ describe('strict parsers',()=>{
   expect(inspectCgroupMount('malformed').status).toBe('unknown');
   expect(inspectCgroupMount('').status).toBe('unknown');
  });
+ it('records observed mount identity but does not claim it is pinned',()=>{
+  const evidence=inspectCgroupMount(mount);
+  expect(evidence.status).toBe('observed');
+  expect(evidence.detail).toContain('mount-id=36');
+  expect(evidence.detail).toContain('mount-identity-not-pinned');
+ });
+ it('rejects malformed mount identity and truncated fields',()=>{
+  expect(inspectCgroupMount(mount.replace('36 29 0:32','oops 29 0:32')).status).toBe('unknown');
+  expect(inspectCgroupMount('36 29 0:32 / /sys/fs/cgroup rw - cgroup2').status).toBe('unknown');
+ });
  it('rejects hybrid and duplicate mounts',()=>{
   expect(inspectCgroupMount(mount.replace('cgroup2 cgroup','tmpfs tmpfs')).status).toBe('absent');
   expect(inspectCgroupMount(mount+mount).status).toBe('unknown');

@@ -10,7 +10,7 @@ This detector is **not** an authority provider: `supportedForQualification=false
 
 | Probe | Read-only evidence | What remains unverified |
 | --- | --- | --- |
-| `/proc/self/mountinfo` | Unified cgroup2 mount at expected mountpoint, mount root/options | Kernel mount identity pinning, delegated writable subtree, exclusive ownership |
+| `/proc/self/mountinfo` | Unified cgroup2 mount at expected mountpoint, reported mount ID, device, root/options (not pinned or authenticated) | Kernel mount identity pinning, delegated writable subtree, exclusive ownership |
 | `/proc/self/cgroup` | Single unified hierarchy membership | Host cgroup path and parent authority |
 | `/sys/fs/cgroup/cgroup.kill` | Regular control-file presence | Actual write permission, kernel enforcement and safe ownership |
 | `/proc/self/ns/{user,pid,cgroup}` | Namespace inode links | Host namespace equivalence (PID 1 may be container PID 1) |
