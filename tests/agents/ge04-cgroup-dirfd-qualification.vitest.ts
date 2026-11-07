@@ -13,6 +13,11 @@ test.skipIf(process.platform!=='linux')('native cgroup dirfd inspection rejects 
   for(const name of ['cgroup.procs','cgroup.events','cgroup.kill'])await writeFile(join(leaf,name),'');
   const run=(name:string)=>spawnSync(bin,[dir,name],{encoding:'utf8',timeout:5000});
   expect(run('leaf').status).toBe(0);
+  const ancestor=join(dir,'ancestor');await mkdir(ancestor);
+  await symlink(ancestor,join(dir,'ancestor-link'));
+  expect(spawnSync(bin,[join(dir,'ancestor-link'),'leaf'],{encoding:'utf8'}).status).not.toBe(0);
+  expect(spawnSync(bin,[dir+'/../'+dir.split('/').at(-1),'leaf'],{encoding:'utf8'}).status).not.toBe(0);
+  expect(spawnSync(bin,['relative/path','leaf'],{encoding:'utf8'}).status).not.toBe(0);
   expect(run('../leaf').status).toBe(64);
   await symlink(leaf,join(dir,'alias'));
   expect(run('alias').status).not.toBe(0);

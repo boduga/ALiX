@@ -269,3 +269,12 @@ must not be used as an admission gate. Production needs trusted-root traversal
 with mount/inode checks, exclusive leaf creation, durable ownership records,
 and descriptor-relative attach/kill integrated with retained pidfd handling.
 GE-04 SECURITY HOLD remains active.
+
+The read-only dirfd probe now traverses the caller-supplied absolute root
+component by component from `/`, opening each ancestor with `openat` and
+`O_NOFOLLOW` and rejecting `.` / `..`, relative paths, and symlinked
+ancestors. The root descriptor anchors subsequent leaf and control opens.
+This remains a simulated-filesystem qualification only: it does not enforce
+trusted root ownership, verify cgroup v2 mount identity, pin cgroup control
+FDs across mutations, or establish exclusive leaf ownership. GE-04 SECURITY
+HOLD remains active.

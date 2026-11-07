@@ -4,6 +4,8 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -14,10 +16,38 @@ static int fail(const char *message,int fd){
  fprintf(stderr,"cgroup dirfd qualification: %s\n",message);
  return 1;
 }
+/* Resolve an absolute root without following symlinks in any ancestor.
+ * The descriptor, not the input pathname, anchors subsequent operations. */
+static int pin_root(const char *path){
+ if(!path||path[0]!='/'||path[1]=='\0')return -1;
+ size_t len=strlen(path);
+ if(len>=PATH_MAX||path[len-1]=='/')return -1;
+ int parent=open("/",O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+ if(parent<0)return -1;
+ size_t begin=1;
+ while(begin<len){
+  size_t end=begin;
+  while(end<len&&path[end]!='/')end++;
+  size_t count=end-begin;
+  if(count==0||count>=NAME_MAX||
+     (count==1&&path[begin]=='.')||
+     (count==2&&path[begin]=='.'&&path[begin+1]=='.')){
+   close(parent);return -1;
+  }
+  char name[NAME_MAX+1];
+  memcpy(name,path+begin,count);name[count]='\0';
+  int next=openat(parent,name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+  close(parent);
+  if(next<0)return -1;
+  parent=next;
+  begin=end+1;
+ }
+ return parent;
+}
 int main(int argc,char **argv){
  if(argc!=3||argv[2][0]=='\0'||argv[2][0]=='/'||strchr(argv[2],'/')||
     !strcmp(argv[2],".")||!strcmp(argv[2],".."))return 64;
- int root=open(argv[1],O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+ int root=pin_root(argv[1]);
  if(root<0)return fail("root open denied",-1);
  struct stat rs,ls;
  if(fstat(root,&rs)||!S_ISDIR(rs.st_mode))return fail("root not directory",root);
