@@ -48,7 +48,7 @@ export function createLinuxWorkerSupervisor(
 ):WorkerSupervisor {
   if(process.platform!=='linux' || typeof backend?.launch!=='function' || typeof readProcess!=='function')
     throw new Error('GE-04 requires a trusted Linux supervisor backend');
-  const active=new Map<string,{native:NativeIsolatedWorker;registrationId:string;termination?:Promise<void>}>();
+  const active=new Map<string,{native:NativeIsolatedWorker;registrationId:string;termination?:Promise<void>;waiting?:Promise<Readonly<{exitCode:number|null;signal:string|null}>>}>();
   const pending=new Set<string>();
   // A failed qualification cleanup may leave an untrusted child alive. Never
   // permit a replacement attempt until its termination is confirmed.
@@ -112,12 +112,23 @@ export function createLinuxWorkerSupervisor(
           evidence,
           cancel:(reason:string)=>revokeEntry(key,reason),
           async wait(){
-            // A rejected wait is not evidence of process exit. Retain the
-            // registration so revoke/reconcile can still terminate the worker.
-            const result=await launched.wait();
+            // A rejected wait is not evidence of process exit. Concurrent
+            // callers share one native reap operation. Do not let a stale
+            // handle wait on a replacement attempt with the same key.
             const entry=active.get(key);
-            if(entry?.registrationId===registrationId && !entry.termination)active.delete(key);
-            return result;
+            if(!entry || entry.registrationId!==registrationId)
+              throw new Error('Supervised worker registration no longer active');
+            if(entry.waiting)return entry.waiting;
+            const operation=Promise.resolve().then(()=>launched.wait());
+            entry.waiting=operation;
+            try{
+              const result=await operation;
+              if(active.get(key)===entry && !entry.termination)active.delete(key);
+              return result;
+            }catch(error){
+              if(entry.waiting===operation)entry.waiting=undefined;
+              throw error;
+            }
           },
         });
       }catch(error){

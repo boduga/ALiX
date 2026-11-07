@@ -90,3 +90,16 @@ test.skipIf(process.platform!=='linux')('concurrent quarantined revocations shar
  release();await Promise.all([a,b]);
  expect(child.terminate).toHaveBeenCalledTimes(2);
 });
+
+test.skipIf(process.platform!=='linux')('concurrent waits share one native reap and reject stale handle',async()=>{
+ let release!:()=>void;
+ const pending=new Promise<void>(resolve=>{release=resolve});
+ const child=fixture();child.wait.mockImplementation(async()=>{await pending;return {exitCode:0,signal:null}});
+ const supervisor=createLinuxWorkerSupervisor({launch:async()=>child},async()=>proc);
+ const handle=await supervisor.launch(request);
+ const first=handle.wait();const second=handle.wait();
+ await Promise.resolve();await Promise.resolve();
+ expect(child.wait).toHaveBeenCalledOnce();
+ release();await Promise.all([first,second]);
+ await expect(handle.wait()).rejects.toThrow(/no longer active/);
+});
