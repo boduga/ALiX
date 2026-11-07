@@ -134,3 +134,29 @@ test.skipIf(process.platform!=='linux')('revoke during process observation fence
  await revoking;
  expect(child.terminate).toHaveBeenCalledOnce();
 });
+
+test.skipIf(process.platform!=='linux')('stale handle cannot cancel a replacement worker registration',async()=>{
+ const first=fixture();const second=fixture();
+ const supervisor=createLinuxWorkerSupervisor({launch:vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second)},async()=>proc);
+ const old=await supervisor.launch(request);
+ await old.cancel('first complete');
+ const replacement=await supervisor.launch(request);
+ expect(replacement.evidence.registrationId).not.toBe(old.evidence.registrationId);
+ await expect(old.cancel('stale cancel')).rejects.toThrow(/no longer active/);
+ expect(second.terminate).not.toHaveBeenCalled();
+ await replacement.cancel('current registration');
+ expect(second.terminate).toHaveBeenCalledOnce();
+});
+
+test.skipIf(process.platform!=='linux')('stale handle cannot cancel replacement after successful wait',async()=>{
+ const first=fixture();const second=fixture();
+ const supervisor=createLinuxWorkerSupervisor({launch:vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second)},async()=>proc);
+ const old=await supervisor.launch(request);
+ await old.wait();
+ const replacement=await supervisor.launch(request);
+ await expect(old.cancel('stale')).rejects.toThrow(/no longer active/);
+ expect(second.terminate).not.toHaveBeenCalled();
+ await supervisor.revoke(request.identity);
+ expect(second.terminate).toHaveBeenCalledOnce();
+ expect(replacement.evidence.registrationId).not.toBe(old.evidence.registrationId);
+});

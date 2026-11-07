@@ -68,8 +68,12 @@ export function createLinuxWorkerSupervisor(
       throw error;
     }
   };
-  const revokeEntry=async(key:string,reason:string):Promise<void>=>{
+  const revokeEntry=async(key:string,reason:string,expectedRegistrationId?:string):Promise<void>=>{
     const entry=active.get(key);
+    // A handle belongs to one registration, not to a reusable worker identity.
+    // Fence stale handles synchronously before any asynchronous termination.
+    if(expectedRegistrationId && (!entry || entry.registrationId!==expectedRegistrationId))
+      throw new Error('Supervised worker registration no longer active');
     if(!entry)return;
     // Keep registration until termination is confirmed. Concurrent revoke
     // requests share the same operation; failure must remain retryable.
@@ -117,7 +121,7 @@ export function createLinuxWorkerSupervisor(
         const launched=native!;
         return Object.freeze({
           evidence,
-          cancel:(reason:string)=>revokeEntry(key,reason),
+          cancel:(reason:string)=>revokeEntry(key,reason,registrationId),
           async wait(){
             // A rejected wait is not evidence of process exit. Concurrent
             // callers share one native reap operation. Do not let a stale

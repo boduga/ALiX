@@ -152,3 +152,14 @@ untrusted code can execute**, pins kernel directory descriptors, prevents
 cgroup escape/migration, and independently qualifies crash/restart behavior.
 The local unprivileged host has a read-only cgroup filesystem, so no privileged
 cgroup enforcement was exercised here. SECURITY HOLD remains active.
+
+### Registration-scoped cancellation fencing
+
+The Linux supervisor now binds each returned handle's `cancel()` to the
+specific `registrationId` that created it. A stale handle cannot revoke a
+replacement worker with the same coordination run, worker ID, and attempt.
+The registration check happens before asynchronous termination begins. Two
+regression tests cover replacement after cancellation and after successful
+wait/reap. Identity-level `revoke()` remains the trusted supervisor operation
+for revoking the current attempt. This fixes a lifecycle authority bug, but
+does not establish native process-tree containment or production admission.
