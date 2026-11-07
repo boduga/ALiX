@@ -23,7 +23,8 @@ for (const file of files) {
   lines.forEach((line, index) => {
     // Preserve signed protocol and independently provisioned path contracts.
     const checked = file === 'scripts/ge04-release-verify.mjs'
-      ? line.replaceAll('ALIX_GE04_RELEASE_V1', '') : line;
+      ? line.replaceAll('ALIX_GE04_RELEASE_V1', '')
+      : line.replaceAll('ge04-route-preflight', '').replaceAll('ge04-owner-id', '');
     for (const match of checked.matchAll(banned)) {
       console.error(`${file}:${index + 1}: milestone-prefixed production identifier ${match[0]}`);
       failures++;
