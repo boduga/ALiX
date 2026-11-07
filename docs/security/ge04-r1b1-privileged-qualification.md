@@ -174,3 +174,19 @@ multiple valid members. **Important:** this check is not an atomic kernel
 attestation of a stopped child; a trusted native stop/attach/verify/resume
 protocol and descriptor-pinned cgroup ownership are still missing. No live
 privileged cgroup integration was performed in this change.
+
+### Native pre-exec stop gate (child-side prototype)
+
+The native launcher now accepts an explicit fifth argument,
+`--ge04-stop-before-exec`, only when selected by the trusted parent. After
+pinning the executable and changing into the workspace, it raises `SIGSTOP`
+while still root, before dropping UID or executing worker code. It does **not**
+automatically resume; a future trusted parent must independently verify the
+stopped child identity, attach it to its exclusive cgroup, confirm membership,
+and then send `SIGCONT`. Invalid gate flags are rejected. Existing four-argument
+launch behavior is unchanged and remains **uncontained**. The Node native
+backend does not yet select this mode. Unprivileged tests only confirm that
+neither invocation bypasses the root-only requirement; they do not prove
+stop/attach/resume security. Parent-side integration must address PID reuse,
+concurrent cancellation, unexpected resume, timeout cleanup, and crash windows
+before any production admission. SECURITY HOLD remains active.

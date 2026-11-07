@@ -16,5 +16,11 @@ test.skipIf(process.platform!=='linux' || process.getuid?.()===0)('native launch
   const denied=spawnSync(exe,['20002','/tmp','/usr/bin/id','-u'],{encoding:'utf8'});
   expect(denied.status).toBe(125);
   expect(denied.stderr).toMatch(/requires privileged trusted supervisor/);
+  const gated=spawnSync(exe,['20002','/tmp','/usr/bin/id','-u','--ge04-stop-before-exec'],{encoding:'utf8',timeout:1000});
+  expect(gated.status).toBe(125);
+  expect(gated.stderr).toMatch(/requires privileged trusted supervisor/);
+  const invalid=spawnSync(exe,['20002','/tmp','/usr/bin/id','-u','--untrusted-gate'],{encoding:'utf8',timeout:1000});
+  expect(invalid.status).toBe(125);
+  expect(invalid.stderr).toMatch(/invalid stop gate/);
  }finally{await rm(dir,{recursive:true,force:true});}
 });

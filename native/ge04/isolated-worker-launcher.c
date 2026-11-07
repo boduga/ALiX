@@ -15,6 +15,7 @@
 #include <string.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -88,7 +89,13 @@ static void close_inherited_fds(int preserve){
  die("cannot close inherited file descriptors");
 }
 int main(int argc,char **argv){
- if(argc!=5)die("expected uid, workspace, executable, argument");
+ if(argc!=5 && argc!=6)die("expected uid, workspace, executable, argument[, stop gate]");
+ /* An explicit trusted-supervisor opt-in: the launcher stops itself while
+  * still privileged, before any worker UID code can run. The parent MUST
+  * independently confirm stopped state, attach to a dedicated cgroup,
+  * confirm membership, and only then send SIGCONT. No automatic resume. */
+ int stop_gate=(argc==6 && strcmp(argv[5],"--ge04-stop-before-exec")==0);
+ if(argc==6 && !stop_gate)die("invalid stop gate");
  if(geteuid()!=0 || getuid()!=0)die("requires privileged trusted supervisor");
  uid_t target=uid_arg(argv[1]);
  if(target==getuid())die("same UID is forbidden");
@@ -100,6 +107,11 @@ int main(int argc,char **argv){
  if(ws.st_mode&0022)die("untrusted writable path");
  int executable_fd=pin_executable(argv[3]);
  if(chdir(argv[2]))die("workspace inaccessible");
+ if(stop_gate){
+  /* This is not a full parent-child authentication handshake. It is only
+   * the child-side synchronization point; no untrusted code runs yet. */
+  if(raise(SIGSTOP)!=0)die("pre-exec stop failed");
+ }
  if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0))die("no_new_privs failed");
  if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||
     setresuid(target,target,target))die("identity isolation failed");
