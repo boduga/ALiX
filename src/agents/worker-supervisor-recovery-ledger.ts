@@ -1,0 +1,49 @@
+/** GE-04 R1-B1: fail-closed durable recovery ledger prototype.
+ * A record is an unresolved process ownership claim, NOT proof of liveness.
+ * The privileged supervisor must reconcile it against kernel identity and
+ * containment before admitting a replacement. No production wiring yet.
+ */
+import Database from 'better-sqlite3';
+import {lstatSync} from 'node:fs';
+import type {BrokerProcessIdentity} from './worker-broker-live-peer-binding.js';
+import type {WorkerGrantIdentity} from './worker-grant-binding.js';
+
+export type RecoveryRecord=Readonly<{worker:WorkerGrantIdentity;process:BrokerProcessIdentity;registrationId:string}>;
+const key=(w:WorkerGrantIdentity)=>JSON.stringify([w.coordinationRunId,w.workerId,w.attempt]);
+export class WorkerSupervisorRecoveryLedger {
+ private readonly db:Database.Database;
+ constructor(path:string){
+  if(process.platform!=='linux'||typeof path!=='string'||!path.startsWith('/')||path.includes('\0'))
+   throw new Error('GE-04 recovery ledger requires absolute Linux path');
+  // A privileged deployment must additionally pin and validate directory
+  // ancestry and enforce exclusive supervisor ownership before using this.
+  this.db=new Database(path,{fileMustExist:true});
+  const st=lstatSync(path);
+  if(!st.isFile()||(st.mode&0o077)!==0||st.uid!==process.geteuid?.()){
+   this.db.close();throw new Error('Untrusted GE-04 recovery ledger permissions');
+  }
+  this.db.pragma('journal_mode = WAL');
+  this.db.pragma('synchronous = FULL');
+  this.db.exec(`CREATE TABLE IF NOT EXISTS unresolved_workers (
+   identity TEXT PRIMARY KEY, payload TEXT NOT NULL)`);
+ }
+ register(record:RecoveryRecord):void {
+  const w=record?.worker,p=record?.process;
+  if(!w||!p||!w.coordinationRunId||!w.workerId||!Number.isSafeInteger(w.attempt)||w.attempt<1||
+   !Number.isSafeInteger(p.pid)||p.pid<1||!Number.isSafeInteger(p.uid)||p.uid<1||
+   !/^[1-9][0-9]*$/.test(p.startTimeTicks)||!record.registrationId)
+   throw new Error('Invalid GE-04 recovery record');
+  this.db.prepare('INSERT INTO unresolved_workers(identity,payload) VALUES (?,?)').run(key(w),JSON.stringify(record));
+ }
+ unresolved():RecoveryRecord[]{
+  return this.db.prepare('SELECT payload FROM unresolved_workers ORDER BY identity').all()
+   .map(row=>JSON.parse((row as {payload:string}).payload) as RecoveryRecord);
+ }
+ /** Only call after independent confirmation of termination and reaping. */
+ clear(worker:WorkerGrantIdentity,registrationId:string):void {
+  const result=this.db.prepare(`DELETE FROM unresolved_workers WHERE identity=? AND
+   json_extract(payload,'$.registrationId')=?`).run(key(worker),registrationId);
+  if(result.changes!==1)throw new Error('GE-04 recovery record not cleared: registration mismatch');
+ }
+ close():void{this.db.close();}
+}

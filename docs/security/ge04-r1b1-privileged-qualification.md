@@ -85,3 +85,16 @@ executable FD (`/proc/self/fd/4`), observes the selected nonroot UID, and
 terminates/reaps a sleeping worker. **Do not treat a skipped test as passing.**
 The parent-path check still assumes a trusted immutable deployment, and this
 test does not prove containment of hostile descendants or restart recovery.
+
+## Recovery ledger prototype (not wired into dispatch)
+
+`src/agents/worker-supervisor-recovery-ledger.ts` persists unresolved worker
+identity, process generation, and registration IDs in SQLite with synchronous
+writes. A restart test confirms unresolved records survive reopening, and a
+mismatched registration ID cannot clear an entry. This is deliberately a
+**recovery building block**, not a complete supervisor: it does not record
+pending spawn before execution, own the process tree, independently prove exit,
+or reconcile records at startup. The trusted supervisor must verify root-owned
+immutable directory ancestry, SQLite sidecar permissions, exclusive writer
+ownership, process identity, and containment before this ledger is usable.
+A stored row must never be treated as proof that a worker is alive or dead.
