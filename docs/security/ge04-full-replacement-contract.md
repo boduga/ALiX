@@ -28,6 +28,8 @@ Initial source-backed inventory: [`ge04-r0-worker-execution-inventory.md`](./ge0
 
 Proposed canonical authority and credential flow: [`ge04-r1-credential-and-execution-authority-design.md`](./ge04-r1-credential-and-execution-authority-design.md). This is a review proposal, not an admitted production boundary.
 
+Prototype keep/harden/refactor/delete dispositions: [`ge04-prototype-promotion-register.md`](./ge04-prototype-promotion-register.md). These are proposals pending independent verification.
+
 ## Replacement invariants (no optional production bypass)
 
 1. All worker creation routes (CLI, daemon, coordination, APIs, subagents, recovery) use one trusted supervisor and a canonical execution contract. Unsupported routes fail closed with actionable errors.
