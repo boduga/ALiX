@@ -20,9 +20,15 @@ exec docker run --rm --network none --read-only \
       echo "FAIL: protected secret readable" >&2; exit 1
     fi
     test ! -s /tmp/secret-output
+    # A real root-owned executable beneath a world-writable ancestor must
+    # fail specifically because of ancestry, not because it is missing.
+    cp /usr/bin/id /tmp/untrusted
+    chown 0:0 /tmp/untrusted
+    chmod 755 /tmp/untrusted
     if /run/launcher 20002 /usr /tmp/untrusted -u >/tmp/unsafe-output 2>/tmp/unsafe-error; then
       echo "FAIL: unsafe executable accepted" >&2; exit 1
     fi
+    grep -q "untrusted executable path component" /tmp/unsafe-error
     if /run/launcher 20002 /usr /bin/id -u >/tmp/symlink-output 2>/tmp/symlink-error; then
       echo "FAIL: symlinked executable ancestry accepted" >&2; exit 1
     fi

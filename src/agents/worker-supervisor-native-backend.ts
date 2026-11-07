@@ -21,10 +21,12 @@ export function createNativeLauncherQualificationBackend(options:NativeLaunchBac
   return Object.freeze({
     async launch(request):Promise<NativeIsolatedWorker>{
       const selected=options.selections.get(request.configurationId);
-      if(!selected||!Number.isSafeInteger(selected.uid)||selected.uid<1||
-         selected.uid===process.getuid?.()||!selected.executable.startsWith('/')||
+      if(!selected||!Number.isSafeInteger(selected.uid)||selected.uid<1||selected.uid>0xffffffff||
+         selected.uid===process.getuid?.()||typeof selected.executable!=='string'||
+         !selected.executable.startsWith('/')||selected.executable.includes('\0')||
          typeof selected.argument!=='string'||selected.argument.includes('\0')||
-         !request.workspaceRoot.startsWith('/'))
+         typeof request.workspaceRoot!=='string'||!request.workspaceRoot.startsWith('/')||
+         request.workspaceRoot.includes('\0'))
         throw new Error('GE-04 launch selection not authorized');
       // Root-owned executable and ancestry are checked by the native launcher.
       // This path preflight is NOT race-free against a mutable deployment.
@@ -34,10 +36,13 @@ export function createNativeLauncherQualificationBackend(options:NativeLaunchBac
         detached:true,stdio:['ignore','ignore','pipe'],env:{PATH:'/usr/bin:/bin'},
       });
       let exited=false;
+      // The child can emit an error before procfs qualification finishes.
+      // Retain the rejection as a handled result until the launch path awaits it.
       const exit=new Promise<Readonly<{exitCode:number|null;signal:string|null}>>((resolve,reject)=>{
-        child.once('error',reject);
+        child.once('error',error=>{exited=true;reject(error);});
         child.once('exit',(code,signal)=>{exited=true;resolve({exitCode:code,signal});});
       });
+      void exit.catch(()=>{});
       // Observe kernel identity; never take UID/starttime from child stdout.
       // A launch failure may race with procfs observation: kill and reap it.
       const pid=child.pid;
