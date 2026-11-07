@@ -93,7 +93,7 @@
     "better-sqlite3": "13.0.3",
     "cli-spinners": "3.4.0",
     "effect": "3.22.2",
-    "minimatch": "11.0.3",
+    "minimatch": "11.0.4",
     "tiktoken": "1.0.22",
     "web-tree-sitter": "0.25.10",
     "yaml": "2.9.1"
