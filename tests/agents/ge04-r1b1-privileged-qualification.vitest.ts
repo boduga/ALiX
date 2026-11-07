@@ -1,6 +1,7 @@
 /** GE-04 privileged Linux qualification. Runs ONLY in an explicitly provisioned
  * disposable root-owned CI/VM environment, never as a normal unit test.
- * This validates UID transition and protected-file denial, not broker IPC.
+ * This validates UID transition, group dropping, environment scrubbing, and
+ * protected-file denial, not broker IPC or filesystem/network confinement.
  */
 import {expect,test} from 'vitest';
 import {spawnSync} from 'node:child_process';
@@ -35,6 +36,17 @@ test.skipIf(!enabled)('real root-to-worker UID transition and protected file den
   const identity=spawnSync(deployed,[String(uid),'/usr','/usr/bin/id','-u'],{encoding:'utf8'});
   expect(identity.status,identity.stderr).toBe(0);
   expect(identity.stdout.trim()).toBe(String(uid));
+  const groups=spawnSync(deployed,[String(uid),'/usr','/usr/bin/id','-G'],{encoding:'utf8'});
+  expect(groups.status,groups.stderr).toBe(0);
+  expect(groups.stdout.trim()).toBe(String(uid));
+  const inheritedEnv={...process.env,ALIX_GE04_SECRET_CANARY:'must-not-reach-worker',
+    OPENAI_API_KEY:'must-not-reach-worker',HOME:'/root',DBUS_SESSION_BUS_ADDRESS:'unix:path=/run/user/0/bus'};
+  const environment=spawnSync(deployed,[String(uid),'/usr','/usr/bin/env','-0'],
+    {encoding:'utf8',env:inheritedEnv});
+  expect(environment.status,environment.stderr).toBe(0);
+  expect(environment.stdout.split('\0').filter(Boolean).sort()).toEqual([
+    'HOME=/nonexistent','LANG=C','PATH=/usr/bin:/bin',
+  ].sort());
   const secret=join(dir,'root-secret');
   await writeFile(secret,'ge04-protected-probe',{mode:0o600});await chmod(secret,0o600);
   // /usr/bin/cat receives a single path argument, and must fail after UID drop.
