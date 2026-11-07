@@ -584,8 +584,8 @@ export class SubagentCLI {
     // Cooperative GE-04 startup handshake, before config/credential reads.
     // A compromised child can bypass this; it is not a kernel-enforced barrier.
     if (args.values["ge04-startup-fd"] !== undefined) {
-      const { awaitGe04StartupRelease } = await import("./worker-ge04-startup-gate.js");
-      awaitGe04StartupRelease(Number(args.values["ge04-startup-fd"]));
+      const { awaitSupervisorStartupRelease } = await import("./worker-supervisor-startup-gate.js");
+      awaitSupervisorStartupRelease(Number(args.values["ge04-startup-fd"]));
     }
 
     // Load config from current working directory (user's project, not ALiX source tree)
