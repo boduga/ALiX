@@ -178,7 +178,7 @@ privileged cgroup integration was performed in this change.
 ### Native pre-exec stop gate (child-side prototype)
 
 The native launcher now accepts an explicit fifth argument,
-`--ge04-stop-before-exec`, only when selected by the trusted parent. After
+`--stop-before-exec`, only when selected by the trusted parent. After
 pinning the executable and changing into the workspace, it raises `SIGSTOP`
 while still root, before dropping UID or executing worker code. It does **not**
 automatically resume; a future trusted parent must independently verify the
