@@ -32,13 +32,14 @@ export function classifyLinuxRuntime(e: RuntimeEvidence): RuntimeClassification 
     else if (name === 'lxc' || name === 'incus') families.add('lxc-unresolved');
     else families.add('unknown');
   }
-  const family:RuntimeFamily = families.size === 0 ? 'native' : families.size === 1 ? [...families][0]! : 'unknown';
+  const family:RuntimeFamily = families.size === 0 ? 'unknown' : families.size === 1 ? [...families][0]! : 'unknown';
   const reasons:string[] = [];
   if (families.size > 1) reasons.push('conflicting-runtime-markers');
-  if (family === 'unknown') reasons.push('unrecognized-or-ambiguous-runtime');
+  if (families.size === 0) reasons.push('runtime-markers-absent-native-host-unverified');
+  if (family === 'unknown' && families.size > 0) reasons.push('unrecognized-or-ambiguous-runtime');
   if (family === 'lxc-unresolved') reasons.push('lxc-management-unverified');
   if (e.nestedContainerEvidence) reasons.push('nested-container-unqualified');
   reasons.push('runtime-markers-do-not-prove-cgroup-delegation');
-  return {family,container:family === 'native' ? false : family === 'unknown' ? 'unknown' : true,
+  return {family,container:family === 'unknown' ? 'unknown' : true,
     management:'unverified',eligibleForContainment:false,reasons};
 }

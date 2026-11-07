@@ -25,6 +25,12 @@ describe('GE-04-CAP read-only discovery',()=>{
   const files={...base,'/run/systemd/container':runtime==='native'?'':runtime};
   return discoverLinuxContainment(fixture(files),'linux').then(r=>expect(r.authorizedForWorkerLaunch).toBe(false));
  });
+ it('does not classify absent runtime markers as native',async()=>{
+  const r=await discoverLinuxContainment(fixture({...base,'/run/systemd/container':''}),'linux');
+  expect(r.runtime.family).toBe('unknown');
+  expect(r.denialReasons).toContain('absence-of-container-markers-does-not-prove-native-host');
+  expect(r.authorizedForWorkerLaunch).toBe(false);
+ });
  it('flags missing and ambiguous kernel evidence',async()=>{
   const r=await discoverLinuxContainment(fixture({}),'linux');
   expect(r.mount.status).toBe('unknown');expect(r.cgroupMembership.status).toBe('unknown');

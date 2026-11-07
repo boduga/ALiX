@@ -78,7 +78,7 @@ export async function discoverLinuxContainment(io:DiscoveryIO=discoveryIO,os=pla
  if(mount.status!=='observed')denialReasons.push('unified-cgroup2-mount-unverified');
  if(cgroupMembership.status!=='observed')denialReasons.push('unified-cgroup-membership-unverified');
  if(runtime.family==='unknown'||runtime.family==='lxc-unresolved')denialReasons.push('runtime-identity-unverified');
- if(runtime.family==='native')denialReasons.push('absence-of-container-markers-does-not-prove-native-host');
+ if(runtime.reasons.includes('runtime-markers-absent-native-host-unverified'))denialReasons.push('absence-of-container-markers-does-not-prove-native-host');
  return {schemaVersion:1,platform:os,runtime,mount,cgroupMembership,cgroupKill,
   pidfd:unknown('requires-trusted-syscall-probe'),stoppedChildAttach:unknown('requires-isolated-mutation-qualification'),
   exclusiveDelegation:unknown('requires-pinned-exclusive-leaf-and-authority-qualification'),

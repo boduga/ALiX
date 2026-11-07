@@ -29,7 +29,8 @@ describe('GE-04 read-only Linux observations',()=>{
  });
  it('containerenv file does not prove Podman',async()=>{
   const result=await observeLinuxContainment(fixture({'/run/.containerenv':'engine="podman"'},['/run/.containerenv']),'linux');
-  expect(result.runtime.family).toBe('native');
+  expect(result.runtime.family).toBe('unknown');
+  expect(result.observation.environment).toBe('unknown');
   expect(result.notes).toContain('containerenv-marker-present-runtime-unverified');
   expect(result.assessment.authorizedForWorkerLaunch).toBe(false);
  });
