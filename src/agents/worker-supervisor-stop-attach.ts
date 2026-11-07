@@ -26,6 +26,9 @@ export async function stopAttachVerifyResume(
  if(!Number.isSafeInteger(child?.pid)||child.pid<=1)
   throw new Error('WorkerSupervisor invalid stopped child PID');
  try{
+  // A dedicated leaf must be empty before attachment. Otherwise a stale or
+  // unrelated process could share the launch authority and cleanup target.
+  cgroup.assertEmpty();
   const before=await child.observe();
   if(!before||before.pid!==child.pid||before.state!=='T'||
      !/^[1-9][0-9]*$/.test(before.startTimeTicks))

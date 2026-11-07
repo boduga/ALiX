@@ -11,6 +11,7 @@ test('attaches and verifies stopped generation before resume',async()=>{
  const f=fixture();expect(await stopAttachVerifyResume(f.child,f.cgroup)).toEqual(identity);
  expect(f.events).toEqual(['attach','resume']);
  expect(f.child.observe).toHaveBeenCalledTimes(2);
+ expect(f.cgroup.assertEmpty).toHaveBeenCalledTimes(1);
 });
 test('unstopped child never attaches or resumes',async()=>{
  const f=fixture();f.child.observe.mockResolvedValueOnce({...identity,state:'R'} as unknown as StoppedChildIdentity);
@@ -31,4 +32,13 @@ test('resume failure attempts cleanup without claiming admission',async()=>{
  const f=fixture();f.child.resume.mockRejectedValueOnce(new Error('resume denied'));
  await expect(stopAttachVerifyResume(f.child,f.cgroup)).rejects.toThrow('resume denied');
  expect(f.events).toEqual(['attach','kill','terminate']);
+});
+
+test('populated or unreadable cgroup denies launch before observation and resume',async()=>{
+ const f=fixture();f.cgroup.assertEmpty.mockImplementationOnce(()=>{throw new Error('cgroup populated')});
+ await expect(stopAttachVerifyResume(f.child,f.cgroup)).rejects.toThrow('cgroup populated');
+ expect(f.child.observe).not.toHaveBeenCalled();
+ expect(f.cgroup.attachStoppedChild).not.toHaveBeenCalled();
+ expect(f.child.resume).not.toHaveBeenCalled();
+ expect(f.events).toEqual(['kill','terminate']);
 });
