@@ -332,3 +332,26 @@ checking the reap result. This closes a possible indefinite wait after a
 failed pidfd signal in the qualification helper. It does not authorize
 PID-based fallback for general workers, nor prove cgroup containment,
 authenticated IPC, or crash recovery. GE-04 SECURITY HOLD remains active.
+
+### Gated real cgroup2 read-only preflight (requires disposable VM)
+
+The native `cgroup2-mount-preflight.c` helper traverses an absolute cgroup
+root using descriptor-relative, symlink-denying opens and checks root-owned,
+non-group/world-writable cgroup v2 mount identity and `cgroup.procs` /
+`cgroup.events` control identity without writing or creating anything.
+Run only inside a disposable Linux VM, as root, with the explicitly selected
+root and both qualification flags:
+
+```sh
+ALIX_GE04_PRIVILEGED_QUALIFICATION=1 \
+ALIX_GE04_CGROUP2_PREFLIGHT=1 \
+ALIX_GE04_CGROUP2_ROOT=/sys/fs/cgroup \
+pnpm exec vitest run tests/agents/ge04-cgroup2-privileged-preflight.vitest.ts --config vitest.config.mts
+```
+
+Require **one passed, zero skipped** and retain kernel, mount namespace,
+root path, git SHA, and test output as evidence. The default skip is NOT
+qualification. This is read-only mount inspection, not an attachment test.
+It does not prove cgroup delegation/writability, exclusive leaf ownership,
+pidfd-cgroup binding, hostile descendant containment, or recovery.
+Do not enable credential-bearing workers. GE-04 SECURITY HOLD remains active.
