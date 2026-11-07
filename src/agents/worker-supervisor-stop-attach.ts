@@ -27,6 +27,10 @@ export async function stopAttachVerifyResume(
 ):Promise<StoppedChildIdentity>{
  if(!Number.isSafeInteger(child?.pid)||child.pid<=1)
   throw new Error('WorkerSupervisor invalid stopped child PID');
+ // Never issue cgroup.kill against a leaf that we have not even attempted
+ // to attach to. A preflight failure may mean that the leaf is occupied by
+ // an unrelated process; killing it would cross the ownership boundary.
+ let attachAttempted=false;
  try{
   // A dedicated leaf must be empty before attachment. Otherwise a stale or
   // unrelated process could share the launch authority and cleanup target.
@@ -37,6 +41,7 @@ export async function stopAttachVerifyResume(
      !/^[1-9][0-9]*$/.test(before.startTimeTicks))
    throw new Error('WorkerSupervisor SECURITY HOLD: launcher not independently stopped');
   await child.assertPinned();
+  attachAttempted=true;
   cgroup.attachStoppedChild(child.pid);
   const after=await child.observe();
   if(!after||after.pid!==before.pid||after.state!=='T'||
@@ -48,7 +53,9 @@ export async function stopAttachVerifyResume(
  }catch(error){
   // Attempt both cleanup actions even when one fails. An unresolved durable
   // intent must remain until independent process-tree containment is proven.
-  try{cgroup.killTree();}catch{/* leave durable intent unresolved */}
+  if(attachAttempted){
+   try{cgroup.killTree();}catch{/* leave durable intent unresolved */}
+  }
   try{await child.terminate();}catch{/* leave durable intent unresolved */}
   throw error;
  }

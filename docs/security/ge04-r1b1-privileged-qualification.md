@@ -242,3 +242,16 @@ pidfd acquisition and immediately before resume. Both paths deny success and
 reap the owned child; the latter uses the retained pidfd for cleanup. These
 are controlled unit-level faults, not evidence of containment under a hostile
 worker or supervisor crash.
+
+### Cgroup cleanup ownership preflight
+
+The qualification-only stop/attach protocol does not invoke `cgroup.kill`
+when the pre-attach empty-leaf check, process pin check, or stopped-state
+observation fails. It attempts direct-child termination instead. Once a
+cgroup attachment is attempted, cleanup also attempts `cgroup.kill`, because
+an attachment write may have succeeded even if membership verification fails.
+This distinction reduces the risk of killing unrelated occupants in a leaf
+that failed preflight; it does **not** prove exclusive leaf ownership or
+reliable recovery. The privileged owner must establish and retain exclusive
+cgroup identity before attachment, including descriptor pinning and durable
+cleanup state. GE-04 SECURITY HOLD remains active.

@@ -16,7 +16,7 @@ test('attaches and verifies stopped generation before resume',async()=>{
 test('unstopped child never attaches or resumes',async()=>{
  const f=fixture();f.child.observe.mockResolvedValueOnce({...identity,state:'R'} as unknown as StoppedChildIdentity);
  await expect(stopAttachVerifyResume(f.child,f.cgroup)).rejects.toThrow(/not independently stopped/);
- expect(f.events).toEqual(['pin','kill','terminate']);expect(f.cgroup.attachStoppedChild).not.toHaveBeenCalled();
+ expect(f.events).toEqual(['pin','terminate']);expect(f.cgroup.attachStoppedChild).not.toHaveBeenCalled();
 });
 test('changed process generation prevents resume and triggers cleanup',async()=>{
  const f=fixture();f.child.observe.mockResolvedValueOnce(identity).mockResolvedValueOnce({...identity,startTimeTicks:'9999'});
@@ -40,14 +40,16 @@ test('populated or unreadable cgroup denies launch before observation and resume
  expect(f.child.observe).not.toHaveBeenCalled();
  expect(f.cgroup.attachStoppedChild).not.toHaveBeenCalled();
  expect(f.child.resume).not.toHaveBeenCalled();
- expect(f.events).toEqual(['kill','terminate']);
+ expect(f.events).toEqual(['terminate']);
+ expect(f.cgroup.killTree).not.toHaveBeenCalled();
 });
 
 test('lost pinned process identity before resume denies execution and cleans up',async()=>{
  const f=fixture();f.child.assertPinned.mockRejectedValueOnce(new Error('pidfd unavailable'));
  await expect(stopAttachVerifyResume(f.child,f.cgroup)).rejects.toThrow('pidfd unavailable');
  expect(f.child.resume).not.toHaveBeenCalled();
- expect(f.events).toEqual(['kill','terminate']);
+ expect(f.events).toEqual(['terminate']);
+ expect(f.cgroup.killTree).not.toHaveBeenCalled();
 });
 
 test('lost pinned identity after attach but before resume denies launch',async()=>{
@@ -56,4 +58,11 @@ test('lost pinned identity after attach but before resume denies launch',async()
  expect(f.events).toEqual(['attach','kill','terminate']);
  expect(f.child.assertPinned).toHaveBeenCalledTimes(3);
  expect(f.child.resume).not.toHaveBeenCalled();
+});
+
+test('pre-attach identity mismatch cannot kill an unowned cgroup',async()=>{
+ const f=fixture();f.child.observe.mockResolvedValueOnce({...identity,startTimeTicks:'0'});
+ await expect(stopAttachVerifyResume(f.child,f.cgroup)).rejects.toThrow(/not independently stopped/);
+ expect(f.cgroup.killTree).not.toHaveBeenCalled();
+ expect(f.child.terminate).toHaveBeenCalledOnce();
 });
