@@ -1,10 +1,10 @@
 /** Cooperative startup gate for GE-04 qualification. Not a security boundary. */
 import { readFileSync } from 'node:fs';
-export function awaitGe04StartupRelease(fd:number):void {
-  if (!Number.isSafeInteger(fd) || fd !== 4) throw new Error('Invalid GE-04 startup descriptor');
+export function awaitWorkerStartupRelease(fd:number):void {
+  if (!Number.isSafeInteger(fd) || fd !== 4) throw new Error('Invalid worker startup descriptor');
   // A bounded blocking read: the parent sends a single exact release marker.
   // Pipe EOF or a malformed marker is always denied.
   const bytes=readFileSync(fd);
-  if (bytes.length !== 11 || bytes.toString('utf8') !== 'GE04_READY\n')
-    throw new Error('GE-04 startup release denied');
+  if (bytes.length !== 11 || bytes.toString('utf8') !== 'WORKER_READY\n')
+    throw new Error('Worker startup release denied');
 }
