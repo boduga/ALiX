@@ -19,7 +19,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-static void die(const char *msg){fprintf(stderr,"GE-04 launcher: %s\n",msg);_exit(125);}
+static void die(const char *msg){fprintf(stderr,"worker launcher: %s\n",msg);_exit(125);}
 static uid_t uid_arg(const char *s){
  char *end=NULL;errno=0;unsigned long v=strtoul(s,&end,10);
  if(errno||!s[0]||!end||*end||v==0||v>UINT_MAX)die("invalid isolated UID");
