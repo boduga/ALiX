@@ -1,4 +1,5 @@
 import type { Dirent } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { buildDependencyGraph, type DependencyGraph } from "./dependency-graph.js";
@@ -285,7 +286,7 @@ export class BudgetingStage implements ContextStage<RankingOutput, { bundle: Con
 
     return {
       bundle: {
-        id: `bundle-${Date.now()}`,
+        id: `bundle-${randomUUID()}`,
         taskType: input.taskType,
         budget: { maxTokens, usedTokens, primaryWeight, supportingWeight, testsWeight },
         primaryFiles: budgeted.filter(i => i.kind === "file" || i.kind === "symbol"),
