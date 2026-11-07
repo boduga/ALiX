@@ -6,6 +6,7 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/openat2.h>
 #include <grp.h>
 #include <limits.h>
 #include <sys/syscall.h>
@@ -25,7 +26,7 @@ static uid_t uid_arg(const char *s){
 }
 /* An executable supplied by an untrusted directory must never run with
  * privileged launcher authority. Every path component must be root-owned and
- * not writable by group/other. This preflight is NOT race-free pinning. */
+ * not writable by group/other. openat2 pins the executable descriptor. */
 static void check_executable_path(const char *path){
  char prefix[PATH_MAX];size_t len=strlen(path);
  if(!len||len>=sizeof(prefix)||path[0]!='/')die("invalid executable path");
@@ -50,9 +51,26 @@ static void check_executable_path(const char *path){
   if(i==len && (!S_ISREG(st.st_mode)||(st.st_mode&0111)==0))die("untrusted executable file");
  }
 }
-static void close_inherited_fds(void){
+static int pin_executable(const char *path){
+#ifdef SYS_openat2
+ struct open_how how={.flags=O_RDONLY|O_CLOEXEC,
+   .resolve=RESOLVE_NO_SYMLINKS|RESOLVE_NO_MAGICLINKS};
+ int fd=(int)syscall(SYS_openat2,AT_FDCWD,path,&how,sizeof(how));
+ if(fd<3)die("cannot pin executable descriptor");
+ struct stat st;
+ if(fstat(fd,&st)||!S_ISREG(st.st_mode)||st.st_uid!=0||
+    (st.st_mode&0022)||(st.st_mode&0111)==0)die("untrusted pinned executable");
+ return fd;
+#else
+ (void)path;die("openat2 unavailable");
+#endif
+}
+static void close_inherited_fds(int preserve){
 #ifdef SYS_close_range
- if(syscall(SYS_close_range,3U,~0U,0)==0)return;
+ if(preserve<3)die("invalid pinned descriptor");
+ if(preserve>3 && syscall(SYS_close_range,3U,(unsigned int)preserve-1,0))
+   die("cannot close lower inherited descriptors");
+ if(syscall(SYS_close_range,(unsigned int)preserve+1,~0U,0)==0)return;
 #endif
  /* A failed close_range must not silently leave high-numbered secret FDs. */
  die("cannot close inherited file descriptors");
@@ -69,6 +87,7 @@ int main(int argc,char **argv){
    die("workspace or executable not a regular object");
  if((ws.st_mode&0022)||(exe.st_mode&0022))die("untrusted writable path");
  check_executable_path(argv[3]);
+ int executable_fd=pin_executable(argv[3]);
  if(chdir(argv[2]))die("workspace inaccessible");
  if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0))die("no_new_privs failed");
  if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||
@@ -76,9 +95,14 @@ int main(int argc,char **argv){
  if(getuid()!=target||geteuid()!=target||getgid()!=(gid_t)target)die("identity mismatch");
  /* Close all inherited FDs except standard streams; stdout/stderr are
   * diagnostic-only and MUST NOT be treated as authenticated peer evidence. */
- close_inherited_fds();
+ close_inherited_fds(executable_fd);
  char *const env[]={"PATH=/usr/bin:/bin","HOME=/nonexistent","LANG=C",NULL};
  char *const args[]={argv[3],argv[4],NULL};
- execve(argv[3],args,env);
+ /* Execute the verified open file, not the replaceable pathname. */
+#ifdef SYS_execveat
+ syscall(SYS_execveat,executable_fd,"",args,env,AT_EMPTY_PATH);
+#else
+ die("execveat unavailable");
+#endif
  die("worker exec failed");
 }
