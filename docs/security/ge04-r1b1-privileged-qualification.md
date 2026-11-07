@@ -98,3 +98,17 @@ or reconcile records at startup. The trusted supervisor must verify root-owned
 immutable directory ancestry, SQLite sidecar permissions, exclusive writer
 ownership, process identity, and containment before this ledger is usable.
 A stored row must never be treated as proof that a worker is alive or dead.
+
+## Fail-closed recovery admission gate (prototype)
+
+`src/agents/worker-supervisor-recovery-gate.ts` wraps a supervisor with a
+startup gate: no launch before explicit `reconcile()`, and any unresolved ledger
+row, ledger read failure, or reconciliation failure prevents admission. It
+rechecks the ledger before every launch and requires a fresh successful
+reconciliation after a detected unresolved record. It **does not** automatically
+clear records when a PID disappears; a missing process leader cannot establish
+that all descendants were contained. Tests cover initial hold, unresolved
+records, concurrent reconciliation and failure. This is **not wired into
+production**: because native launch and ledger insertion are not yet one
+crash-safe transaction, an empty ledger cannot currently prove that no worker
+survived a crash. Neither this gate nor the ledger constitutes GE-04 approval.
