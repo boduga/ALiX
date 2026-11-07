@@ -311,3 +311,14 @@ A synthetic ordinary filesystem is denied without creating a leaf. This
 still does not implement durable exclusive ownership, descriptor-relative
 worker attachment/kill, crash recovery, or authenticated native IPC.
 GE-04 SECURITY HOLD remains active.
+
+### Descriptor-relative control operation simulation
+
+`native/ge04/cgroup-control-fd-qualification.c` opens three simulated
+control files via a leaf directory descriptor, retains all control FDs,
+and writes/reads back a synthetic PID through the pinned `cgroup.procs`
+FD. It explicitly refuses cgroup v2 mounts and never writes to `cgroup.kill`.
+Its parent-root input is not yet symlink-safe ancestor traversed, and
+ordinary-file readback is NOT kernel cgroup membership verification.
+This is not a privileged worker-attachment implementation, does not establish
+exclusive ownership, and cannot release GE-04 SECURITY HOLD.
