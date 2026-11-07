@@ -205,3 +205,18 @@ must prove the child was stopped before any untrusted execution, hold a pinned
 pidfd across all operations, use exclusive cgroup directory descriptors,
 prevent unsolicited resume/migration, enforce bounded timeouts, and qualify
 crash windows in a disposable privileged VM. SECURITY HOLD remains active.
+
+### Native pidfd syscall probe (qualification-only)
+
+`native/ge04/pidfd-qualification.c` is a standalone Linux syscall probe using
+`pidfd_open`, `poll`, and `pidfd_send_signal`; its Vitest test compiles the
+probe, rejects malformed arguments, kills a test child through a pidfd and
+observes termination. This establishes only that the local kernel supports
+those syscalls in the exercised configuration. **It is not a trusted process
+handle service.** The probe accepts an external PID and opens a fresh pidfd
+per invocation, leaving a PID-reuse window between calls. It is not connected
+to the privileged launcher, cgroup owner, or durable ledger. Production needs
+a single trusted supervisor retaining the same pinned pidfd from child creation
+through stopped-state verification, cgroup attachment, resume, cancellation,
+and reaping; it must also prove exclusive cgroup ownership and crash recovery.
+No production admission is authorized; GE-04 SECURITY HOLD remains active.
