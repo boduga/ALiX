@@ -22,33 +22,36 @@ const unknown=(detail:string):EvidenceItem=>({status:'unknown',detail});
 const observed=(detail:string):EvidenceItem=>({status:'observed',detail});
 const absent=(detail:string):EvidenceItem=>({status:'absent',detail});
 function decodeMount(s:string){return s.replace(/\\([0-7]{3})/g,(_m,v:string)=>String.fromCharCode(parseInt(v,8)))}
-export function inspectCgroupMount(mountinfo:string|undefined):EvidenceItem{
- if(mountinfo===undefined)return unknown('mountinfo-unreadable');
- if(mountinfo.trim()==='')return unknown('mountinfo-empty');
+type CgroupMount={root:string;mountId:string;device:string;options:string};
+function parseCgroupMount(mountinfo:string|undefined):{evidence:EvidenceItem;mount?:CgroupMount}{
+ if(mountinfo===undefined)return {evidence:unknown('mountinfo-unreadable')};
+ if(mountinfo.trim()==='')return {evidence:unknown('mountinfo-empty')};
  const lines=mountinfo.split('\n').filter(Boolean);
- if(lines.some(line=>line.split(' - ').length!==2))return unknown('mountinfo-malformed');
+ if(lines.some(line=>line.split(' - ').length!==2))return {evidence:unknown('mountinfo-malformed')};
  type Mount = {type:string;root:string;options:string;mountId:string;device:string};
  const matches:Mount[]=[];
  for(const line of lines){
   const parts=line.split(' - ');
   const pre=parts[0]!.split(' '),post=parts[1]!.split(' ');
-  if(pre.length<6||post.length<3)return unknown('mountinfo-fields-malformed');
+  if(pre.length<6||post.length<3)return {evidence:unknown('mountinfo-fields-malformed')};
   if(decodeMount(pre[4]!)!=='/sys/fs/cgroup')continue;
-  if(!/^\d+$/.test(pre[0]!)||!/^\d+$/.test(pre[1]!)||!/^\d+:\d+$/.test(pre[2]!)||!pre[3]?.startsWith('/')||!pre[5]||!post[1]||!post[2])return unknown('mountinfo-fields-malformed');
+  if(!/^\d+$/.test(pre[0]!)||!/^\d+$/.test(pre[1]!)||!/^\d+:\d+$/.test(pre[2]!)||!pre[3]?.startsWith('/')||!pre[5]||!post[1]||!post[2])return {evidence:unknown('mountinfo-fields-malformed')};
   matches.push({type:post[0]!,root:decodeMount(pre[3]!),options:pre[5]!,mountId:pre[0]!,device:pre[2]!});
  }
- if(matches.length!==1)return matches.length===0?absent('no-unambiguous-cgroup-mount'):unknown('multiple-cgroup-mounts');
+ if(matches.length!==1)return {evidence:matches.length===0?absent('no-unambiguous-cgroup-mount'):unknown('multiple-cgroup-mounts')};
  const m=matches[0]!;
- if(m.type!=='cgroup2')return absent('not-unified-cgroup2');
- if(!m.root.startsWith('/'))return unknown('mount-root-malformed');
- return observed('cgroup2-mount-id='+m.mountId+';device='+m.device+';mount-root='+m.root+';options='+m.options+';mount-identity-not-pinned;delegation-not-proven');
+ if(m.type!=='cgroup2')return {evidence:absent('not-unified-cgroup2')};
+ if(!m.root.startsWith('/'))return {evidence:unknown('mount-root-malformed')};
+ return {mount:m,evidence:observed('cgroup2-mount-id='+m.mountId+';device='+m.device+';mount-root='+m.root+';options='+m.options+';mount-identity-not-pinned;delegation-not-proven')};
+}
+export function inspectCgroupMount(mountinfo:string|undefined):EvidenceItem{
+ return parseCgroupMount(mountinfo).evidence;
 }
 /** Read-only candidate: namespace-relative membership cannot establish host ownership. */
 export function resolveCgroupKillPath(mountinfo:string|undefined,membership:string|undefined):string|undefined {
- if(inspectCgroupMount(mountinfo).status!=='observed'||inspectCgroupMembership(membership).status!=='observed')return undefined;
- const mountLine=mountinfo!.split('\n').find(line=>line.split(' - ')[0]?.split(' ')[4] && decodeMount(line.split(' - ')[0]!.split(' ')[4]!)==='/sys/fs/cgroup');
- if(!mountLine)return undefined;
- const root=decodeMount(mountLine.split(' - ')[0]!.split(' ')[3]!);
+ const parsedMount=parseCgroupMount(mountinfo);
+ if(parsedMount.evidence.status!=='observed'||!parsedMount.mount||inspectCgroupMembership(membership).status!=='observed')return undefined;
+ const root=parsedMount.mount.root;
  const member=membership!.trim().slice(3);
  // Non-root mount roots may have been remapped by a cgroup namespace: do not guess.
  if(root!=='/'||member==='/'||!member.startsWith('/'))return undefined;

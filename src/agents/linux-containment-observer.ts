@@ -3,7 +3,7 @@ import {readFile,lstat,readlink} from 'node:fs/promises';
 import {platform} from 'node:process';
 import {classifyLinuxRuntime,type RuntimeEvidence} from './linux-container-runtime-evidence.js';
 import {assessLinuxContainment,type CapabilityObservation} from './linux-containment-capabilities.js';
-import {inspectCgroupMount,resolveCgroupKillPath} from './linux-containment-discovery.js';
+import {inspectCgroupMount,inspectIdMap,resolveCgroupKillPath} from './linux-containment-discovery.js';
 
 export type ReadOnlySource = {
   read(path:string):Promise<string|undefined>;
@@ -23,9 +23,6 @@ export type LinuxContainmentEvidence = {
   notes: string[];
   namespaces: {selfCgroup?:string; initCgroup?:string; selfUser?:string; initUser?:string; comparison: 'same-as-visible-pid1'|'different-from-visible-pid1'|'unknown'};
 };
-function mappingReadable(text:string|undefined):boolean {
-  return !!text && text.trim().split('\n').every(line=>/^\d+\s+\d+\s+\d+$/.test(line.trim()));
-}
 /** No probes that write cgroupfs, create processes, signal PIDs or require root. */
 export async function observeLinuxContainment(source:ReadOnlySource=linuxReadOnlySource,hostPlatform=platform):Promise<LinuxContainmentEvidence>{
   const notes:string[]=[];
@@ -45,7 +42,7 @@ export async function observeLinuxContainment(source:ReadOnlySource=linuxReadOnl
   const cgroup2Mount=inspectCgroupMount(mountinfo).status==='observed';
   if(!cgroup2Mount)notes.push('cgroup2-mount-not-verified');
   if(cgroupControllers===undefined)notes.push('cgroup-controllers-unreadable');
-  if(!mappingReadable(uidMap)||!mappingReadable(gidMap))notes.push('namespace-mappings-unreadable');
+  if(inspectIdMap(uidMap).status!=='observed'||inspectIdMap(gidMap).status!=='observed')notes.push('namespace-mappings-unreadable');
   if(!selfCgroup||!initCgroup||!selfUser||!initUser)notes.push('namespace-links-unreadable');
   const namespacePattern=/^(cgroup|user):\[\d+\]$/;
   const validNamespaces=!!selfCgroup&&!!initCgroup&&!!selfUser&&!!initUser&&

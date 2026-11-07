@@ -33,6 +33,13 @@ describe('GE-04 read-only Linux observations',()=>{
   expect(result.observation.cgroupVersion).toBe('unknown');
   expect(result.assessment.authorizedForWorkerLaunch).toBe(false);
  });
+ it('uses the strict discovery ID-map predicate for zero-length ranges',async()=>{
+  const result=await observeLinuxContainment(fixture({
+   '/proc/self/uid_map':'0 1000 0\n','/proc/self/gid_map':'0 1000 1\n'
+  }),'linux');
+  expect(result.notes).toContain('namespace-mappings-unreadable');
+  expect(result.assessment.authorizedForWorkerLaunch).toBe(false);
+ });
  it('treats containerenv presence as a Podman hint without trusting its content',async()=>{
   const result=await observeLinuxContainment(fixture({'/run/.containerenv':'engine="podman"'},['/run/.containerenv']),'linux');
   expect(result.runtime.family).toBe('podman');
