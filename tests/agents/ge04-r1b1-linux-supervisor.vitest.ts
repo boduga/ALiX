@@ -31,3 +31,27 @@ test.skipIf(process.platform!=='linux')('denies duplicate while launch is pendin
  const first=supervisor.launch(request);await expect(supervisor.launch(request)).rejects.toThrow(/Duplicate/);
  release();await first;
 });
+
+test.skipIf(process.platform!=='linux')('failed termination retains registration and can be retried',async()=>{
+ const child=fixture();
+ child.terminate.mockRejectedValueOnce(new Error('kill failed'));
+ const supervisor=createLinuxWorkerSupervisor({launch:async()=>child},async()=>proc);
+ await supervisor.launch(request);
+ await expect(supervisor.revoke(request.identity)).rejects.toThrow('kill failed');
+ await expect(supervisor.launch(request)).rejects.toThrow(/Duplicate/);
+ await supervisor.revoke(request.identity);
+ expect(child.terminate).toHaveBeenCalledTimes(2);
+});
+test.skipIf(process.platform!=='linux')('concurrent cancellation shares one termination',async()=>{
+ let release!:()=>void;
+ const pending=new Promise<void>(resolve=>{release=resolve});
+ const child=fixture();child.terminate.mockImplementation(async()=>{await pending});
+ const supervisor=createLinuxWorkerSupervisor({launch:async()=>child},async()=>proc);
+ await supervisor.launch(request);
+ const first=supervisor.revoke(request.identity);
+ const second=supervisor.revoke(request.identity);
+ await Promise.resolve();
+ expect(child.terminate).toHaveBeenCalledOnce();
+ await expect(supervisor.launch(request)).rejects.toThrow(/Duplicate/);
+ release();await Promise.all([first,second]);
+});

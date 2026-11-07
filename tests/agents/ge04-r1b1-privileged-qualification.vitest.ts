@@ -25,7 +25,7 @@ test.skipIf(!enabled)('real root-to-worker UID transition and protected file den
   expect(compile.status,compile.stderr).toBe(0);
   // A trusted /run path is valid; /tmp is intentionally rejected.
   const uid=Number(process.env.ALIX_GE04_TEST_WORKER_UID);
-  expect(Number.isSafeInteger(uid) && uid>0 && uid!==process.getuid()).toBe(true);
+  expect(Number.isSafeInteger(uid) && uid>0 && uid!==process.getuid?.()).toBe(true);
   const denied=spawnSync(launcher,[String(uid),'/tmp','/usr/bin/id','-u'],{encoding:'utf8'});
   expect(denied.status).toBe(125);
   expect(denied.stderr).toMatch(/untrusted writable path/);

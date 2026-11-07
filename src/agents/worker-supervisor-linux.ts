@@ -48,13 +48,23 @@ export function createLinuxWorkerSupervisor(
 ):WorkerSupervisor {
   if(process.platform!=='linux' || typeof backend?.launch!=='function' || typeof readProcess!=='function')
     throw new Error('GE-04 requires a trusted Linux supervisor backend');
-  const active=new Map<string,{native:NativeIsolatedWorker;registrationId:string}>();
+  const active=new Map<string,{native:NativeIsolatedWorker;registrationId:string;termination?:Promise<void>}>();
   const pending=new Set<string>();
   const revokeEntry=async(key:string,reason:string):Promise<void>=>{
     const entry=active.get(key);
     if(!entry)return;
-    active.delete(key);
-    await entry.native.terminate(reason);
+    // Keep registration until termination is confirmed. Concurrent revoke
+    // requests share the same operation; failure must remain retryable.
+    if(entry.termination)return entry.termination;
+    const operation=Promise.resolve().then(()=>entry.native.terminate(reason));
+    entry.termination=operation;
+    try {
+      await operation;
+      if(active.get(key)===entry)active.delete(key);
+    }catch(error){
+      if(entry.termination===operation)entry.termination=undefined;
+      throw error;
+    }
   };
   return Object.freeze({
     async launch(request:SupervisedWorkerRequest):Promise<SupervisedWorkerHandle> {
@@ -85,7 +95,10 @@ export function createLinuxWorkerSupervisor(
           cancel:(reason:string)=>revokeEntry(key,reason),
           async wait(){
             try{return await launched.wait();}
-            finally {if(active.get(key)?.registrationId===registrationId)active.delete(key);}
+            finally {
+              const entry=active.get(key);
+              if(entry?.registrationId===registrationId && !entry.termination)active.delete(key);
+            }
           },
         });
       }catch(error){
