@@ -49,7 +49,8 @@ export function createLinuxWorkerSupervisor(
   if(process.platform!=='linux' || typeof backend?.launch!=='function' || typeof readProcess!=='function')
     throw new Error('GE-04 requires a trusted Linux supervisor backend');
   const active=new Map<string,{native:NativeIsolatedWorker;registrationId:string;termination?:Promise<void>;waiting?:Promise<Readonly<{exitCode:number|null;signal:string|null}>>}>();
-  const pending=new Set<string>();
+  type PendingLaunch={revoked:boolean;settled:Promise<void>;resolve:()=>void};
+  const pending=new Map<string,PendingLaunch>();
   // A failed qualification cleanup may leave an untrusted child alive. Never
   // permit a replacement attempt until its termination is confirmed.
   const quarantined=new Map<string,{native:NativeIsolatedWorker;termination?:Promise<void>}>();
@@ -91,10 +92,15 @@ export function createLinuxWorkerSupervisor(
          request.workspaceRoot.includes('\0'))throw new Error('Invalid trusted worker launch request');
       if(active.has(key)||pending.has(key)||quarantined.has(key))
         throw new Error('Duplicate or quarantined supervised worker attempt');
-      pending.add(key);
+      let resolvePending!:()=>void;
+      const pendingLaunch:PendingLaunch={revoked:false,
+        settled:new Promise<void>(resolve=>{resolvePending=resolve}),
+        resolve:()=>resolvePending()};
+      pending.set(key,pendingLaunch);
       let native:NativeIsolatedWorker|undefined;
       try {
         native=await backend.launch(request);
+        if(pendingLaunch.revoked)throw new Error('GE-04 worker launch revoked before qualification');
         if(!Number.isSafeInteger(native?.pid)||native!.pid<1 ||
            !Number.isSafeInteger(native!.uid)||native!.uid<0 ||
            native!.uid===process.getuid?.() ||
@@ -103,6 +109,7 @@ export function createLinuxWorkerSupervisor(
           throw new Error('Untrusted or same-UID worker launch evidence');
         const observed=await readProcess(native!.pid);
         if(!sameProcess(observed,native!))throw new Error('Worker launch process identity mismatch');
+        if(pendingLaunch.revoked)throw new Error('GE-04 worker launch revoked during qualification');
         const registrationId=randomUUID();
         active.set(key,{native:native!,registrationId});
         const evidence=Object.freeze({identity:Object.freeze({...request.identity}),pid:native!.pid,
@@ -146,12 +153,23 @@ export function createLinuxWorkerSupervisor(
           }
         }
         throw error;
-      }finally{pending.delete(key);}
+      }finally{
+        pending.delete(key);
+        pendingLaunch.resolve();
+      }
     },
     async revoke(identity:WorkerGrantIdentity):Promise<void>{
       const key=identityKey(identity);
+      const launching=pending.get(key);
+      if(launching){
+        // Fence before awaiting the asynchronous backend. Launch cannot
+        // register after revocation even if its native spawn finishes later.
+        launching.revoked=true;
+        await launching.settled;
+      }
       await revokeEntry(key,'GE-04 worker revoked');
       await terminateQuarantined(key,'GE-04 unqualified worker revoked');
+      if(quarantined.has(key))throw new Error('GE-04 unresolved quarantined worker');
     },
     async reconcile():Promise<void>{
       for(const key of quarantined.keys())

@@ -103,3 +103,34 @@ test.skipIf(process.platform!=='linux')('concurrent waits share one native reap 
  release();await Promise.all([first,second]);
  await expect(handle.wait()).rejects.toThrow(/no longer active/);
 });
+
+test.skipIf(process.platform!=='linux')('revoke fences pending native launch and prevents registration',async()=>{
+ let release!:()=>void;
+ const gate=new Promise<void>(resolve=>{release=resolve});
+ const child=fixture();
+ const supervisor=createLinuxWorkerSupervisor({launch:async()=>{await gate;return child}},async()=>proc);
+ const launching=supervisor.launch(request);
+ const revoking=supervisor.revoke(request.identity);
+ await expect(supervisor.launch(request)).rejects.toThrow(/Duplicate/);
+ release();
+ await expect(launching).rejects.toThrow(/revoked/);
+ await revoking;
+ expect(child.terminate).toHaveBeenCalledOnce();
+ const next=await supervisor.launch(request);
+ expect(next.evidence.pid).toBe(child.pid);
+});
+
+test.skipIf(process.platform!=='linux')('revoke during process observation fences registration',async()=>{
+ let release!:()=>void;let entered!:()=>void;
+ const gate=new Promise<void>(resolve=>{release=resolve});
+ const observing=new Promise<void>(resolve=>{entered=resolve});
+ const child=fixture();
+ const supervisor=createLinuxWorkerSupervisor({launch:async()=>child},async()=>{entered();await gate;return proc});
+ const launching=supervisor.launch(request);
+ await observing;
+ const revoking=supervisor.revoke(request.identity);
+ release();
+ await expect(launching).rejects.toThrow(/revoked/);
+ await revoking;
+ expect(child.terminate).toHaveBeenCalledOnce();
+});
