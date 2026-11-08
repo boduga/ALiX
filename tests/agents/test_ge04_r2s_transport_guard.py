@@ -90,7 +90,11 @@ class R2STransportTests(unittest.TestCase):
                 for role in ("verifier", "publisher", "committer", "security-operator")
             ]}
         self.manifest = self.save("identities.json", json.dumps(mapping).encode())
-        self.patch_secure = mock.patch.object(guard, "_secure_file", lambda x: Path(x))
+        # Ephemeral test CA files reside in user-owned /tmp, not a real root-owned
+        # provisioned trust tree; patch only the opener, never authorization.
+        self.patch_secure = mock.patch.object(
+            guard.protected, "open_protected_fd",
+            lambda path, **_: __import__("os").open(path, __import__("os").O_RDONLY))
         self.patch_secure.start()
         self.addCleanup(self.patch_secure.stop)
         self.identities = guard.load_identities(self.manifest)
