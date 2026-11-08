@@ -13,7 +13,11 @@ function fixture(){
  const ledger={unresolved:()=>records,unresolvedIntents:()=>intents,beginLaunch:(intent:LaunchIntent)=>{intents.push(intent)},promoteLaunch:(record:RecoveryRecord)=>{intents.length=0;records.push(record)}};
  return {native,ledger,intents,records};
 }
-test('custody is acquired before admission and blocks second coordinator',async()=>{
+// Positive kernel/custody evidence paths are Linux-only. On other hosts,
+// assert the production guard denies rather than simulating Linux authority.
+const linuxTest=test.skipIf(process.platform!=='linux');
+
+linuxTest('custody is acquired before admission and blocks second coordinator',async()=>{
  const root=mkdtempSync(join(tmpdir(),'ge04-bound-'));
  try{
   const f=fixture(),path=join(root,'custody');
@@ -27,7 +31,7 @@ test('custody is acquired before admission and blocks second coordinator',async(
   await expect(first.reconcile()).rejects.toThrow(/unresolved durable/);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
-test('unresolved ledger blocks admission even with a fresh custody claim',async()=>{
+linuxTest('unresolved ledger blocks admission even with a fresh custody claim',async()=>{
  const root=mkdtempSync(join(tmpdir(),'ge04-bound-'));
  try{
   const f=fixture();
@@ -38,11 +42,19 @@ test('unresolved ledger blocks admission even with a fresh custody claim',async(
   expect(f.native.launch).not.toHaveBeenCalled();
  }finally{rmSync(root,{recursive:true,force:true});}
 });
-test('invalid dependencies do not claim custody',()=>{
+linuxTest('invalid dependencies do not claim custody',()=>{
  const root=mkdtempSync(join(tmpdir(),'ge04-bound-'));
  try{
   const f=fixture();
   expect(()=>createCustodiedAdmissionCoordinator(join(root,'custody'),'owner-a',undefined as never,f.ledger)).toThrow(/invalid custody-bound/);
   expect(()=>createCustodiedAdmissionCoordinator(join(root,'custody'),'owner-b',f.native,f.ledger)).not.toThrow();
  }finally{rmSync(root,{recursive:true,force:true});}
+});
+
+test.skipIf(process.platform==='linux')('non-Linux coordinator cannot acquire custody',()=>{
+ const f=fixture();
+ expect(()=>createCustodiedAdmissionCoordinator(
+  join(tmpdir(),'ge04-unsupported-custody'),'owner-a',f.native,f.ledger,
+ )).toThrow(/invalid custody claim/);
+ expect(f.native.launch).not.toHaveBeenCalled();
 });

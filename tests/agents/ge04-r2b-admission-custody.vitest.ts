@@ -5,7 +5,11 @@ import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {claimAdmissionCustody} from '../../src/agents/worker-supervisor-admission-custody.js';
 
-test('claim is exclusive and records owner',()=>{
+// Positive kernel/custody evidence paths are Linux-only. On other hosts,
+// assert the production guard denies rather than simulating Linux authority.
+const linuxTest=test.skipIf(process.platform!=='linux');
+
+linuxTest('claim is exclusive and records owner',()=>{
  const root=mkdtempSync(join(tmpdir(),'ge04-custody-'));
  try {
   const path=join(root,'claim');
@@ -14,7 +18,7 @@ test('claim is exclusive and records owner',()=>{
   expect(()=>claimAdmissionCustody(path,'owner-2')).toThrow(/custody already claimed/);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
-test('claim survives process exit; second process cannot take over',()=>{
+linuxTest('claim survives process exit; second process cannot take over',()=>{
  const root=mkdtempSync(join(tmpdir(),'ge04-custody-'));
  try {
   const path=join(root,'claim');
@@ -27,7 +31,7 @@ test('claim survives process exit; second process cannot take over',()=>{
   expect(()=>claimAdmissionCustody(path,'replacement')).toThrow(/custody already claimed/);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
-test('rejects untrusted parent and invalid owner',()=>{
+linuxTest('rejects untrusted parent and invalid owner',()=>{
  const root=mkdtempSync(join(tmpdir(),'ge04-custody-'));
  try{
   const open=join(root,'world-writable');mkdirSync(open,{mode:0o777});
@@ -35,4 +39,9 @@ test('rejects untrusted parent and invalid owner',()=>{
   expect(()=>claimAdmissionCustody(join(open,'claim'),'x')).toThrow(/untrusted custody parent/);
   expect(()=>claimAdmissionCustody(join(root,'claim'),'../bad')).toThrow(/invalid custody claim/);
  }finally{rmSync(root,{recursive:true,force:true});}
+});
+
+test.skipIf(process.platform==='linux')('non-Linux custody claims fail closed',()=>{
+ const path=join(tmpdir(),'ge04-unsupported-custody-claim');
+ expect(()=>claimAdmissionCustody(path,'owner-valid')).toThrow(/invalid custody claim/);
 });
