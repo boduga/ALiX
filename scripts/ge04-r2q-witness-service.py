@@ -142,6 +142,16 @@ def load_signer(path):
     return Ed25519PrivateKey.from_private_bytes(key)
 
 
+def load_signer_protected(path, protected):
+    """R2S-only signer loading via verified root-owned descriptor ancestry.
+
+    Does not provide key isolation from a compromised witness process.
+    """
+    key = protected.read_protected(str(path), maximum=32, private=True)
+    if len(key) != 32:
+        raise PermissionError("invalid protected signing key length")
+    return Ed25519PrivateKey.from_private_bytes(key)
+
 def handler_factory(db_path, signer, *, authorize=None):
     class Handler(BaseHTTPRequestHandler):
         def _authorized(self):
@@ -231,7 +241,6 @@ def main():
         else:
             if not args.key:
                 raise ValueError("service key missing")
-            signer = load_signer(args.key)
             if args.action == "serve-mtls":
                 # Qualification-only loopback listener; operator provisions
                 # certificate chain, client identity map and CA out of band.
@@ -244,12 +253,14 @@ def main():
                 spec.loader.exec_module(guard)
                 identities=guard.load_identities(args.client_identities)
                 context=guard.tls_context(args.tls_cert,args.tls_key,args.tls_ca)
+                signer=load_signer_protected(args.key,guard.protected)
                 def authorize(connection,method,path):
                     return guard.authorize_client(connection,identities,method,path)
                 handler=handler_factory(args.db,signer,authorize=authorize)
             else:
                 if any((args.tls_cert,args.tls_key,args.tls_ca,args.client_identities)):
                     raise ValueError("TLS config only valid in serve-mtls")
+                signer=load_signer(args.key)
                 handler=handler_factory(args.db,signer)
             with ThreadingHTTPServer((BIND, args.port),handler) as httpd:
                 if args.action == "serve-mtls":
