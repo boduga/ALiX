@@ -127,6 +127,10 @@ Default section order:
 - Discover EGM from the installed plugin inventory and read the selected skill plus its bundled Codex integration before use. Preserve its human decision gates and fresh-context Goldfish isolation; report unavailable capabilities rather than substituting another framework.
 - Use CLI-first workflows for approvals and audit.
 - Commit early, push often; tag baseline milestones.
+- **One feature branch → one primary PR → review → merge.** Reuse the existing branch/PR for incremental work in the same feature. Do not create stacked or milestone-per-test PRs by default; use an explicitly justified independent branch only for separately reviewable, independently mergeable work.
+- Before branching or opening a PR, inspect `git status`, worktrees, existing branches/PRs, their bases, and ancestry; never overwrite another worktree or silently discard edits. Check the entire integration diff, not only GitHub's per-PR mergeable status.
+- Before merging, verify the exact base/head and merge simulation, relevant checks/tests, and architecture/security gates. Merge only after required review and approval; a conflict-free merge does not grant security or production release. Retain existing branches unless the operator expressly approves deletion.
+- For the complete PR lifecycle (including consolidation, closeout and branch preservation), follow `docs/agents/issue-tracker.md`.
 - Provider secrets (incl. Langfuse keys) live in the credential store (`~/.config/alix/config.json` `apiKeys`), never in env files or the repo. Rotation = update store entries; no code or config-file changes needed.
 - Real-model tests and harnesses resolve the operator's CURRENT default model (`models.default` in `~/.config/alix/config.json`); never hardcode a provider/model in a test, driver, or fixture. An explicit override is allowed only for a deliberate one-off, not as a checked-in default.
 
