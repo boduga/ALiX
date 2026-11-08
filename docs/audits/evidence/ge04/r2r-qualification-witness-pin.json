@@ -1,0 +1,11 @@
+{
+  "schema": "ge04-r2r-qualification-pin-v1",
+  "witnessId": "alix-ge04-r2q-qualifier",
+  "host": "10.1.1.13",
+  "publicKeyHex": "608e93bbbca2e8905daab4e5ae2d87d489a8f888a86fcbce87ab6ff42db77834",
+  "revision": 1,
+  "policySha256": "711c4212e79e2c4c102dae3481845adf974ee65cfaca5fe9465e60bf5462f359",
+  "checkpointSha256": "2f705f5bd3dd5c73539cd22bf833ef8ee6aa5eb3a86fd3a4fe68cf74b6e98bc2",
+  "trustStatus": "unverified-operator-pin",
+  "authorization": false
+}
