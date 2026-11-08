@@ -376,6 +376,10 @@ The `GET /api/security/status` endpoint returns passive health for each security
 
 ---
 
+## GE-04 qualification integration vs. release
+
+The development baseline may include strictly inert GE-04 qualification prototypes and tests while the production security hold remains active. The integration acceptance criteria and the distinct independent Q13 release gate are defined by [GE-04 production worker lifecycle](ge04-production-worker-lifecycle.md#source-integration-decision-versus-production-authorization). No source merge, CI success or documented qualification authorizes privileged worker execution, trust-anchor provisioning, protected checkpoint commits or recovery.
+
 ## Proposed GE-04 R2S trust-service security operations (not deployed)
 
 This is a **planned** production security runbook; do not run against the qualification Ubuntu VM as if it were a certified trust service. Before first connection, confirm independent service and anchor administrators, signed key enrollment record, private endpoint and mutually authenticated client identity, role grants, external audit monitor, separately protected floor and key-rotation procedure. Never use `/health` or a matching signed receipt as authorization.

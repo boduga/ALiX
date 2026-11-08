@@ -63,6 +63,19 @@ describe("ContextCompiler", () => {
       assert.notEqual(bundle1.id, bundle2.id);
     });
 
+    it("creates distinct bundle IDs even when Date.now is frozen", async () => {
+      await warm();
+      const originalNow = Date.now;
+      Date.now = () => 1794081711658;
+      try {
+        const first = await compiler.compileContext("fix bug", "bugfix", []);
+        const second = await compiler.compileContext("fix bug", "bugfix", ["package.json"]);
+        assert.notEqual(first.id, second.id);
+      } finally {
+        Date.now = originalNow;
+      }
+    });
+
     it("classifies task type correctly", async () => {
       await warm();
       const bugBundle = await compiler.compileContext("fix bug in auth.ts", "bugfix", []);
