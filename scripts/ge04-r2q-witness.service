@@ -1,0 +1,29 @@
+[Unit]
+Description=ALiX GE-04 R2Q qualification-only external witness
+After=network.target
+ConditionPathExists=/var/lib/alix-ge04-witness/head.sqlite
+
+[Service]
+Type=simple
+User=alixwitness
+Group=alixwitness
+ExecStart=/usr/bin/python3 -B /opt/alix-ge04-witness/witness.py serve --db /var/lib/alix-ge04-witness/head.sqlite --key /var/lib/alix-ge04-witness/signing.key --port 18841
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
