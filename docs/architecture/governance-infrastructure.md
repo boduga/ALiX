@@ -81,3 +81,9 @@ The `ApprovalGate` is the only caller of `Applier` in production code.
 | CLI tests | `tests/cli/commands/adaptation.vitest.ts` | Command dispatch + wiring |
 | Integration | `tests/integration/` | Full lifecycle |
 | Soak | `tests/soak/` | Scale validation |
+
+---
+
+## External GE-04 trust evidence (proposed 2026-11-08)
+
+The provider-neutral `MonotonicTrustAnchor` interface is a read-only evidence source under existing ALiX governance/security/evidence. A protected external service/anchor may attest monotonic checkpoint continuity, but **cannot** independently approve policy, issue credentials, release worker admission or clear recovery ledgers. The existing governance/approval authority remains single-owner and must fail closed on missing or unverifiable protected evidence. This change adds no internal subsystem or second approval store. See [ADR-0018](adrs/ADR-0018-independent-trust-service.md) and [R2S contract](../security/ge04-trust-service-contract.md). No production provider is yet qualified.

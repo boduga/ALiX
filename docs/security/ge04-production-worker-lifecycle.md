@@ -15,3 +15,9 @@ With the opt-in hook, the supervisor provides a separate FD4 pipe and releases t
 ## Real Linux lifecycle integration qualification
 
 `tests/agents/ge04-real-worker-lifecycle.test.ts` exercises actual `SubagentManager.spawn` with Linux `/proc` registration, FD4 cooperative release, empty FD3 snapshot, exit revocation, and registration failure termination. It uses a Node fixture as the worker, not the complete production ALiX CLI. The resolver call in this test supplies a synthetic `VerifiedBrokerPeer` object: it does **not** demonstrate kernel-attested IPC, distinct UIDs, or secure credential isolation. The hook is still opt-in; no production activation or positive admission is allowed.
+
+---
+
+## R2S protected witness dependency (2026-11-08; proposed)
+
+Future positive worker admission must not derive permission from trust-service availability, TLS connectivity, a signed receipt, or a synthetic `evidenceConsistent` result. Failure to authenticate the witness, verify the independent monotonic floor, consume a fresh challenge, reconcile privileged issuer custody or verify descendant containment requires a **fail-closed protected admission/recovery decision**. When the trust service is offline, ALiX may continue only the operations already independently permitted by existing local policy; no cached receipt or degraded-mode bypass may silently authorize new protected workers. See [ADR-0018](../architecture/adrs/ADR-0018-independent-trust-service.md). Production opt-in remains prohibited by the current GE-04 SECURITY HOLD.

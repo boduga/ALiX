@@ -84,3 +84,9 @@ platforms.
 passing CI, but must retain **GE-04 SECURITY HOLD**. This completes the
 seven-PR research/remediation *scaffolding* sequence, not production
 security qualification or native backend activation.
+
+---
+
+## R2S trust-service interaction (2026-11-08; future contract)
+
+Protected witness receipts are additional **evidence**, not recovery verdicts. Under [ADR-0018](../architecture/adrs/ADR-0018-independent-trust-service.md) and the [service contract](ge04-trust-service-contract.md), the verifier must independently authenticate signing identity, durable single-use nonce consumption, externally protected checkpoint floor, exact ALiX policy fingerprint, worker/attempt and final-effect context. A matching signature or hypothetical local floor is insufficient. Evidence failures block; passing evidence does not clear the recovery ledger or prove kernel effect completion. The original offline recovery examiner's DENY-only behavior and all explicit unknown-outcome quarantine requirements remain unchanged.

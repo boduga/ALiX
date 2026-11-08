@@ -81,3 +81,9 @@ Every lifecycle event records an evidence entry:
 - [Adaptation Lifecycle](adaptation-lifecycle.md) — proposal status flow
 - [Operational Runbook](../operations/operational-runbook.md) — operator procedures
 - [Decision Records](../architecture/decision-records.md) — governance design decisions
+
+---
+
+## Independent GE-04 witness evidence (proposed 2026-11-08)
+
+An independently operated trust service can supply authenticated, nonce-bound, monotonic security **evidence**, but neither its API nor its signing key is a policy/approval or credential-grant authority. ALiX maintains exclusive decision ownership through its existing governance and recovery contracts. A missing anchor, revoked identity, conflicting revision or outage cannot be translated to an approval or worker launch. The current witness VM is qualification-only; no production admission is enabled. See [ADR-0018](../architecture/adrs/ADR-0018-independent-trust-service.md) and [threat model](../security/ge04-trust-service-threat-model.md).

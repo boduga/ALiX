@@ -93,3 +93,9 @@ rollback-resistant floor advancement; verified immutable runtime/loader
 and process identity; and exact, expiry/revocation-aware authority at the
 final kernel mutation boundary. These require separate reviews and tests.
 Nothing here authorizes production GE-04 execution.
+
+---
+
+## R2S witness vs release-root separation (2026-11-08)
+
+The future independent witness service is **not** a replacement for the administrator-controlled executable-release trust root, release signature, minimum accepted release sequence, or final kernel-admission checks described here. Witness signing keys and protected checkpoint floors have distinct identities, epochs, rotation policies and custodians from the installed executable release. A valid witness receipt cannot elevate an untrusted release or authorize a rollback of executable bytes. Both independent release custody and protected trust-service evidence must be verified at their own boundary. See [ADR-0018](../architecture/adrs/ADR-0018-independent-trust-service.md) and [R2S contract](ge04-trust-service-contract.md). All preexisting DENY-only gates remain.

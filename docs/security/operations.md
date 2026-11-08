@@ -373,3 +373,17 @@ The `GET /api/security/status` endpoint returns passive health for each security
 | `docs/security/risk-register.md` | Risk catalog with likelihood/impact/mitigation |
 | `docs/security/rollout-strategy.md` | Phased deployment plan |
 | `docs/security/inspector-security.md` | Inspector security configuration reference |
+
+---
+
+## Proposed GE-04 R2S trust-service security operations (not deployed)
+
+This is a **planned** production security runbook; do not run against the qualification Ubuntu VM as if it were a certified trust service. Before first connection, confirm independent service and anchor administrators, signed key enrollment record, private endpoint and mutually authenticated client identity, role grants, external audit monitor, separately protected floor and key-rotation procedure. Never use `/health` or a matching signed receipt as authorization.
+
+**Key enrollment/rotation:** record trusted service/environment/epoch, authorized operators, out-of-band key fingerprint, cert identities, protected floor and checkpoint; grant minimal verifier/read, publisher/propose and protected commit roles separately; revoke lost/expired identities; rotate with explicit old/new key continuity and independent review. Do not auto-accept service-published replacement keys.
+
+**Ongoing checks:** compare signed challenged receipts with independently protected checkpoint/floor, audit unexpected revision changes and multiple views, monitor service and anchor identity, expiry and durable nonce failures. Export protected audit records externally; alert on failed authentication, fork/rollback, cert/key swap, quota abuse or anomalous publisher calls.
+
+**Incident response:** on compromise, key substitution, floor reset, unexplained revisions or split-view: quarantine witness identity, revoke affected credentials, preserve external logs, stop protected admission/recovery, investigate independent anchors, re-enroll only through reviewed operator ceremony. No emergency authorization bypass. Outage means fail-closed for GE-04 protected operations, not blanket ALiX shutdown of operations otherwise permitted by governance.
+
+References: [ADR-0018](../architecture/adrs/ADR-0018-independent-trust-service.md), [threat model](ge04-trust-service-threat-model.md), [contract](ge04-trust-service-contract.md). **GE-04 SECURITY HOLD ACTIVE.**

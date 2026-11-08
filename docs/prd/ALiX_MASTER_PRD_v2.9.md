@@ -1122,3 +1122,18 @@ Stage 0: read-only authority/skill/evidence inventory and evaluation protocol sp
 | GAP-34 | Persistent learning/rollback safety not demonstrated | Versioned repertoire, regressions, policy-boundary and rollback tests |
 
 **Release constraints unchanged:** Preserve Q01–Q15, Gate B HOLD, F1-E QUALIFIED, Q13 publication HOLD and production simplification HOLD. No implementation, deployment, merge, push or release is authorized by this amendment.
+
+---
+
+## GE-04 R2S trust-service security requirements — proposed additive amendment (2026-11-08)
+
+**Document remains internal v2.10 DRAFT**, with its 2026-10-31 Linux x86-64 initial certification amendment intact. This section records agreed product direction; it does **not** certify or release GE-04 or independently amend Q01–Q15.
+
+- **R2S-REQ-01 — Portable trust protocol:** Protected GE-04 recovery and witness evidence MUST use a provider-neutral, authenticated service contract; ALiX clients do not require local TPM hardware. Cross-platform transport compatibility does not certify ARM64, macOS, Windows or containers; native qualification gates remain per Q10/Q15.
+- **R2S-REQ-02 — Independent anti-rollback:** Accepted security-sensitive witness evidence MUST bind a nondecreasing protected revision and exact checkpoint/policy fingerprint to an independently provisioned trust/administrative domain; restoring the witness VM alone cannot restore its authoritative floor.
+- **R2S-REQ-03 — Zero-trust API:** Require mutually authenticated identities, separate reader/publisher/committer/operator permissions, protected signing keys, strict versioned schemas, replay limits and independent audit.
+- **R2S-REQ-04 — No authority proliferation:** Existing ALiX governance, approvals, worker supervisor and recovery ledger retain single ownership. Trust service produces **evidence only**; passing cryptography is never worker authorization.
+- **R2S-REQ-05 — Fail-closed degraded state:** Unknown signing identity, stale or missing floor, partial commit, service outage, unverified recovery, or conflicting histories block protected actions. Q02/Q03/Q12 effect-reconciliation and Q13 operator release authority remain mandatory.
+- **R2S-REQ-06 — Independent qualification:** Security release requires real fault-injected cross-host rollback, compromise, race, restart, key-rotation and incident-evidence testing under separate reviewed administrators. No development-laptop TPM or in-VM SQLite qualifies by inference.
+
+**Acceptance:** Independent service contract/security review, secure deployment evidence, native platform tests where required, explicit maintenance/publication approval and separate GE-04 hold release. Architecture: [ADR-0018](../architecture/adrs/ADR-0018-independent-trust-service.md). [Threat model](../security/ge04-trust-service-threat-model.md). [Protocol](../security/ge04-trust-service-contract.md).
