@@ -288,3 +288,13 @@ ALiX becomes progressively more capable while preserving human control, explaina
 - Capability greenfield plan: `docs/superpowers/plans/2026-08-10-capability-platform-greenfield-refactor.md`
 - A-series roadmap: `docs/roadmap/a-series-autonomous-evolution.md`
 - A-series governed evolution architecture: `docs/architecture/a-series-governed-evolution.md`
+
+---
+
+## GE-04 R2S — Independent trust-service security gate (proposed 2026-11-08)
+
+**Dependency:** Finish R2R architectural documentation, then R2S threat-model review and authenticated service/anchor qualification **before** protected supervisor recovery/admission integration. The provider-independent network trust contract replaces the proposal to require a TPM on each ALiX device; a dedicated service may internally use independently owned hardware, HSM/TPM, or a separately audited protected register.
+
+**Mandatory gates:** (1) independently authenticate witness/service key and trust-root identities; (2) isolate verifier, publisher, committer and security-operator credentials; (3) implement authenticated transport and strict API authorization; (4) demonstrate an external monotonic revision/checkpoint floor outside Proxmox VM snapshot domain; (5) verify durable nonce use, crashes, races, replay, split view, key rotation and restored VM snapshots; (6) demonstrate integration only behind existing ALiX governance/recovery evidence seam; (7) independent security review, Q13 release decision and separately recorded GE-04 security-hold clearance.
+
+**Current status:** Ubuntu R2Q signer **qualification-only**, R2R read-only `MonotonicTrustAnchor` **unwired**, no qualified protected service/anchor, **GE-04 SECURITY HOLD ACTIVE**. References: [ADR-0018](adrs/ADR-0018-independent-trust-service.md), [R2S contract](../security/ge04-trust-service-contract.md), [threat model](../security/ge04-trust-service-threat-model.md).

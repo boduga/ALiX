@@ -67,3 +67,19 @@
 
 1. Roadmap README link (finding 3). 2. Operations-layer scoping note (1). 3. P7 disambiguation (6).
 4. Approval-store banners (2). 5. Metric-registry split (5). 6. M0.x tag re-baseline (8).
+
+---
+
+## GE-04 R2S trust-service gap update (2026-11-08)
+
+**Classification: unimplemented external security authority + unverified trust assumptions; NOT a resolved defect or release authorization.**
+
+- **Implemented qualification seam:** `src/governance/security/evidence/monotonic-witness.ts` verifies Ed25519 receipt consistency against a caller-supplied snapshot but cannot prove snapshot provenance, protected storage or durable nonce custody.
+- **Deployed qualification infrastructure:** Ubuntu VM 10.1.1.13 uses a signing service and local SQLite revision 1; same Proxmox administrator can revert guest key and state. No production authentication or separately protected anchor is established.
+- **Pending independence:** independently authenticated signer identity/enrollment; separate external monotonic floor/checkpoint under distinct administrator and rollback domains; key rotation and revocation protocol.
+- **Pending API/runtime controls:** mutually authenticated transport, role separation, input bounds, signing restriction to committed head, external audit and compromised-service/issuer incident procedure.
+- **Pending integration:** one existing governance/recovery evidence port with canonical nonce custody, kernel containment, issuer binding and final-effect checks; never a second policy/approval service.
+- **Pending security evidence:** real cross-host snapshot rollback, concurrent publisher races, SIGKILL/power interruption, key substitution, split view, credential theft, service outage and native-platform qualification.
+- **Release:** ADR-0018 proposed; independent review and operator hold-clearance **not** complete. GE-04 SECURITY HOLD ACTIVE.
+
+Sources: [ADR-0018](../architecture/adrs/ADR-0018-independent-trust-service.md), [R2S threat model](../security/ge04-trust-service-threat-model.md), [R2S contract](../security/ge04-trust-service-contract.md).

@@ -247,3 +247,17 @@ alix evidence verify
 - [Governance Model](../governance/governance-model.md) — governance invariants
 - [Adaptation Lifecycle](../governance/adaptation-lifecycle.md) — proposal lifecycle
 - [Adaptation Scaling](adaptation-scaling.md) — scale limits and benchmarks
+
+---
+
+## Proposed GE-04 independent trust-service operator runbook (not activated)
+
+**Before deployment:** confirm independent trust service and external floor provisioned by separate authorized administrators; verify certificates and signer key through an authenticated out-of-band channel; validate protected revision/head and audit monitor; verify ALiX's normal governance and supervisor recovery authority remain sole decision owners. Review [R2S contract](../security/ge04-trust-service-contract.md) and [security procedures](../security/operations.md).
+
+**Startup:** block protected worker actions until mutually authenticated trust evidence, challenge single-use custody, pinned key epoch, protected anchor snapshot, exact policy/checkpoint and prior recovery records are independently verified. `systemctl is-active`, TCP/TLS, or `GET /health` alone are insufficient.
+
+**Degraded mode:** if trust service, anchor, credentials, audit consistency or independent floor becomes uncertain, mark protected recovery/admission HOLD. Continue only otherwise locally authorized non-sensitive operations. Never auto-retry ambiguous effects or silently trust a cached receipt.
+
+**Recovery/restore:** preserve crash and checkpoint evidence in ALiX `docs/audits/evidence/ge04/`, validate against external protected floor before accepting restored VM state, require independent operator identity/key review for reset/rotation, rerun fault tests; do not restore an old floor from the same VM backup.
+
+**Current environment:** Ubuntu witness VM 10.1.1.13 is **qualification only**; microcloud3 is disposable test infrastructure; no separately qualified production trust provider is installed. Security hold stays active. See [ADR-0018](../architecture/adrs/ADR-0018-independent-trust-service.md).

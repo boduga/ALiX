@@ -107,3 +107,7 @@ benchmark/evidence/coordination/workspace/
 # drop them, leaving only checksums that cannot reconstruct the files they
 # describe.
 !docs/prd/evidence/lean-01/evidence/**/*.log
+
+# Python test/interpreter bytecode; do not commit generated qualification caches.
+__pycache__/
+*.py[cod]

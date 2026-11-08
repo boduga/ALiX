@@ -139,3 +139,9 @@ node scripts/check-dead-modules.mjs     # no importer-less src modules
 node scripts/check-dox-claims.mjs --base origin/main
 pnpm test:node && pnpm test:vitest
 ```
+
+---
+
+## External trust-service boundary — GE-04 R2S (proposed 2026-11-08)
+
+The **12 ALiX subsystems and four internal layers remain unchanged**. The proposed independently administered trust service is external security evidence infrastructure consumed solely at the existing `governance/security/evidence` boundary; it is **not** another subsystem, scheduler, approval store, policy engine or supervisor. The service signs committed witness receipts; a separately protected external anchor supplies the nondecreasing revision and checkpoint identity. ALiX governance owns all policy and worker-admission decisions. The current TypeScript `MonotonicTrustAnchor` interface is qualification-only and **not production wired**. Architecture decision: [ADR-0018](adrs/ADR-0018-independent-trust-service.md). Security contract: [GE-04 R2S](../security/ge04-trust-service-contract.md). GE-04 SECURITY HOLD remains active.

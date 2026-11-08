@@ -252,3 +252,9 @@ The lineage is NOT integrity-protected by the containing evidence's hash — it 
 - `src/governance/security/supply-chain/` — Dependency verification
 - `docs/architecture/adrs/ADR-0004-protected-type-files.md` — Structural type file protection
 - `docs/architecture/adrs/ADR-0006-a-series-governed-evolution-pipeline.md` — Evidence producers in the evolution pipeline
+
+---
+
+## 2026-11-08 related decision — independent GE-04 trust service
+
+This accepted ADR's evidence-integrity and audit-authority principles **remain in force**. [Proposed ADR-0018](ADR-0018-independent-trust-service.md) specifies an additional external, independently administered security-evidence interface for GE-04 witness receipts and protected monotonic history. It does not supersede ADR-0009, turn the witness into a governance engine, or claim the current Ubuntu qualification VM is rollback resistant. Until separately reviewed and qualified, GE-04 SECURITY HOLD remains active.

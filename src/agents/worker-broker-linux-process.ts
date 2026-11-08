@@ -7,6 +7,30 @@ import type {BrokerProcessIdentity} from './worker-broker-live-peer-binding.js';
 /** /proc/PID/stat field 22 is starttime. comm (field 2) may contain spaces,
  * parentheses and newlines, so split only after the final `) <state> `.
  */
+export function parseLinuxStoppedProcessStat(stat:string,pid:number):Readonly<{startTimeTicks:string;state:'T'}> {
+  const startTimeTicks=parseLinuxProcessStat(stat,pid);
+  const close=stat.lastIndexOf(') ');
+  const state=stat.slice(close+2).split(/\s+/,1)[0];
+  if(state!=='T')throw new Error('WorkerSupervisor SECURITY HOLD: process is not stopped');
+  return Object.freeze({startTimeTicks,state:'T'});
+}
+
+/** Qualification observation only: procfs cannot pin a process lifetime. */
+export async function readLinuxStoppedProcessIdentity(pid:number):Promise<Readonly<{pid:number;startTimeTicks:string;state:'T'}>|null> {
+  if(process.platform!=='linux'||!Number.isSafeInteger(pid)||pid<=1||pid>2147483647)
+    throw new Error('Invalid stopped Linux process PID');
+  try {
+    const before=parseLinuxStoppedProcessStat(await readFile(`/proc/${pid}/stat`,'utf8'),pid);
+    const after=parseLinuxStoppedProcessStat(await readFile(`/proc/${pid}/stat`,'utf8'),pid);
+    if(before.startTimeTicks!==after.startTimeTicks)
+      throw new Error('WorkerSupervisor SECURITY HOLD: process generation changed');
+    return Object.freeze({pid,...after});
+  }catch(error){
+    if((error as NodeJS.ErrnoException)?.code==='ENOENT'||(error as NodeJS.ErrnoException)?.code==='ESRCH')return null;
+    throw error;
+  }
+}
+
 export function parseLinuxProcessStat(stat:string,pid:number):string {
   if(typeof stat!=='string'||stat.length>65536||!Number.isSafeInteger(pid)||pid<1)
     throw new Error('Invalid Linux process stat');

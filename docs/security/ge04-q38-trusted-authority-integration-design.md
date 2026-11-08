@@ -26,3 +26,9 @@ Status: design + synthetic pure qualification only. No production credential pat
 ## Stop conditions
 
 No real secrets, production grant wiring, FD-3 replacement, approval bypass, or GE-04 HOLD release. Require an approved source-of-truth route design and separate isolation qualification before implementation.
+
+---
+
+## R2S evidence integration clarification (2026-11-08)
+
+Future witness validation enters **once** through `src/governance/security/evidence/monotonic-witness.ts`, not through an additional policy gate, scheduler, TUI, worker, approval store or credential issuer. Its present `MonotonicTrustAnchor` reader is an **unwired qualification contract**; a caller-supplied protected snapshot and `consumedByVerifier` flag are not proof of independent custody. Only later fully authenticated, protected verifier evidence may inform existing ALiX governance and recovery; it cannot by itself release a grant or clear a durable worker record. See [ADR-0018](../architecture/adrs/ADR-0018-independent-trust-service.md) and [R2S contract](ge04-trust-service-contract.md). Stop conditions above remain binding.

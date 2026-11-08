@@ -316,3 +316,9 @@ are retained as point-in-time history, superseded by these reported reruns.
 See `docs/security/ge04-q32-supervisor-verification-boundary.md` for the
 proposed deny-first supervisor-only verification contract and unqualified
 acceptance criteria. GE-04 SECURITY HOLD remains active.
+
+---
+
+## R2S independent publication / issuer separation (2026-11-08; proposed)
+
+The independent trust service is **not** the trusted grant issuer in this contract. Existing ALiX policy, durable attempt claim, approval and credential-custody authorities remain canonical. A dedicated publisher can propose an ALiX-authorized policy/checkpoint commitment; a separately privileged committer advances an independently protected monotonic revision. A verifier reads signed evidence; neither can replace issuer authorization or grant a model credential. Rotate witness signing keys under separate operator control, not via issuer self-approval. A mismatch, outage or ambiguous advance leaves grant issuance and protected recovery blocked. See [ADR-0018](../architecture/adrs/ADR-0018-independent-trust-service.md) and [GE-04 R2S contract](ge04-trust-service-contract.md). Existing GE-04 SECURITY HOLD continues.
