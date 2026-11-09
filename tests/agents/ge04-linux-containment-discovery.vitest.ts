@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest';
-import {discoverLinuxContainment,inspectCgroupMount,inspectCgroupMembership,inspectIdMap,type DiscoveryIO} from '../../src/agents/linux-containment-discovery.js';
+import {discoverLinuxContainment,inspectCgroupMount,inspectCgroupMembership,inspectIdMap,resolveCgroupKillPath,type DiscoveryIO} from '../../src/agents/linux-containment-discovery.js';
 const mount='36 29 0:32 / /sys/fs/cgroup rw,nosuid - cgroup2 cgroup rw\n';
 const base:Record<string,string>={
  '/proc/self/mountinfo':mount,'/proc/self/cgroup':'0::/user.slice/session.scope\n',
@@ -12,7 +12,7 @@ function fixture(files:Record<string,string>=base,kinds:Record<string,'file'|'di
 }
 describe('GE-04-CAP read-only discovery',()=>{
  it('reports unified mount, namespace and LSM evidence but never authorizes',async()=>{
-  const r=await discoverLinuxContainment(fixture(base,{'/sys/fs/cgroup/cgroup.kill':'file'}),'linux');
+  const r=await discoverLinuxContainment(fixture(base,{'/sys/fs/cgroup/user.slice/session.scope/cgroup.kill':'file'}),'linux');
   expect(r.mount.status).toBe('observed');expect(r.cgroupMembership.status).toBe('observed');
   expect(r.cgroupKill.status).toBe('observed');expect(r.namespaces.user.status).toBe('observed');
   expect(r.namespaces.uidMap.status).toBe('observed');expect(r.lsm.selinux.detail).toBe('selinux-enforcing');
@@ -25,14 +25,27 @@ describe('GE-04-CAP read-only discovery',()=>{
   const files={...base,'/run/systemd/container':runtime==='native'?'':runtime};
   return discoverLinuxContainment(fixture(files),'linux').then(r=>expect(r.authorizedForWorkerLaunch).toBe(false));
  });
+ it('does not classify absent runtime markers as native',async()=>{
+  const r=await discoverLinuxContainment(fixture({...base,'/run/systemd/container':''}),'linux');
+  expect(r.runtime.family).toBe('unknown');
+  expect(r.denialReasons).toContain('absence-of-container-markers-does-not-prove-native-host');
+  expect(r.authorizedForWorkerLaunch).toBe(false);
+ });
  it('flags missing and ambiguous kernel evidence',async()=>{
   const r=await discoverLinuxContainment(fixture({}),'linux');
   expect(r.mount.status).toBe('unknown');expect(r.cgroupMembership.status).toBe('unknown');
   expect(r.denialReasons).toContain('unified-cgroup2-mount-unverified');
  });
  it('does not follow suspicious control file symlink as proof',async()=>{
-  const r=await discoverLinuxContainment(fixture(base,{'/sys/fs/cgroup/cgroup.kill':'symlink'}),'linux');
+  const r=await discoverLinuxContainment(fixture(base,{'/sys/fs/cgroup/user.slice/session.scope/cgroup.kill':'symlink'}),'linux');
   expect(r.cgroupKill.status).toBe('unknown');
+ });
+ it('reports a non-root cgroup mount root as not host-root evidence',async()=>{
+  const r=await discoverLinuxContainment(fixture({...base,'/proc/self/mountinfo':mount.replace('0:32 / /sys','0:32 /nested /sys')}),'linux');
+  expect(r.mount.status).toBe('observed');
+  expect(r.mount.detail).toContain('mount-root=/nested');
+  expect(r.denialReasons).toContain('cgroup-mount-root-not-host-root');
+  expect(r.authorizedForWorkerLaunch).toBe(false);
  });
  it('does not confuse mount read-write with delegation',async()=>{
   const r=await discoverLinuxContainment(fixture({...base,'/proc/self/mountinfo':mount.replace('rw,nosuid','ro,nosuid')}),'linux');
@@ -44,6 +57,20 @@ describe('GE-04-CAP read-only discovery',()=>{
  });
 });
 describe('strict parsers',()=>{
+ it('rejects malformed mountinfo instead of treating it as absent',()=>{
+  expect(inspectCgroupMount('malformed').status).toBe('unknown');
+  expect(inspectCgroupMount('').status).toBe('unknown');
+ });
+ it('records observed mount identity but does not claim it is pinned',()=>{
+  const evidence=inspectCgroupMount(mount);
+  expect(evidence.status).toBe('observed');
+  expect(evidence.detail).toContain('mount-id=36');
+  expect(evidence.detail).toContain('mount-identity-not-pinned');
+ });
+ it('rejects malformed mount identity and truncated fields',()=>{
+  expect(inspectCgroupMount(mount.replace('36 29 0:32','oops 29 0:32')).status).toBe('unknown');
+  expect(inspectCgroupMount('36 29 0:32 / /sys/fs/cgroup rw - cgroup2').status).toBe('unknown');
+ });
  it('rejects hybrid and duplicate mounts',()=>{
   expect(inspectCgroupMount(mount.replace('cgroup2 cgroup','tmpfs tmpfs')).status).toBe('absent');
   expect(inspectCgroupMount(mount+mount).status).toBe('unknown');
@@ -51,6 +78,13 @@ describe('strict parsers',()=>{
  it('accepts mountinfo octal escape but rejects wrong mountpoint',()=>{
   expect(inspectCgroupMount(mount.replace('/sys/fs/cgroup','/sys/fs\\057cgroup')).status).toBe('observed');
   expect(inspectCgroupMount(mount.replace('/sys/fs/cgroup','/tmp')).status).toBe('absent');
+ });
+ it('resolves only unambiguous non-root membership without traversal',()=>{
+  expect(resolveCgroupKillPath(mount,'0::/user.slice/session.scope\n')).toBe('/sys/fs/cgroup/user.slice/session.scope/cgroup.kill');
+  expect(resolveCgroupKillPath(mount,'0::/\n')).toBeUndefined();
+  expect(resolveCgroupKillPath(mount,'0::/../escape\n')).toBeUndefined();
+  expect(resolveCgroupKillPath(mount.replace('0:32 / /sys','0:32 /nested /sys'),'0::/user.slice/session.scope\n')).toBeUndefined();
+  expect(resolveCgroupKillPath(undefined,'0::/user.slice/session.scope\n')).toBeUndefined();
  });
  it('requires unique unified membership',()=>{
   expect(inspectCgroupMembership('0::/\n').status).toBe('observed');
