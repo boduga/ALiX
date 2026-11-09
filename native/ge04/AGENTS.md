@@ -14,6 +14,11 @@ These files do not provide production worker or broker admission.
 - Other C files: separate pinned-executable, launcher, pidfd, peercred and
   cgroup qualification probes. Their outputs are diagnostic evidence for
   documented tests, not interchangeable authorization or release grants.
+- `cgroup-worker-qualification.c`: closed fixed-worker fixture for exclusive
+  cgroup birth/stop/attach/descendant cleanup and same-boot helper-crash recovery.
+  It has no arbitrary path/PID/UID/executable interface or production consumer.
+  `tests/agents/test_ge04_cgroup_worker.py` owns only its newly created exact
+  transient qualification unit; it must validate trusted root staging first.
 - `tests/fixtures/ge04-native-stream-probe.c` and
   `tests/agents/test_ge04_native_stream.py`: secret-free transport harness and
   synthetic cross-UID regressions. The harness is never installed as a service.
@@ -35,6 +40,18 @@ These files do not provide production worker or broker admission.
   response socket. No reusable credentials or authority may be returned.
 - No change here qualifies hostile containment, durable registration/recovery,
   model-provider authority, final effects or independent production release.
+- Exclusive journal-bound cgroup ownership is the operator-selected recovery
+  authority for the fixed fixture, including stopped root launchers. Lost unit,
+  parent or leaf binding means quarantine, not another kill target. A unit timer
+  must never bypass quarantine; no automatic whole-subtree teardown fallback.
+- Fixed-qualifier child setup closes inherited lock/control descriptors and
+  redirects standard streams before stopping. Stopped children must not retain
+  the parent writer lock or stdout lifetime. Recheck leaf/control custody before
+  destructive operations; phase diagnostics alone do not prove identity.
+- Cgroup root tests require separately reviewed root-owned non-writable staging,
+  fixed source/binary hashes and the documented disposable-VM scope. Never adopt
+  a preexisting unit/work directory, change the witness, or grant sudo to repo
+  scripts. No cgroup mutation follows merely from passing unprivileged tests.
 
 ## Work Guidance
 
@@ -47,6 +64,11 @@ probe. Preserve unrelated VM processes, witness identity and existing worktrees.
 ## Verification
 
 Run `python3 -m unittest discover -s tests/agents -p test_ge04_native_stream.py -v`.
+For the closed cgroup fixture, read
+`docs/security/ge04-cgroup-worker-qualification.md` and run its local command
+first. Its privileged staged command requires both explicit qualification flags
+and independent native source/root-scope review. Unknown/changed ownership leaves
+the exact unit/journal quarantined; report it rather than claiming cleanup.
 Local skips are not cross-UID qualification. Root cases require explicit flags,
 the reviewed synthetic scope on the designated disposable VM, exact source
 hashes and saved before/after witness and cleanup observations. Never run them

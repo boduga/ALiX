@@ -1,0 +1,36 @@
+{
+  "utc": "2026-11-09T15:03:57.013811+00:00",
+  "witness": {
+    "ActiveState": "active",
+    "SubState": "running",
+    "InvocationID": "76b16df891ea439fb850303c99fdf0be",
+    "MainPID": "981",
+    "ExecMainStartTimestampMonotonic": "20927201"
+  },
+  "unit": "LoadState=not-found\nActiveState=inactive\n",
+  "synthetic_process_count": 0,
+  "fixture_paths_exist": {
+    "/run/ge04-cgroup-code": false,
+    "/run/ge04-cgroup-qualification": false,
+    "/sys/fs/cgroup/system.slice/ge04-r1b2-qualification.service": false
+  },
+  "identity_lookup_exit": {
+    "passwd": 2,
+    "group": 2
+  },
+  "resolved_tools": {
+    "sudo": "/usr/lib/cargo/bin/sudo",
+    "env": "/usr/lib/cargo/bin/coreutils/env",
+    "gnumkdir": "/usr/bin/gnumkdir",
+    "gnuchmod": "/usr/bin/gnuchmod",
+    "gnurm": "/usr/bin/gnurm",
+    "gnurmdir": "/usr/bin/gnurmdir",
+    "tee": "/usr/lib/cargo/bin/coreutils/tee",
+    "sha256sum": "/usr/lib/cargo/bin/coreutils/sha256sum",
+    "cc": "/usr/bin/x86_64-linux-gnu-gcc-15",
+    "python3": "/usr/bin/python3.14",
+    "systemd-run": "/usr/bin/systemd-run",
+    "systemctl": "/usr/bin/systemctl",
+    "gnusleep": "/usr/bin/gnusleep"
+  }
+}

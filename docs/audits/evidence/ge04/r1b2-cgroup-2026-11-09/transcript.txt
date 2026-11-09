@@ -1,0 +1,313 @@
+2026-11-09T15:04:02Z
+/run/ge04-cgroup-code/native/ge04/cgroup-worker-qualification.c: OK
+/run/ge04-cgroup-code/tests/agents/test_ge04_cgroup_worker.py: OK
+STAGED_MANIFEST {"binarySha256": "d888c1d998f595a0231bd856eabe02c0d3fdc00eca1e0f88a635963f499608c6", "controllerSha256": "5f65166afc7a66c8d56370b40df32a55f16c82b4adb9fddfaa4eab05985d4174", "schemaVersion": 1, "sourceSha256": "5362bdb0b08586f51151f0b53519a48ababb557f9c31758283f3aab2ec06d757"}
+STAGING_IDENTITIES {"entries": {"": [28, 4427], "bin": [28, 4432], "bin/probe": [28, 4435], "manifest.json": [28, 4436], "native": [28, 4428], "native/ge04": [28, 4429], "native/ge04/cgroup-worker-qualification.c": [28, 4433], "tests": [28, 4430], "tests/agents": [28, 4431], "tests/agents/test_ge04_cgroup_worker.py": [28, 4434]}, "schemaVersion": 1}
+COMMAND: /usr/bin/sudo -n /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C ALIX_GE04_STAGE_IDENTITIES=\{\"entries\":\ \{\"\":\ \[28\,\ 4427\]\,\ \"bin\":\ \[28\,\ 4432\]\,\ \"bin/probe\":\ \[28\,\ 4435\]\,\ \"manifest.json\":\ \[28\,\ 4436\]\,\ \"native\":\ \[28\,\ 4428\]\,\ \"native/ge04\":\ \[28\,\ 4429\]\,\ \"native/ge04/cgroup-worker-qualification.c\":\ \[28\,\ 4433\]\,\ \"tests\":\ \[28\,\ 4430\]\,\ \"tests/agents\":\ \[28\,\ 4431\]\,\ \"tests/agents/test_ge04_cgroup_worker.py\":\ \[28\,\ 4434\]\}\,\ \"schemaVersion\":\ 1\} ALIX_GE04_PRIVILEGED_QUALIFICATION=1 ALIX_GE04_CGROUP_QUALIFICATION=1 /usr/bin/python3 -I -S /run/ge04-cgroup-code/tests/agents/test_ge04_cgroup_worker.py -v
+test_invalid_mode (__main__.CgroupBuild.test_invalid_mode) ... ok
+test_nonroot_refuses_before_writes (__main__.CgroupBuild.test_nonroot_refuses_before_writes) ... skipped 'unprivileged refusal not established by a root run'
+COMMAND ["/usr/bin/systemd-run", "--no-ask-password", "--unit=ge04-r1b2-qualification.service", "--property=Delegate=yes", "--property=DelegateSubgroup=controller", "--property=TasksMax=32", "--property=CPUQuota=50%", "--property=KillMode=process", "--property=OOMPolicy=continue", "--", "/usr/bin/gnusleep", "infinity"]
+COMMAND_EXIT 0
+UNIT_CREATED {"ActiveState": "active", "ControlGroup": "/system.slice/ge04-r1b2-qualification.service", "Delegate": "yes", "DelegateSubgroup": "controller", "InvocationID": "a542bb11d93f497393f1cb55e5e2361b", "KillMode": "process", "LoadState": "loaded", "MainPID": "8062", "OOMPolicy": "continue", "SubState": "running", "Transient": "yes"}
+NATIVE crash-intent EV LEAF
+OBSERVED LEAF {"leaf": "worker-49c971d47adc329a", "members": []}
+NATIVE crash-intent EV TEMP
+test_approval_invocation_mismatch (__main__.CgroupLive.test_approval_invocation_mismatch) ... OBSERVED TEMP {"leaf": "worker-49c971d47adc329a", "members": []}
+NATIVE crash-intent EV INTENT
+OBSERVED INTENT {"leaf": "worker-49c971d47adc329a", "members": []}
+NATIVE_NEGATIVE RESULT code=77 reason=INTENT_DENIED clean=0
+NATIVE recover EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-49c971d47adc329a", "members": []}
+NATIVE recover RESULT code=0 reason=RECOVERED clean=1
+NATIVE fail-attach EV LEAF
+OBSERVED LEAF {"leaf": "worker-b0b0bc483a893d63", "members": []}
+NATIVE fail-attach EV TEMP
+OBSERVED TEMP {"leaf": "worker-b0b0bc483a893d63", "members": []}
+NATIVE fail-attach EV INTENT
+ok
+test_attach_failure_stays_stopped (__main__.CgroupLive.test_attach_failure_stays_stopped) ... OBSERVED INTENT {"leaf": "worker-b0b0bc483a893d63", "members": []}
+NATIVE fail-attach EV CHILD
+OBSERVED CHILD {"leaf": "worker-b0b0bc483a893d63", "members": [8105]}
+NATIVE fail-attach EV STOPPED
+OBSERVED STOPPED {"leaf": "worker-b0b0bc483a893d63", "members": [8105]}
+NATIVE fail-attach EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-b0b0bc483a893d63", "members": []}
+NATIVE fail-attach RESULT code=77 reason=ATTACH_EBADF clean=1
+NATIVE run EV LEAF
+OBSERVED LEAF {"leaf": "worker-5de8c407d0098951", "members": []}
+NATIVE_NEGATIVE RESULT code=77 reason=LOCK_DENIED clean=0
+NATIVE run EV TEMP
+ok
+test_concurrent_writer_refuses (__main__.CgroupLive.test_concurrent_writer_refuses) ... OBSERVED TEMP {"leaf": "worker-5de8c407d0098951", "members": []}
+NATIVE run EV INTENT
+OBSERVED INTENT {"leaf": "worker-5de8c407d0098951", "members": []}
+NATIVE run EV CHILD
+OBSERVED CHILD {"leaf": "worker-5de8c407d0098951", "members": [8135]}
+NATIVE run EV STOPPED
+OBSERVED STOPPED {"leaf": "worker-5de8c407d0098951", "members": [8135]}
+NATIVE run EV READBACK
+OBSERVED READBACK {"leaf": "worker-5de8c407d0098951", "members": [8135]}
+NATIVE run EV ATTACHED
+OBSERVED ATTACHED {"leaf": "worker-5de8c407d0098951", "members": [8135]}
+NATIVE run EV RUNNING
+OBSERVED RUNNING {"leaf": "worker-5de8c407d0098951", "members": [8135, 8144]}
+NATIVE run EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-5de8c407d0098951", "members": []}
+NATIVE run RESULT code=0 reason=COMPLETED clean=1
+NATIVE run EV LEAF
+OBSERVED LEAF {"leaf": "worker-1ad5fbba6b794c4d", "members": []}
+NATIVE run EV TEMP
+OBSERVED TEMP {"leaf": "worker-1ad5fbba6b794c4d", "members": []}
+NATIVE run EV INTENT
+OBSERVED INTENT {"leaf": "worker-1ad5fbba6b794c4d", "members": []}
+NATIVE run EV CHILD
+OBSERVED CHILD {"leaf": "worker-1ad5fbba6b794c4d", "members": [8168]}
+NATIVE run EV STOPPED
+OBSERVED STOPPED {"leaf": "worker-1ad5fbba6b794c4d", "members": [8168]}
+ok
+test_control_custody_change_preserves_members (__main__.CgroupLive.test_control_custody_change_preserves_members) ... NATIVE run EV READBACK
+OBSERVED READBACK {"leaf": "worker-1ad5fbba6b794c4d", "members": [8168]}
+NATIVE run EV ATTACHED
+OBSERVED ATTACHED {"leaf": "worker-1ad5fbba6b794c4d", "members": [8168]}
+NATIVE run EV RUNNING
+OBSERVED RUNNING {"leaf": "worker-1ad5fbba6b794c4d", "members": [8168, 8177]}
+NATIVE run RESULT code=77 reason=QUARANTINE clean=0
+NATIVE recover EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-1ad5fbba6b794c4d", "members": []}
+NATIVE recover RESULT code=0 reason=RECOVERED clean=1
+NATIVE crash-intent EV LEAF
+OBSERVED LEAF {"leaf": "worker-b6edb6d24fb1ddbc", "members": []}
+NATIVE crash-intent EV TEMP
+OBSERVED TEMP {"leaf": "worker-b6edb6d24fb1ddbc", "members": []}
+NATIVE crash-intent EV INTENT
+OBSERVED INTENT {"leaf": "worker-b6edb6d24fb1ddbc", "members": []}
+NATIVE_NEGATIVE RESULT code=77 reason=EXISTING_STATE clean=0
+NATIVE recover EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-b6edb6d24fb1ddbc", "members": []}
+NATIVE recover RESULT code=0 reason=RECOVERED clean=1
+ok
+test_existing_intent_refuses_new_run (__main__.CgroupLive.test_existing_intent_refuses_new_run) ... ok
+test_intent_crash (__main__.CgroupLive.test_intent_crash) ... NATIVE crash-intent EV LEAF
+OBSERVED LEAF {"leaf": "worker-b8e4676f7c1bcb21", "members": []}
+NATIVE crash-intent EV TEMP
+OBSERVED TEMP {"leaf": "worker-b8e4676f7c1bcb21", "members": []}
+NATIVE crash-intent EV INTENT
+OBSERVED INTENT {"leaf": "worker-b8e4676f7c1bcb21", "members": []}
+NATIVE recover EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-b8e4676f7c1bcb21", "members": []}
+NATIVE recover RESULT code=0 reason=RECOVERED clean=1
+NATIVE run EV LEAF
+OBSERVED LEAF {"leaf": "worker-285e774ae099b154", "members": []}
+NATIVE run EV TEMP
+OBSERVED TEMP {"leaf": "worker-285e774ae099b154", "members": []}
+NATIVE run EV INTENT
+ok
+test_interruption_child (__main__.CgroupLive.test_interruption_child) ... OBSERVED INTENT {"leaf": "worker-285e774ae099b154", "members": []}
+NATIVE run EV CHILD
+OBSERVED CHILD {"leaf": "worker-285e774ae099b154", "members": [8255]}
+NATIVE recover EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-285e774ae099b154", "members": []}
+NATIVE recover RESULT code=0 reason=RECOVERED clean=1
+NATIVE run EV LEAF
+OBSERVED LEAF {"leaf": "worker-52e6cea5dd7227bc", "members": []}
+NATIVE run EV TEMP
+OBSERVED TEMP {"leaf": "worker-52e6cea5dd7227bc", "members": []}
+NATIVE run EV INTENT
+OBSERVED INTENT {"leaf": "worker-52e6cea5dd7227bc", "members": []}
+NATIVE run EV CHILD
+OBSERVED CHILD {"leaf": "worker-52e6cea5dd7227bc", "members": [8287]}
+NATIVE run EV STOPPED
+OBSERVED STOPPED {"leaf": "worker-52e6cea5dd7227bc", "members": [8287]}
+NATIVE run EV READBACK
+OBSERVED READBACK {"leaf": "worker-52e6cea5dd7227bc", "members": [8287]}
+NATIVE run EV ATTACHED
+OBSERVED ATTACHED {"leaf": "worker-52e6cea5dd7227bc", "members": [8287]}
+NATIVE run EV RUNNING
+OBSERVED RUNNING {"leaf": "worker-52e6cea5dd7227bc", "members": [8287, 8296]}
+NATIVE recover EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-52e6cea5dd7227bc", "members": []}
+NATIVE recover RESULT code=0 reason=RECOVERED clean=1
+ok
+test_interruption_running (__main__.CgroupLive.test_interruption_running) ... NATIVE run EV LEAF
+ok
+test_interruption_temp (__main__.CgroupLive.test_interruption_temp) ... OBSERVED LEAF {"leaf": "worker-51504eab117a1ac5", "members": []}
+NATIVE run EV TEMP
+OBSERVED TEMP {"leaf": "worker-51504eab117a1ac5", "members": []}
+NATIVE sweep-empty RESULT code=0 reason=EMPTY_SWEEP clean=1
+ok
+test_leaf_custody_change_quarantines (__main__.CgroupLive.test_leaf_custody_change_quarantines) ... NATIVE crash-intent EV LEAF
+OBSERVED LEAF {"leaf": "worker-695dcc559a2a7443", "members": []}
+NATIVE crash-intent EV TEMP
+OBSERVED TEMP {"leaf": "worker-695dcc559a2a7443", "members": []}
+NATIVE crash-intent EV INTENT
+OBSERVED INTENT {"leaf": "worker-695dcc559a2a7443", "members": []}
+NATIVE_NEGATIVE RESULT code=77 reason=BINDING_DENIED clean=0
+NATIVE recover EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-695dcc559a2a7443", "members": []}
+NATIVE recover RESULT code=0 reason=RECOVERED clean=1
+NATIVE crash-intent EV LEAF
+OBSERVED LEAF {"leaf": "worker-97455230250c3a9f", "members": []}
+NATIVE crash-intent EV TEMP
+OBSERVED TEMP {"leaf": "worker-97455230250c3a9f", "members": []}
+NATIVE crash-intent EV INTENT
+OBSERVED INTENT {"leaf": "worker-97455230250c3a9f", "members": []}
+NATIVE_NEGATIVE RESULT code=77 reason=BINDING_DENIED clean=0
+NATIVE recover EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-97455230250c3a9f", "members": []}
+NATIVE recover RESULT code=0 reason=RECOVERED clean=1
+ok
+test_leaf_inode_mismatch (__main__.CgroupLive.test_leaf_inode_mismatch) ... NATIVE crash-intent EV LEAF
+OBSERVED LEAF {"leaf": "worker-df6a913bbb204364", "members": []}
+NATIVE crash-intent EV TEMP
+OBSERVED TEMP {"leaf": "worker-df6a913bbb204364", "members": []}
+NATIVE crash-intent EV INTENT
+OBSERVED INTENT {"leaf": "worker-df6a913bbb204364", "members": []}
+NATIVE_NEGATIVE RESULT code=77 reason=INTENT_DENIED clean=0
+NATIVE recover EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-df6a913bbb204364", "members": []}
+NATIVE recover RESULT code=0 reason=RECOVERED clean=1
+NATIVE run EV LEAF
+ok
+test_malformed_intent (__main__.CgroupLive.test_malformed_intent) ... ok
+test_normal_descendants (__main__.CgroupLive.test_normal_descendants) ... OBSERVED LEAF {"leaf": "worker-ee9f9dc690483552", "members": []}
+NATIVE run EV TEMP
+OBSERVED TEMP {"leaf": "worker-ee9f9dc690483552", "members": []}
+NATIVE run EV INTENT
+OBSERVED INTENT {"leaf": "worker-ee9f9dc690483552", "members": []}
+NATIVE run EV CHILD
+OBSERVED CHILD {"leaf": "worker-ee9f9dc690483552", "members": [8436]}
+NATIVE run EV STOPPED
+OBSERVED STOPPED {"leaf": "worker-ee9f9dc690483552", "members": [8436]}
+NATIVE run EV READBACK
+OBSERVED READBACK {"leaf": "worker-ee9f9dc690483552", "members": [8436]}
+NATIVE run EV ATTACHED
+OBSERVED ATTACHED {"leaf": "worker-ee9f9dc690483552", "members": [8436]}
+NATIVE run EV RUNNING
+OBSERVED RUNNING {"leaf": "worker-ee9f9dc690483552", "members": [8436, 8445]}
+NATIVE run EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-ee9f9dc690483552", "members": []}
+NATIVE run RESULT code=0 reason=COMPLETED clean=1
+NATIVE crash-intent EV LEAF
+OBSERVED LEAF {"leaf": "worker-9b4463fef88bc179", "members": []}
+NATIVE crash-intent EV TEMP
+OBSERVED TEMP {"leaf": "worker-9b4463fef88bc179", "members": []}
+NATIVE crash-intent EV INTENT
+OBSERVED INTENT {"leaf": "worker-9b4463fef88bc179", "members": []}
+NATIVE_NEGATIVE RESULT code=77 reason=INTENT_DENIED clean=0
+NATIVE recover EV EMPTY
+ok
+test_parent_inode_mismatch (__main__.CgroupLive.test_parent_inode_mismatch) ... OBSERVED EMPTY {"leaf": "worker-9b4463fef88bc179", "members": []}
+NATIVE recover RESULT code=0 reason=RECOVERED clean=1
+NATIVE fail-before-clone EV LEAF
+OBSERVED LEAF {"leaf": "worker-cc9d5ebad3f59588", "members": []}
+NATIVE fail-before-clone EV TEMP
+OBSERVED TEMP {"leaf": "worker-cc9d5ebad3f59588", "members": []}
+NATIVE fail-before-clone EV INTENT
+OBSERVED INTENT {"leaf": "worker-cc9d5ebad3f59588", "members": []}
+NATIVE fail-before-clone EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-cc9d5ebad3f59588", "members": []}
+NATIVE fail-before-clone RESULT code=77 reason=BEFORE_CLONE clean=1
+NATIVE crash-leaf EV LEAF
+OBSERVED LEAF {"leaf": "worker-fdd72149d652af00", "members": []}
+NATIVE recover RESULT code=77 reason=INTENT_DENIED clean=0
+ok
+test_preclone_denial (__main__.CgroupLive.test_preclone_denial) ... ok
+test_preintent_leaf_crash (__main__.CgroupLive.test_preintent_leaf_crash) ... NATIVE sweep-empty RESULT code=0 reason=EMPTY_SWEEP clean=1
+ok
+test_publication_failure (__main__.CgroupLive.test_publication_failure) ... NATIVE fail-publish EV LEAF
+OBSERVED LEAF {"leaf": "worker-f5c81db5c1d0d4e9", "members": []}
+NATIVE fail-publish EV TEMP
+OBSERVED TEMP {"leaf": "worker-f5c81db5c1d0d4e9", "members": []}
+NATIVE fail-publish EV PUBLISH_FAILED
+OBSERVED PUBLISH_FAILED {"leaf": "worker-f5c81db5c1d0d4e9", "members": []}
+NATIVE fail-publish EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-f5c81db5c1d0d4e9", "members": []}
+NATIVE fail-publish RESULT code=77 reason=PUBLISH_EBADF clean=1
+NATIVE fail-resume EV LEAF
+OBSERVED LEAF {"leaf": "worker-6bd6c078dc98fc02", "members": []}
+NATIVE fail-resume EV TEMP
+OBSERVED TEMP {"leaf": "worker-6bd6c078dc98fc02", "members": []}
+NATIVE fail-resume EV INTENT
+OBSERVED INTENT {"leaf": "worker-6bd6c078dc98fc02", "members": []}
+NATIVE fail-resume EV CHILD
+OBSERVED CHILD {"leaf": "worker-6bd6c078dc98fc02", "members": [8560]}
+NATIVE fail-resume EV STOPPED
+OBSERVED STOPPED {"leaf": "worker-6bd6c078dc98fc02", "members": [8560]}
+NATIVE fail-resume EV READBACK
+OBSERVED READBACK {"leaf": "worker-6bd6c078dc98fc02", "members": [8560]}
+NATIVE fail-resume EV ATTACHED
+OBSERVED ATTACHED {"leaf": "worker-6bd6c078dc98fc02", "members": [8560]}
+NATIVE fail-resume EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-6bd6c078dc98fc02", "members": []}
+ok
+test_resume_failure_stays_stopped (__main__.CgroupLive.test_resume_failure_stays_stopped) ... NATIVE fail-resume RESULT code=77 reason=RESUME_EBADF clean=1
+NATIVE crash-running EV LEAF
+OBSERVED LEAF {"leaf": "worker-581db7367941ce0c", "members": []}
+NATIVE crash-running EV TEMP
+OBSERVED TEMP {"leaf": "worker-581db7367941ce0c", "members": []}
+NATIVE crash-running EV INTENT
+OBSERVED INTENT {"leaf": "worker-581db7367941ce0c", "members": []}
+NATIVE crash-running EV CHILD
+OBSERVED CHILD {"leaf": "worker-581db7367941ce0c", "members": [8590]}
+NATIVE crash-running EV STOPPED
+OBSERVED STOPPED {"leaf": "worker-581db7367941ce0c", "members": [8590]}
+NATIVE crash-running EV READBACK
+ok
+test_running_crash (__main__.CgroupLive.test_running_crash) ... OBSERVED READBACK {"leaf": "worker-581db7367941ce0c", "members": [8590]}
+NATIVE crash-running EV ATTACHED
+OBSERVED ATTACHED {"leaf": "worker-581db7367941ce0c", "members": [8590]}
+NATIVE crash-running EV RUNNING
+OBSERVED RUNNING {"leaf": "worker-581db7367941ce0c", "members": [8590, 8599]}
+NATIVE recover EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-581db7367941ce0c", "members": []}
+NATIVE recover RESULT code=0 reason=RECOVERED clean=1
+NATIVE crash-child EV LEAF
+OBSERVED LEAF {"leaf": "worker-e15f5db92712da46", "members": []}
+NATIVE crash-child EV TEMP
+OBSERVED TEMP {"leaf": "worker-e15f5db92712da46", "members": []}
+NATIVE crash-child EV INTENT
+OBSERVED INTENT {"leaf": "worker-e15f5db92712da46", "members": []}
+NATIVE crash-child EV CHILD
+OBSERVED CHILD {"leaf": "worker-e15f5db92712da46", "members": [8626]}
+NATIVE recover EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-e15f5db92712da46", "members": []}
+NATIVE recover RESULT code=0 reason=RECOVERED clean=1
+NATIVE crash-temp EV LEAF
+OBSERVED LEAF {"leaf": "worker-3a8036cb12d79712", "members": []}
+NATIVE crash-temp EV TEMP
+OBSERVED TEMP {"leaf": "worker-3a8036cb12d79712", "members": []}
+NATIVE recover RESULT code=77 reason=INTENT_DENIED clean=0
+NATIVE sweep-empty RESULT code=0 reason=EMPTY_SWEEP clean=1
+NATIVE fail-verify EV LEAF
+OBSERVED LEAF {"leaf": "worker-9b2661cef315c79b", "members": []}
+NATIVE fail-verify EV TEMP
+OBSERVED TEMP {"leaf": "worker-9b2661cef315c79b", "members": []}
+NATIVE fail-verify EV INTENT
+OBSERVED INTENT {"leaf": "worker-9b2661cef315c79b", "members": []}
+NATIVE fail-verify EV CHILD
+ok
+test_stopped_child_crash (__main__.CgroupLive.test_stopped_child_crash) ... ok
+test_temp_crash (__main__.CgroupLive.test_temp_crash) ... ok
+test_unknown_private_artifact_prevents_stop (__main__.CgroupLive.test_unknown_private_artifact_prevents_stop) ... ok
+test_verification_failure_stays_stopped (__main__.CgroupLive.test_verification_failure_stays_stopped) ... OBSERVED CHILD {"leaf": "worker-9b2661cef315c79b", "members": [8690]}
+NATIVE fail-verify EV STOPPED
+OBSERVED STOPPED {"leaf": "worker-9b2661cef315c79b", "members": [8690]}
+NATIVE fail-verify EV READBACK
+OBSERVED READBACK {"leaf": "worker-9b2661cef315c79b", "members": [8690]}
+NATIVE fail-verify EV EMPTY
+OBSERVED EMPTY {"leaf": "worker-9b2661cef315c79b", "members": []}
+NATIVE fail-verify RESULT code=77 reason=VERIFY_MISMATCH clean=1
+ok
+test_wrong_unit_identity_never_stops (__main__.CgroupLive.test_wrong_unit_identity_never_stops) ... ok
+COMMAND ["/usr/bin/systemctl", "stop", "ge04-r1b2-qualification.service"]
+COMMAND_EXIT 0
+UNIT_REMOVED ge04-r1b2-qualification.service
+test_same_content_replacement_rejected_by_original_identity (__main__.StageLayoutTests.test_same_content_replacement_rejected_by_original_identity) ... ok
+test_special_node_rejected (__main__.StageLayoutTests.test_special_node_rejected) ... ok
+test_unexpected_empty_directory_rejected (__main__.StageLayoutTests.test_unexpected_empty_directory_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 29 tests in 8.047s
+
+OK (skipped=1)
+SUITE_EXIT=0

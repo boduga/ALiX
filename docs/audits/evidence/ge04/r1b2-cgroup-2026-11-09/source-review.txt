@@ -1,0 +1,11 @@
+# Final scoped cgroup source and root-scope recheck
+
+2026-11-09. No actionable P1/P2 source/root-scope regression or material overclaim found in this bounded recheck.
+
+Reviewed the current security contract, native/ge04/AGENTS.md, the cgroup section of docs/2026-11-09-ge04-mandatory-supervisor.md, evidence record.md and both retained execution packets. The C and controller fingerprints remain the reviewed values: 5362bdb0b08586f51151f0b53519a48ababb557f9c31758283f3aab2ec06d757 and 5f65166afc7a66c8d56370b40df32a55f16c82b4adb9fddfaa4eab05985d4174. All fingerprints listed in record.md match the available files.
+
+The retained packets preserve exclusive root staging, source pins, isolated controller execution, complete layout/type checks and original device/inode receipt checks before use and deletion. Their execution latches are enabled in these historical packets; record.md explicitly warns against rerunning consumed fresh-path assumptions.
+
+The recorded totals distinguish 28 passed/1 skipped on the VM from 5 passed/24 skipped locally. The transcript reports 29 methods and SUITE_EXIT=0; host-after.txt reports the unchanged witness, zero synthetic UID/GID processes, an inactive/not-found qualification unit and absent work/cgroup/staging paths. These remain controller-collected observations, not independent host attestation.
+
+The documents correctly retain GE-04 SECURITY HOLD and limit the result to fixed-worker atomic cgroup birth and same-boot cleanup/recovery on the designated VM. Whole-controller death/reboot, hostile filesystem/network isolation, combined registration, production integration, broker/final-effect authority and independent release remain unqualified. No source, repository, privileged host state or commit was changed by this recheck; only this requested report was written. This is agent engineering review, not human security qualification or release approval.

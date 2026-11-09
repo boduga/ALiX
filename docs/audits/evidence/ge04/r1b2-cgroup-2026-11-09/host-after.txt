@@ -1,0 +1,15 @@
+{
+  "utc": "2026-11-09T15:08:14.146828+00:00",
+  "witness": {
+    "ActiveState": "active",
+    "SubState": "running",
+    "InvocationID": "76b16df891ea439fb850303c99fdf0be",
+    "MainPID": "981",
+    "ExecMainStartTimestampMonotonic": "20927201"
+  },
+  "synthetic_process_count": 0,
+  "unit": "LoadState=not-found\nActiveState=inactive\n",
+  "work_absent": true,
+  "parent_absent": true,
+  "staging_absent": true
+}

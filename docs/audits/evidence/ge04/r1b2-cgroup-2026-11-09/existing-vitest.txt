@@ -1,0 +1,9 @@
+
+ RUN  v5.0.5 /tmp/alix-ge04-r1b1-mandatory
+
+
+ Test Files  3 passed (3)
+      Tests  16 passed (16)
+   Start at  08:22:30
+   Duration  676ms (transform 41%, import 30%, tests 20%, worker 9%)
+
