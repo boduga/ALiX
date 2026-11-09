@@ -9,26 +9,26 @@ import { Schema } from "effect";
 // Enums / literals
 // ---------------------------------------------------------------------------
 
-export const EffortEstimateSchema = Schema.Literal("low", "medium", "high");
-export const StrategicImpactSchema = Schema.Literal("direct", "indirect", "compound");
-export const PlanStatusSchema = Schema.Literal(
+export const EffortEstimateSchema = Schema.Literals(["low", "medium", "high"]);
+export const StrategicImpactSchema = Schema.Literals(["direct", "indirect", "compound"]);
+export const PlanStatusSchema = Schema.Literals([
   "ok",
   "no_degradation",
   "insufficient_analysis",
   "no_objectives",
-);
+]);
 
-export const CorrelationSubsystemIdSchema = Schema.Literal(
+export const CorrelationSubsystemIdSchema = Schema.Literals([
   "memory", "workflow", "skills", "agents",
   "tools", "security", "governance", "adaptation",
-);
+]);
 
-export const CausalMechanismSchema = Schema.Literal(
+export const CausalMechanismSchema = Schema.Literals([
   "temporal_cascade",
   "concurrent_degradation",
   "inverse_correlation",
   "degradation_chain",
-);
+]);
 
 // ---------------------------------------------------------------------------
 // PlanningObjective

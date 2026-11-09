@@ -5,7 +5,7 @@
 // Provides save/load/list operations with on-read validation as the primary
 // defense against corrupted JSONL data. Writes are validated before flush.
 
-import { Either } from "effect";
+import { Result } from "effect";
 import { existsSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { StrategicPlan, PlanStatus, EffortEstimate, StrategicImpact, StrategicPlanSummary } from "./planning-types.js";
@@ -303,8 +303,8 @@ export function validatePlan(raw: unknown): StrategicPlan {
   // Catches shape mismatches the manual checks might miss (e.g. invalid
   // CorrelationSubsystemId literal, CausalMechanism literal, nested struct).
   const schemaResult = decode(StrategicPlanSchema, obj);
-  if (Either.isLeft(schemaResult)) {
-    const formatted = formatErrors(schemaResult.left);
+  if (Result.isFailure(schemaResult)) {
+    const formatted = formatErrors(schemaResult.failure);
     throw new PlanningEngineError(
       `StrategicPlan schema validation failed: ${formatted}`,
     );

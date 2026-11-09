@@ -23,7 +23,7 @@ export type TokenUsageFromSchema = typeof TokenUsageSchema.Type;
 export const ToolCallSchema = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
-  args: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+  args: Schema.Record(Schema.String, Schema.Unknown),
 });
 export type ToolCallFromSchema = typeof ToolCallSchema.Type;
 
@@ -63,11 +63,11 @@ export const FilePartSchema = Schema.Struct({
   filename: Schema.String,
 });
 
-export const ContentPartSchema = Schema.Union(TextPartSchema, ImagePartSchema, FilePartSchema);
+export const ContentPartSchema = Schema.Union([TextPartSchema, ImagePartSchema, FilePartSchema]);
 
 export const NormalizedMessageSchema = Schema.Struct({
-  role: Schema.Literal("user", "assistant"),
-  content: Schema.Union(Schema.String, Schema.Array(ContentPartSchema)),
+  role: Schema.Literals(["user", "assistant"]),
+  content: Schema.Union([Schema.String, Schema.Array(ContentPartSchema)]),
 });
 
 // ---------------------------------------------------------------------------
@@ -77,7 +77,7 @@ export const NormalizedMessageSchema = Schema.Struct({
 export const NormalizedRequestSchema = Schema.Struct({
   systemPrompt: Schema.String,
   messages: Schema.Array(NormalizedMessageSchema),
-  tools: Schema.optional(Schema.Array(Schema.Union(ToolDefSchema, DeferredToolEntrySchema))),
+  tools: Schema.optional(Schema.Array(Schema.Union([ToolDefSchema, DeferredToolEntrySchema]))),
   toolResults: Schema.optional(Schema.Array(NormalizedToolResultSchema)),
   temperature: Schema.optional(Schema.Number),
   maxOutputTokens: Schema.optional(Schema.Number),
@@ -120,12 +120,12 @@ export const ErrorChunkSchema = Schema.Struct({
   error: Schema.String,
 });
 
-export const StreamChunkSchema = Schema.Union(
+export const StreamChunkSchema = Schema.Union([
   TextDeltaSchema,
   ReasoningDeltaSchema,
   ToolCallChunkSchema,
   UsageChunkSchema,
   DoneChunkSchema,
   ErrorChunkSchema,
-);
+]);
 export type StreamChunkFromSchema = typeof StreamChunkSchema.Type;

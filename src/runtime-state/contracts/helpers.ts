@@ -1,38 +1,20 @@
-// src/runtime-state/contracts/helpers.ts
-//
-// Typed decode/parse wrappers around Effect Schema.
-// Returns Either for safe decoding — never throws unless explicitly called.
+// Typed decode/parse wrappers around Effect 4 Schema.
+import { Schema, Result } from "effect";
 
-import { Schema, Either, ParseResult } from "effect";
-
-/**
- * Safely decode an unknown input against a schema.
- * Returns Right(decoded value) on success, Left(ParseError) on failure.
- * No thrown exceptions.
- */
-export function decode(
-  schema: Schema.Schema<any, any, never>,
+export function decode<S extends Schema.ConstraintDecoder<unknown>>(
+  schema: S,
   input: unknown,
-): Either.Either<any, ParseResult.ParseError> {
-  return Schema.decodeUnknownEither(schema as any)(input, {
-    errors: "all",
-  }) as any;
+): Result.Result<S["Type"], Schema.SchemaError> {
+  return Schema.decodeUnknownResult(schema, { errors: "all" })(input);
 }
 
-/**
- * Decode and throw on failure.
- * Use in test helpers and trusted contexts; prefer `decode()` for production.
- */
-export function parseOrThrow(
-  schema: Schema.Schema<any, any, never>,
+export function parseOrThrow<S extends Schema.ConstraintDecoder<unknown>>(
+  schema: S,
   input: unknown,
-): any {
-  return Schema.decodeUnknownSync(schema as any)(input);
+): S["Type"] {
+  return Schema.decodeUnknownSync(schema)(input);
 }
 
-/**
- * Format a ParseError into a human-readable string.
- */
-export function formatErrors(error: ParseResult.ParseError): string {
-  return ParseResult.TreeFormatter.formatErrorSync(error);
+export function formatErrors(error: Schema.SchemaError): string {
+  return error.message;
 }

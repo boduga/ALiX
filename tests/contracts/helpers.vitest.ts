@@ -1,7 +1,7 @@
 // tests/contracts/helpers.test.ts
 
 import { describe, it, assert } from "vitest";
-import { Either } from "effect";
+import { Result } from "effect";
 import { decode, parseOrThrow, formatErrors } from "../../src/runtime-state/contracts/helpers.js";
 import { ToolCallRequestSchema } from "../../src/runtime-state/contracts/tool-schemas.js";
 
@@ -12,9 +12,9 @@ describe("decode", () => {
       name: "file.read",
       args: { path: "/tmp/x" },
     });
-    assert.isTrue(Either.isRight(result));
-    if (Either.isRight(result)) {
-      assert.strictEqual(result.right.toolCallId, "call-1");
+    assert.isTrue(Result.isSuccess(result));
+    if (Result.isSuccess(result)) {
+      assert.strictEqual(result.success.toolCallId, "call-1");
     }
   });
 
@@ -22,7 +22,7 @@ describe("decode", () => {
     const result = decode(ToolCallRequestSchema, {
       name: "file.read",
     });
-    assert.isTrue(Either.isLeft(result));
+    assert.isTrue(Result.isFailure(result));
   });
 });
 
@@ -46,9 +46,9 @@ describe("parseOrThrow", () => {
 describe("formatErrors", () => {
   it("formats a parse error as a readable string", () => {
     const result = decode(ToolCallRequestSchema, { name: 42 as any });
-    assert.isTrue(Either.isLeft(result));
-    if (Either.isLeft(result)) {
-      const msg = formatErrors(result.left);
+    assert.isTrue(Result.isFailure(result));
+    if (Result.isFailure(result)) {
+      const msg = formatErrors(result.failure);
       assert.isTrue(msg.length > 0);
     }
   });

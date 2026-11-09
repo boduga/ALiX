@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { ensureDirSync, readJsonFileSync, writeJsonFileAtomicSync } from "../../runtime-state/storage/jsonl-store.js";
-import { Either } from "effect";
+import { Result } from "effect";
 import type { AdaptationProposal, ProposalStatus } from "./adaptation-types.js";
 import type { Logger } from "../../coordination/workflow/evidence-writer.js";
 import { assertSafePathComponent } from "../../governance/security/path-assert.js";
@@ -58,8 +58,8 @@ export class AdaptationProposalStore {
     // literal, invalid ProposalTarget discriminated union variant, invalid
     // ProposalStatus literal, invalid nested shapes.
     const schemaResult = decode(AdaptationProposalSchema, proposal);
-    if (Either.isLeft(schemaResult)) {
-      const msg = `Proposal schema validation failed: ${formatErrors(schemaResult.left)}`;
+    if (Result.isFailure(schemaResult)) {
+      const msg = `Proposal schema validation failed: ${formatErrors(schemaResult.failure)}`;
       if (this.onDiagnostic) {
         this.onDiagnostic(buildDiagnostic("adaptation", boundary, "AdaptationProposalSchema", msg, proposal.id, this.context));
       }
