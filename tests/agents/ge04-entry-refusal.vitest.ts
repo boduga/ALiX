@@ -31,3 +31,68 @@ describe('GE-04 real entry refusal before credential/model execution', () => {
     expect(calls.run).not.toHaveBeenCalled();
   });
 });
+
+
+import {mkdtemp, mkdir, writeFile, readFile, rm} from 'node:fs/promises';
+import {join} from 'node:path';
+import {tmpdir} from 'node:os';
+import {GraphExecutor, loadGraph} from '../../src/coordination/kernel/graph-executor.js';
+import {closeSharedLedger} from '../../src/runtime-state/storage/runtime-ledger.js';
+
+async function withGraph(status: 'pending' | 'failed' | 'done', work: (cwd: string) => Promise<void>) {
+  const cwd = await mkdtemp(join(tmpdir(), 'ge04-graph-refusal-'));
+  try {
+    await mkdir(join(cwd, '.alix', 'graphs'), {recursive: true});
+    const node = {id: 'first', graphId: 'guard', title: 'First', goal: 'must not execute',
+      domain: 'general', status, dependencies: [], requiredCapabilities: [],
+      riskLevel: 'low', approvalMode: 'auto', inputs: {}, artifacts: [], memoryRefs: [],
+      timeoutMs: 1, createdAt: '', updatedAt: ''};
+    await writeFile(join(cwd, '.alix', 'graphs', 'guard.json'), JSON.stringify({
+      id: 'guard', schemaVersion: '1.0', workflowId: 'test', rootGoal: 'test', status: 'ready',
+      strategy: 'sequential', nodes: [node, {...node, id: 'later', dependencies: ['first']}],
+      edges: [], createdAt: '', updatedAt: '',
+    }));
+    await work(cwd);
+  } finally {closeSharedLedger(cwd); await rm(cwd, {recursive: true, force: true});}
+}
+
+describe('GE-04 graph CLI and SOP real refusal', () => {
+  it.each([false, true])('execute refuses and stops before later nodes with enforcement=%s', async enforcement => {
+    await withGraph('pending', async cwd => {
+      let tick = 100;
+      const clock = vi.spyOn(Date, 'now').mockImplementation(() => tick += 10);
+      try {
+        const executor = new GraphExecutor(cwd, {enforceCapabilities: enforcement,
+          policyGate: {evaluateCapability: vi.fn()} as never, config: {} as never});
+        const result = await executor.execute('guard');
+        expect(result.graphStatus).toBe('failed');
+        expect(result.completedNodes).toBe(0);
+        expect(result.results).toHaveLength(1);
+        expect(result.results[0].status).toBe('failed');
+        // The elapsed legacy node timeout must not replace the refusal reason.
+        expect(result.results[0].reason).toMatch(/SECURITY HOLD/);
+        expect(calls.load).not.toHaveBeenCalled();
+        expect(calls.run).not.toHaveBeenCalled();
+        expect(calls.provider).not.toHaveBeenCalled();
+      } finally {clock.mockRestore();}
+    });
+  });
+  it.each(['failed', 'done'] as const)('rerun persists refusal even for forced %s node', async status => {
+    await withGraph(status, async cwd => {
+      const result = await new GraphExecutor(cwd, {enforceCapabilities: false})
+        .rerunNode('guard', 'first', {force: status === 'done'});
+      expect(result.status).toBe('failed');
+      expect(result.reason).toMatch(/SECURITY HOLD/);
+      const graph = await loadGraph('guard', cwd);
+      expect(graph.status).toBe('failed');
+      expect(graph.nodes[0].status).toBe('failed');
+      const attempts = JSON.parse(await readFile(join(cwd, '.alix', 'graphs', 'guard.runs.json'), 'utf8'));
+      expect(attempts).toHaveLength(1);
+      expect(attempts[0]).toMatchObject({status: 'failed', nodeId: 'first'});
+      expect(attempts[0].error).toMatch(/SECURITY HOLD/);
+      expect(calls.load).not.toHaveBeenCalled();
+      expect(calls.run).not.toHaveBeenCalled();
+      expect(calls.provider).not.toHaveBeenCalled();
+    });
+  });
+});

@@ -143,7 +143,7 @@ describe("GraphExecutor", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("no enforcement: blocked capability continues execution normally", async () => {
+  it("no enforcement: blocked capability cannot bypass mandatory supervisor", async () => {
     const { randomUUID } = await import("node:crypto");
     const { mkdtempSync, rmSync, writeFileSync, mkdirSync } = await import("node:fs");
     const { join } = await import("node:path");
@@ -173,10 +173,11 @@ describe("GraphExecutor", () => {
     const exec = new GraphExecutor(tmpDir, { registry, enforceCapabilities: false });
     const result = await exec.execute(graphId);
 
-    // Without enforcement the node attempts execution (runTask will fail because
-    // there's no real provider, but the executor doesn't stop for capability reasons)
+    // Capability opt-out cannot enable an unsupervised worker.
     const node = result.results[0];
     assert.equal(node.nodeId, "node_a");
+    assert.equal(node.status, "failed");
+    assert.match(node.reason ?? "", /SECURITY HOLD/);
     assert.ok(node.capabilityResolution, "capability resolution should exist");
     assert.equal(node.capabilityResolution!.status, "blocked");
 

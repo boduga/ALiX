@@ -48,6 +48,8 @@
 
 ## Local Contracts
 
+- GraphExecutor graph CLI/SOP node dispatch and rerun use fixed unavailable-supervisor refusal immediately before either historical task-loop call. Capability opt-out, ready policy and forced rerun cannot bypass it. Refusal is recorded as failed; rerun persists the failed graph and attempt. Legacy timeout diagnostics must not replace the HOLD reason. These loops remain unreachable pending canonical migration/deletion.
+
 - `DefaultWorkerExecutor.execute` uses fixed `requireTaskWorkerSupervisor(undefined)`
   refusal before event/config/provider/tool work. Historical approval/review tests
   explicitly mock that refusal; they do not qualify production dispatch. No
@@ -84,7 +86,8 @@
   ApprovalStore) evaluates before `runTask`. Missing policyGate/config blocks
   the node instead of running ungoverned. `rerunNode` runs the same gate —
   reruns require fresh authorization. `enforceCapabilities: false` remains the
-  explicit opt-out for tests and read-only demos; the CLI
+  explicit capability-only opt-out for tests and read-only demos; it never
+  bypasses mandatory supervision. The CLI
   `--enforce-capabilities` flag is a no-op (always enforced).
 - Cancellation is terminal. `cancelRun` marks running/pending/ready workers,
   the run, and persisted TaskGraph cancelled and releases ownership leases.

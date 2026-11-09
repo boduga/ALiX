@@ -120,3 +120,21 @@ test('dependency traversal covers TSX/JSX as well as plain and module-specific s
     }
   } finally {rmSync(scratch, {recursive: true, force: true});}
 });
+
+
+function graphDispatchGuarded(source: string): boolean {
+  const sites = [...source.matchAll(/const result: RunResult = await runTask\(/g)];
+  return sites.length === 2 && sites.every(site =>
+    /(?:^|[;{}])\s*requireTaskWorkerSupervisor\(undefined\);\s*$/.test(source.slice(0, site.index)));
+}
+test('both graph worker dispatch sites require fixed supervision refusal', () => {
+  assert.ok(graphDispatchGuarded(readFileSync(resolve(root, 'src/coordination/kernel/graph-executor.ts'), 'utf8')));
+  const good = 'requireTaskWorkerSupervisor(undefined); const result: RunResult = await runTask();';
+  const unguarded = 'const result: RunResult = await runTask();';
+  assert.ok(graphDispatchGuarded(good + good));
+  for (const bad of [unguarded, 'if (flag) requireTaskWorkerSupervisor(undefined); ' + unguarded,
+    unguarded + 'requireTaskWorkerSupervisor(undefined);']) {
+    assert.equal(graphDispatchGuarded(bad + good), false);
+    assert.equal(graphDispatchGuarded(good + bad), false);
+  }
+});
