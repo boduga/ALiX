@@ -17,6 +17,8 @@ function fixture() {
   const claim = {
     protocol: FINAL_EFFECT_PROTOCOL,
     attemptId: "attempt.001", workerId: "worker.001",
+    retryGeneration: 2, nonce: "nonce.001", operation: "file.create",
+    targetSha256: sha("pinned synthetic target identity"),
     policyRevision: "revision.3", approvalId: "approval.001",
     leaseId: "lease.001", requestSha256: requestDigest(raw),
     releaseSha256: sha("independently provisioned release fixture ONLY"),
@@ -24,6 +26,8 @@ function fixture() {
   };
   const observation = {
     attemptId: claim.attemptId, workerId: claim.workerId,
+    retryGeneration: claim.retryGeneration, nonce: claim.nonce,
+    operation: claim.operation, targetSha256: claim.targetSha256,
     policyRevision: claim.policyRevision, approvalId: claim.approvalId,
     approvalStatus: "approved" as const, approvalConsumed: false,
     leaseId: claim.leaseId, leaseStatus: "active" as const,
@@ -64,6 +68,18 @@ test("worker, attempt and store binding mismatches deny even when approval appea
     assert.ok(denied(claim, { ...observation, [key]: "different.999" }).reasons.includes(key), key);
     assert.ok(denied({ ...claim, [key]: "" }, observation).reasons.includes(key), key);
   }
+});
+
+test("retry generation, nonce, operation and target substitutions are detected", () => {
+  const { claim, observation } = fixture();
+  for (const key of ["nonce", "operation"] as const) {
+    assert.ok(denied(claim, { ...observation, [key]: "forged" }).reasons.includes(key));
+  }
+  assert.ok(denied(claim, { ...observation, retryGeneration: 3 }).reasons.includes("retry_generation"));
+  assert.ok(denied({ ...claim, retryGeneration: -1 }, observation).reasons.includes("retry_generation"));
+  assert.ok(denied({ ...claim, retryGeneration: 1.5 }, observation).reasons.includes("retry_generation"));
+  assert.ok(denied(claim, { ...observation, targetSha256: sha("replaced target") }).reasons.includes("target_digest"));
+  assert.ok(denied({ ...claim, targetSha256: "not a hash" }, observation).reasons.includes("target_digest"));
 });
 
 test("release changes and malformed hashes deny", () => {

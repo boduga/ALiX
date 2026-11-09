@@ -23,6 +23,10 @@ export type ClaimedMutation = Readonly<{
   protocol: typeof FINAL_EFFECT_PROTOCOL;
   attemptId: string;
   workerId: string;
+  retryGeneration: number;
+  nonce: string;
+  operation: string;
+  targetSha256: string;
   policyRevision: string;
   approvalId: string;
   leaseId: string;
@@ -35,6 +39,10 @@ export type StoreObservation = Readonly<{
   // *Untrusted* fixture evidence. Not a substitute for protected store reads.
   attemptId: string;
   workerId: string;
+  retryGeneration: number;
+  nonce: string;
+  operation: string;
+  targetSha256: string;
   policyRevision: string;
   approvalId: string;
   approvalStatus: "approved" | "pending" | "denied" | "consumed" | "revoked";
@@ -75,11 +83,11 @@ function equalSha256(a: unknown, b: unknown): boolean {
 }
 
 const claimedKeys = [
-  "protocol", "attemptId", "workerId", "policyRevision", "approvalId",
+  "protocol", "attemptId", "workerId", "retryGeneration", "nonce", "operation", "targetSha256", "policyRevision", "approvalId",
   "leaseId", "requestSha256", "releaseSha256", "expiresAtMs",
 ] as const;
 const observedKeys = [
-  "attemptId", "workerId", "policyRevision", "approvalId", "approvalStatus",
+  "attemptId", "workerId", "retryGeneration", "nonce", "operation", "targetSha256", "policyRevision", "approvalId", "approvalStatus",
   "approvalConsumed", "leaseId", "leaseStatus", "requestSha256",
   "releaseSha256", "expiresAtMs", "policyAllows",
 ] as const;
@@ -126,6 +134,12 @@ export function assessFinalEffect(
     for (const key of ["attemptId", "workerId", "policyRevision", "approvalId", "leaseId"] as const) {
       if (!validId(c[key]) || !validId(o[key]) || c[key] !== o[key]) reasons.push(key);
     }
+    if (!SAFE(c.retryGeneration) || !SAFE(o.retryGeneration) ||
+        c.retryGeneration < 0 || o.retryGeneration !== c.retryGeneration) reasons.push("retry_generation");
+    for (const key of ["nonce", "operation"] as const) {
+      if (!validId(c[key]) || !validId(o[key]) || c[key] !== o[key]) reasons.push(key);
+    }
+    if (!equalSha256(c.targetSha256, o.targetSha256)) reasons.push("target_digest");
     if (!validHash(c.requestSha256) || !validHash(o.requestSha256) ||
         !equalSha256(c.requestSha256, o.requestSha256) ||
         !equalSha256(c.requestSha256, requestDigest(exactRequestBytes as Uint8Array))) {
