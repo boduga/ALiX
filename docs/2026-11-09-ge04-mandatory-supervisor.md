@@ -72,3 +72,22 @@ The reviewed stream suite subsequently passed on the designated VM:30 passed, 1 
 ## Fixed cgroup synthetic qualifier
 
 Operator selected exclusive cgroup ownership as recovery authority. The closed native fixture/controller passed independent source/root-scope review and executed on the designated VM: 28 passed, 1 skipped, including all 24 live cgroup methods. Local 5 passed, 24 skipped; existing related Vitest 16/16 passed. After identity-bound cleanup, the witness identity was unchanged, zero synthetic UID/GID processes remained and the test unit/private directories/staging were absent. Exact sources, commands, raw observations and limits: `docs/audits/evidence/ge04/r1b2-cgroup-2026-11-09/record.md`. This is atomic cgroup birth and same-boot fixed-worker cleanup/recovery evidence, not hostile filesystem/network isolation or a production task backend. B1 integration/full B2 and C–F remain open.
+
+## Pinned image construction increment
+
+All15reported GitHub checks passed at6582e0c6. Operator selected pinned worker
+images and an outer supervisor-owned cgroup with a runc-owned payload group.
+Fresh review identified competing native/runtime cgroup deletion owners in the
+first broad plan; the selected outer/inner separation fixes the direction, while
+its exact lifecycle/journal/profile/bundle-custody protocol remains unimplemented
+and unqualified. The previous single-leaf evidence does not qualify this layout.
+
+A separate pure image-byte builder/verifier is being implemented under
+`docs/security/ge04-oci-qualification-image.md`. It accepts a pinned opaque
+payload and emits/checks one bounded deterministic OCI layout. No executable
+safety or admission is inferred; no image extraction, runtime config, container
+execution or production composition is added. Local18/18format tests pass and were independently reproduced, including golden
+fingerprints derived outside the module. Final scoped source review found no
+actionable finding; evidence is retained in
+`docs/audits/evidence/ge04/r1b2-image-bytes-2026-11-09/record.md`. B1/B2 and C–F
+remain open, with SECURITY HOLD active.

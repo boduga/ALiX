@@ -7,6 +7,10 @@ These files do not provide production worker or broker admission.
 
 ## Ownership
 
+- `oci_qualification_image.py`: pure bounded construction/verification of one
+  canonical OCI qualification image byte format. Opaque payload digest matching
+  is integrity only, never code safety, root custody or runtime admission. No CLI,
+  extraction, filesystem/process/network operations or production consumer.
 - `worker-stream.h` and `worker-stream.c`: bounded AF_UNIX byte-stream framing,
   native acceptance, pidfd/process-generation and per-fragment sender checks.
   Trusted callers must supply independently protected registration authority;
@@ -62,6 +66,12 @@ of no callers. Obtain independent native source review before any privileged
 probe. Preserve unrelated VM processes, witness identity and existing worktrees.
 
 ## Verification
+
+For image bytes, run `python3 -B -m unittest discover -s tests/agents -p test_ge04_oci_image.py -v`.
+Read `docs/security/ge04-oci-qualification-image.md`; keep image construction
+separate from effective runtime policy, unpacked-root custody and native launch.
+The verifier accepts only exact built-in dictionaries, never arbitrary mapping
+proxies/subclasses; a trusted caller may copy the builder's known private proxy.
 
 Run `python3 -m unittest discover -s tests/agents -p test_ge04_native_stream.py -v`.
 For the closed cgroup fixture, read
