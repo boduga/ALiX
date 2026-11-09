@@ -2,16 +2,34 @@
 
 ## Getting Started
 
-1. Fork and clone the repo
-2. Run `npm install && npm run build`
-3. Run `npm test` to verify everything passes
+1. Clone the repo and read root and scoped `AGENTS.md` instructions.
+2. Run `pnpm install --frozen-lockfile && pnpm build`.
+3. Run relevant `pnpm test:node` / `pnpm test:vitest` suites.
+
+## Solo maintainer + coding agents
+
+This is a one-person repository with multiple coding agents. Agents are contributors,
+not substitute human approvers. Use a separate worktree for each concurrent task;
+do not switch branches or overwrite a worktree owned by another agent.
+
+1. Read `AGENTS.md` and `docs/agents/issue-tracker.md`; inspect status, worktrees, existing branches and open PRs.
+2. Fetch `origin/main`; create one scoped branch for one issue or independently mergeable change.
+3. Use `feat/`, `fix/`, `docs/`, `chore/`, `test/`, `refactor/`, `security/`, `ci/`, `build/`, or `hotfix/`. Include the issue number when available.
+4. Before committing, inspect `git diff`, `git diff --cached`, and `git status`; run applicable DOX/GitNexus and tests.
+5. Open one primary PR; use Conventional Commits PR titles. Link the issue with `Refs #N` for partial work; use `Closes #N` only when all acceptance criteria are met.
+6. Have a separate agent session review the complete diff and a verifier check test evidence. Their reports do not count as independent human security qualification.
+7. Merge only after required GitHub checks and applicable human authorization; prefer squash merge. Do not push to `main` directly, bypass checks, or rewrite others' branches.
+8. After merging, fetch and verify main. Preserve active worktrees, review/evidence and backup branches. Delete other branches only with explicit maintainer authorization.
+
+A clean PR or green CI is not permission to lift the GE-04 security hold.
+The PR metadata check enforces naming, not security or merge authorization.
 
 ## Pull Requests
 
 - Keep changes focused — one feature or fix per PR
 - Write tests for new code (we use `node:test`)
 - Timing-sensitive tests must declare an explicit `timeout` with a workload-rationale comment (see `tests/soak/store-load.test.ts`), so slow runners don't turn them into flakes
-- Ensure `npm test` passes before submitting
+- Ensure relevant `pnpm` tests and required CI checks pass before merging
 
 ## Commit Style
 
