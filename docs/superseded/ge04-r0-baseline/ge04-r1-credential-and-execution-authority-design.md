@@ -2,7 +2,7 @@
 
 > **Historical baseline (2026-11-08 reconciliation):** This document preserves the original PR #1053 R0/R1 design and source observations at commit `4d9081d0`. Statements describing paths as *current* apply to that baseline, not necessarily to later `main`. Verify present implementation and security evidence before acting on its dispositions. The GE-04 SECURITY HOLD remains active; this documentation is not release authorization.
 
-**Status:** Design proposal requiring independent threat review; not implementation, security qualification, positive credential admission or hold clearance. **Source baseline:** PR #1052 / `4d9081d0`, with R0 inventory at `docs/security/ge04-r0-worker-execution-inventory.md`.
+**Status:** Design proposal requiring independent threat review; not implementation, security qualification, positive credential admission or hold clearance. **Source baseline:** PR #1052 / `4d9081d0`, with R0 inventory at `docs/superseded/ge04-r0-baseline/ge04-r0-worker-execution-inventory.md`.
 
 ## Decision: one execution path, no fallback
 
