@@ -1,0 +1,97 @@
+Mon Nov  9 09:20:37 UTC 2026
+ActiveState=active
+SubState=running
+InvocationID=76b16df891ea439fb850303c99fdf0be
+MainPID=981
+ExecMainStartTimestampMonotonic=20927201
+User=alixwitness
+Group=alixwitness
+ActiveState=active
+SubState=running
+InvocationID=76b16df891ea439fb850303c99fdf0be
+MainPID=981
+ExecMainStartTimestampMonotonic=20927201
+uid=999(alixwitness) gid=986(alixwitness) groups=986(alixwitness)
+Linux 7.0.0-43-generic x86_64 GNU/Linux
+PRETTY_NAME="Ubuntu 26.04.1 LTS"
+NAME="Ubuntu"
+VERSION_ID="26.04"
+VERSION="26.04.1 LTS (Resolute Raccoon)"
+VERSION_CODENAME=resolute
+ID=ubuntu
+ID_LIKE=debian
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+UBUNTU_CODENAME=resolute
+LOGO=ubuntu-logo
+cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
+gnu-coreutils	9.7-3ubuntu2.1
+f: /usr/bin/gnuid
+drwxr-xr-x root root /
+drwxr-xr-x root root usr
+drwxr-xr-x root root bin
+-rwxr-xr-x root root gnuid
+85bc7368ba0463e8dff0312965ffd8fc0e43cdb9f25e4210e11842465a4a6e3c  /usr/bin/gnuid
+	linux-vdso.so.1 (0x000071408611f000)
+	libselinux.so.1 => /usr/lib/x86_64-linux-gnu/libselinux.so.1 (0x00007140860d2000)
+	libc.so.6 => /usr/lib/x86_64-linux-gnu/libc.so.6 (0x0000714085e00000)
+	libpcre2-8.so.0 => /usr/lib/x86_64-linux-gnu/libpcre2-8.so.0 (0x0000714086026000)
+	/lib64/ld-linux-x86-64.so.2 (0x0000714086121000)
+f: /usr/bin/gnuenv
+drwxr-xr-x root root /
+drwxr-xr-x root root usr
+drwxr-xr-x root root bin
+-rwxr-xr-x root root gnuenv
+d04fe689b718e25d083f8a438d1a903b9384c1588dbd7e8b88fdb384ef46fc49  /usr/bin/gnuenv
+	linux-vdso.so.1 (0x00007ca49a89b000)
+	libc.so.6 => /usr/lib/x86_64-linux-gnu/libc.so.6 (0x00007ca49a600000)
+	/lib64/ld-linux-x86-64.so.2 (0x00007ca49a89d000)
+f: /usr/bin/gnucat
+drwxr-xr-x root root /
+drwxr-xr-x root root usr
+drwxr-xr-x root root bin
+-rwxr-xr-x root root gnucat
+6814736b3f95342e4ffc8f83f5cd99a2e72fd1a70b240cbc9d40609e48d73482  /usr/bin/gnucat
+	linux-vdso.so.1 (0x00007c7d9a226000)
+	libc.so.6 => /usr/lib/x86_64-linux-gnu/libc.so.6 (0x00007c7d99e00000)
+	/lib64/ld-linux-x86-64.so.2 (0x00007c7d9a228000)
+f: /usr/bin/gnusleep
+drwxr-xr-x root root /
+drwxr-xr-x root root usr
+drwxr-xr-x root root bin
+-rwxr-xr-x root root gnusleep
+2b1dc0b5878610372193de09e3a9b2dc5e9f4f65cd310765147fc02c0d1c6df9  /usr/bin/gnusleep
+	linux-vdso.so.1 (0x000077bc02308000)
+	libc.so.6 => /usr/lib/x86_64-linux-gnu/libc.so.6 (0x000077bc02000000)
+	/lib64/ld-linux-x86-64.so.2 (0x000077bc0230a000)
+f: /usr/lib/x86_64-linux-gnu/libselinux.so.1
+drwxr-xr-x root root /
+drwxr-xr-x root root usr
+drwxr-xr-x root root lib
+drwxr-xr-x root root x86_64-linux-gnu
+-rw-r--r-- root root libselinux.so.1
+f: /usr/lib/x86_64-linux-gnu/libc.so.6
+drwxr-xr-x root root /
+drwxr-xr-x root root usr
+drwxr-xr-x root root lib
+drwxr-xr-x root root x86_64-linux-gnu
+-rwxr-xr-x root root libc.so.6
+f: /usr/lib/x86_64-linux-gnu/libpcre2-8.so.0
+drwxr-xr-x root root /
+drwxr-xr-x root root usr
+drwxr-xr-x root root lib
+drwxr-xr-x root root x86_64-linux-gnu
+lrwxrwxrwx root root libpcre2-8.so.0 -> libpcre2-8.so.0.14.0
+-rw-r--r-- root root   libpcre2-8.so.0.14.0
+f: /lib64/ld-linux-x86-64.so.2
+drwxr-xr-x root root /
+lrwxrwxrwx root root lib64 -> usr/lib64
+drwxr-xr-x root root   usr
+drwxr-xr-x root root   lib64
+lrwxrwxrwx root root ld-linux-x86-64.so.2 -> ../lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+drwxr-xr-x root root   ..
+drwxr-xr-x root root   lib
+drwxr-xr-x root root   x86_64-linux-gnu
+-rwxr-xr-x root root   ld-linux-x86-64.so.2

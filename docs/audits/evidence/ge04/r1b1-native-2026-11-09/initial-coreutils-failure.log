@@ -1,0 +1,35 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90m/home/ubuntu/alix-ge04-workspaces/57d130b8-native-probe[39m
+
+ [31m❯[39m tests/agents/ge04-r1b1-privileged-qualification.vitest.ts [2m([22m[2m1 test[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 607[2mms[22m[39m
+[31m   [31m×[31m real root-to-worker UID transition and protected file denial[39m[33m 605[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m tests/agents/ge04-r1b1-privileged-qualification.vitest.ts[2m > [22mreal root-to-worker UID transition and protected file denial
+[31m[1mAssertionError[22m: Security violation: Requested utility `4` does not match executable name:
+  /run/ge04-root-qualification-m3fiqE/id
+: expected 1 to be +0 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 0[39m
+[31m+ 1[39m
+
+[36m [2m❯[22m tests/agents/ge04-r1b1-privileged-qualification.vitest.ts:[2m53:43[22m[39m
+    [90m 51|[39m   const catCommand=await copyFixtureExecutable(dir,'cat');
+    [90m 52|[39m   const identity=spawnSync(deployed,[String(uid),'/usr',idCommand,'-u'…
+    [90m 53|[39m   expect(identity.status,identity.stderr).toBe(0);
+    [90m   |[39m                                           [31m^[39m
+    [90m 54|[39m   expect(identity.stdout.trim()).toBe(String(uid));
+    [90m 55|[39m   const groups=spawnSync(deployed,[String(uid),'/usr',idCommand,'-G'],…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m   Start at [22m 03:13:26
+[2m   Duration [22m 869ms[2m (tests 92%, transform 4%, import 3%, worker 1%)[22m
+

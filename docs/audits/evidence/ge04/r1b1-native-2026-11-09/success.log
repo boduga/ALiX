@@ -1,0 +1,11 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90m/home/ubuntu/alix-ge04-workspaces/57d130b8-native-probe[39m
+
+ [32m✓[39m tests/agents/ge04-r1b1-privileged-qualification.vitest.ts [2m([22m[2m1 test[22m[2m)[22m[32m 212[2mms[22m[39m
+ [32m✓[39m tests/agents/ge04-r1b1-native-backend.vitest.ts [2m([22m[2m3 tests[22m[2m | [22m[33m1 skipped[39m[2m)[22m[32m 189[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m3 passed[39m[22m[2m | [22m[33m1 skipped[39m[90m (4)[39m
+[2m   Start at [22m 03:16:23
+[2m   Duration [22m 532ms[2m (tests 66%, transform 19%, import 11%, worker 3%)[22m
+
