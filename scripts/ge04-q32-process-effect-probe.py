@@ -101,7 +101,7 @@ def run_scenario(scenario, *, pass_fd=False):
         proc = subprocess.Popen([sys.executable, "-B", __file__, "--child",
                                  str(child.fileno()), scenario],
                                 pass_fds=(child.fileno(),), close_fds=True,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         child.close()
         try:
             request = json.dumps({"operation": "write", "nonce": "forged",
