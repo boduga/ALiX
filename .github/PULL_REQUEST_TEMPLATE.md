@@ -1,3 +1,25 @@
+## Issue and scope
+
+<!-- Refs #123 for partial work. Closes #123 only when all acceptance criteria are satisfied. -->
+Refs #
+
+**Change scope:** <!-- exact affected subsystem/files -->
+**Risk:** <!-- low / medium / high / critical; justify -->
+**Agent/worktree:** <!-- agent/session and isolated worktree or N/A -->
+**Dependencies:** <!-- other PRs, or none -->
+
+## Review and authorization
+
+- [ ] Complete diff against current main inspected
+- [ ] Independent agent review recorded (or reason N/A)
+- [ ] CI evidence linked and applicable checks pass
+- [ ] Human authorization recorded if security/release sensitive
+- [ ] Existing security holds unchanged (or explicit release evidence attached)
+
+## Rollback
+
+<!-- How to revert this change safely; describe irreversible side effects or N/A -->
+
 ## Summary
 
 <!-- 2-3 bullets: what changed and why -->
@@ -12,10 +34,10 @@
 
 <!-- How was this tested? Check the boxes or describe -->
 
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build` passes
-- [ ] `npm run test:node:ci` passes
-- [ ] `npm run test:vitest` passes
+- [ ] `pnpm typecheck` passes
+- [ ] `pnpm build` passes
+- [ ] `pnpm test:node:ci` passes
+- [ ] `pnpm test:vitest` passes
 - [ ] Manual test: `alix run "<task>"` completes a session without errors
 - [ ] For provider changes: tested with at least one live model call
 
