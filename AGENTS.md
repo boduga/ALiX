@@ -211,6 +211,12 @@ Add more with: `npx opensrc fetch <org/repo>`
 
 ## Agent skills
 
+### Context optimization (operator-requested exception)
+
+- When a task is context- or token-heavy, load `.agents/skills/context-optimization/SKILL.md` on demand; use its observation masking, scoped retrieval, compaction, and caching guidance. This is a context-efficiency aid, not a replacement for EGM, DOX, security gates, or verification.
+- Preserve full logs and security evidence in durable files; concise summaries must retain exact references and unresolved failures. Measure token and quality outcomes before claiming savings.
+- ChatGPT Work may use the skill when it can read this repository, but repository installation alone does not enable automatic skill discovery or background execution in Work.
+
 ### Issue tracker
 
 Issues and PRDs live as GitHub issues (repo `boduga/ALiX`); use the `gh` CLI. See `docs/agents/issue-tracker.md`.
