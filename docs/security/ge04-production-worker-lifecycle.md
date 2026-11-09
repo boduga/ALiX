@@ -1,6 +1,17 @@
-# GE-04 production worker lifecycle integration — first slice
+# GE-04 worker lifecycle integration — SECURITY HOLD ACTIVE
 
-This opt-in `SubagentManagerOptions.supervisorWorkerLifecycle` hook observes actual child process spawn/exit and supplies the coordinator's run/worker/attempt identity to a trusted, caller-supplied supervisor callback. It deliberately suppresses credential payload transfer on FD3 when enabled. It does **not** turn on positive admission, does not authenticate native IPC, and does not prove worker execution is blocked before registration: the child may execute immediately after spawn. Registration callback rejection kills the child, but that is **not** a security boundary against pre-registration execution. Existing legacy credential delivery is unchanged when the hook is disabled. Do not enable this option in production or claim it isolates worker credentials. GE-04 SECURITY HOLD remains active.
+## Mandatory manager facade increment
+
+`SubagentManager` now requires a trusted `TaskWorkerSupervisor` for preparation, launch, completion, cancellation and startup recovery. It projects explicit nonsecret task fields, checks process-generation evidence, and accepts only bounded structured completion. It owns no subprocess, credential pipe, keyring environment or PID signalling. Default composition has no enabled task supervisor and refuses execution; old command overrides and optional observers are rejected.
+
+Credential-free doubles test facade behavior only. No qualified native task backend, authenticated result transport or cross-manager durable containment guarantee is supplied. A lost ownership lease cannot be protected by retaining a JavaScript map entry. In-process coordination and direct legacy CLI entry points remain outside this increment and block complete R1-B1 acceptance. R1-B2 through R1-F remain open; do not infer production qualification or hold clearance.
+
+## Historical optional-observer integration
+
+The following describes the former manager path retained as historical design context. The option names remain deprecated types solely for explicit refusal; they no longer launch through the manager. Removal of the legacy CLI startup/credential readers remains R1-E work.
+
+
+This opt-in `SubagentManagerOptions.supervisorWorkerLifecycle` hook observes actual child process spawn/exit and supplies the coordinator's run/worker/attempt identity to a trusted, caller-supplied supervisor callback. It deliberately suppresses credential payload transfer on FD3 when enabled. It does **not** turn on positive admission, does not authenticate native IPC, and does not prove worker execution is blocked before registration: the child may execute immediately after spawn. Registration callback rejection kills the child, but that is **not** a security boundary against pre-registration execution. At that historical baseline, legacy credential delivery was unchanged when the hook was disabled. Do not enable this option in production or claim it isolates worker credentials. GE-04 SECURITY HOLD remains active.
 
 Next: redesign the worker startup as a true suspended/blocked handshake under a trusted supervisor, with no credential access before authenticated registration; verify Linux UID isolation and kernel-attested IPC before any positive governance admission.
 

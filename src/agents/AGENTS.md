@@ -11,7 +11,7 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
 - `tool-policy.ts` applies role-based tool access.
 - `subagent-cli.ts` builds and runs worker turns. Its lifecycle appends
   (`subagent.started/completed/failed`) are best-effort: the stdout result is
-  authoritative, so a contended EventLog append must never fail the worker.
+  authoritative for the legacy CLI only, so a contended EventLog append must never fail that worker.
   **Every child completion appends `model.usage`** from `resp.usage`, via the same
   `buildModelUsageEventPayload` the main loop uses. It did not before: the loop
   consumed only `resp.text`/`resp.toolCalls`, so subagent tokens never entered the
@@ -20,20 +20,22 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
   `runId`, so the field is omitted rather than guessed, and the append is
   best-effort: usage telemetry must never fail a worker whose work is done.
   That includes the FAILURE path: in `--output json` the structured failed
-  `SubagentResult` is written to **stdout**, because `SubagentManager.spawn`
-  parses stdout only. Writing it to stderr makes the parent fall back to the raw
-  exit code and reject with a bare error string, discarding `status`, `findings`
-  and `error` and misreporting a clean structured failure as a crash (D8-01).
+  `SubagentResult` is written to **stdout** for direct legacy CLI consumers.
+  The canonical manager no longer launches this CLI or parses its stdout;
+  worker CLI migration and deletion of the legacy credential reader remain
+  outstanding GE-04 work.
   `--output text` keeps its human failure rendering on stderr so it cannot
   pollute a captured report.
 - `subagent-manager.ts` — subagent lifecycle (spawn/cancel/shutdown) and the
   chat-path ownership lease point: write tasks with `ownedPaths` acquire
   durable `src/coordination/ownership/ownership-registry.ts` leases at spawn (workspace root
   captured at construction via the `cwd` option; per-task `task.cwd` wins),
-  release them before `spawn` resolves, and renew them while running.
+  release them only after confirmed cleanup, and renew them while running.
+  Failed renewal fences the task and quarantines further manager dispatch;
+  retained tracking does not preserve exclusivity after a lease is lost.
   Coordination tasks (`coordinationRunId`/`assignedAgentId` set) skip
   acquisition — the scheduler pre-claims those leases before dispatch.
-  **A subagent result carries the worker's own durable events.** `buildResult`
+  **The legacy CLI result carries the worker's own durable events.** `buildResult`
   reads them via `readDurableEvents(eventLog)` at the call site and emits them
   bounded (`MAX_RESULT_EVENTS` / `MAX_RESULT_EVENT_CHARS`), appending an explicit
   `subagent.events.truncated` marker when a bound is hit. The bound exists because
@@ -47,10 +49,37 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
   then `default`; the result is a copy. Pinned by
   `tests/agents/mp-01-reader-parity.vitest.ts`, including a disagreeing-projection
   case that fails if the projection is preferred again.
+- `worker-task-supervisor.ts` defines `TaskWorkerSupervisor`, `SupervisorTask`,
+  `TaskCompletion` and bounded task/result validation. `prepareTask` owns opaque
+  configuration IDs; the manager supplies only an explicit nonsecret task
+  projection. Completion evidence must match the retained process generation.
+  These interfaces and test doubles do not qualify a production backend.
 - `coordination-objective-review.ts` checks worker evidence and persisted outputs against the assigned objective before coordination reports success.
 - Collaboration handlers live in `src/capabilities/tools/collaboration-tools.ts` and are exposed to workers through bound tool definitions.
 
 ## Local Contracts
+
+- `SubagentManager.spawn` requires a trusted `TaskWorkerSupervisor`; default
+  composition refuses with `WorkerSupervisorUnavailableError`. Runtime config
+  cannot select a backend. `spawnOverride` and `supervisorWorkerLifecycle` are
+  deprecated and rejected, never execution fallbacks. No manager-owned child
+  process, credential FD, keyring environment or PID signalling remains.
+- The manager reserves task identity before awaiting startup/preparation and
+  fences pending cancellation. `cancel` reports request acceptance, not process
+  termination. Confirmed cleanup precedes lease release and terminal lifecycle;
+  uncertain cleanup quarantines further dispatch and preserves its error.
+- Task completion and native exit are separate. `validateTaskCompletion` checks
+  exact registered identity, process generation, schema and UTF-8 limits. Exit
+  zero without valid completion cannot succeed; abnormal exit cannot preserve a
+  success claim. Progress is not accumulated in parent model context.
+- `WORKER_TASK_LIMITS` bounds the task envelope to 1 MiB and the completion
+  envelope to 256 KiB, with 128 findings and 200 event entries totaling 64 KiB
+  of event text. The transport must bound bytes before decoding. No total
+  execution deadline is added; control operations and post-exit drain are bounded.
+- GE-04 SECURITY HOLD remains active. Direct legacy CLI and in-process worker
+  consumers still require migration; manager conformance does not prove complete
+  issue acceptance or independently qualified durable containment/recovery.
+
 
 - The subagent CLI entry-point comparison uses `pathToFileURL` on the resolved executable path so Windows paths and escaped characters still launch the worker.
 

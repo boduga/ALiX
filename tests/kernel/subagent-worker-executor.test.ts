@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import {fixtureSupervisor, taskResult, deferred} from "../fixtures/task-worker-supervisor.js";
 import { SubagentManager } from "../../src/agents/subagent-manager.js";
 import {
   SubagentWorkerExecutor,
@@ -42,21 +43,23 @@ function worker(overrides: Partial<WorkerAssignment> = {}): WorkerAssignment {
     agentId: "alix#1",
     taskLabel: "Do",
     goalPrompt: "do it",
+    attempt: 1, // The scheduler increments before dispatch; these tests call the executor directly.
     requiredCapabilities: ["filesystem.read"],
     ...overrides,
   });
 }
 
-function managerWith(childJs: string): SubagentManager {
-  return new SubagentManager({
-    sessionId: "test-session",
-    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
-    spawnOverride: { command: process.execPath, args: ["-e", childJs] },
-  });
+const parallelGate = deferred<void>();
+function managerWith(mode: 'success' | 'partial' | 'delayed' | 'hanging' = 'success'): SubagentManager {
+  const fixture = fixtureSupervisor({result: async task => {
+    if (mode === 'delayed') await parallelGate.promise;
+    if (mode === 'hanging') await new Promise<void>(() => {});
+    return taskResult(task, mode === 'partial' ? {status: 'partial', error: 'delegated objective incomplete'} : {});
+  }});
+  return new SubagentManager({sessionId: "test-session",
+    config: {subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS} as AlixConfig,
+    workerSupervisor: fixture.supervisor});
 }
-
-const successChild = (id: string) =>
-  `console.log(JSON.stringify({ id: "${id}", role: "explorer", status: "success", findings: [{ type: "summary", content: "done" }], events: [] }));`;
 
 describe("roleForWorker", () => {
   it("maps write capabilities to worker", () => {
@@ -118,7 +121,7 @@ describe("taskForWorker", () => {
 
 describe("SubagentWorkerExecutor", () => {
   it("fails closed without valid write ownership before spawning a child", async () => {
-    const executor = new SubagentWorkerExecutor({ manager: managerWith(successChild("missing-scope")) });
+    const executor = new SubagentWorkerExecutor({ manager: managerWith() });
     const result = await executor.execute(
       worker({ id: "missing-scope", requiredCapabilities: ["filesystem.write"], ownershipScopes: [""] }),
       { run: {} as any, sessionId: "sess-1", cwd: "/tmp", config: {} as AlixConfig },
@@ -130,7 +133,7 @@ describe("SubagentWorkerExecutor", () => {
   });
 
   it("maps a successful child to success with findings summary", async () => {
-    const executor = new SubagentWorkerExecutor({ manager: managerWith(successChild("w1")) });
+    const executor = new SubagentWorkerExecutor({ manager: managerWith() });
     const result = await executor.execute(
       worker({ id: "w1" }),
       { run: {} as any, sessionId: "sess-1", cwd: "/tmp", config: {} as AlixConfig },
@@ -141,8 +144,7 @@ describe("SubagentWorkerExecutor", () => {
   });
 
   it("does not mark an incomplete write worker successful", async () => {
-    const partialChild = `console.log(JSON.stringify({ status: "partial", error: "delegated objective incomplete", findings: [{ type: "summary", content: "Changed: src/project.md" }], events: [] }));`;
-    const executor = new SubagentWorkerExecutor({ manager: managerWith(partialChild) });
+    const executor = new SubagentWorkerExecutor({ manager: managerWith('partial') });
     const result = await executor.execute(
       worker({ id: "partial-write", requiredCapabilities: ["filesystem.write"], ownershipScopes: [".tmp/workbench/project.md"] }),
       { run: {} as any, sessionId: "sess-1", cwd: "/tmp", config: {} as AlixConfig },
@@ -153,8 +155,7 @@ describe("SubagentWorkerExecutor", () => {
   });
 
   it("runs two workers in parallel through one manager", async () => {
-    const delayed = `await new Promise(r => setTimeout(r, 400)); console.log(JSON.stringify({ status: "success", findings: [], events: [] }));`;
-    const executor = new SubagentWorkerExecutor({ manager: managerWith(delayed) });
+    const executor = new SubagentWorkerExecutor({ manager: managerWith('delayed') });
     const ctx = { run: {} as any, sessionId: "sess-1", cwd: "/tmp", config: {} as AlixConfig };
     const pending = Promise.all([
       executor.execute(worker({ id: "pa" }), ctx, new AbortController().signal),
@@ -163,21 +164,21 @@ describe("SubagentWorkerExecutor", () => {
     // Deterministic overlap proof: both children tracked before either resolves.
     await new Promise((r) => setImmediate(r));
     assert.equal((executor.subagentManager as unknown as { running: Map<string, unknown> }).running.size, 2);
+    parallelGate.resolve();
     const [a, b] = await pending;
     assert.equal(a.outcome, "success");
     assert.equal(b.outcome, "success");
   });
 
   it("aborted signal cancels the child", async () => {
-    const hanging = `setInterval(() => {}, 1000);`;
-    const executor = new SubagentWorkerExecutor({ manager: managerWith(hanging) });
+    const executor = new SubagentWorkerExecutor({ manager: managerWith('hanging') });
     const controller = new AbortController();
     const pending = executor.execute(
       worker({ id: "wc" }),
       { run: {} as any, sessionId: "sess-1", cwd: "/tmp", config: {} as AlixConfig },
       controller.signal,
     );
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise<void>(resolve => setImmediate(resolve));
     controller.abort();
     const result = await pending;
     assert.equal(result.outcome, "failure");
@@ -185,7 +186,7 @@ describe("SubagentWorkerExecutor", () => {
   });
 
   it("returns cancelled without spawning when already aborted", async () => {
-    const executor = new SubagentWorkerExecutor({ manager: managerWith(successChild("w9")) });
+    const executor = new SubagentWorkerExecutor({ manager: managerWith() });
     const controller = new AbortController();
     controller.abort();
     const result = await executor.execute(
