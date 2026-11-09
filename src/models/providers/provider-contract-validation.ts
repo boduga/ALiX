@@ -9,7 +9,7 @@
 
 import type { ModelAdapter, ModelCallOptions, NormalizedRequest, NormalizedResponse, StreamChunk, ToolCall } from "./types.js";
 import type { ExecutionContext } from "../../operations/observability/execution-context.js";
-import { Either } from "effect";
+import { Result } from "effect";
 import { decode, formatErrors } from "../../runtime-state/contracts/helpers.js";
 import { NormalizedRequestSchema, NormalizedResponseSchema, StreamChunkSchema } from "../../runtime-state/contracts/llm-schemas.js";
 import { buildDiagnostic, type ContractDiagnostic, type ContractBoundary } from "../../runtime-state/contracts/contract-diagnostics.js";
@@ -51,14 +51,14 @@ export class ContractValidationError extends Error {
  */
 export function validateNormalizedRequest(input: unknown): NormalizedRequest {
   const result = decode(NormalizedRequestSchema, input);
-  if (Either.isLeft(result)) {
-    const formatted = formatErrors(result.left);
+  if (Result.isFailure(result)) {
+    const formatted = formatErrors(result.failure);
     throw new ContractValidationError(
       "NormalizedRequest validation failed",
       formatted,
     );
   }
-  return result.right as unknown as NormalizedRequest;
+  return result.success as unknown as NormalizedRequest;
 }
 
 /**
@@ -68,14 +68,14 @@ export function validateNormalizedRequest(input: unknown): NormalizedRequest {
  */
 export function validateNormalizedResponse(input: unknown): NormalizedResponse {
   const result = decode(NormalizedResponseSchema, input);
-  if (Either.isLeft(result)) {
-    const formatted = formatErrors(result.left);
+  if (Result.isFailure(result)) {
+    const formatted = formatErrors(result.failure);
     throw new ContractValidationError(
       "NormalizedResponse validation failed",
       formatted,
     );
   }
-  return result.right as unknown as NormalizedResponse;
+  return result.success as unknown as NormalizedResponse;
 }
 
 /**
@@ -85,14 +85,14 @@ export function validateNormalizedResponse(input: unknown): NormalizedResponse {
  */
 export function validateStreamChunk(input: unknown): StreamChunk {
   const result = decode(StreamChunkSchema, input);
-  if (Either.isLeft(result)) {
-    const formatted = formatErrors(result.left);
+  if (Result.isFailure(result)) {
+    const formatted = formatErrors(result.failure);
     throw new ContractValidationError(
       "StreamChunk validation failed",
       formatted,
     );
   }
-  return result.right as unknown as StreamChunk;
+  return result.success as unknown as StreamChunk;
 }
 
 // ---------------------------------------------------------------------------

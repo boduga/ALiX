@@ -9,24 +9,24 @@ import { Schema } from "effect";
 // LearningArea
 // ---------------------------------------------------------------------------
 
-export const LearningAreaSchema = Schema.Literal(
+export const LearningAreaSchema = Schema.Literals([
   "recommendation", "risk", "governance", "routing",
-);
+]);
 
 // ---------------------------------------------------------------------------
 // ExecutiveSubsystemName
 // ---------------------------------------------------------------------------
 
-export const ExecutiveSubsystemNameSchema = Schema.Literal(
+export const ExecutiveSubsystemNameSchema = Schema.Literals([
   "governance", "learning", "adaptation", "agents",
   "tools", "workflow", "memory", "security",
-);
+]);
 
 // ---------------------------------------------------------------------------
 // ProposalAction
 // ---------------------------------------------------------------------------
 
-export const ProposalActionSchema = Schema.Literal(
+export const ProposalActionSchema = Schema.Literals([
   "create_agent_card",
   "update_agent_card",
   "add_capability",
@@ -37,15 +37,15 @@ export const ProposalActionSchema = Schema.Literal(
   "learning_adjustment",
   "governance_change",
   "executive_remediation_request",
-);
+]);
 
 // ---------------------------------------------------------------------------
 // ProposalStatus
 // ---------------------------------------------------------------------------
 
-export const ProposalStatusSchema = Schema.Literal(
+export const ProposalStatusSchema = Schema.Literals([
   "pending", "approved", "rejected", "applied", "failed",
-);
+]);
 
 // ---------------------------------------------------------------------------
 // ProposalTarget — discriminated union
@@ -100,7 +100,7 @@ export const ExecutiveRemediationTargetSchema = Schema.Struct({
   subsystem: ExecutiveSubsystemNameSchema,
 });
 
-export const ProposalTargetSchema = Schema.Union(
+export const ProposalTargetSchema = Schema.Union([
   AgentCardTargetSchema,
   SkillTargetSchema,
   CapabilityTargetSchema,
@@ -110,7 +110,7 @@ export const ProposalTargetSchema = Schema.Union(
   LearningTargetSchema,
   GovernanceTargetSchema,
   ExecutiveRemediationTargetSchema,
-);
+]);
 
 // ---------------------------------------------------------------------------
 // SystemState
@@ -132,7 +132,7 @@ export const AdaptationProposalSchema = Schema.Struct({
   status: ProposalStatusSchema,
   action: ProposalActionSchema,
   target: ProposalTargetSchema,
-  payload: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+  payload: Schema.Record(Schema.String, Schema.Unknown),
   sourceRecommendationType: Schema.String,
   sourceConfidence: Schema.Number,
   evidenceFingerprints: Schema.Array(Schema.String),
@@ -141,7 +141,7 @@ export const AdaptationProposalSchema = Schema.Struct({
   approvedAt: Schema.optional(Schema.String),
   appliedAt: Schema.optional(Schema.String),
   error: Schema.optional(Schema.String),
-  provenance: Schema.optional(Schema.Literal("auto", "manual")),
+  provenance: Schema.optional(Schema.Literals(["auto", "manual"])),
   systemState: Schema.optional(SystemStateSchema),
 });
 export type AdaptationProposalFromSchema = typeof AdaptationProposalSchema.Type;

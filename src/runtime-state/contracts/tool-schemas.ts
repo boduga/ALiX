@@ -28,7 +28,7 @@ export const TOOL_NAME_EXECUTOR_IDS = [
   ...new Set(Object.values(ALIX_BUILTIN_EXECUTORS)),
 ] as [string, ...string[]];
 
-export const ToolNameSchema = Schema.Literal(...TOOL_NAME_EXECUTOR_IDS);
+export const ToolNameSchema = Schema.Literals(TOOL_NAME_EXECUTOR_IDS);
 export type ToolNameFromSchema = typeof ToolNameSchema.Type;
 
 // ---------------------------------------------------------------------------
@@ -49,7 +49,7 @@ export type FileMatchFromSchema = typeof FileMatchSchema.Type;
 export const ToolCallRequestSchema = Schema.Struct({
   toolCallId: Schema.String,
   name: Schema.String,
-  args: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+  args: Schema.Record(Schema.String, Schema.Unknown),
   agentId: Schema.optional(Schema.String),
   sessionId: Schema.optional(Schema.String),
   replayId: Schema.optional(Schema.String),
@@ -82,8 +82,8 @@ export const ToolResultErrorSchema = Schema.Struct({
   hint: Schema.optional(Schema.String),
 });
 
-export const ToolResultSchema = Schema.Union(
+export const ToolResultSchema = Schema.Union([
   ToolResultSuccessSchema,
   ToolResultErrorSchema,
-);
+]);
 export type ToolResultFromSchema = typeof ToolResultSchema.Type;

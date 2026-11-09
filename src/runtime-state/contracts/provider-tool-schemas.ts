@@ -22,7 +22,7 @@ export const ToolParamArraySchema = Schema.Struct({
   items: Schema.Struct({ type: Schema.String }),
 });
 
-export const ToolParamSchema = Schema.Union(ToolParamBaseSchema, ToolParamArraySchema);
+export const ToolParamSchema = Schema.Union([ToolParamBaseSchema, ToolParamArraySchema]);
 export type ToolParamFromSchema = typeof ToolParamSchema.Type;
 
 // ---------------------------------------------------------------------------
@@ -31,7 +31,7 @@ export type ToolParamFromSchema = typeof ToolParamSchema.Type;
 
 export const ToolInputSchemaSchema = Schema.Struct({
   type: Schema.Literal("object"),
-  properties: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+  properties: Schema.Record(Schema.String, Schema.Unknown),
   required: Schema.optional(Schema.Array(Schema.String)),
 });
 
@@ -67,7 +67,7 @@ export const DeferredToolEntrySchema = Schema.Struct({
   input_schema: Schema.optional(
     Schema.Struct({
       type: Schema.Literal("object"),
-      properties: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+      properties: Schema.Record(Schema.String, Schema.Unknown),
     }),
   ),
 });
