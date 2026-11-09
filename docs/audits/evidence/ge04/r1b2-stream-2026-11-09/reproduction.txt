@@ -1,0 +1,47 @@
+2026-11-09T10:21:58Z
+native/ge04/worker-stream.c: OK
+native/ge04/worker-stream.h: OK
+tests/fixtures/ge04-native-stream-probe.c: OK
+tests/agents/test_ge04_native_stream.py: OK
+d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3  native/ge04/worker-stream.c
+7d8cb2749535d47fe5f3898107e7638a2036f7153c6cefda99081b22de7466f8  native/ge04/worker-stream.h
+3a58620570643ce23397580128e58c5ba436ce8eb487e642405e26b94af78041  tests/fixtures/ge04-native-stream-probe.c
+fc83c2ad71986743a34a91dade3f732bf1591defb2367af5d7d9e0c4043d9327  tests/agents/test_ge04_native_stream.py
+COMMAND: sudo -n env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C ALIX_GE04_PRIVILEGED_QUALIFICATION=1 ALIX_GE04_TEST_WORKER_UID=20002 /usr/bin/timeout --signal=TERM --kill-after=5s 90s /usr/bin/python3 -m unittest discover -s tests/agents -p test_ge04_native_stream.py -v
+test_invalid_arguments_refuse (test_ge04_native_stream.NativeStreamBuild.test_invalid_arguments_refuse) ... ok
+test_unprivileged_composition_refuses (test_ge04_native_stream.NativeStreamBuild.test_unprivileged_composition_refuses) ... skipped 'unprivileged-only refusal; root does not qualify it'
+test_accept_timeout (test_ge04_native_stream.NativeStreamLive.test_accept_timeout) ... ok
+test_bad_magic (test_ge04_native_stream.NativeStreamLive.test_bad_magic) ... ok
+test_blocking_listener_refuses (test_ge04_native_stream.NativeStreamLive.test_blocking_listener_refuses) ... ok
+test_cancel_before_accept (test_ge04_native_stream.NativeStreamLive.test_cancel_before_accept) ... ok
+test_cancel_between_frames (test_ge04_native_stream.NativeStreamLive.test_cancel_between_frames) ... ok
+test_cancel_incomplete_read (test_ge04_native_stream.NativeStreamLive.test_cancel_incomplete_read) ... ok
+test_cancel_pipe_hup (test_ge04_native_stream.NativeStreamLive.test_cancel_pipe_hup) ... ok
+test_cancel_write_phase (test_ge04_native_stream.NativeStreamLive.test_cancel_write_phase) ... ok
+test_coalesced_frames (test_ge04_native_stream.NativeStreamLive.test_coalesced_frames) ... ok
+test_dead_peer (test_ge04_native_stream.NativeStreamLive.test_dead_peer) ... ok
+test_delegated_sender (test_ge04_native_stream.NativeStreamLive.test_delegated_sender) ... ok
+test_fake_identity_is_only_opaque_data (test_ge04_native_stream.NativeStreamLive.test_fake_identity_is_only_opaque_data) ... ok
+test_fragmented_frame (test_ge04_native_stream.NativeStreamLive.test_fragmented_frame) ... ok
+test_mixed_senders (test_ge04_native_stream.NativeStreamLive.test_mixed_senders) ... ok
+test_oversize_length (test_ge04_native_stream.NativeStreamLive.test_oversize_length) ... ok
+test_partial_body_disconnect (test_ge04_native_stream.NativeStreamLive.test_partial_body_disconnect) ... ok
+test_partial_header_disconnect (test_ge04_native_stream.NativeStreamLive.test_partial_header_disconnect) ... ok
+test_peer_exit_read (test_ge04_native_stream.NativeStreamLive.test_peer_exit_read) ... ok
+test_peer_exit_write (test_ge04_native_stream.NativeStreamLive.test_peer_exit_write) ... ok
+test_read_timeout (test_ge04_native_stream.NativeStreamLive.test_read_timeout) ... ok
+test_rights_rejected_and_closed (test_ge04_native_stream.NativeStreamLive.test_rights_rejected_and_closed) ... ok
+test_same_supervisor_uid (test_ge04_native_stream.NativeStreamLive.test_same_supervisor_uid) ... ok
+test_truncated_rights_rejected_and_closed (test_ge04_native_stream.NativeStreamLive.test_truncated_rights_rejected_and_closed) ... ok
+test_write_timeout (test_ge04_native_stream.NativeStreamLive.test_write_timeout) ... ok
+test_wrong_generation (test_ge04_native_stream.NativeStreamLive.test_wrong_generation) ... ok
+test_wrong_gid (test_ge04_native_stream.NativeStreamLive.test_wrong_gid) ... ok
+test_wrong_pid (test_ge04_native_stream.NativeStreamLive.test_wrong_pid) ... ok
+test_wrong_uid (test_ge04_native_stream.NativeStreamLive.test_wrong_uid) ... ok
+test_zero_length (test_ge04_native_stream.NativeStreamLive.test_zero_length) ... ok
+
+----------------------------------------------------------------------
+Ran 31 tests in 3.893s
+
+OK (skipped=1)
+SUITE_EXIT=0

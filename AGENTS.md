@@ -257,6 +257,7 @@ Single-context: read CONTEXT.md at the repo root and docs/adr/ when they exist; 
 | `src/agents/agent/session/AGENTS.md` | Agent session — types/helpers/setup/main submodules (`AgentSessionBuilder`) |
 | `src/context/repomap/AGENTS.md` | RepoMap + semantic context — embedding model lifecycle, vector-space cache namespacing, CPU/offline inference contracts |
 | `src/agents/AGENTS.md` | Agent tool naming, policy, and subagent CLI boundaries |
+| `native/ge04/AGENTS.md` | Linux native qualification boundaries — pinned launch/process probes and bounded native stream transport; no production admission |
 | `src/operations/observability/AGENTS.md` | Observability platform — metrics, telemetry, diagnostics, alerts, cost, health |
 | `src/operations/utils/memory/AGENTS.md` | Agent memory store — persistence, recall, consolidation, decision extraction |
 | `src/operations/evals/AGENTS.md` | Behavioral eval suite — scripted provider, drivers, evaluators, cases, runner, `alix evals` |

@@ -1,0 +1,16 @@
+{
+  "utc": "2026-11-09T10:18:54.207469+00:00",
+  "witness": {
+    "ActiveState": "active",
+    "SubState": "running",
+    "InvocationID": "76b16df891ea439fb850303c99fdf0be",
+    "MainPID": "981",
+    "ExecMainStartTimestampMonotonic": "20927201"
+  },
+  "synthetic_process_count": 0,
+  "stream_fixture_entries": [],
+  "passwd_lookup_exit": 2,
+  "group_lookup_exit": 2,
+  "run_uid": 0,
+  "run_mode": "0o755"
+}
