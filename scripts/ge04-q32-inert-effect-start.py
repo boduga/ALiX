@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Disposable SQLite revocation/effect-start serialization experiment. NO effects."""
+"""Disposable SQLite revocation/effect-start serialization experiment. NO effects.
+
+CRITICAL: committing EFFECT_POSSIBLE is NOT a final-effect fence. Revocation
+can commit after this transition but before any real syscall. No caller may
+use a successful synthetic transition to perform an effect. A real supervisor
+must own the effect and serialize its boundary against revocation.
+"""
 import json
 import sqlite3
 
@@ -21,7 +27,12 @@ def initialize(path):
     return db
 
 def transact(db, action, nonce=None, revision=1):
-    """Serialize all state changes with BEGIN IMMEDIATE; return observations, never permits."""
+    """Serialize scratch transitions only; return observations, never permits.
+
+    The transaction ends BEFORE any hypothetical effect, leaving a revocation
+    gap. The True return value is diagnostic and must never be treated as an
+    authorization decision.
+    """
     try:
         db.execute('BEGIN IMMEDIATE')
         current = db.execute('SELECT revision,active FROM authority WHERE id=1').fetchone()

@@ -60,6 +60,26 @@ class Tests(unittest.TestCase):
             phase=self.db.execute("SELECT phase FROM attempts WHERE nonce='n'").fetchone()[0]
             self.assertEqual(results['effect_start'],phase=='EFFECT_POSSIBLE')
             self.assertFalse(m.transact(self.db,'effect_start','n'))
+    def test_post_start_revocation_gap_is_explicitly_observable(self):
+        # A positive synthetic start can precede a completed revocation.
+        # No real syscall is permitted by either observation.
+        self.assertTrue(m.transact(self.db,'claim','n'))
+        self.assertTrue(m.transact(self.db,'effect_start','n'))
+        self.assertTrue(m.transact(self.db,'revoke'))
+        self.assertEqual(
+            self.db.execute("SELECT phase FROM attempts WHERE nonce='n'").fetchone()[0],
+            'EFFECT_POSSIBLE',
+        )
+        self.assertEqual(
+            self.db.execute("SELECT active FROM authority WHERE id=1").fetchone()[0], 0
+        )
+        self.assertFalse(m.transact(self.db,'effect_start','n'))
+        self.assertTrue(m.recover(self.db))
+        self.assertEqual(
+            self.db.execute("SELECT phase FROM attempts WHERE nonce='n'").fetchone()[0],
+            'UNKNOWN_RECOVERY',
+        )
+
     def test_unavailable_or_invalid_fails_closed(self):
         self.assertFalse(m.transact(self.db,'claim',''))
         self.assertFalse(m.transact(self.db,'effect_start','n',revision=2))
