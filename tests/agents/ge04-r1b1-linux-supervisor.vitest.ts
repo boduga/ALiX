@@ -160,3 +160,12 @@ test.skipIf(process.platform!=='linux')('stale handle cannot cancel replacement 
  expect(second.terminate).toHaveBeenCalledOnce();
  expect(replacement.evidence.registrationId).not.toBe(old.evidence.registrationId);
 });
+
+test.skipIf(process.platform!=='linux')('rejects noncanonical workspace paths before invoking trusted launcher',async()=>{
+ const launch=vi.fn(async()=>fixture());
+ const supervisor=createLinuxWorkerSupervisor({launch},async()=>proc);
+ for(const workspaceRoot of ['/tmp/../etc','/tmp//work','/tmp/./work','/tmp/work/','relative/work','/tmp/evil\0path']){
+   await expect(supervisor.launch({...request,workspaceRoot})).rejects.toThrow(/Invalid trusted worker launch request/);
+ }
+ expect(launch).not.toHaveBeenCalled();
+});

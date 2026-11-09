@@ -6,6 +6,7 @@
  * Never wire this to direct same-UID child_process.spawn in production.
  */
 import {randomUUID} from 'node:crypto';
+import {isAbsolute, normalize, sep} from 'node:path';
 import {readLinuxProcessIdentity} from './worker-broker-linux-process.js';
 import type {BrokerProcessIdentity,ReadLiveProcessIdentity} from './worker-broker-live-peer-binding.js';
 import type {WorkerGrantIdentity} from './worker-grant-binding.js';
@@ -92,8 +93,10 @@ export function createLinuxWorkerSupervisor(
     async launch(request:SupervisedWorkerRequest):Promise<SupervisedWorkerHandle> {
       const key=identityKey(request?.identity);
       if(typeof request.configurationId!=='string'||!request.configurationId ||
-         typeof request.workspaceRoot!=='string'||!request.workspaceRoot.startsWith('/') ||
-         request.workspaceRoot.includes('\0'))throw new Error('Invalid trusted worker launch request');
+         typeof request.workspaceRoot!=='string'||!isAbsolute(request.workspaceRoot) ||
+         request.workspaceRoot.includes('\0') ||
+         request.workspaceRoot.split(sep).slice(1).some(segment=>segment==='' || segment==='.' || segment==='..') ||
+         normalize(request.workspaceRoot)!==request.workspaceRoot)throw new Error('Invalid trusted worker launch request');
       if(active.has(key)||pending.has(key)||quarantined.has(key))
         throw new Error('Duplicate or quarantined supervised worker attempt');
       let resolvePending!:()=>void;
