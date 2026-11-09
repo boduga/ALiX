@@ -22,18 +22,42 @@ const unknown=(detail:string):EvidenceItem=>({status:'unknown',detail});
 const observed=(detail:string):EvidenceItem=>({status:'observed',detail});
 const absent=(detail:string):EvidenceItem=>({status:'absent',detail});
 function decodeMount(s:string){return s.replace(/\\([0-7]{3})/g,(_m,v:string)=>String.fromCharCode(parseInt(v,8)))}
-export function inspectCgroupMount(mountinfo:string|undefined):EvidenceItem{
- if(mountinfo===undefined)return unknown('mountinfo-unreadable');
- const matches=mountinfo.split('\n').filter(Boolean).flatMap(line=>{
-  const parts=line.split(' - ');if(parts.length!==2)return [];
+type CgroupMount={root:string;mountId:string;device:string;options:string};
+function parseCgroupMount(mountinfo:string|undefined):{evidence:EvidenceItem;mount?:CgroupMount}{
+ if(mountinfo===undefined)return {evidence:unknown('mountinfo-unreadable')};
+ if(mountinfo.trim()==='')return {evidence:unknown('mountinfo-empty')};
+ const lines=mountinfo.split('\n').filter(Boolean);
+ if(lines.some(line=>line.split(' - ').length!==2))return {evidence:unknown('mountinfo-malformed')};
+ type Mount = {type:string;root:string;options:string;mountId:string;device:string};
+ const matches:Mount[]=[];
+ for(const line of lines){
+  const parts=line.split(' - ');
   const pre=parts[0]!.split(' '),post=parts[1]!.split(' ');
-  if(pre.length<6||post.length<3||decodeMount(pre[4]!)!=='/sys/fs/cgroup')return [];
-  return [{type:post[0],root:decodeMount(pre[3]!),options:pre[5]}];
- });
- if(matches.length!==1)return matches.length===0?absent('no-unambiguous-cgroup-mount'):unknown('multiple-cgroup-mounts');
+  if(pre.length<6||post.length<3)return {evidence:unknown('mountinfo-fields-malformed')};
+  if(decodeMount(pre[4]!)!=='/sys/fs/cgroup')continue;
+  if(!/^\d+$/.test(pre[0]!)||!/^\d+$/.test(pre[1]!)||!/^\d+:\d+$/.test(pre[2]!)||!pre[3]?.startsWith('/')||!pre[5]||!post[1]||!post[2])return {evidence:unknown('mountinfo-fields-malformed')};
+  matches.push({type:post[0]!,root:decodeMount(pre[3]!),options:pre[5]!,mountId:pre[0]!,device:pre[2]!});
+ }
+ if(matches.length!==1)return {evidence:matches.length===0?absent('no-unambiguous-cgroup-mount'):unknown('multiple-cgroup-mounts')};
  const m=matches[0]!;
- if(m.type!=='cgroup2')return absent('not-unified-cgroup2');
- return observed('cgroup2-mount-root='+m.root+';options='+m.options+';delegation-not-proven');
+ if(m.type!=='cgroup2')return {evidence:absent('not-unified-cgroup2')};
+ if(!m.root.startsWith('/'))return {evidence:unknown('mount-root-malformed')};
+ return {mount:m,evidence:observed('cgroup2-mount-id='+m.mountId+';device='+m.device+';mount-root='+m.root+';options='+m.options+';mount-identity-not-pinned;delegation-not-proven')};
+}
+export function inspectCgroupMount(mountinfo:string|undefined):EvidenceItem{
+ return parseCgroupMount(mountinfo).evidence;
+}
+/** Read-only candidate: namespace-relative membership cannot establish host ownership. */
+export function resolveCgroupKillPath(mountinfo:string|undefined,membership:string|undefined):string|undefined {
+ const parsedMount=parseCgroupMount(mountinfo);
+ if(parsedMount.evidence.status!=='observed'||!parsedMount.mount||inspectCgroupMembership(membership).status!=='observed')return undefined;
+ const root=parsedMount.mount.root;
+ const member=membership!.trim().slice(3);
+ // Non-root mount roots may have been remapped by a cgroup namespace: do not guess.
+ if(root!=='/'||member==='/'||!member.startsWith('/'))return undefined;
+ const parts=member.slice(1).split('/');
+ if(parts.some(part=>!part||part==='.'||part==='..'||part.includes('\\')||part.includes('\0')))return undefined;
+ return '/sys/fs/cgroup/'+parts.join('/')+'/cgroup.kill';
 }
 export function inspectCgroupMembership(data:string|undefined):EvidenceItem{
  if(data===undefined)return unknown('proc-self-cgroup-unreadable');
@@ -56,12 +80,14 @@ export async function discoverLinuxContainment(io:DiscoveryIO=discoveryIO,os=pla
   '/run/systemd/container','/sys/fs/selinux/enforce','/sys/module/apparmor/parameters/enabled'];
  const [mountinfo,membership,uidMap,gidMap,systemd,selinux,apparmor]=await Promise.all(paths.map(p=>io.read(p)));
  const [userNs,pidNs,cgroupNs]=await Promise.all(['user','pid','cgroup'].map(n=>io.link('/proc/self/ns/'+n)));
- const [docker,podman,cgroupKillKind]=await Promise.all(['/.dockerenv','/run/.containerenv','/sys/fs/cgroup/cgroup.kill'].map(p=>io.kind(p)));
+ const [docker,podman]=await Promise.all(['/.dockerenv','/run/.containerenv'].map(p=>io.kind(p)));
  const runtime=classifyLinuxRuntime({systemdContainer:systemd,dockerEnvMarker:docker==='file',podmanEnvMarker:podman==='file'});
  const mount=inspectCgroupMount(mountinfo);
  const cgroupMembership=inspectCgroupMembership(membership);
- const cgroupKill=cgroupKillKind==='file'?observed('control-file-present;write-authority-unverified'):
-  cgroupKillKind===undefined?unknown('control-file-unreadable-or-absent'):unknown('control-file-not-regular');
+ const killPath=resolveCgroupKillPath(mountinfo,membership);
+ const cgroupKillKind=killPath?await io.kind(killPath):undefined;
+ const cgroupKill=cgroupKillKind==='file'?observed('non-root-control-file-present;write-authority-unverified;membership-namespace-relative'):
+  cgroupKillKind===undefined?unknown(killPath?'control-file-unreadable-or-absent':'non-root-cgroup-path-unresolved'):unknown('control-file-not-regular');
  const namespaces={user:inspectNamespace(userNs,'user'),pid:inspectNamespace(pidNs,'pid'),cgroup:inspectNamespace(cgroupNs,'cgroup'),
   uidMap:inspectIdMap(uidMap),gidMap:inspectIdMap(gidMap)};
  const lsm={selinux:selinux==='0'||selinux==='1'?observed(selinux==='1'?'selinux-enforcing':'selinux-permissive'):
@@ -72,9 +98,11 @@ export async function discoverLinuxContainment(io:DiscoveryIO=discoveryIO,os=pla
   'stopped-child-attach-not-tested','kernel-authenticated-ipc-not-qualified'];
  if(os!=='linux')denialReasons.push('non-linux-platform');
  if(mount.status!=='observed')denialReasons.push('unified-cgroup2-mount-unverified');
+ const mountRoot=mount.detail.match(/(?:^|;)mount-root=([^;]+)/)?.[1];
+ if(mount.status==='observed'&&mountRoot!==undefined&&mountRoot!=='/')denialReasons.push('cgroup-mount-root-not-host-root');
  if(cgroupMembership.status!=='observed')denialReasons.push('unified-cgroup-membership-unverified');
  if(runtime.family==='unknown'||runtime.family==='lxc-unresolved')denialReasons.push('runtime-identity-unverified');
- if(runtime.family==='native')denialReasons.push('absence-of-container-markers-does-not-prove-native-host');
+ if(runtime.reasons.includes('runtime-markers-absent-native-host-unverified'))denialReasons.push('absence-of-container-markers-does-not-prove-native-host');
  return {schemaVersion:1,platform:os,runtime,mount,cgroupMembership,cgroupKill,
   pidfd:unknown('requires-trusted-syscall-probe'),stoppedChildAttach:unknown('requires-isolated-mutation-qualification'),
   exclusiveDelegation:unknown('requires-pinned-exclusive-leaf-and-authority-qualification'),
