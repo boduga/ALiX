@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { requireTaskWorkerSupervisor } from "./agents/worker-task-supervisor.js";
 import "node:fs";
 import "node:fs/promises";
 import "node:os";
@@ -345,6 +346,7 @@ if (command === "skill") {
 // --- alix agent <role> "prompt" --- runs subagent in same process (no recursion)
 const agentRole = process.argv[3];
 if (command === "agent" && agentRole) {
+  requireTaskWorkerSupervisor(undefined);
   // Separate flags (--flag) from prompt words after position 3
   const restArgs = process.argv.slice(4);
   const promptWords: string[] = [];
@@ -388,7 +390,8 @@ if (command === "agent" && agentRole) {
 // These are passed through verbatim to SubagentCLI.main, which parses them with
 // node parseArgs (flag-style). The parent (SubagentManager.spawn) emits them in
 // flag style, so no positional reshuffling is performed here.
-if (command === "run" && args[0] === "--subagent") {
+if (command === "run" && args.some(arg => arg === "--subagent" || arg.startsWith("--subagent="))) {
+  requireTaskWorkerSupervisor(undefined);
   const { SubagentCLI } = await import("./agents/subagent-cli.js");
   const subagentRole = args[1];
   const restFlags = args.slice(2);

@@ -1,0 +1,216 @@
+{
+  "scope": "TypeScript/JavaScript direct process dependencies only; not OS or whole-program qualification",
+  "hashEncoding": "UTF-8 source with CRLF normalized to LF",
+  "entries": [
+    {
+      "path": "src/agents/worker-broker-linux-peercred.ts",
+      "sha256": "e56b11ced71d3b3d6a1f16bfd3f0fa97537a37fa25ad793bacab5b5494c00a3b",
+      "classification": "qualification/helper subprocess; no production task-supervisor admission"
+    },
+    {
+      "path": "src/agents/worker-broker-pinned-probe.ts",
+      "sha256": "8d926bdaa97a0b6cd7b5e1409af6d335df562c7b2f5ed9811942d29861646139",
+      "classification": "qualification/helper subprocess; no production task-supervisor admission"
+    },
+    {
+      "path": "src/agents/worker-broker-supervised-probe.ts",
+      "sha256": "fd8a98c1a933f63c95438bac5b0867847898a3ff71922ac3f19ae046a768f11d",
+      "classification": "qualification/helper subprocess; no production task-supervisor admission"
+    },
+    {
+      "path": "src/agents/worker-supervisor-native-backend.ts",
+      "sha256": "877cb26bde613a0382340044f1aa87b6cdeb3cdf156eeba2034a2b331253b3bb",
+      "classification": "qualification/helper subprocess; no production task-supervisor admission"
+    },
+    {
+      "path": "src/capabilities/capability/provider-executor.ts",
+      "sha256": "597ad1572f39e57cd0c002cc34292a7796a7fdfbbc82e0152c60cc6957d26d86",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/capabilities/mcp/process-manager.ts",
+      "sha256": "eda9fdd52d64660a7455c7a4f60fc912ebced729576e993fce52cb2433326cdf",
+      "classification": "MCP service transport; separately governed infrastructure"
+    },
+    {
+      "path": "src/capabilities/mcp/registry.ts",
+      "sha256": "066b3f35e20020a648861b54369831961ca946f828c9e54309da4cd3392a5f16",
+      "classification": "MCP service transport; separately governed infrastructure"
+    },
+    {
+      "path": "src/capabilities/mcp/transports/stdio-transport.ts",
+      "sha256": "da812263bc655c3839ae7df677d3139f02df8280da6c1398c60feab913059259",
+      "classification": "MCP service transport; separately governed infrastructure"
+    },
+    {
+      "path": "src/capabilities/skills/sandbox.ts",
+      "sha256": "8ced8fce665f6ccca504417359fd454fbab56a19ba50bd5b3691b3d3f7c9daa1",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/capabilities/skills/test-isolation.ts",
+      "sha256": "e7ef37f114915b207547318be4bcc87b4a90adc61b7f4dbd0a7d6d10c6e3c282",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/capabilities/tools/monitor-tool.ts",
+      "sha256": "12b6946fbbd93edeaca623692f603f9f59c6f76027f8f2425219587019358f78",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/capabilities/tools/shell-tool.ts",
+      "sha256": "b4cba9346832b27cdd53ce8a8aa34be63a5a0dbf679d5aa03c6b1674da3353fe",
+      "classification": "governed command execution; not canonical worker admission"
+    },
+    {
+      "path": "src/context/repomap/git-activity.ts",
+      "sha256": "8ce3ee9d11bc93af857dbe4b1c36a8de31d75d0e3e11ef3142d33520ba539ae1",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/coordination/workflow/agents/execution-agent.ts",
+      "sha256": "e0ac81224ea416f62c492fba41a032ab8a8a49e1e2cdff84847bb311dcf636b3",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/coordination/workflow/agents/issue-intake-agent.ts",
+      "sha256": "4a2f4dbaf8d0bb360e2c3314a3eab3e3faf24b8450edba2e212fce7cebace64d",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/coordination/workflow/agents/pr-agent.ts",
+      "sha256": "57723baf4a438b928024699d4c154290abf6a4aa97fe2f4adc0959de1024ce22",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/execution/run/plan-phase.ts",
+      "sha256": "280f549f9901af76485a9de3a0bff65a4aac76f333fbb4d0c19b23345f9e0ffa",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/execution/verification/command-runner.ts",
+      "sha256": "d9c4b23397f4dad2b9691a9181fc67e6f6ada3b472c05fbf0f5ebda0149906b9",
+      "classification": "governed command execution; not canonical worker admission"
+    },
+    {
+      "path": "src/governance/approvals/approval-store-lock.ts",
+      "sha256": "d79e0e816f833cc54a92d72f8573a6fc41e996d831dc062f802dcc87d320545f",
+      "classification": "ownership/approval lock infrastructure"
+    },
+    {
+      "path": "src/governance/operator-review.ts",
+      "sha256": "53ba37c410c7d10d8afcfd351e4d5d34d60c249b0be942c2362ac326662d66ee",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/governance/security/supply-chain/package-verifier.ts",
+      "sha256": "158fac6011359b8d4074f342da22b3d32b56c190109910b4ed0d25a15263d2c3",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/governance/security/supply-chain/security-exceptions.ts",
+      "sha256": "c1d3e4a9f8badb156414b17c6c1cb8c527a150bb7605b336712fafbed1e908ae",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/interfaces/cli/commands/init.ts",
+      "sha256": "5d2cc17f958474b775c5c1f24cc49f26fb9f23d89b82f056e37abc48c400f964",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/interfaces/cli/commands/issue-draft-pr.ts",
+      "sha256": "c843c0c140f97580014971296ffcb9a581fff812afc17e86102a2db51c4b966e",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/interfaces/cli/commands/issue-run-handler.ts",
+      "sha256": "b05ec436c7e7028df2c45daa758ceb743687ce3647e61e39a6061e28da752bcb",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/interfaces/cli/commands/issue-verification-runner.ts",
+      "sha256": "9077d10cde9aa94b49857045191abf411708df3e7d64559a8ce1efb113ef2fe5",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/interfaces/cli/commands/security-ops.ts",
+      "sha256": "60c0401868de1d4bd4de1ecbbdd4518e862f943da52ddd19231b09718440dd7e",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/models/model-install.ts",
+      "sha256": "03bc6c1db353d7307f7b7e82984e4cabc8d92400312a045dc0b5ae73b2b62541",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/models/providers/catalog.ts",
+      "sha256": "bbf596a816718e7266a821db37e3a151e359ca07e17c8bab3b4b3d8c76f7ecb5",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/models/providers/local-llama-launcher.ts",
+      "sha256": "154b0688495c0c45b9b06415ce54e14b5266ad0029f9fcd989f2c1d074c0fc9a",
+      "classification": "local inference service process"
+    },
+    {
+      "path": "src/operations/benchmark/cases/cli-startup.ts",
+      "sha256": "0c874c0cfedbcdb67abe94f3445a6215edc31c7480a9b1288aa850bcf002e154",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/operations/benchmark/cases/daemon-submit.ts",
+      "sha256": "723ea9f4e0a2473f6a2a4b776cf908620ce026d1d5bfd3c5f91457ec2798985b",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/operations/config/hardware-detect.ts",
+      "sha256": "acafe17486421af1dc88b59a03e965d3714cb87b57848fbf7f4d4854feccad6a",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/operations/daemon/daemon-manager.ts",
+      "sha256": "4c2f4a55a0881cf234b3b4edeae547f2e3c62ee2a3b863e35c99d42254c6db8e",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/operations/daemon/daemon-server.ts",
+      "sha256": "01239ad184bc2be123c863edd341c2cacd91b6ab50365635dc6b398b95811f80",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/operations/hooks/runner.ts",
+      "sha256": "882e657941978f06c5e58e4824de9c55723bfd345573c3c3eac4d1e61e505786",
+      "classification": "governed command execution; not canonical worker admission"
+    },
+    {
+      "path": "src/planning/decision/tool-selection-snapshot.ts",
+      "sha256": "83de9e95555f9747639c4e64142d94faf561a4546479033fec49329079df5b82",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/planning/evolution/observation/providers/cli-provider.ts",
+      "sha256": "0bcb02d6a4266737b9ae4e895f2431099356bdf8c2cb30dc4af2bca4ba27c518",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/planning/evolution/observation/providers/git-provider.ts",
+      "sha256": "62aecb72d912c6c1632907ef7e6c2338222b389ba0f179c5299a7a0292bde7b1",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/planning/evolution/observation/providers/repository-provider.ts",
+      "sha256": "0e562c0bc07c02b5ed889b4893aebb98ddc66f323cbed0ced854b06e0d1c4318",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/planning/evolution/observation/providers/test-suite-provider.ts",
+      "sha256": "cf45678a1f9b5ff9546301d30cb25b9f08dcb10ccc7c929286ee4e515a8229b0",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    },
+    {
+      "path": "src/runtime-state/runtime/replay-diff-store.ts",
+      "sha256": "388cad3b037bee5776004f49165cb12916081664b55b2d29e4fc086c4f3eb687",
+      "classification": "existing command/helper infrastructure; source frozen pending explicit review"
+    }
+  ]
+}

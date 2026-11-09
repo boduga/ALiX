@@ -1,3 +1,4 @@
+// Historical loop behavior only: production refusal is mocked in this suite.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -52,7 +53,7 @@ function fakeStore() {
   return { get: vi.fn(), loadFresh: vi.fn(), load: vi.fn() };
 }
 
-describe('worker tool-level approval store wiring (F8)', () => {
+describe('historical worker approval wiring (production refusal mocked)', () => {
   it('passes the authoritative approvalStore into runTask', async () => {
     const { cwd, worker, context } = await fixture();
     const store = fakeStore();
@@ -105,7 +106,7 @@ describe('worker tool-level approval store wiring (F8)', () => {
   });
 });
 
-describe('authoritative approval wait (F8)', () => {
+describe('historical approval wait (production refusal mocked)', () => {
   it('loadApprovalForWait reads through the store instead of the in-memory map', async () => {
     const { ToolExecutor } = await import('../../src/capabilities/tools/executor.js');
     const store = {
@@ -193,3 +194,6 @@ describe('authoritative approval wait (F8)', () => {
     } finally { closeAllSharedLedgers(); await rm(cwd, { recursive: true, force: true }); }
   });
 });
+
+// Test-only module substitution; no runtime flag can enable this path.
+vi.mock("../../src/agents/worker-task-supervisor.js", () => ({requireTaskWorkerSupervisor: vi.fn()}));

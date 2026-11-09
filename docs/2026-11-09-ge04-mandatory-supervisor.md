@@ -39,6 +39,16 @@ All new execution tests use credential-free doubles. No native privileged progra
 
 ## Remaining sequential gates
 
-R1-B1 is incomplete: direct `SubagentCLI.main`/CLI routes and `DefaultWorkerExecutor` still expose legacy worker execution, and whole-consumer coverage/static guards remain unfinished. The new launch guard deliberately covers only the manager/task facade, not the whole repository. A qualified durable supervisor must also establish cross-manager attempt/scope exclusion and unresolved recovery; JavaScript tracking cannot do so.
+R1-B1 is incomplete: a follow-up source change blocks the known direct `SubagentCLI.main`/CLI and `DefaultWorkerExecutor` entries with fixed unavailable-supervisor refusal. The delta passed 63 Vitest cases, including five real compiled subprocess refusal cases and four real-guard unit assertions; retained historical-loop tests explicitly mock the guard. The separate evidence verifier reproduced all 63 cases, the then-expanded 46 Node assertions, both type checks and staleness. The later conservative process-dependency census expands the Node group to 49 assertions and passed its final independent source/evidence recheck, including TSX/JSX traversal coverage. The source reviewer reported no remaining actionable finding in the delta. Whole-consumer classification and backend/qualification remain unfinished. The launch guard now pins known refused entries and conservatively freezes 42 direct process-dependency modules against unreviewed changes/additions, using CRLF-normalized source hashes. It is still lexical and does not prove arbitrary computed imports, shell payloads or native code safe. A qualified durable supervisor must also establish cross-manager attempt/scope exclusion and unresolved recovery; JavaScript tracking cannot do so.
 
 Do not begin R1-B2 implementation as if B1 were accepted. B2 requires real restricted-UID containment and kernel-authenticated IPC with hostile-worker evidence. R1-C requires broker-owned model/config migration. R1-D requires independently protected durable claims and final-effect fencing. R1-E requires complete legacy deletion and migration/rollback evidence. R1-F requires independently witnessed security qualification and an explicit release decision; an agent cannot issue those approvals to itself.
+
+
+## PR and CI checkpoint
+
+Primary draft PR: https://github.com/boduga/ALiX/pull/1100. First commit `e3f98d18` is pushed. Its 15 reported GitHub checks passed, including Linux/macOS/Windows unit lanes, integration, typecheck, DOX and supply-chain checks. Those results apply to that commit only; the entry-refusal follow-up must pass its own exact-head checks before integration. No merge, issue closure or production release has occurred.
+
+
+## Designated qualification environment
+
+The operator identified `ubuntu@10.1.1.13` as the prepared qualification environment in response to the host/root-test question. SSH host-key verification succeeded. Read-only inspection observed Linux x86-64 on `alix-ge04-qual-01`, user ubuntu UID 1000, and noninteractive sudo availability. Initial noninteractive PATH inspection did not locate Node, pnpm or a compiler, nor the probed conventional repository paths; toolchain/source discovery is in progress. No privileged native test, deployment or production credential admission has run. Authorization is confined to reviewed synthetic qualification in this designated environment; it does not authorize production services or independent release sign-off.

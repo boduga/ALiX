@@ -19,9 +19,9 @@
   authoritative ApprovalStore and resuming through `runUntilIdle`; the daemon
   does not own or tick these runs. Inject the worker executor through
   `CoordinationToolDeps.executor` for end-to-end lifecycle coverage.
-- `subagent-worker-executor.ts` — Workers as subagent child processes (caps→role map, ownedPaths, result map)
+- `subagent-worker-executor.ts` — Worker facade through the canonical task-supervisor manager (caps→role map, ownedPaths, result map); unavailable default composition refuses execution
 - `worker-role.ts` — Capability → role classification and canonical owned-path extraction shared by both worker executors; write workers with missing or malformed ownership fail closed before execution
-- `worker-executor.ts` — In-process worker execution via `runTask`; write-worker ownership claims flow as trusted execution options to the policy gate. A single pending tool observed in the worker's captured events returns `approval_required` with its durable approval ID.
+- `worker-executor.ts` — `DefaultWorkerExecutor` refuses unavailable supervision before any in-process execution, even with an approval store. Already-aborted calls remain cancelled. The historical loop is retained only behind fixed production refusal for isolated behavior tests; it is not a runtime fallback.
 - `worker-tool-continuation.ts` — binds a single pending continuation to the originating worker/original assigned agent/attempt and ownership snapshot through the executor's host API, using only that invocation's captured tool events, never a shared-session guess or model metadata.
 - `owner-liveness.ts` — the ONE worker-liveness module (R3.3): `<kind>-<pid>`
   execution-owner liveness probe (unknown owners read alive), heartbeat
@@ -43,11 +43,15 @@
 - `replan-proposal-store.ts` — Atomic durable proposal lifecycle at
   `.alix/coordination/replans/<runId>/<proposalId>.json`; its injected clock
   keeps timestamp assertions deterministic.
-- `worker-executor.ts` — In-process runTask executor (CLI default)
 - `coordination-worker-context.ts` — Original run objective and bounded, identity-validated direct dependency results supplied to both worker executors.
 - `default-worker-review.ts` — Invocation-local event capture and objective review for in-process workers; full tool evidence comes from the task-loop observer, not telemetry previews. Mutation evidence is the union of the current attempt's events and the run's durable session log (`toCoordinationEvidenceEvents`), so a retry keeps an earlier attempt's proof.
 
 ## Local Contracts
+
+- `DefaultWorkerExecutor.execute` uses fixed `requireTaskWorkerSupervisor(undefined)`
+  refusal before event/config/provider/tool work. Historical approval/review tests
+  explicitly mock that refusal; they do not qualify production dispatch. No
+  session mode or approval-store injection can enable the old in-process route.
 
 - Lock-protected `CoordinationStore` updates enter canonical per-run FIFO admission before acquiring the existing cross-process lock and reloading authoritative state. Admission spans store instances and preserves worker-claim, plan-revision CAS and single aggregate-attachment checks inside that lock. An idle queue returns each operation's existing unavailable result without executing its callback; ledger failures still throw.
 - `createPlannerGenerator` forwards an explicitly configured positive `context.budget.outputCap` as request `maxOutputTokens`; when absent, the planner leaves that request field unset. Planner calls must honor deliberate per-run output budgeting without changing model selection or stored user configuration.

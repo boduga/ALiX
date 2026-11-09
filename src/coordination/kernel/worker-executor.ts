@@ -2,6 +2,7 @@
  * worker-executor.ts — Injectable worker executor contract for CoordinationScheduler.
  */
 
+import { requireTaskWorkerSupervisor } from "../../agents/worker-task-supervisor.js";
 import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import type { CoordinationRun, WorkerAssignment, WorkerFailureKind } from "./coordination-types.js";
@@ -105,6 +106,15 @@ export class DefaultWorkerExecutor implements CoordinationWorkerExecutor {
     context: WorkerExecutionContext,
     signal: AbortSignal,
   ): Promise<WorkerExecutionResult> {
+    if (signal.aborted) return {outcome: "failure", failureKind: "cancelled", error: "Execution cancelled before start"};
+    try {
+      requireTaskWorkerSupervisor(undefined);
+    } catch (error) {
+      return {outcome: "failure", failureKind: "authorization_denied",
+        error: error instanceof Error ? error.message : "WorkerSupervisor SECURITY HOLD"};
+    }
+    // Historical loop below is unreachable in production. Tests mock only the
+    // fixed refusal to preserve review/approval semantics pending replacement.
     const ownedPaths = isWriteWorker(worker) ? ownedPathsForWorker(worker) : undefined;
     if (isWriteWorker(worker) && !ownedPaths?.length) {
       return {

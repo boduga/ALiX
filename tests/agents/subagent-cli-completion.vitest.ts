@@ -1,3 +1,4 @@
+// Historical loop behavior only: production refusal is mocked in this suite.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm, mkdir, writeFile, readFile, unlink, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,7 +29,7 @@ import { SubagentCLI } from "../../src/agents/subagent-cli.js";
 
 afterEach(() => { vi.restoreAllMocks(); harness.complete.mockReset(); harness.execute.mockReset(); harness.durable.length = 0; harness.providerConfig = null; });
 
-describe("child provider call budget", () => {
+describe("historical child call budget (production refusal mocked)", () => {
   it("carries the configured model timeout into the provider", async () => {
     const root = await mkdtemp(join(tmpdir(), "alix-timeout-"));
     const cwd = process.cwd();
@@ -54,7 +55,7 @@ describe("child provider call budget", () => {
   });
 });
 
-describe("coordination worker completion boundary", () => {
+describe("historical worker completion (production refusal mocked)", () => {
   it.each(["done", "no_calls", "budget"])("reviews %s exit and retains retrieved evidence", async exit => {
     const root = await mkdtemp(join(tmpdir(), "alix-completion-"));
     const cwd = process.cwd();
@@ -214,3 +215,6 @@ describe("coordination worker completion boundary", () => {
     }
   });
 });
+
+// Test-only module substitution; no runtime flag can enable this path.
+vi.mock("../../src/agents/worker-task-supervisor.js", () => ({requireTaskWorkerSupervisor: vi.fn()}));

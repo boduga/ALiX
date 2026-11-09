@@ -1,3 +1,4 @@
+// Historical loop behavior only: production refusal is mocked in this suite.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -23,7 +24,7 @@ async function fixture(){
  const config: AlixConfig={...DEFAULT_CONFIG,models:{default:{provider:'mock',name:'mock'}},permissions:{...DEFAULT_CONFIG.permissions,sessionMode:'bypass'}};
  return {cwd,log,run,worker,context:{cwd,run,sessionId:run.sessionId,config}};
 }
-describe('default worker review',()=>{
+describe('historical default worker review (production refusal mocked)',()=>{
  it.each([
   {label:'default ask',defaultPolicy:'ask',readPolicy:undefined,protectedPath:false,success:true},
   {label:'explicit ask',defaultPolicy:'allow',readPolicy:'ask',protectedPath:false,success:true},
@@ -155,3 +156,6 @@ describe('default worker review',()=>{
   }finally{closeAllSharedLedgers();await rm(cwd,{recursive:true,force:true});}
  });
 });
+
+// Test-only module substitution; no runtime flag can enable this path.
+vi.mock("../../src/agents/worker-task-supervisor.js", () => ({requireTaskWorkerSupervisor: vi.fn()}));

@@ -1,7 +1,9 @@
 /**
  * Subagent entry point. Parses CLI args, builds prompt, calls model with tools, exits.
- * Invoked by SubagentManager.spawn() as a child process via `alix run --subagent`.
+ * Legacy loop retained for isolated behavior tests. Production entry is refused
+ * until the canonical supervised task protocol replaces it.
  */
+import { requireTaskWorkerSupervisor } from "./worker-task-supervisor.js";
 import { parseArgs } from "util";
 import { pathToFileURL } from "node:url";
 import { basename, isAbsolute, relative, resolve } from "path";
@@ -508,6 +510,7 @@ export function buildResult(
 
 export class SubagentCLI {
   static async main(argv: string[]): Promise<void> {
+    requireTaskWorkerSupervisor(undefined);
     installParentLivenessWatchdog();
     const args = parseArgs({
       args: argv,
