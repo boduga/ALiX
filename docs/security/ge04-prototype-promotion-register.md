@@ -1,0 +1,36 @@
+# GE-04 — prototype promotion and retirement register
+
+> **Historical baseline (2026-11-08 reconciliation):** This document preserves the original PR #1053 R0/R1 design and source observations at commit `4d9081d0`. Statements describing paths as *current* apply to that baseline, not necessarily to later `main`. Verify present implementation and security evidence before acting on its dispositions. The GE-04 SECURITY HOLD remains active; this documentation is not release authorization.
+
+**Status:** Source-backed disposition proposal for independent review; not R0 closure, R1 approval, production certification or security-hold clearance. **Baseline:** GE-04 #1051/#1052, source PR #1053. **Rule:** preserve reusable mechanism and test evidence, but eliminate every obsolete production path by R5/R6. This register covers the identified GE-04 prototype modules, not all of ALiX.
+
+| Component(s) | Disposition | Source-backed value / limitation | Production promotion gate |
+| --- | --- | --- | --- |
+| `worker-broker-authorization.ts` | **HARDEN + INTEGRATE** | HMAC ticket signing, route/provider/revocation checks; `used` nonce set is per instance | Move signer/authority to broker-only process; bind authenticated peer; durable final-effect authorization and replay semantics; concurrency/crash tests |
+| `worker-broker-ipc-boundary.ts` | **KEEP + HARDEN** | `assertBrokerPeer` policy checks and SQLite `BrokerReplayLedger` with transactional nonce insert | Ledger must be broker-owned, non-worker-writable and composed with final authorization; verify cross-process/restart and effect-unknown semantics |
+| `worker-broker-governed-admission.ts` | **REFACTOR** | Validates peer-to-worker claim then authorizes ticket and consumes nonce; steps not one atomic effect transaction | Single governed admission/effect boundary, live identity fencing and durable reconciliation; no secret admission before independent approval |
+| `worker-broker-linux-peercred.ts` | **HARDEN / REPLACE HANDOFF** | Native helper can read `SO_PEERCRED`; current Node `_handle.fd` is undocumented and helper returns parsed text | Reviewed native accepted-FD provenance and attestation, strict trusted helper deployment, no worker-controlled stdout/JSON identity |
+| `worker-broker-transport.ts` | **REFACTOR** | Bounded attestation timeout, fail-closed probe server; callback attestor injected | Authenticated request/stream/cancel framing, peer provenance and operation governance; remove probe-only endpoint from final production route |
+| `worker-broker-live-peer-binding.ts`, `worker-broker-linux-registration.ts`, `worker-broker-linux-process.ts` | **KEEP + INTEGRATE** | Registered PID/UID/start-time and live procfs revalidation; not itself socket authentication | Trusted supervisor-only registration, pidfd/process-generation fencing, cross-UID and PID reuse negatives, restart reconciliation |
+| `worker-broker-trusted-helper.ts`, `worker-broker-native-executable.ts`, `native/ge04/exec-pinned-probe.c` | **PROMOTE MECHANISM, REVIEW IMPLEMENTATION** | Trusted helper checks and pinned-executable prototype | Production signed/owned executable chain, race/symlink protections, independent OS qualification; do not promote a probe binary as a worker supervisor without review |
+| `worker-broker-pinned-probe.ts`, `worker-broker-supervised-probe.ts` | **RETAIN TEST EVIDENCE; RETIRE PRODUCTION SCAFFOLD** | Credential-free qualification harness and native probe lifecycle | Reuse as adversarial integration fixtures; remove unused runtime adapters after canonical supervisor is proven |
+| `worker-broker-native-handoff.ts` | **RETAIN DIAGNOSTICS ONLY / RETIRE AUTH PATH** | Strict diagnostic frame parsing; parsing is not authentication | No diagnostic peer can enter admission; delete obsolete parser if no remaining diagnostic consumer |
+| `worker-broker-native-admission-gate.ts` | **KEEP FAIL-CLOSED TEST / RETIRE OBSOLETE BRIDGE** | Explicitly rejects all diagnostic stdout admission | Maintain negative regression; remove unused bridge after native authenticated boundary replaces it |
+| `worker-ge04-linux-lifecycle.ts` | **REFACTOR INTO SUPERVISOR** | Qualification registry callback from real worker spawn | OS-isolated process owner, trusted identity and mandatory worker lifecycle; remove optional callback from production |
+| `worker-ge04-startup-gate.ts` | **RETIRE AS SECURITY MECHANISM** | Cooperative FD4 gate tests ordering only | Native startup isolation must precede untrusted imports; remove `--ge04-startup-fd` and production dependency |
+| `credential-grant-planner.ts`, `credential-grant-fixture.ts` | **KEEP PLANNING / CLASSIFY FIXTURE** | Grant planning separate from credential delivery | Broker-owned route authority, least privilege and revocation; fixture must remain test-only or be deleted |
+| `credential-fd-reader.ts` + `SubagentManager` FD3 sender | **DELETE AFTER MIGRATION** | Current credential snapshot is an exposed legacy path | No `--credential-fd`, FD3 secret payload, worker snapshot reader or legacy fallback; verify all consumers |
+| `SubagentManager.ge04WorkerLifecycle?` | **DELETE AFTER MIGRATION** | Optional observer allows legacy direct spawn | Mandatory canonical supervisor for every worker entry point; no opt-in switch |
+| `subagent-manager.ts` DBus/XDG forwarding | **DELETE AFTER MIGRATION** | Worker can access user's keyring session | Restricted UID, HOME, filesystem, env, FDs, sockets and network; hostile-worker denial tests |
+| `operations/config/loader.ts` worker-side credential resolution and environment injection | **SPLIT TRUST BOUNDARY** | `loadConfig` resolves `cred://` and injects provider keys into `process.env`; worker invokes it | Trusted broker config and nonsecret worker projection; no worker secret reads or provider-key environment |
+| `models/providers/registry.ts` and credentialed provider adapters | **MIGRATE CALLERS; REUSE PROVIDER LOGIC IN BROKER** | Existing provider constructors accept keys and several fall back to env | Broker-owned provider clients; worker-facing no-secret adapter; preserve streaming, fallback, discovery and budgets |
+
+## Promotion policy
+
+1. **Preserve** existing unit, integration and cross-UID tests as evidence, but distinguish synthetic peer fixtures from kernel-authenticated end-to-end tests.
+2. **Reuse** broker authorization, replay ledger, registration, process identity and pinned helper mechanisms where security review confirms their contracts; do not rebuild without demonstrated need.
+3. **Consolidate** competing owner paths into one supervisor and one broker; no optional production mode or compatibility shim at completion.
+4. **Delete** credential snapshots, cooperative security gate, direct worker keyring access and obsolete native diagnostic handoffs after every supported consumer has migrated.
+5. **Verify** independent Linux x86-64 hostile-worker tests, provider-model requests, streaming, crash/restart, PID reuse, revocation, replay and Q04/Q05 migration/restore evidence before declaring GE-04 complete.
+
+**Review decisions still required:** executable and process-identity trust model; broker native transport; final-effect atomicity; brokered model/provider boundary; credential stores beyond model keys; all subprocess surfaces. Nothing in this register enables production credential delivery.

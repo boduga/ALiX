@@ -2,7 +2,7 @@ import {describe,expect,it} from 'vitest';
 import {classifyLinuxRuntime} from '../../src/agents/linux-container-runtime-evidence.js';
 describe('GE-04 conservative container classification',()=>{
  it.each([
-  [{},'native',false],
+  [{},'unknown','unknown'],
   [{systemdContainer:'lxc'},'lxc-unresolved',true],
   [{systemdContainer:'incus'},'lxc-unresolved',true],
   [{dockerEnvMarker:true},'docker',true],
@@ -16,6 +16,9 @@ describe('GE-04 conservative container classification',()=>{
   expect(result.container).toBe(container);
   expect(result.eligibleForContainment).toBe(false);
   expect(result.management).toBe('unverified');
+ });
+ it('marker absence cannot prove a native host',()=>{
+  expect(classifyLinuxRuntime({}).reasons).toContain('runtime-markers-absent-native-host-unverified');
  });
  it('does not mistake Incus marker for independently verified Incus management',()=>{
   expect(classifyLinuxRuntime({systemdContainer:'incus'}).reasons).toContain('lxc-management-unverified');
