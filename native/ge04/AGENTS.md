@@ -20,6 +20,12 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `exclusive_birth_handoff.py`: pure non-authorizing PREBIRTH_OBSERVED →
+  CREATION_CLAIMED → JOB_COMPLETION_CLAIMED → BIRTH_CORRELATED contract. A fixed `fail`-mode
+  StartTransientUnit job path is caller-supplied, not authenticated and
+  cannot prove exclusive creation. Replay/ambiguity quarantines and all
+  create/ACK/recover methods refuse. See
+  `docs/security/ge04-exclusive-birth-handoff.md`.
 - `systemd_absence_observer.py`: read-only pinned root-owned systemd bus
   negative checks for both fixed GetUnit and GetUnitFileState twice. Output
   remains UNQUALIFIED and cannot lock or reserve the missing unit. The

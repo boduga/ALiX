@@ -332,3 +332,19 @@ still NO atomic absence-to-exclusive-create transaction or authenticated
 prebirth issuer; any concurrent systemd unit creation after an observation
 remains possible. No privileged service action or ACK. The positive result
 is UNQUALIFIED only. B1-B and human Q13 still OPEN, SECURITY HOLD ACTIVE.
+
+## Exclusive birth handoff ordering contract — NOT systemd authority
+
+Added `native/ge04/exclusive_birth_handoff.py`, a pure nonprivileged
+sequence requiring original byte-exact prebirth journal and manager-owner
+absence, a single caller-claimed `StartTransientUnit` request with `fail`
+mode, an exactly bound claimed systemd job `done` completion, then a
+consistent observed fixed unit invocation, keeper PID and zero restarts.
+Wrong job path/manager owner, nonce/attempt/digest, failed/missing/replayed
+completion, manager changes or repeated birth always quarantine. The output
+remains `UNQUALIFIED_BIRTH_HANDOFF_CORRELATION`; `create_unit`, `issue_ack`
+and `recover` always refuse. **Neither job issuance nor job completion is
+obtained from an authenticated systemd transaction**; this code does not
+perform exclusive creation or prove origin. It is a review contract only.
+See `ge04-exclusive-birth-handoff.md`. B1-B/E/H and Q13 remain OPEN;
+GE-04 SECURITY HOLD ACTIVE.

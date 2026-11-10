@@ -549,3 +549,18 @@ absence callback with real current systemd evidence. Absence is not a lock
 or atomic exclusive unit creation; original attempt and publisher are not
 authenticated. No service creation, root access or ACK was enabled. B1-B,
 independent security review, disposable VM and Q13 remain OPEN.
+
+### Fixed exclusive unit-birth handoff — non-authorizing prototype
+
+`exclusive_birth_handoff.py` now specifies a four-step caller-supplied
+sequence: original persisted PREBIRTH and fixed-unit absence observation;
+non-replacing `StartTransientUnit(mode=fail)` creation job claim; matching
+`done` completion claim; fixed manager invocation, keeper and no-restart
+observation. Any missing/failed/replayed/ambiguous transition permanently
+quarantines the attempt. Nine synthetic tests pass, including immutable
+read-only observer snapshots. No D-Bus mutation,
+root issuer, authenticated job transaction, unit creation, phase ACK or
+recovery implementation exists; all authority methods refuse. The
+independent source/privilege review and approved disposable VM remain
+blocking, and SECURITY HOLD remains active. See
+`docs/security/ge04-exclusive-birth-handoff.md`.
