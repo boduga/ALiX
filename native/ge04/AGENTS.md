@@ -57,6 +57,11 @@ control plane or treat a VM/remote host as already qualified.
   for every valid mode; only an explicitly reviewed disposable-VM-specific
   compile macro can include its privileged path. That macro is NOT approval.
   `tests/agents/test_ge04_native_default_hold.py` checks default refusal.
+  Native ACK input is now an exact invocation/phase/sequence frame, not a
+  bare `c`; this is protocol integrity, NOT sender authentication. The
+  unprivileged inert C probe in `tests/fixtures/ge04-ack-frame-probe.c` and
+  `tests/agents/test_ge04_native_ack_frame.py` exercise only the frame reader.
+  See `docs/security/ge04-native-phase-ack-contract.md`.
   `tests/agents/test_ge04_runtime_view.py` currently
   covers local parsing, immutable-stage, real unprivileged read-only kernel
   observations (including a genuine read-only self-cgroup v2 snapshot),

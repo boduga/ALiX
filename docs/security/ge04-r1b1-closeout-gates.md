@@ -224,3 +224,17 @@ default native build still returning 77 before any privileged setup. The
 rechecks are not atomic with the mutation and cannot substitute for protected
 exclusive custody, external review or approved root VM qualification. B1-F
 remains OPEN, GE-04 SECURITY HOLD ACTIVE.
+
+## Native phase-specific ACK framing (protocol contract only)
+
+The native fixture now refuses the old single-byte `c` and instead consumes
+an exact bounded `GE04ACK1` line binding the helper's fixed invocation,
+current phase, and locally monotonic sequence. It rejects duplicate,
+replayed, wrong-phase, wrong-invocation, malformed or extraneous queued
+frames. `test_ge04_native_ack_frame.py` tests the actual compiled C reader
+using an inert unprivileged probe, not the root entry or a systemd unit.
+**This is not an authenticated ACK**: a process controlling stdin can forge
+all public fields. There remains no protected phase observer, original birth
+receipt, unit-owner exclusivity, or root admission authority. The C source
+hash changes and must undergo independent review again. B1-E OPEN,
+SECURITY HOLD ACTIVE. See `ge04-native-phase-ack-contract.md`.

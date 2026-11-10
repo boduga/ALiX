@@ -151,3 +151,25 @@ an independently protected bootstrap and exact tree authority.
 This change again alters the C source digest, so previous source hashes and
 all review observations must be refreshed for a final independent security
 review before any privileged disposable-VM operation.
+
+## Native phase-ACK framing hardening — not authenticated authorization
+
+Changed `event_until` from accepting a bare `c` to invoking `ack_exact`,
+which requires one canonical `GE04ACK1 <invocation> <phase> <sequence>\n`
+frame within the original monotonic deadline. Every byte must match, the
+phase is from the fixed closed event vocabulary, the invocation is lowercase
+hex, and the sequence advances only after a valid frame. Extra queued data,
+wrong phase, old sequence, duplicate frame or malformed content causes
+refusal. The inert, unprivileged native test probe exercises the real C frame
+reader without invoking the privileged fixture entry point. The existing
+native default-build refusal is unchanged.
+
+**Crucial limit:** This is only framing/replay *correlation* within a process,
+not authentication or non-forgeability. A caller with stdin control can
+produce the exact expected frame, and invocation/sequence values are public.
+The legitimate protected observer's process identity, independent original
+journal and manager/kernel phase verification are still absent. No phase ACK
+may count as an authorization gate until a separate reviewed trusted
+controller exclusively owns the channel. See
+`docs/security/ge04-native-phase-ack-contract.md`. This modifies the native
+source digest and requires fresh external source review before any VM run.

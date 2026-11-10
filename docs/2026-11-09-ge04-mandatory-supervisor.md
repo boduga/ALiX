@@ -452,3 +452,15 @@ before the cgroup.kill write. Three local native source/default-deny tests
 pass; no root helper executed. This remains a non-atomic defensive recheck,
 not independent kernel authority, full crash recovery or a security release.
 GE-04 SECURITY HOLD ACTIVE.
+
+### Native phase-bound ACK framing — still non-authorizing
+
+The cgroup-runtime-view native helper's phase ACK input now requires a
+canonical `GE04ACK1` frame carrying the current invocation, phase name,
+and strictly increasing in-process sequence. The previous `c` ACK is rejected.
+An inert unprivileged C probe exercises the real native parser and rejects
+replays, wrong phase/sequence/invocation, duplicate frames and malformed
+payloads. This prevents accidental protocol confusion but does not prove
+ACK-sender identity: stdin owner can forge the entire public frame. There
+is still no protected root controller or independent kernel-phase authority.
+Default native root entry remains disabled; R1-B1 OPEN and GE-04 HOLD ACTIVE.

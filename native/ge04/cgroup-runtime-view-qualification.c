@@ -45,6 +45,7 @@ struct context {
  unsigned long long ticks[2];
  struct stat work_stat,lock_stat,parent_stat,outer_stat,inner_stat[2],ns_stat[2];
  struct record record;
+ unsigned ack_sequence;
  int owned,published;
  const char *mode,*reason;
 };
@@ -235,29 +236,46 @@ out:
  if(parent>=0)close(parent);
  return ok&&budget_ok();
 }
+static int ack_phase(const char *phase) {
+ const char *allowed[]={"INTENT","PRE_NAMESPACE","PINNED","ENABLED","PRE_JOIN","READY","EMPTY","DENIED"};
+ for(size_t i=0;i<sizeof(allowed)/sizeof(allowed[0]);i++)if(!strcmp(phase,allowed[i]))return 1;
+ return 0;
+}
+/* This is exact frame/ordering integrity, NOT sender authentication.
+ * Any holder of stdin can still forge a correctly formatted ACK. Only the
+ * separately protected original observer may eventually own this channel. */
+static int ack_exact(struct context *c,const char *phase,long long until) {
+ char expected[128];
+ if(!ack_phase(phase)||!hex_string(c->record.invocation,32)||c->ack_sequence>=8)return 0;
+ unsigned next=c->ack_sequence+1;
+ int count=snprintf(expected,sizeof(expected),"GE04ACK1 %s %s %u\n",
+                    c->record.invocation,phase,next);
+ if(count<=0||(size_t)count>=sizeof(expected))return 0;
+ for(int i=0;i<count;i++){
+  long long now=clock_ms();if(now<0||now>=until)return 0;
+  struct pollfd p={.fd=STDIN_FILENO,.events=POLLIN};
+  int n;
+  do{n=poll(&p,1,(int)(until-now));}while(n<0&&errno==EINTR&&budget_ok());
+  if(n!=1||!(p.revents&POLLIN)||(p.revents&(POLLERR|POLLNVAL)))return 0;
+  char received;ssize_t used;
+  do{used=read(STDIN_FILENO,&received,1);}while(used<0&&errno==EINTR&&budget_ok());
+  if(used!=1||received!=expected[i])return 0;
+ }
+ struct pollfd extra={.fd=STDIN_FILENO,.events=POLLIN};int n;
+ do{n=poll(&extra,1,0);}while(n<0&&errno==EINTR&&budget_ok());
+ if(n!=0||!budget_ok())return 0;
+ c->ack_sequence=next;
+ return 1;
+}
 static int event_until(struct context *c,const char *phase,long long until) {
  active_until=until;
- if(!budget_ok())return 0;
- /* A generated child can fail before its generation is observed. Keep the
-  * owned references for cleanup, but emit only a verified hint or absent0/0. */
+ if(!budget_ok()||!ack_phase(phase)||!hex_string(c->record.invocation,32))return 0;
+ /* Phase stdout remains a diagnostic hint, never authorization. */
  pid_t a=c->child[0]>1&&c->ticks[0]?c->child[0]:0;
  pid_t b=c->child[1]>1&&c->ticks[1]?c->child[1]:0;
  printf("EV %s %ld %llu %ld %llu\n",phase,(long)a,a?c->ticks[0]:0,(long)b,b?c->ticks[1]:0);
  if(fflush(stdout))return 0;
- for(;;){
-  long long now=clock_ms();if(now<0||now>=until)return 0;
-  struct pollfd p={.fd=STDIN_FILENO,.events=POLLIN};
-  int n=poll(&p,1,(int)(until-now));
-  if(n<0&&errno==EINTR)continue;
-  if(n<=0||!(p.revents&POLLIN))return 0;
-  char ack;ssize_t used=read(STDIN_FILENO,&ack,1);
-  if(used<0&&errno==EINTR)continue;
-  if(used!=1||ack!='c')return 0;
-  p.revents=0;
-  int extra;
-  do{extra=poll(&p,1,0);}while(extra<0&&errno==EINTR&&clock_ms()<until);
-  return extra==0;
- }
+ return ack_exact(c,phase,until);
 }
 static int event(struct context *c,const char *phase) {
  int ok=event_until(c,phase,begin_operation());
