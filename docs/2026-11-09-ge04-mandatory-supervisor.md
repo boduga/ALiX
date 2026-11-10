@@ -619,3 +619,14 @@ restart prevents reuse of the existing marker within its user-owned directory;
 The same UID can delete the marker, so it establishes no protected durable
 replay prevention. No unit creation, root journal, ACK, cleanup or security
 release. See `docs/security/ge04-transaction-consumption-fixture.md`.
+
+### Protected owner authority gate contract — refusal only
+
+Added `protected_owner_review_boundary.py`, a pure diagnostic gate map that
+refuses to promote caller-supplied claims (including all-true claims) into
+root issuer custody, exclusive unit birth, job/kernel ownership, phase ACK,
+VM qualification or independent signoff. All privilege-bearing methods are
+unconditional refusals. Six focused adversarial tests pass; no actual trusted
+controller has been implemented. See
+`docs/security/ge04-protected-transaction-owner-contract.md`.
+R1-B1 OPEN; GE-04 SECURITY HOLD ACTIVE.

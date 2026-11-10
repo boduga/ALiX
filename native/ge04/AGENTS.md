@@ -20,6 +20,12 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `protected_owner_review_boundary.py`: fail-closed review-only gate map
+  for protected issuer, exclusive birth, trusted job/kernel custody, ACK,
+  approved VM and independent signoff. Caller-asserted passes are NEVER
+  authority; all publish/create/ACK/recover/admit methods refuse. No root
+  controller implementation. See
+  `docs/security/ge04-protected-transaction-owner-contract.md`.
 - `transaction_consumption_fixture.py`: unprivileged user-owned
   O_EXCL consumption marker written and fsynced BEFORE cross-source
   packet checking; failed/crashed/reopened attempts quarantine and cannot

@@ -411,3 +411,14 @@ replacement. The same UID can still unlink the file: this is **not** a
 protected durable consumption fence, authenticated root transaction, or
 B1-F/Q13 qualification. See `ge04-transaction-consumption-fixture.md`.
 GE-04 SECURITY HOLD ACTIVE.
+
+## Protected transaction owner authority boundary (review-only)
+
+`protected_owner_review_boundary.py` now enumerates the distinct gates for
+reviewed root source, protected prebirth custody, exclusive unit birth,
+manager job provenance, pinned kernel resources, protected ACK/terminal,
+approved disposable VM and independent human release. Every caller-supplied
+claim remains unverified even if all flags are true; all privileged actions
+publish/create/ACK/recover/admit refuse. This is a *refusal contract*, not
+implementation of the independent root owner. B1-A through B1-H remain
+OPEN. See `ge04-protected-transaction-owner-contract.md`. SECURITY HOLD.
