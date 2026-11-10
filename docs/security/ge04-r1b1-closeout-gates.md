@@ -171,3 +171,16 @@ actual absent-unit behavior. The returned status remains
 Current manager properties are not an independently published prebirth intent,
 unit-creation witness, keeper pidfd, cgroup custody or crash-recovery proof.
 B1-B and subsequent security gates are not cleared. SECURITY HOLD ACTIVE.
+
+## Fixed manager + live kernel read-only correlation (qualification only)
+
+Added `native/ge04/unit_kernel_observer.py` to correlate current read-only
+systemd bus properties with a separately supplied original unit/keeper/mount
+claim and real process pidfd/procfs/cgroup observations. It requires exact
+unit scope, keeper start generation, single cgroup2 keeper mount and held
+root/system.slice/unit dir identities with keeper PID membership, and repeats
+manager/kernel observations after the read. Positive tests use fake procfs
+and a synthetic directory tree because the real fixed qualification unit is
+absent. There is no protected source for original identity, no privileged
+controller, no unit birth, no phase ACK or cleanup/recovery acceptance. Any
+successful observation remains UNQUALIFIED. GE-04 SECURITY HOLD ACTIVE.

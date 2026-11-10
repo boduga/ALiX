@@ -397,3 +397,19 @@ created/adopted. The observer cannot establish original prebirth intent,
 manager-origin approval, keeper pidfd/cgroup mount custody, or privilege.
 Result always UNQUALIFIED. R1-B1 and GE-04 hold remain OPEN. See
 `docs/security/ge04-systemd-manager-observation.md`.
+
+### Existing systemd unit / keeper kernel corroboration — read-only
+
+Added `native/ge04/unit_kernel_observer.py`, correlating fixed live systemd
+GetUnit/Unit/Service observations with a *supplied* original keeper PID,
+startticks, invocation, cgroup2 mount ID/device, and root/system.slice/unit
+inode-chain. It checks observer-owned pidfd, exact `/proc/<pid>/cgroup`,
+procfs start generation, kernel cgroup membership and owner record stability,
+then resamples the systemd manager to reject replacements. Never launches,
+signals, creates units, changes cgroups, ACKs or removes quarantine.
+Separate model code review found two defects; fixed bounded reads to require
+EOF before accepting full mountinfo/membership, and permitted live R/S/D
+scheduler transitions without weakening generation checks. 5/5 focused
+local tests pass. Positive tests use controlled fixtures; there is no live
+qualification unit and no authenticated protected original receipt. Root
+publisher is still refused, R1-B1 OPEN, GE-04 SECURITY HOLD ACTIVE.

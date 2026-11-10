@@ -24,6 +24,11 @@ control plane or treat a VM/remote host as already qualified.
   root-owned unique bus owner, exact object path and stable Unit/Service
   property snapshots. Does not create/adopt units or prove original birth;
   output UNQUALIFIED only. No production consumer.
+- `unit_kernel_observer.py`: non-authorizing read-only manager + kernel
+  correlation of the fixed existing unit. It compares supplied original
+  keeper/mount/cgroup identities against pidfd/procfs and directory-bound
+  cgroup observations, then resamples manager. Positive tests use fixtures;
+  no unit is created, no protected original custody or ACK is established.
 - `bootstrap_publisher.py`: qualification-only, unprivileged three-record
   prebirth/manager/kernel reconciliation and test-only sealed memfd. Neither
   source callback is authenticated; the root publisher is an unconditional
