@@ -525,3 +525,15 @@ absence/durability fields and all subsequent observations are mock-supplied;
 no protected root journal, actual unit birth, or trusted publisher exists.
 See `docs/security/ge04-original-prebirth-issuance.md`. R1-B1 OPEN and
 SECURITY HOLD ACTIVE.
+
+### Exclusive prebirth journal persistence fixture — unprivileged only
+
+Added `native/ge04/prebirth_fixture_journal.py`, an unprivileged disposable
+fixture that uses no-follow exclusive creation of a canonical original
+prebirth record, file and directory fsync, and refuses all reopen/retry as
+quarantine. Its separate caller-supplied unit-absence probe is sampled before
+and after the write and is **not authenticated**. Seven tests cover fault
+injection after write/file fsync/dir fsync, corrupt journal, symlink, wrong
+permissions, forced root refusal and missing absence. It creates no systemd
+unit or root file, and has no ACK or recovery authority. A protected issuer
+and independently verified new unit birth remain unimplemented; GE-04 HOLD.

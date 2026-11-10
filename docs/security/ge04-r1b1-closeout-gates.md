@@ -302,3 +302,20 @@ The full separate root-owned journal and exact new-unit birth implementation
 remain B1-B/D blockers; this module has no privileges, file write, D-Bus
 mutation, cleanup or production caller. See
 `docs/security/ge04-original-prebirth-issuance.md`. SECURITY HOLD ACTIVE.
+
+## Exclusive prebirth fixture journal and crash-window refusals
+
+Added `native/ge04/prebirth_fixture_journal.py`: a **test-only unprivileged**
+private-directory contract that atomically claims one fixed prebirth journal
+name with `O_EXCL|O_NOFOLLOW`, writes strict canonical attempt claims,
+`fsync`s file and directory, and rejects any subsequent open as
+`UNQUALIFIED_QUARANTINE_ON_REOPEN`. Failure after write/file fsync/directory
+fsync preserves uncertainty rather than deleting or retrying the record.
+Seven fixture tests exercise interruption windows, wrong modes/symlink,
+missing absence claims, malformed and already-existing journals. Unit
+absence and durable publication are not independently authenticated:
+the directory is user-owned and the callback is test-controlled. This
+neither creates a systemd unit nor enables root issuance/ACK/recovery.
+The protected root-owned journal, manager creation and Q13 remain B1-B/D
+blockers. See `ge04-unprivileged-prebirth-journal-fixture.md`.
+GE-04 SECURITY HOLD ACTIVE.
