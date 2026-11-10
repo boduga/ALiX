@@ -20,6 +20,11 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `bootstrap_publisher.py`: qualification-only, unprivileged three-record
+  prebirth/manager/kernel reconciliation and test-only sealed memfd. Neither
+  source callback is authenticated; the root publisher is an unconditional
+  refusal. No stage or production consumer. See
+  `docs/security/ge04-bootstrap-publisher-contract.md`.
 - `bootstrap_receiver.py`: single-use read-only UNIX seqpacket SCM_RIGHTS
   receiver with kernel SO_PEERCRED comparison and callback process-generation
   fence. The expected publisher/FD identity must originate outside the

@@ -371,3 +371,18 @@ trusted kernel process-generation observer. It only returns
 GE-04 R1-B1 blockers: protected original publication, reviewed root controller,
 independently pinned systemd and cgroup mount identity, real child lifecycle
 and cleanup/recovery VM proof, and independent security approval.
+
+### Bootstrap publisher reconciliation — no privileged publication
+
+Added `native/ge04/bootstrap_publisher.py`: fixed six-step unprivileged-only
+contract to reconcile original prebirth intent with separately provided
+systemd manager and kernel snapshots, enforce exact keeper/invocation/attempt,
+unit active/nonrestarted and mount/cgroup hierarchy identities, and reject
+changed records across repeated observations. The sealed descriptor output
+is explicitly UNQUALIFIED. `publish_root_bootstrap` **always raises** and
+the fixture mint path rejects UID 0. Six synthetic tests PASS. The manager
+and kernel inputs are callable test fixtures, not authenticated readers.
+This neither provides original protected publication nor creates/activates a
+systemd unit, so R1-B1 and GE-04 security approval remain open. The exact
+remaining authority requirements are in
+`docs/security/ge04-bootstrap-publisher-contract.md`.

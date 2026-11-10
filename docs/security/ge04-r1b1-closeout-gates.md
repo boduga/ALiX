@@ -139,3 +139,21 @@ PID/inode do not provide independent trust. The returned status is
 `UNQUALIFIED_KERNEL_PEER_HANDOFF`, not an ACK. Protected root publication,
 pre-birth original record, independently pinned mount/systemd unit and
 human-reviewed VM qualification are still missing. SECURITY HOLD ACTIVE.
+
+## Prebirth / manager / kernel publisher reconciliation (contract only)
+
+Added `native/ge04/bootstrap_publisher.py` with pure canonical reconciliation
+of distinct supplied prebirth, fixed systemd-manager snapshot, and Linux
+kernel records. Rejects unexpected unit/scope, inactive or restarted unit,
+keeper generation, unexpected mount/cgroup ancestry, missing unit, malformed
+nonce/source hashes, and changes across samples. An unprivileged-only fixture
+can serialize the record as a sealed memfd; root publication *unconditionally
+refuses*. Six local tests exercise positive synthetic, each changed manager/
+kernel field, invalid original fencing, source changes and root refusal.
+
+This is not a secure publisher: all three records and observation callbacks
+remain caller-supplied. No authenticated manager connection, protected original
+journal or root-controlled unit birth, independently held cgroup/mount
+identity, privileged controller/phase ACK, crash recovery or cleanup exists.
+See `docs/security/ge04-bootstrap-publisher-contract.md`. R1-B1 OPEN;
+SECURITY HOLD ACTIVE.
