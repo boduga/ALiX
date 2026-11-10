@@ -598,3 +598,14 @@ oversized stdout, noncanonical and forged positive replies; all outputs remain
 UNQUALIFIED. No exclusive systemd creation, independently authenticated
 original journal, phase ACK, root execution or security gate release.
 R1-B1 OPEN; GE-04 SECURITY HOLD ACTIVE.
+
+### Cross-source birth packet reconciliation — non-authorizing
+
+Added a pure one-use consistency checker comparing the original canonical
+prebirth/journal and postbirth record with a fixed creation/job claim, raw
+JobRemoved event, bounded live-signal summary, systemd manager and supplied
+kernel keeper/mount/cgroup evidence. Mismatches and replay quarantine;
+11 synthetic adversarial tests pass. The caller can still forge every
+input, original cgroup ancestry remains separately unpinned, and no durable
+replay prevention exists. No privileged creation, ACK, worker admission or
+security clearance. See `docs/security/ge04-cross-source-birth-reconciliation.md`.

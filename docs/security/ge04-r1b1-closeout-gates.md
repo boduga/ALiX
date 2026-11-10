@@ -386,3 +386,16 @@ never an authenticated creation receipt, phase ACK or protected original
 journal. No root service/worker creation or cgroup mutation. B1-B/E/H and Q13
 remain OPEN; GE-04 SECURITY HOLD ACTIVE. See
 `ge04-bounded-job-signal-observer.md`.
+
+## Composed cross-source birth packet — diagnostic, not authenticated
+
+`cross_source_birth_reconciliation.py` now rejects disagreement among
+canonical original prebirth journal, exact creation/job claims, bounded
+unqualified live-signal summary, systemd manager birth, postbirth record and
+kernel keeper PID/startticks/mount/cgroup scope. Single-use in-memory state
+quarantines replay and errors. All inputs remain caller-supplied, allowing
+a forged consistent packet. This is NOT protected original ancestry custody,
+a durable replay fence, independently authenticated subscription or newly
+created unit. Its output remains `UNQUALIFIED_CROSS_SOURCE_BIRTH_CORRELATION`
+with unconditional approval/ACK/creation refusal. B1-B/D/E/H, VM and Q13
+remain OPEN. See `ge04-cross-source-birth-reconciliation.md`.

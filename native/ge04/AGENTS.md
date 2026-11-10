@@ -20,6 +20,11 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `cross_source_birth_reconciliation.py`: pure, one-use reconciliation
+  of canonical original/journal, manager/job, bounded live signal summary,
+  postbirth and kernel keeper/mount claims. All sources are caller-supplied
+  and possibly forged; no independent custody, durable replay lock or ACK.
+  See `docs/security/ge04-cross-source-birth-reconciliation.md`.
 - `bounded_job_signal_observer.py` / `isolated_job_signal_worker.py`:
   isolate read-only systemd JobRemoved observation in a non-root subprocess
   with an absolute <=3s parent deadline, capped canonical pipes and kill/reap
