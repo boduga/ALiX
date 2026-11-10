@@ -609,3 +609,13 @@ kernel keeper/mount/cgroup evidence. Mismatches and replay quarantine;
 input, original cgroup ancestry remains separately unpinned, and no durable
 replay prevention exists. No privileged creation, ACK, worker admission or
 security clearance. See `docs/security/ge04-cross-source-birth-reconciliation.md`.
+
+### Durable consumption journal fixture, no privileged recovery
+
+Added an unprivileged O_EXCL birth-consumption marker that is fsynced before
+the existing cross-source packet check. Any crash, failed check or process
+restart prevents reuse of the existing marker within its user-owned directory;
+8 adversarial fixture tests cover crash boundaries, substitution and replay.
+The same UID can delete the marker, so it establishes no protected durable
+replay prevention. No unit creation, root journal, ACK, cleanup or security
+release. See `docs/security/ge04-transaction-consumption-fixture.md`.

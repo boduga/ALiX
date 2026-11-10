@@ -399,3 +399,15 @@ a durable replay fence, independently authenticated subscription or newly
 created unit. Its output remains `UNQUALIFIED_CROSS_SOURCE_BIRTH_CORRELATION`
 with unconditional approval/ACK/creation refusal. B1-B/D/E/H, VM and Q13
 remain OPEN. See `ge04-cross-source-birth-reconciliation.md`.
+
+## Unprivileged transaction consumption marker (non-authorizing)
+
+A diagnostic user-owned `birth-consumption.v1` marker now uses exclusive
+O_EXCL creation and file/directory fsync before evaluating any caller-
+supplied cross-source packet. A previous marker, partial write, interrupted
+reconciliation, replay or restart always quarantines rather than adopting an
+old completion. The tests inject four crash windows and same-content inode
+replacement. The same UID can still unlink the file: this is **not** a
+protected durable consumption fence, authenticated root transaction, or
+B1-F/Q13 qualification. See `ge04-transaction-consumption-fixture.md`.
+GE-04 SECURITY HOLD ACTIVE.

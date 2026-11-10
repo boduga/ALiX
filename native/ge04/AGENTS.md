@@ -20,6 +20,12 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `transaction_consumption_fixture.py`: unprivileged user-owned
+  O_EXCL consumption marker written and fsynced BEFORE cross-source
+  packet checking; failed/crashed/reopened attempts quarantine and cannot
+  retry in the same directory. Same UID can remove marker: not protected
+  durable replay authority. Root execution and ACK denied. See
+  `docs/security/ge04-transaction-consumption-fixture.md`.
 - `cross_source_birth_reconciliation.py`: pure, one-use reconciliation
   of canonical original/journal, manager/job, bounded live signal summary,
   postbirth and kernel keeper/mount claims. All sources are caller-supplied
