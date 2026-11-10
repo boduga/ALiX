@@ -212,3 +212,15 @@ original invocation/parent plus the outer name, device and inode before
 returns exit 77 for every valid mode. A Linux-only source-level guard test
 passes, but privileged recovery, crash windows and independent source
 review remain OPEN. No release or cleanup authority follows.
+
+## Final destructive-boundary custody recheck (engineering only)
+
+The native `cleanup_until` now refuses missing pinned original ownership
+(`!c->owned`) instead of reporting success. In its published path it repeats
+protected binding/lock/intent/held kill-FD checks, enumerates the expected
+immediate child groups and rechecks their directory identities immediately
+before `cgroup.kill`. Three focused native hold/source tests pass, with the
+default native build still returning 77 before any privileged setup. The
+rechecks are not atomic with the mutation and cannot substitute for protected
+exclusive custody, external review or approved root VM qualification. B1-F
+remains OPEN, GE-04 SECURITY HOLD ACTIVE.

@@ -127,3 +127,27 @@ A Linux-only source-contract regression confirms the guard precedes
 qualification. Root-controlled original publication and independent recovery
 review remain outstanding. The source SHA changes with this patch and must be
 frozen and independently reviewed again before a privileged VM run.
+
+## Cleanup ownership and final kill-boundary hardening
+
+The original `cleanup_until()` returned success (`1`) if `c->owned` was false.
+This could misreport absence of a pinned original cgroup as a completed
+cleanup. It now **returns refusal (`0`)** for missing owned original custody,
+forcing HOLD/QUARANTINE for the recovery/rollback caller.
+
+For the published-intent path, `cleanup_until()` also repeats `bindings(c)`
+(including original journal, lock, cgroup directory and held `cgroup.kill`
+FD identity), enumerates expected launcher/payload subdirectories again,
+checks counts against the earlier shape, verifies both present child
+identities, and checks the operation budget immediately before the destructive
+`cgroup.kill` write. An additional Linux-only source-contract test asserts
+the custody check precedes the write; all default builds still refuse root
+entry. These are source-level defensive improvements, **not** atomic
+check-and-write, externally verified exclusive ownership or a completed
+crash/cleanup qualification. A malicious actor with concurrent mutation
+capability could still race these checks; production remains blocked pending
+an independently protected bootstrap and exact tree authority.
+
+This change again alters the C source digest, so previous source hashes and
+all review observations must be refreshed for a final independent security
+review before any privileged disposable-VM operation.

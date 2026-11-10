@@ -33,6 +33,22 @@ class NativeHoldTests(unittest.TestCase):
         self.assertLess(body.index("if(!has_temp||"),
                         body.index("if(!open_outer(c)"))
 
+    def test_cleanup_requires_pinned_ownership_and_rechecks_before_kill(self):
+        # Source invariant only; independently authorized VM tests are still
+        # necessary to verify true kernel custody and race behavior.
+        text = SOURCE.read_text()
+        begin = text.index("static int cleanup_until(struct context *c,")
+        end = text.index("static int cleanup(struct context *c,", begin)
+        body = text[begin:end]
+        self.assertIn("if(!c->owned)return 0;", body)
+        self.assertNotIn("if(!c->owned)return 1;", body)
+        destructive = body.index('write(c->killfd,"1",1)')
+        self.assertLess(body.index("int current_a,current_b;"), destructive)
+        self.assertLess(body.index("if(!bindings(c)||!known_children(c->outer,0,"), destructive)
+        self.assertLess(body.index("current_a!=a||current_b!=b"), destructive)
+        self.assertLess(body.index('inner_custody(c,"launcher"', body.index("int current_a,current_b;")), destructive)
+        self.assertLess(body.index('inner_custody(c,"payload"', body.index("int current_a,current_b;")), destructive)
+
     def test_default_binary_refuses_every_privileged_mode_before_setup(self):
         with tempfile.TemporaryDirectory(prefix="ge04-native-hold-") as temp:
             target = str(Path(temp) / "fixture")

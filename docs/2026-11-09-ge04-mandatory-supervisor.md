@@ -441,3 +441,14 @@ that intent is required before `open_outer`. A separate read-only model review
 found no actionable change-specific defects; independent root security review
 and live VM crash/recovery evidence remain mandatory. GE-04 SECURITY HOLD
 remains active.
+
+### Cleanup refuse-on-missing-original and pre-kill identity resample
+
+Changed native `cleanup_until` to report refusal when `c->owned` is false
+rather than treating absence of pinned outer custody as successful cleanup.
+For published-intent cleanup, it repeats original record, lock, held kill-FD
+identity, child enumeration and launcher/payload inode checks immediately
+before the cgroup.kill write. Three local native source/default-deny tests
+pass; no root helper executed. This remains a non-atomic defensive recheck,
+not independent kernel authority, full crash recovery or a security release.
+GE-04 SECURITY HOLD ACTIVE.

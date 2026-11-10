@@ -521,7 +521,8 @@ static int remove_record(struct context *c,const char *name) {
 }
 static int cleanup_until(struct context *c,int notify,long long until) {
  active_until=until;
- if(!c->owned)return 1;
+ /* Lack of a pinned original outer must never count as cleanup success. */
+ if(!c->owned)return 0;
  if(!bindings(c))return 0;
  int a,b,sub_a,sub_b;
  if(!known_children(c->outer,0,&a,&b)||(!a&&b))return 0;
@@ -531,6 +532,15 @@ static int cleanup_until(struct context *c,int notify,long long until) {
     !known_children(c->payload,0,&sub_a,&sub_b)||sub_a||sub_b))return 0;
  long long now=clock_ms();if(now<0||now>=until)return 0;
  if(c->published){
+  /* Repeat the original journal, held-kill-FD and expected child checks at
+   * the destructive boundary. This does NOT replace independent root
+   * bootstrap custody or make the check-and-write atomic. */
+  int current_a,current_b;
+  if(!bindings(c)||!known_children(c->outer,0,&current_a,&current_b)||
+     current_a!=a||current_b!=b||
+     (a&&!inner_custody(c,"launcher",c->launcher,&c->inner_stat[0]))||
+     (b&&!inner_custody(c,"payload",c->payload,&c->inner_stat[1]))||
+     !budget_ok())return 0;
   if(lseek(c->killfd,0,SEEK_SET)<0||write(c->killfd,"1",1)!=1)return 0;
  }else if(!empty(c->outer))return 0;
  int done=0;
