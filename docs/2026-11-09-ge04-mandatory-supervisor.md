@@ -587,3 +587,14 @@ window is capped at 2 seconds, but synchronous D-Bus setup/cleanup is not
 bounded by that clock. No systemd unit is created, worker admitted, root
 helper invoked, ACK issued or security gate lifted. See
 `docs/security/ge04-systemd-live-job-signal-observation.md`.
+
+### Isolated JobRemoved observer with parent-enforced process deadline
+
+Added an unprivileged Python subprocess wrapper for the real read-only
+JobRemoved listener. It enforces an absolute <=3s end-to-end parent budget,
+nonblocking capped pipes, exact canonical witness parsing and kill/reap on
+hung system-bus setup, subscription or cleanup. Tests include a hung worker,
+oversized stdout, noncanonical and forged positive replies; all outputs remain
+UNQUALIFIED. No exclusive systemd creation, independently authenticated
+original journal, phase ACK, root execution or security gate release.
+R1-B1 OPEN; GE-04 SECURITY HOLD ACTIVE.

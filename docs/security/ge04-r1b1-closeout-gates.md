@@ -374,3 +374,15 @@ per-call timeouts (not a hard process-wide budget), and no original protected
 StartTransientUnit request is bound to the subscription. The existing birth
 handoff is not wired into authorization. Independent original root creation,
 source review, disposable VM and Q13 remain OPEN. GE-04 SECURITY HOLD ACTIVE.
+
+## Process-wide deadline on non-authorizing systemd job signal observer
+
+`native/ge04/bounded_job_signal_observer.py` wraps the real read-only
+JobRemoved listener in an isolated non-root worker with an absolute <=3s
+parent deadline, capped exact canonical request/response, and child kill/reap
+on timeout (including synchronous D-Bus setup/cleanup). The expected manager
+and job remain caller-supplied; a positive response is only UNQUALIFIED,
+never an authenticated creation receipt, phase ACK or protected original
+journal. No root service/worker creation or cgroup mutation. B1-B/E/H and Q13
+remain OPEN; GE-04 SECURITY HOLD ACTIVE. See
+`ge04-bounded-job-signal-observer.md`.

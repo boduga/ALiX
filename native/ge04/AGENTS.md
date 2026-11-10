@@ -20,6 +20,12 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `bounded_job_signal_observer.py` / `isolated_job_signal_worker.py`:
+  isolate read-only systemd JobRemoved observation in a non-root subprocess
+  with an absolute <=3s parent deadline, capped canonical pipes and kill/reap
+  on stalls including synchronous D-Bus setup/cleanup. The expected job and
+  worktree source are untrusted; output stays UNQUALIFIED with no ACK.
+  See `docs/security/ge04-bounded-job-signal-observer.md`.
 - `systemd_job_signal_observer.py`: short, unprivileged GLib/D-Bus
   subscription to the actual root-owned systemd JobRemoved signal for an
   expected caller-supplied job, with fixed sender/path/job validation and
