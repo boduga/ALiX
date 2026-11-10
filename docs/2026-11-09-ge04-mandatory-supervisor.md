@@ -386,3 +386,14 @@ This neither provides original protected publication nor creates/activates a
 systemd unit, so R1-B1 and GE-04 security approval remain open. The exact
 remaining authority requirements are in
 `docs/security/ge04-bootstrap-publisher-contract.md`.
+
+### Actual systemd system-bus fixed-unit observation (read-only)
+
+Added `native/ge04/systemd_unit_observer.py` to query the real systemd
+system D-Bus: pinned unique root-UID service owner, read-only fixed GetUnit,
+exact object path, required Unit/Service states and stable repeated property
+snapshots. The current unprivileged host returns NoSuchUnit; no unit was
+created/adopted. The observer cannot establish original prebirth intent,
+manager-origin approval, keeper pidfd/cgroup mount custody, or privilege.
+Result always UNQUALIFIED. R1-B1 and GE-04 hold remain OPEN. See
+`docs/security/ge04-systemd-manager-observation.md`.

@@ -157,3 +157,17 @@ journal or root-controlled unit birth, independently held cgroup/mount
 identity, privileged controller/phase ACK, crash recovery or cleanup exists.
 See `docs/security/ge04-bootstrap-publisher-contract.md`. R1-B1 OPEN;
 SECURITY HOLD ACTIVE.
+
+## Real read-only systemd manager observation — not original authority
+
+`native/ge04/systemd_unit_observer.py` adds a fixed-unit **system D-Bus**
+GetUnit/GetAll observation pinned to a root-owned unique bus name, exact
+object path, exact loaded/active/running state, zero service restarts, fixed
+control group and stable repeated Unit/Service properties. On the current
+unprivileged host it reports NoSuchUnit, as expected: the qualification unit
+was not created or adopted. Four local tests verify property refusals and
+actual absent-unit behavior. The returned status remains
+`UNQUALIFIED_SYSTEMD_MANAGER_OBSERVATION` and cannot authorize a phase ACK.
+Current manager properties are not an independently published prebirth intent,
+unit-creation witness, keeper pidfd, cgroup custody or crash-recovery proof.
+B1-B and subsequent security gates are not cleared. SECURITY HOLD ACTIVE.

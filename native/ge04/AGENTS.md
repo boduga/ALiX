@@ -20,6 +20,10 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `systemd_unit_observer.py`: read-only fixed-unit system D-Bus query pinned to
+  root-owned unique bus owner, exact object path and stable Unit/Service
+  property snapshots. Does not create/adopt units or prove original birth;
+  output UNQUALIFIED only. No production consumer.
 - `bootstrap_publisher.py`: qualification-only, unprivileged three-record
   prebirth/manager/kernel reconciliation and test-only sealed memfd. Neither
   source callback is authenticated; the root publisher is an unconditional
