@@ -15,6 +15,11 @@ control plane or treat a VM/remote host as already qualified.
   canonical OCI qualification image byte format. Opaque payload digest matching
   is integrity only, never code safety, root custody or runtime admission. No CLI,
   extraction, filesystem/process/network operations or production consumer.
+- `bootstrap_binding.py`: read-only receipt of a strictly canonical, fully
+  sealed Linux memfd passed as a descriptor. It checks immutable bytes,
+  mode/owner/inode and fixed claims but has **no authenticated publisher**;
+  unprivileged process handoff in tests is transport plumbing, not root
+  bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
 - `worker-stream.h` and `worker-stream.c`: bounded AF_UNIX byte-stream framing,
   native acceptance, pidfd/process-generation and per-fragment sender checks.
   Trusted callers must supply independently protected registration authority;

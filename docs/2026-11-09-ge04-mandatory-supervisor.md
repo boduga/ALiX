@@ -341,3 +341,17 @@ also reproduced an intermittent baseline live self-cgroup `Invalid member`
 fixture rejection, which remains documented as a test-stability issue.
 Independent human native/root review, protected controller/source ownership,
 disposable-VM qualification and production release remain blocked.
+
+### Immutable bootstrap descriptor transport — root admission remains refused
+
+Added Linux-only `native/ge04/bootstrap_binding.py` (qualification-only)
+with strict canonical bounded immutable memfd receipt parsing. Reads require
+all four write/grow/shrink/further seals, checked type/owner/UID/GID/inode,
+bounded length and stable fstat. A separate unprivileged process transfers
+an FD with UNIX SCM_RIGHTS in the local test suite; output remains
+`UNQUALIFIED_SEALED_BOOTSTRAP`. The external issuer, systemd credentials,
+unit custody, original intent and kernel claims are NOT authenticated.
+Separate model engineering review found P2 unsupported-platform import and
+UID/GID-assumption defects; fixed before push, with Linux-only test discovery
+skipping on unsupported platforms and separate expected GID validation.
+No privileged work, ACK or production supervisor changes. GE-04 HOLD ACTIVE.

@@ -9,6 +9,12 @@ does not change the Linux trust boundary.
 
 ## Where current local evidence stops
 
+`native/ge04/bootstrap_binding.py` now defines an **unqualified sealed-memfd
+transport** for an original receipt. Its all-seals requirement, bounded
+canonical record, SHA-256 claims and cross-process FD handoff are not an
+authenticated privileged publisher or systemd/kernel custody. See
+[sealed bootstrap transport](ge04-sealed-bootstrap-transport.md).
+
 `tests/agents/test_ge04_runtime_view.py` contains read-only parsers and
 directory-FD observations, including a pure
 `validate_external_cgroup_binding(binding, observed)`. It compares exact

@@ -103,3 +103,23 @@ environment-dependent live self-cgroup fixture rejection on the baseline
 not an approved security exception. Reviewer was a model, not an independent
 human security authority. Original bootstrap provenance, privileged controlled
 phase ACK, crash/cleanup qualification and Gate H remain OPEN.
+
+## Sealed original-binding descriptor contract (engineering only)
+
+New `native/ge04/bootstrap_binding.py` accepts a bounded canonical bootstrap
+record over a fully sealed read-only Linux memfd, with expected UID/GID,
+optional inode and stable descriptor checks. A separate unprivileged process
+transfers the sealed descriptor in tests over UNIX `SCM_RIGHTS` without granting
+root, systemd or kernel authority. Its only status is
+`UNQUALIFIED_SEALED_BOOTSTRAP`. Four local tests cover transport, mutation,
+wrong owner, malformed fields, and strict canonical bytes. A read-only Codex
+engineering review found two portability/identity issues (unsupported
+platform imports; UID/GID equality assumption); both were corrected. The
+review is not independent human security acceptance.
+
+**Gates still open:** Protected root bootstrap publisher and original intent
+publication, authenticated systemd unit/invocation/keeper generation, trusted
+mount/superblock pinning, independent live root phase ACK, real cleanup and
+crash recovery, external source review, disposable-VM qualification and Q13.
+Sealed bytes and a nonce do not authenticate origin or prevent replay without
+separate protected custody/fencing. SECURITY HOLD remains active.
