@@ -201,3 +201,14 @@ requiring independent review. The native source hash changed and **must be
 reviewed afresh** before any approved VM execution. A separate Codex model
 review of the default-deny diff found a macOS test-discovery defect, now
 fixed with a Linux-only skip. No independent C security signoff or Q13.
+
+## Recovery sweep original-intent no-adoption guard
+
+The closed C helper's `sweep_empty` now **refuses an existing `worker-*` outer
+cgroup without a matching canonical `intent.tmp`**, rather than adopting the
+only directory discovered by a scan. The required intent must match the
+original invocation/parent plus the outer name, device and inode before
+`open_outer` or destructive cleanup. The default-build native hold still
+returns exit 77 for every valid mode. A Linux-only source-level guard test
+passes, but privileged recovery, crash windows and independent source
+review remain OPEN. No release or cleanup authority follows.

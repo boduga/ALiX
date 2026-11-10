@@ -20,6 +20,19 @@ MODES = ("run", "crash-pre-namespace", "crash-pinned", "crash-ready",
 @unittest.skipUnless(sys.platform == "linux" and shutil.which("cc"),
                      "Native Linux compiler required")
 class NativeHoldTests(unittest.TestCase):
+    def test_sweep_refuses_unjournaled_existing_outer_source_contract(self):
+        # A source guard only: no privileged cgroup fixture is ever executed.
+        # This cannot replace the independently reviewed root recovery test.
+        text = SOURCE.read_text()
+        begin = text.index("static int sweep_empty(struct context *c) {")
+        end = text.index("static int wait_injected_exit(", begin)
+        body = text[begin:end]
+        self.assertIn("if(!has_temp||strcmp(name,pending.name)", body)
+        self.assertIn("(unsigned long long)s.st_dev!=pending.outer_dev", body)
+        self.assertIn("(unsigned long long)s.st_ino!=pending.outer_ino", body)
+        self.assertLess(body.index("if(!has_temp||"),
+                        body.index("if(!open_outer(c)"))
+
     def test_default_binary_refuses_every_privileged_mode_before_setup(self):
         with tempfile.TemporaryDirectory(prefix="ge04-native-hold-") as temp:
             target = str(Path(temp) / "fixture")

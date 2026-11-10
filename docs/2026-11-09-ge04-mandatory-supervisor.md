@@ -429,3 +429,15 @@ current source hash are recorded in
 An external automated code review of the default-deny diff identified one
 cross-platform test skip issue, corrected. The broader C security review is
 still pending and GE-04 SECURITY HOLD remains active.
+
+### No-adoption recovery sweep guard
+
+Corrected `sweep_empty` in the closed native C helper: a lone existing
+`worker-*` cgroup directory can no longer be accepted for cleanup from a
+name scan without an original matching `intent.tmp` record (invocation,
+parent, exact directory name/dev/inode). The ordinary binary still refuses
+all eight modes with exit 77. Added a Linux source-level regression checking
+that intent is required before `open_outer`. A separate read-only model review
+found no actionable change-specific defects; independent root security review
+and live VM crash/recovery evidence remain mandatory. GE-04 SECURITY HOLD
+remains active.

@@ -631,8 +631,10 @@ static int sweep_empty(struct context *c) {
  }else if(errno!=ENOENT)return 0;
  char name[24]={0};int count=parent_single_outer(c,name,sizeof(name),&s);if(count<0)return 0;
  if(count){
-  if(has_temp&&(strcmp(name,pending.name)||(unsigned long long)s.st_dev!=pending.outer_dev||
-     (unsigned long long)s.st_ino!=pending.outer_ino))return 0;
+  /* Never adopt a worker-* directory by name alone. An interrupted birth
+   * with no canonical original intent remains QUARANTINE, not a sweep. */
+  if(!has_temp||strcmp(name,pending.name)||(unsigned long long)s.st_dev!=pending.outer_dev||
+     (unsigned long long)s.st_ino!=pending.outer_ino)return 0;
   strcpy(c->record.name,name);c->record.outer_dev=s.st_dev;c->record.outer_ino=s.st_ino;
   if(!open_outer(c)||!controllers(c->outer,0)||!reopen_inner(c)||!empty(c->outer))return 0;
   if(!cleanup_until(c,0,active_until))return 0;

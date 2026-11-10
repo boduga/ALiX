@@ -108,3 +108,22 @@ privileged VM qualification. `test_ge04_native_default_hold.py` compiles the
 ordinary default binary and runs all eight fixed modes to confirm 77, with
 unknown mode returning 64; it does not compile/run the macro-enabled variant.
 No privileged run or systemd/cgroup mutation occurred.
+
+## Recovery sweep no-adoption hardening
+
+A further source review of `sweep_empty` identified that the earlier
+`if (has_temp && mismatch) return 0` conditional let a single existing
+`worker-*` directory pass the naming/shape checks when `intent.tmp` was
+**absent**. That path could then open the outer subtree and enter cleanup
+based on a directory discovered by scanning, rather than an explicit matching
+pre-birth intent. It contradicted the documented no-adoption guarantee.
+
+The sweep now refuses an existing outer directory unless **both** a canonical
+matching `intent.tmp` record exists and its exact name, device and inode
+match the observed directory. Absence of the original temp record means
+QUARANTINE (not a sweep). Default compiled binaries remain wholly disabled.
+A Linux-only source-contract regression confirms the guard precedes
+`open_outer`; it does **not** claim live kernel/mutation or crash recovery
+qualification. Root-controlled original publication and independent recovery
+review remain outstanding. The source SHA changes with this patch and must be
+frozen and independently reviewed again before a privileged VM run.
