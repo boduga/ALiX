@@ -739,3 +739,13 @@ request_in_flight, unit creation, ACK or privileged execution; controller
 main remains exit 77. Unprivileged wrapped native tests exercise eight
 preparation/failure scenarios. All B1 gates stay OPEN. See
 `docs/security/ge04-protected-root-controller-phase3b4a.md`.
+
+### Phase 3B4B — protected native pre-send intent custody
+
+Added production-intended `protected-dispatch-intent.[ch]` for a root-gated,
+exclusive file+directory-fsynced pre-send marker, original attempt/manager
+identity binding, held descriptor/inode verification and permanent refusal
+on an existing/failed marker. It does not send StartTransientUnit or record
+a genuine outgoing cookie; root controller exits 77. No privileged tests,
+unit launch or ACK. See
+`docs/security/ge04-protected-root-controller-phase3b4b.md`.

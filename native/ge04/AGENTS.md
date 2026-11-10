@@ -20,6 +20,12 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `protected-dispatch-intent.[ch]`: Phase 3B4B production-intended
+  root-only one-shot O_EXCL/fsynced `dispatch-intent.v1` pre-send marker,
+  exact original boot/nonce/source/manager/unit binding and retained inode
+  recheck. No root caller, actual systemd send, request cookie, retry,
+  cleanup or ACK; all gates remain OPEN. See
+  `docs/security/ge04-protected-root-controller-phase3b4b.md`.
 - `protected-dispatch-preparation.[ch]`: Phase 3B4A native integration
   of original protected manager/attempt/prebirth custody with an exact
   fixed StartTransientUnit method *object*, on the same retained bus.

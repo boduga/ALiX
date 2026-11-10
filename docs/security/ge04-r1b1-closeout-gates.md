@@ -547,3 +547,15 @@ only. The send API is unconditional EPERM, no request cookie or
 request_in_flight transition occurs, and root main exits 77. No true
 exclusive birth, keeper install, original kernel birth custody or ACK.
 See `ge04-protected-root-controller-phase3b4a.md`. B1 gates OPEN; HOLD.
+
+## Phase 3B4B: protected original pre-send intent marker (candidate source)
+
+`protected-dispatch-intent.[ch]` stages an exclusive root-owned 0600
+`dispatch-intent.v1` file before any future send, bound to the original
+attempt, boot/nonce, both source hashes, manager unique owner, fixed unit
+and fail-mode prepared method, with held FD/inode rechecks and file/dir
+fsync. Any ambiguity poisons permanently; there is no retry/recovery or
+positive dispatch. No root entrypoint or StartTransientUnit send exists:
+controller main still returns 77. The record is a durable *intent* only,
+not absence of actual dispatch after crash, exclusive birth proof or ACK.
+See `ge04-protected-root-controller-phase3b4b.md`; B1-A–H remain OPEN.
