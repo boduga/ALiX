@@ -760,6 +760,57 @@ class PhaseSequence:
             raise ValueError("Missing required helper phases")
 
 
+def evaluate_closed_qualification_transcript(mode, event_lines, result_raw=None,
+                                             exit_status=None, cleanup=None):
+    """Classify a bounded fixture transcript without granting execution authority.
+
+    All arguments are untrusted diagnostics; this pure function **never**
+    approves worker admission, root qualification, recovery, or final effects.
+    A protected kernel observer must validate each phase independently.
+    """
+    if (type(event_lines) not in (list, tuple) or len(event_lines) > 8
+            or any(type(event) is not bytes or len(event) > 256 for event in event_lines)):
+        raise ValueError("Oversized qualification transcript")
+    sequence = PhaseSequence(mode)
+    for event in event_lines:
+        sequence.accept(event)
+    sequence.complete()
+    crash_modes = frozenset(("crash-pre-namespace", "crash-pinned", "crash-ready"))
+    if mode in crash_modes:
+        if result_raw is not None or type(exit_status) is not int or exit_status != 88:
+            raise ValueError("Crash injection must lack terminal result")
+        if cleanup is not None:
+            raise ValueError("Unobserved crash cannot claim cleanup")
+        return "QUARANTINE_PENDING_RECOVERY"
+    if type(result_raw) is not bytes or exit_status is not None:
+        raise ValueError("Missing or contradictory fixture result")
+    code, reason, clean = parse_result(result_raw)
+    expected = {
+        "run": (0, "COMPLETED", 1),
+        "recover": (0, "RECOVERED", 1),
+        "sweep-empty": (0, "EMPTY_SWEEP", 1),
+        "fail-mount": (77, "MOUNT_INJECTED", 1),
+        "fail-enable": (77, "ENABLE_EBADF", 1),
+    }
+    if (mode not in expected or (code, reason, clean) != expected[mode]
+            or type(cleanup) is not dict or
+            frozenset(cleanup) != frozenset(("outerMembers", "launcherMembers",
+                                           "payloadMembers", "outerPopulated",
+                                           "launcherPopulated", "payloadPopulated",
+                                           "originalBindingIntact"))):
+        raise ValueError("Terminal fixture state invalid or uncorroborated")
+    if (not cleanup["originalBindingIntact"] is True
+            or any(type(cleanup[key]) is not bytes for key in
+                   ("outerMembers", "launcherMembers", "payloadMembers"))
+            or any(type(cleanup[key]) is not int or cleanup[key] != 0 for key in
+                   ("outerPopulated", "launcherPopulated", "payloadPopulated"))
+            or any(parse_cgroup_procs(cleanup[key]) for key in
+                   ("outerMembers", "launcherMembers", "payloadMembers"))):
+        raise ValueError("Cleanup state not empty or binding lost")
+    # Caller-supplied cleanup cannot establish actual kernel emptiness.
+    return "LOCAL_CONTRACT_ONLY"
+
+
 def root_qualification_refused():
     """Deliberately fail closed until full kernel observer and cleanup review."""
     if ROOT != CODE:
@@ -1136,6 +1187,93 @@ class LocalContractTests(unittest.TestCase):
                         {**record, "authorized": True}):
             with self.subTest(changed=changed), self.assertRaises(ValueError):
                 validate_external_cgroup_binding(record, changed)
+
+    def test_all_closed_modes_terminal_and_crash_quarantine(self):
+        def ev(phase, second=False):
+            if phase in ("INTENT", "EMPTY"):
+                return f"EV {phase} 0 0 0 0\n".encode()
+            return (f"EV {phase} 17 123 23 456\n" if second else
+                    f"EV {phase} 17 123 0 0\n").encode()
+        full = ("INTENT", "PRE_NAMESPACE", "PINNED", "ENABLED",
+                "PRE_JOIN", "READY", "EMPTY")
+        clean = {
+            "outerMembers": b"", "launcherMembers": b"",
+            "payloadMembers": b"", "outerPopulated": 0,
+            "launcherPopulated": 0, "payloadPopulated": 0,
+            "originalBindingIntact": True,
+        }
+        cases = (
+            ("run", full, b"RESULT code=0 reason=COMPLETED clean=1\n"),
+            ("recover", ("EMPTY",), b"RESULT code=0 reason=RECOVERED clean=1\n"),
+            ("sweep-empty", (), b"RESULT code=0 reason=EMPTY_SWEEP clean=1\n"),
+            ("fail-mount", full[:2] + ("EMPTY",),
+             b"RESULT code=77 reason=MOUNT_INJECTED clean=1\n"),
+            ("fail-enable", full[:3] + ("EMPTY",),
+             b"RESULT code=77 reason=ENABLE_EBADF clean=1\n"),
+        )
+        for mode, phases, result in cases:
+            events = [ev(phase, phase in ("PRE_JOIN", "READY")) for phase in phases]
+            with self.subTest(mode=mode):
+                self.assertEqual(evaluate_closed_qualification_transcript(
+                    mode, events, result_raw=result, cleanup=clean),
+                    "LOCAL_CONTRACT_ONLY")
+                for bad in ({**clean, "originalBindingIntact": False},
+                            {**clean, "outerMembers": b"17\n"},
+                            {**clean, "payloadPopulated": 1},
+                            {**clean, "outerMembers": b"17"}):
+                    with self.assertRaises(ValueError):
+                        evaluate_closed_qualification_transcript(
+                            mode, events, result_raw=result, cleanup=bad)
+                with self.assertRaises(ValueError):
+                    evaluate_closed_qualification_transcript(
+                        mode, events, result_raw=b"RESULT code=0 reason=COMPLETED clean=0\n",
+                        cleanup=clean)
+        for mode, phases in (
+            ("crash-pre-namespace", full[:2]),
+            ("crash-pinned", full[:3]),
+            ("crash-ready", full[:6]),
+        ):
+            events = [ev(phase, phase in ("PRE_JOIN", "READY")) for phase in phases]
+            with self.subTest(mode=mode):
+                self.assertEqual(evaluate_closed_qualification_transcript(
+                    mode, events, exit_status=88), "QUARANTINE_PENDING_RECOVERY")
+                for exit_status in (0, 77, 89, True):
+                    with self.assertRaises(ValueError):
+                        evaluate_closed_qualification_transcript(
+                            mode, events, exit_status=exit_status)
+                with self.assertRaises(ValueError):
+                    evaluate_closed_qualification_transcript(
+                        mode, events, exit_status=88, cleanup=clean)
+
+    def test_transcript_refuses_extra_missing_and_diagnostic_only_cleanup(self):
+        events = (
+            b"EV INTENT 0 0 0 0\n",
+            b"EV PRE_NAMESPACE 17 123 0 0\n",
+            b"EV PINNED 17 123 0 0\n",
+            b"EV ENABLED 17 123 0 0\n",
+            b"EV PRE_JOIN 17 123 23 456\n",
+            b"EV READY 17 123 23 456\n",
+            b"EV EMPTY 0 0 0 0\n",
+        )
+        clean = {
+            "outerMembers": b"", "launcherMembers": b"", "payloadMembers": b"",
+            "outerPopulated": 0, "launcherPopulated": 0,
+            "payloadPopulated": 0, "originalBindingIntact": True,
+        }
+        result = b"RESULT code=0 reason=COMPLETED clean=1\n"
+        for bad_events in (events[:-1], events + events[-1:],
+                           events[:3] + events[4:],
+                           events[:4] + (b"EV PRE_JOIN 17 123 24 456\n",) + events[5:],
+                           (b"EV DENIED 0 0 0 0\n",), [b"a" * 257]):
+            with self.subTest(events=bad_events), self.assertRaises(ValueError):
+                evaluate_closed_qualification_transcript(
+                    "run", bad_events, result_raw=result, cleanup=clean)
+        with self.assertRaises(ValueError):
+            evaluate_closed_qualification_transcript(
+                "run", events, result_raw=result, cleanup=None)
+        with self.assertRaises(ValueError):
+            evaluate_closed_qualification_transcript(
+                "run", events, result_raw=result, cleanup={**clean, "extra": True})
 
     def test_live_entry_refuses(self):
         with self.assertRaises(RuntimeError):

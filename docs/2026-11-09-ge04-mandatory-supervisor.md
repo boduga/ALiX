@@ -266,3 +266,24 @@ mandatory evidence owners, missing protected source checks, prohibited
 fallbacks, and independent review/VM authorization sequence. The native C
 fixture, Python root refusal, production supervisor, and GE-04 SECURITY HOLD
 remain unchanged. No privileged execution was performed.
+
+### Consolidated baseline and terminal/recovery contract sprint
+
+Committed the 12 accumulated qualification-only files as `142e435e`
+(`test(ge04): checkpoint unqualified runtime-view contracts`). This is
+an engineering checkpoint, **not** independent code review, privileged
+qualification or security release. No changes to the native C helper.
+
+Added bounded `evaluate_closed_qualification_transcript` for all eight fixed
+fixture modes. It checks ordered phases, stable child generations, exact
+success/failure terminal reasons, caller-supplied zero membership/populated
+cleanup claims, and crashes that must remain QUARANTINE_PENDING_RECOVERY.
+It has no authority to send ACK, authenticate those claims or admit a worker.
+The local suite now passes **26/26**; explicit root admission remains a denial.
+
+Added `docs/security/ge04-r1b1-closeout-gates.md`, consolidating eight
+blocking trust/custody/observer/recovery/root-review/evidence acceptance gates
+and the full adversarial matrix. Remaining work requires independently
+protected original systemd invocation/keeper and cgroup/mount provenance,
+full kernel-backed observation of EMPTY/DENIED/recovery and independently
+reviewed disposable VM qualification. R1-B1 remains OPEN; SECURITY HOLD active.
