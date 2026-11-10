@@ -1,7 +1,7 @@
 """GE-04 production-intended C journal source: format and default-deny tests.
 
 Compiles source in an unprivileged temporary directory. Never calls journal
-staging as root, creates fixed /run paths, or enables systemd/ACK execution.
+staging as root, creates fixed /var/lib paths, or enables systemd/ACK execution.
 """
 import errno
 import os
@@ -36,6 +36,7 @@ class ProtectedNativeJournalTests(unittest.TestCase):
             return '"' + value + '"'
         source = r"""
 #include "protected-prebirth-journal.h"
+#include "protected-attempt-fence.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,9 +65,11 @@ int main(int argc, char **argv) {
         return fwrite(result, 1, length, stdout) == length ? 0 : 93;
     }
     struct ge04_journal_custody held;
+    struct ge04_attempt_custody fence;
     ge04_prebirth_custody_init(&held);
+    ge04_attempt_custody_init(&fence);
     if (mode == 5) {
-        if (ge04_prebirth_stage(&claim, &held) == 0) return 94;
+        if (ge04_prebirth_stage(&claim, &fence, &held) == 0) return 94;
         if (errno != EPERM) return 95;
         return held.directory_fd == -1 && held.journal_fd == -1 ? 0 : 96;
     }
@@ -78,6 +81,33 @@ int main(int argc, char **argv) {
         struct ge04_journal_custody unowned = {0};
         ge04_prebirth_close(&unowned);
         return unowned.directory_fd == -1 && unowned.journal_fd == -1 ? 0 : 99;
+    }
+    if (mode == 8) {
+        if (ge04_attempt_begin(&claim, &fence) == 0) return 100;
+        if (errno != EPERM) return 101;
+        return fence.directory_fd == -1 && fence.fence_fd == -1 ? 0 : 102;
+    }
+    if (mode == 9) {
+        if (ge04_attempt_recheck(&claim, &fence) == 0) return 103;
+        return errno == EPERM ? 0 : 104;
+    }
+    if (mode == 10) {
+        char boot[33];
+        if (ge04_read_kernel_boot_id(boot) != 0) return 105;
+        return fwrite(boot, 1, 32, stdout) == 32 ? 0 : 106;
+    }
+    if (mode == 11) {
+        if (ge04_prebirth_stage(&claim, NULL, &held) == 0) return 107;
+        return errno == EPERM ? 0 : 108;
+    }
+    if (mode == 12 || mode == 13 || mode == 14) {
+        claim.attempt = 1;
+        if (mode == 13) claim.source_sha256[0] = 'Z';
+        if (mode == 14) claim.attempt = 2;
+        int result_code = ge04_attempt_fence_encode(&claim, result, &length);
+        if (mode != 12) return result_code == -1 && errno == EINVAL ? 0 : 109;
+        if (result_code != 0) return 110;
+        return fwrite(result, 1, length, stdout) == length ? 0 : 111;
     }
     return 99;
 }
@@ -101,12 +131,14 @@ int main(int argc, char **argv) {
         cls.executable = cls.work / "journal-test"
         subprocess.run([cls.compiler, *FLAGS, "-I", str(NATIVE),
                         str(harness), str(NATIVE / "protected-prebirth-journal.c"),
+                        str(NATIVE / "protected-attempt-fence.c"),
                         "-o", str(cls.executable)], check=True,
                        capture_output=False, text=True)
         cls.controller = cls.work / "controller-held"
         subprocess.run([cls.compiler, *FLAGS,
                         str(NATIVE / "protected-root-controller.c"),
                         str(NATIVE / "protected-prebirth-journal.c"),
+                        str(NATIVE / "protected-attempt-fence.c"),
                         "-o", str(cls.controller)], check=True,
                        capture_output=False, text=True)
 
@@ -136,6 +168,28 @@ int main(int argc, char **argv) {
         self.assertEqual(self.invoke(5).returncode, 0)
         self.assertEqual(self.invoke(6).returncode, 0)
         self.assertEqual(self.invoke(7).returncode, 0)
+        self.assertEqual(self.invoke(8).returncode, 0)
+        self.assertEqual(self.invoke(9).returncode, 0)
+        self.assertEqual(self.invoke(11).returncode, 0)
+
+    def test_kernel_boot_id_read_only_matches_procfs(self):
+        boot = self.invoke(10)
+        self.assertEqual(boot.returncode, 0, boot.stderr)
+        expected = (Path("/proc/sys/kernel/random/boot_id")
+                    .read_text().strip().replace("-", "").encode("ascii"))
+        self.assertEqual(boot.stdout, expected)
+
+    def test_native_attempt_fence_exact_bytes_bind_source_and_controller(self):
+        claim = prebirth()
+        result = self.invoke(12)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        expected = ("GE04AF1 " + claim["bootId"] + " " + claim["nonce"] +
+                    " " + claim["sourceSha256"] + " " +
+                    claim["controllerSha256"] + " 1\n").encode("ascii")
+        self.assertEqual(result.stdout, expected)
+        for mode in (13, 14):
+            with self.subTest(mode=mode):
+                self.assertEqual(self.invoke(mode).returncode, 0)
 
     def test_controller_is_unconditionally_held(self):
         if os.geteuid() == 0:

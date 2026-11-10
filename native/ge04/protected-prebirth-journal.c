@@ -9,6 +9,7 @@
  */
 #define _GNU_SOURCE
 #include "protected-prebirth-journal.h"
+#include "protected-attempt-fence.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -105,7 +106,9 @@ void ge04_prebirth_close(struct ge04_journal_custody *custody) {
     reset_custody(custody);
 }
 
-static int nofollow_root_directory(void) {
+int ge04_open_protected_directory(void) {
+    if (geteuid() != 0 || getuid() != 0 || getegid() != 0 || getgid() != 0)
+        return refuse(EPERM);
     int root = open("/", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (root_parent_dir(root) < 0) {
         if (root >= 0) close(root);
@@ -177,10 +180,16 @@ int ge04_prebirth_recheck(const struct ge04_prebirth_claim *claim,
 }
 
 int ge04_prebirth_stage(const struct ge04_prebirth_claim *claim,
+                        const struct ge04_attempt_custody *attempt,
                         struct ge04_journal_custody *custody) {
     if (geteuid() != 0 || getuid() != 0 || getegid() != 0 || getgid() != 0)
         return refuse(EPERM);
-    if (!custody) return refuse(EINVAL);
+    if (!custody || !attempt) return refuse(EINVAL);
+    /* A prebirth journal MUST be preceded by this process's original
+     * durable, kernel-derived attempt fence. Never accept a supplied claim
+     * or reopened file alone as authorization.
+     */
+    if (ge04_attempt_recheck(claim, attempt) != 0) return refuse(EPERM);
 
     /* Refuse to overwrite caller-held descriptors. Only a reset struct may
      * enter; this primitive cannot adopt or recover a previous attempt.
@@ -193,7 +202,7 @@ int ge04_prebirth_stage(const struct ge04_prebirth_claim *claim,
     char encoded[GE04_PREBIRTH_MAX];
     size_t length;
     if (ge04_prebirth_encode(claim, encoded, &length) < 0) return -1;
-    int dir = nofollow_root_directory();
+    int dir = ge04_open_protected_directory();
     if (dir < 0) return -1;
     int fd = openat(dir, GE04_PREBIRTH_FILE,
                     O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC |
@@ -223,7 +232,8 @@ int ge04_prebirth_stage(const struct ge04_prebirth_claim *claim,
             custody->device = (unsigned long long)s.st_dev;
             custody->inode = (unsigned long long)s.st_ino;
             custody->owned = 1;
-            if (ge04_prebirth_recheck(claim, custody) == 0)
+            if (ge04_prebirth_recheck(claim, custody) == 0 &&
+                ge04_attempt_recheck(claim, attempt) == 0)
                 ok = 1;
             if (!ok) reset_custody(custody);
         }

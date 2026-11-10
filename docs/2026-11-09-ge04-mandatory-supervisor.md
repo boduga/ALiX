@@ -643,3 +643,13 @@ inputs, unprivileged refusal and unconditional controller hold. No privileged
 execution, original boot/attempt source, service creation, ACK, cleanup,
 recovery, or security acceptance. See
 `docs/security/ge04-protected-root-controller-phase1.md`.
+
+### Phase 2 — native first-attempt fence and kernel boot identity
+
+Implemented production-intended `protected-attempt-fence.[ch]`: kernel boot
+UUID normalization, getrandom nonce, exclusive fsynced root-only first-attempt
+ledger and held identity verification. Prebirth native journal staging now
+requires the same held attempt fence both before and after writing. The
+controller binary still exits 77 with no override; all tests execute only
+as unprivileged user. No trusted root staging or second-attempt/recovery
+protocol, no unit creation or phase ACK. B1 gates remain OPEN.

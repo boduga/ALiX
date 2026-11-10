@@ -90,10 +90,13 @@ custodian, authenticated ACK owner, cleanup/recovery, and authorized VM
 qualification are **not implemented**. These are next development/review
 milestones, not additional standalone synthetic validation layers.
 
-## Provisional candidate source fingerprints (NOT review approval)
+## Provisional Phase 1 fingerprints — superseded by Phase 2 (NOT review approval)
 
-These are local source fingerprints from the unprivileged build candidate,
-**not** a frozen, independently reviewed or installed executable:
+These historical fingerprints correspond to Phase 1 commit `152f7d21`.
+The journal source and header have changed in Phase 2; do **not** use the
+values below to approve the current files. Current candidate source hashes
+are in `ge04-protected-root-controller-phase2.md`. They are **not** a
+frozen, independently reviewed or installed executable:
 
 | Source | SHA-256 |
 | --- | --- |

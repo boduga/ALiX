@@ -436,3 +436,16 @@ root staging, original mount custody, rollback/recovery and actual systemd
 creation remain open. Independent source and binary review must precede
 any privileged test. See `ge04-protected-root-controller-phase1.md`.
 R1-B1 OPEN — GE-04 SECURITY HOLD ACTIVE.
+
+## Phase 2 protected original-attempt fence — native source, NOT authorized
+
+`protected-attempt-fence.[ch]` reads kernel boot UUID, generates 256-bit
+nonce with getrandom and creates fixed root-only `attempt-fence.v1` via
+O_EXCL, file fsync, directory fsync and held fd/inode checks. No attempt
+rollover: the first attempt is 1 and any existing marker blocks retry, even
+on another boot. The native prebirth stage now requires original held
+attempt custody before and after journaling. This is editable source only;
+root execution, protected installed storage, independent source hashes,
+recovery, authenticated systemd birth, ACK and VM validation remain OPEN.
+Controller main still returns 77. See
+`ge04-protected-root-controller-phase2.md`. SECURITY HOLD ACTIVE.

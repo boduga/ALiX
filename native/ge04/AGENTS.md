@@ -20,6 +20,13 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `protected-attempt-fence.[ch]`: Phase 2 production-intended C source
+  for kernel-derived boot ID, getrandom nonce, first-attempt-only root 0600
+  O_EXCL journal and fsynced held descriptor custody. No retry, rollover,
+  recovery, independent source hashes, root execution or unit creation.
+  Existing prebirth stage now REQUIRES the matching held fence before and
+  after staging. Controller entrypoint still always exits 77. See
+  `docs/security/ge04-protected-root-controller-phase2.md`.
 - `protected-root-controller.c` plus `protected-prebirth-journal.[ch]`:
   first production-intended native root-controller SOURCE CANDIDATE.
   Default controller entrypoint unconditionally returns 77. The separate

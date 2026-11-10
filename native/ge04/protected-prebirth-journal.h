@@ -28,12 +28,20 @@ struct ge04_journal_custody {
 int ge04_prebirth_encode(const struct ge04_prebirth_claim *claim,
                          char out[GE04_PREBIRTH_MAX], size_t *length);
 
+/* Read-only opening of the pinned fixed root directory. Root-only; caller
+ * owns returned descriptor. Never creates a directory.
+ */
+int ge04_open_protected_directory(void);
+
+struct ge04_attempt_custody;
+
 /* Root-only, fixed existing private directory, exclusive one-time journal.
  * Production integration is NOT approved; no default binary invokes it.
  * Returns 0 on persistence, -1 on refusal, with errno set.
  * A caller MUST NOT infer authority from success.
  */
 int ge04_prebirth_stage(const struct ge04_prebirth_claim *claim,
+                        const struct ge04_attempt_custody *attempt,
                         struct ge04_journal_custody *custody);
 
 /* Check held original descriptor/inode and bytes without re-adopting a file. */
