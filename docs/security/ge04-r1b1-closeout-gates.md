@@ -123,3 +123,19 @@ mount/superblock pinning, independent live root phase ACK, real cleanup and
 crash recovery, external source review, disposable-VM qualification and Q13.
 Sealed bytes and a nonce do not authenticate origin or prevent replay without
 separate protected custody/fencing. SECURITY HOLD remains active.
+
+## Local kernel peercred bootstrap handoff — non-authorizing
+
+`native/ge04/bootstrap_receiver.py` adds a bounded, one-shot, read-only UNIX
+SOCK_SEQPACKET receiver for the sealed bootstrap memfd. It rejects a mismatch
+against *separately supplied* expected peer PID/UID/GID/startticks, kernel
+SO_PEERCRED, exact one-FD SCM_RIGHTS framing, original FD inode, nonce and
+attempt. It closes the owned socket and every received FD even on early
+invalid input, timeout, truncated/extra ancillary or bad records; the
+separate model review found and led to fixes for a Windows test import and
+socket-ownership failure path. Tests use same-user same-process peer creds,
+not a real root publisher. A caller-provided generation inspector and expected
+PID/inode do not provide independent trust. The returned status is
+`UNQUALIFIED_KERNEL_PEER_HANDOFF`, not an ACK. Protected root publication,
+pre-birth original record, independently pinned mount/systemd unit and
+human-reviewed VM qualification are still missing. SECURITY HOLD ACTIVE.

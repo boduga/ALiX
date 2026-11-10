@@ -50,3 +50,21 @@ for an eventual root-only policy). Unprivileged tests explicitly use their
 real UID/GID. The socket test uses a bounded receive timeout. This model
 review is not independent human native security clearance; code and review
 must be revalidated on the final exact source hash.
+
+## Kernel peer receipt layer (read-only, non-authorizing)
+
+`native/ge04/bootstrap_receiver.py` adds a single bounded receive of one
+SCM_RIGHTS descriptor on a UNIX SOCK_SEQPACKET socket. It compares Linux
+SO_PEERCRED with a separately supplied expected (PID, UID, GID) and twice
+invokes a caller-provided process-generation inspector against expected start
+ticks; then it checks the sealed FD's original dev/inode and the record's
+keeper, nonce and attempt. It closes all delivered descriptors and consumes
+(closes) the supplied socket on both success and failure. It has no ACK or
+successful admission return; `UNQUALIFIED_KERNEL_PEER_HANDOFF` means only that
+local comparisons passed. A hostile caller can forge the expected identities,
+inspector callback or original inode. The demonstration uses an unprivileged
+same-process socketpair for deterministic peer credentials, **not** an
+authenticated root publisher or a distinct-systemd-unit connection. The code
+must not be wired to a trusted worker path until publisher provenance,
+independent kernel-inspector custody, socket creation/accept ownership,
+mount identity and root admission are reviewed and VM-qualified.

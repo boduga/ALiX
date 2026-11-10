@@ -355,3 +355,19 @@ Separate model engineering review found P2 unsupported-platform import and
 UID/GID-assumption defects; fixed before push, with Linux-only test discovery
 skipping on unsupported platforms and separate expected GID validation.
 No privileged work, ACK or production supervisor changes. GE-04 HOLD ACTIVE.
+
+### Kernel peercred sealed bootstrap receipt — engineering slice
+
+Added qualification-only `native/ge04/bootstrap_receiver.py`: bounded UNIX
+seqpacket SCM_RIGHTS receipt with SO_PEERCRED, separately supplied publisher
+PID/UID/GID/starttick expected identity and independent observer callback,
+exact one FD, original sealed inode, nonce and attempt matching. The receiver
+closes its socket and all delivered descriptors on every terminal path.
+Review found two P2 defects (portable test import, invalid-input owned-socket
+leak); corrected and added early-cleanup regression. Tests demonstrate
+same-user local SO_PEERCRED comparisons, not root publisher custody or a
+trusted kernel process-generation observer. It only returns
+`UNQUALIFIED_KERNEL_PEER_HANDOFF`; no production caller or ACK. Remaining
+GE-04 R1-B1 blockers: protected original publication, reviewed root controller,
+independently pinned systemd and cgroup mount identity, real child lifecycle
+and cleanup/recovery VM proof, and independent security approval.

@@ -20,6 +20,11 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `bootstrap_receiver.py`: single-use read-only UNIX seqpacket SCM_RIGHTS
+  receiver with kernel SO_PEERCRED comparison and callback process-generation
+  fence. The expected publisher/FD identity must originate outside the
+  receiver from separately protected controller custody; tests do not prove
+  that source. Output is UNQUALIFIED and all received FDs are closed.
 - `worker-stream.h` and `worker-stream.c`: bounded AF_UNIX byte-stream framing,
   native acceptance, pidfd/process-generation and per-fragment sender checks.
   Trusted callers must supply independently protected registration authority;
