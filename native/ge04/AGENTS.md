@@ -4,6 +4,10 @@
 
 Linux native qualification components. GE-04 SECURITY HOLD remains active.
 These files do not provide production worker or broker admission.
+Proposed `docs/architecture/adrs/ADR-0019-cross-platform-worker-execution.md`
+keeps Linux kernel calls and future OCI/runc execution behind the mandatory
+portable supervisor seam. Do not import these fixtures into the cross-platform
+control plane or treat a VM/remote host as already qualified.
 
 ## Ownership
 
@@ -23,6 +27,12 @@ These files do not provide production worker or broker admission.
   It has no arbitrary path/PID/UID/executable interface or production consumer.
   `tests/agents/test_ge04_cgroup_worker.py` owns only its newly created exact
   transient qualification unit; it must validate trusted root staging first.
+- `cgroup-runtime-view-qualification.c`: separate, not-yet-reviewed closed
+  namespace-view/bootstrap fixture for two trusted children under the original
+  exclusive outer cgroup. `tests/agents/test_ge04_runtime_view.py` currently
+  covers only local parser, immutable-stage and refusal contracts; its root
+  admission intentionally fails closed. No privileged run or worker acceptance
+  is authorized. See `docs/security/ge04-runtime-view-qualification.md`.
 - `tests/fixtures/ge04-native-stream-probe.c` and
   `tests/agents/test_ge04_native_stream.py`: secret-free transport harness and
   synthetic cross-UID regressions. The harness is never installed as a service.
@@ -74,6 +84,11 @@ The verifier accepts only exact built-in dictionaries, never arbitrary mapping
 proxies/subclasses; a trusted caller may copy the builder's known private proxy.
 
 Run `python3 -m unittest discover -s tests/agents -p test_ge04_native_stream.py -v`.
+For the incomplete runtime-view fixture, read
+`docs/security/ge04-runtime-view-qualification.md`; run only the unprivileged
+`python3 -B -m unittest discover -s tests/agents -p test_ge04_runtime_view.py -v`.
+Its live controller is unimplemented and root admission refuses, even with
+staging and flags. Local parser/refusal success does not qualify namespace views.
 For the closed cgroup fixture, read
 `docs/security/ge04-cgroup-worker-qualification.md` and run its local command
 first. Its privileged staged command requires both explicit qualification flags

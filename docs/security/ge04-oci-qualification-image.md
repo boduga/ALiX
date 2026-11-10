@@ -9,6 +9,21 @@ no filesystem, extraction, process or network operation and has no CLI or runtim
 consumer. A nonexecutable payload is intentionally valid: matching a digest does
 not establish executable safety, reviewed-source provenance or runtime custody.
 
+## Cross-platform placement boundary (proposed ADR-0019)
+
+This image format is **Linux amd64-specific** by construction. A Windows or
+macOS controller does not turn it into a host-native image, and an ARM64 Linux
+guest cannot use its architecture-specific payload without a separately
+defined, independently pinned ARM64 build and qualification. A future Linux
+VM/remote execution placement must independently verify the exact guest CPU
+architecture, kernel/runtime release, image provenance, unpacked-root custody,
+mount/namespace/cgroup containment and worker registration. Image digest
+consistency is integrity evidence only.
+
+See [ADR-0019](../architecture/adrs/ADR-0019-cross-platform-worker-execution.md).
+No image format, builder API or production runtime is changed by this proposal.
+GE-04 SECURITY HOLD remains active.
+
 ## Interface and bounds
 
 - `build_qualification_image(probe)` returns a frozen image with a private-dict

@@ -91,3 +91,178 @@ fingerprints derived outside the module. Final scoped source review found no
 actionable finding; evidence is retained in
 `docs/audits/evidence/ge04/r1b2-image-bytes-2026-11-09/record.md`. B1/B2 and C–F
 remain open, with SECURITY HOLD active.
+
+
+## Runtime-view local-contract continuation (2026-11-09)
+
+The untracked `native/ge04/cgroup-runtime-view-qualification.c` remains the
+same SHA-256 `1a414741fd3087ea0aa432601fc693056b758c484b462b663bd1a2c08b655639`.
+A local `cc -std=c11 -O2 -Wall -Wextra -Werror -fanalyzer` compilation passed.
+The final fsync deadline guards were inspected but have **not** received the
+required independent re-review. The bundled EGM workflow was not available
+in this session; no substitute agent review or approval is claimed.
+
+Added `tests/agents/test_ge04_runtime_view.py`, which implements only strict
+staging inventory/original-receipt/manifest validation, canonical event/result
+parsing, and unprivileged native refusal cases. Seven local tests passed.
+The Python root entry deliberately raises a refusal even after valid staging;
+no live phase observer or root controller is implemented and **no VM root
+probe was run**. Added the partial qualification boundary document
+`docs/security/ge04-runtime-view-qualification.md` and updated
+`native/ge04/AGENTS.md` (DOX). The new files are uncommitted, and this
+checkpoint is **not** an acceptable stage/cleanup packet. Keep primary draft
+PR #1100, all evidence and branch/worktrees, and GE-04 SECURITY HOLD intact.
+
+Remaining: fully implement bounded kernel phase observer/cleanup and root
+unit custody (under separate reviews), run local/staleness/DOX/graph checks,
+review exact source and execution packets, then consider the separately
+reviewed disposable-VM run. R1-B1/B2/C–F and Gate F remain OPEN.
+
+### Second local-only protocol increment
+
+Extended the Python fixture with `BoundedPhasePipe` (finite-deadline binary
+line reader, split/coalesced diagnostics, overflow/EOF handling) and
+`PhaseSequence` (ordered phases and stable reported child generations).
+Four focused tests were added; latest local suite is **11 passed, 0 failed**.
+These utilities are untrusted-diagnostic admission prechecks only and are
+not called a kernel observer. Root admission remains an unconditional refusal.
+No VM execution, independent source review, commit, push or merge is claimed.
+
+### Read-only process-observation primitives
+
+Added bounded parsers for `/proc/<pid>/stat` state/startticks,
+`/proc/<pid>/status` four UID/GID identities, and `cgroup.procs` exact
+member sets. A passive `check_reported_generation` cross-check rejects
+PID/startticks, identity and membership mismatch in supplied observations.
+Two new local tests passed (13/13 total). No actual generation-pinned pidfd,
+procfs read/re-read, mount/namespace/FD custody, unit check or ACK gate is
+wired; the root controller still raises an unconditional refusal. GitNexus
+impact lookups for prior Python symbols remained UNKNOWN/not found, never
+interpreted as low risk. Source bytes for the native C helper are unchanged.
+
+### Observer-owned pidfd local proof, still root-inert
+
+Added read-only `observe_live_generation`, which verifies a canonical procfs
+starttick before opening an observer-owned pidfd, samples UID/GID via procfs,
+rechecks generation and polls pidfd for liveness. The new tests exercise the
+actual unprivileged test process and reject wrong ticks/UID/GID. Local runtime-
+view tests now pass **15/15**. This does NOT prove protected procfs ancestry,
+cgroup unit ownership, namespace/mount/FD inventories, complete phase matrix
+or ACK authorization, and the root controller remains intentionally absent.
+The native C helper is unchanged; no root/VM execution, commit or merge.
+
+## Proposed cross-platform worker placement — ADR-0019 (2026-11-09)
+
+Repository survey found ADR-0018 already allocated to the independent trust
+service; the cross-platform execution proposal is ADR-0019, not an overwrite
+of the existing trust decision. Drafted
+`docs/architecture/adrs/ADR-0019-cross-platform-worker-execution.md` with
+status PROPOSED. It preserves the existing mandatory
+`TaskWorkerSupervisor` as portable coordination/worker-lifecycle seam;
+a future Linux-only pinned OCI/runc backend owns pidfds, namespaces,
+cgroups, native streams, exact kernel custody and recovery. Windows/macOS
+controllers may eventually delegate to separately qualified Linux VMs or
+remote Linux services, not silently spawn a native fallback.
+
+Aligned `docs/security/ge04-production-worker-lifecycle.md`,
+`docs/security/ge04-capability-discovery.md`,
+`docs/security/ge04-q32-supervisor-verification-boundary.md`,
+`docs/security/ge04-oci-qualification-image.md`,
+`docs/security/ge04-runtime-view-qualification.md` and
+`native/ge04/AGENTS.md`. Added a historical qualification note to ADR-0007;
+its accepted 2026 direct-spawn decision was not rewritten or represented as
+GE-04 security evidence. The initial qualification scope stays Linux x86-64.
+The proposed backend eligibility requires independently protected identity,
+release, trust/boot/architecture, launch authority, recovery and cleanup
+evidence, and fail-closed refusal on missing/unknown qualification.
+
+GitNexus pre-design impact of `TaskWorkerSupervisor` was CRITICAL with
+699 upstream references (lower bound), 132 processes and 20 modules; no
+interface/source implementation was changed. Independent architecture and
+security approval, future OS adapter design, guest/transport qualification,
+R1-B1/B2/C–F and Q13 release are **all still pending**. GE-04 SECURITY HOLD
+remains active. Do not infer VM/root execution or production worker admission
+from documentation; retain the draft primary PR and all worktrees.
+
+### Platform-neutral supervisor contract review and namespace snapshot
+
+Source-reviewed `src/agents/worker-task-supervisor.ts` and
+`src/agents/worker-supervisor.ts` against proposed ADR-0019. Current v1
+`SupervisedWorkerEvidence` supplies PID/UID/startticks/registrationId but no
+backend, guest-boot or cross-host principal, and `wait/cancel/revoke/reconcile`
+returns do not prove descendant cleanup or safe retry. Added an exact API
+gap/migration table to ADR-0019 and current lifecycle docs. GitNexus reports
+`snapshotWorkerEvidence` CRITICAL upstream impact (276 references, 102
+processes); no production contract/source was changed or accepted.
+
+Resumed local-only runtime-view work with read-only `observe_namespace_links`
+for mnt/cgroup namespace symbolic identity against independently opened
+namespace descriptor device/inode, bracketed by starttick checks. A new
+unprivileged test initially found a regex error; corrected it and re-ran
+**16/16 passing**. This is diagnostic only, not protected procfs, namespace
+custody, VM qualification or authority for native ACK. Root qualification
+still refuses unconditionally and no VM root execution is permitted.
+
+### Additional read-only cgroup and FD grammar (GE-04 HOLD)
+
+Added local-only strict `parse_cgroup_events` (populated/frozen),
+`parse_subtree_control` (cpu/memory/pids), `parse_fd_inventory` and
+`check_fd_inventory` to `tests/agents/test_ge04_runtime_view.py`.
+Two new negative-test methods bring the unprivileged suite to **18/18**.
+These accept supplied bytes/FD names only: there is no protected cgroup
+file-descriptor opening, mount-root custody, actual descriptor target check,
+complete phase observer or authenticated ACK gate. Original native source
+and unconditional privileged refusal remain unchanged. Independent native
+review, root-scope evidence and GE-04 security clearance remain pending.
+
+### Exact phase cgroup membership matrix — local only
+
+Added pure supplied-data `verify_phase_cgroup_snapshot` covering INTENT,
+PRE_NAMESPACE, PINNED, ENABLED, PRE_JOIN and READY. The helper checks the
+reported PID/tick pairs against exact expected outer/launcher/payload direct
+members, cgroup.events populated state and outer enabled controllers. It
+rejects extra/missing members, unexpected payload tasks, contradictory
+population, wrong controllers and unsupported phases. Two new negative-test
+methods bring local runtime-view tests to **20/20**. EMPTY, DENIED and
+recover/sweep are deliberately excluded pending separate custody/recovery
+contracts. No protected cgroup descriptors, independent live phase observer,
+root admission/ACK, privileged run, production C caller or GE-04 hold release.
+
+### Bound read-only cgroup/mount observations (GE-04 HOLD)
+
+Added `parse_cgroup2_mountinfo` rejecting malformed, multiple, non-root
+and wrong-location cgroup2 mount records. Added `read_bound_cgroup_snapshot`
+using O_DIRECTORY/O_NOFOLLOW and an expected externally provided directory
+(dev,ino), bounded read-only dirfd-relative control-file opens, exact
+control-file parsers and postread path/identity checks. Two negative-test
+methods cover mismatched identity, symlink substitutions, malformed event
+counters and mountinfo ambiguity; local suite **22/22 PASS**. These are
+unprivileged synthetic tests, **not** a protected kernel phase controller,
+race-free mount ancestry proof, independently bound systemd unit/cgroup
+custody or source of ACK authority. Native C helper remains qualification-only;
+root entry still refuses, no VM/root execution or production activation.
+
+### Root-to-leaf cgroup ancestry (read-only qualification contract)
+
+Added `observe_bound_cgroup_ancestry` to the local runtime-view qualification
+module. Opens the expected root/outer/leaf directory chain with held
+O_DIRECTORY/O_NOFOLLOW descriptors, verifies independently provided device/inode
+bindings and rechecks the traversed entries. Test rejects traversal,
+substituted links, mismatched generation and replacement; **23/23** unprivileged
+tests pass. Does not establish systemd unit custody, trusted mount ID,
+protected expected identity, atomic snapshot or ACK authority. No production
+source/C helper changes, privileged launch or GE-04 release authorization.
+
+### Independent unit/mount/keeper binding review — explicit HOLD
+
+Added pure, fail-closed `validate_external_cgroup_binding` for matching strict
+invocation, fixed unit, mount ID/device/root, keeper PID/generation and
+three-level cgroup ancestry between separately supplied records. One new
+negative-test method brings local runtime-view tests to **24/24 PASS**.
+Neither supplied record is independently authenticated, so this is NOT
+trusted systemd/kernel provenance or a worker admission check. Added
+`docs/security/ge04-runtime-view-independent-binding-review.md` recording
+mandatory evidence owners, missing protected source checks, prohibited
+fallbacks, and independent review/VM authorization sequence. The native C
+fixture, Python root refusal, production supervisor, and GE-04 SECURITY HOLD
+remain unchanged. No privileged execution was performed.
