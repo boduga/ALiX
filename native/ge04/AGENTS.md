@@ -20,6 +20,12 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `protected-keeper-custody.[ch]`: Phase 4A1 production-intended C
+  source for retaining a pidfd, bounded procfs keeper startticks and exact
+  fixed-unit cgroup, bracketed by original transaction rechecks. Always
+  UNQUALIFIED: cannot prove new birth or original cgroup/mount ancestry.
+  Root entrypoint and ACK disabled. See
+  `docs/security/ge04-protected-root-controller-phase4a1.md`.
 - `protected-systemd-birth-observer.[ch]`: Phase 3B3A native read-only
   systemd post-job observation with original transaction rechecks and two
   stable fixed-unit/keeper PID/invocation snapshots. Always UNQUALIFIED;

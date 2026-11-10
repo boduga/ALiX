@@ -698,3 +698,13 @@ invalid/changing manager/unit/keeper observations. No original creation
 provenance, kernel descriptor ownership, privileged execution or phase ACK.
 Security hold remains active. See
 `docs/security/ge04-protected-root-controller-phase3b3a.md`.
+
+### Phase 4A1 — native keeper pidfd and process-generation custody source
+
+Added `protected-keeper-custody.[ch]` for candidate root-held pidfd with
+bounded procfs PID startticks, exact fixed systemd-unit cgroup and repeated
+liveness and manager/original-journal checks. This remains a post-factum
+UNQUALIFIED observation, not original birth custody. Unprivileged C tests
+cover procfs parsing and root-only refusal. No activated controller,
+unit creation, cgroup manipulation, ACK or security hold clearance. See
+`docs/security/ge04-protected-root-controller-phase4a1.md`.

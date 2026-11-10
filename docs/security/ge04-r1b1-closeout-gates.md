@@ -500,3 +500,14 @@ created, original kernel-custodied or authorized. The method send and root
 controller remain held; no root execution, privileged subscription, unit
 creation, keeper launch, or ACK. See `ge04-protected-root-controller-phase3b3a.md`.
 B1-B/D/E/H, disposable VM and Q13 remain OPEN. SECURITY HOLD ACTIVE.
+
+## Phase 4A1 native held keeper pidfd and startticks (source only)
+
+`protected-keeper-custody.[ch]` now proposes root-only pidfd_open custody
+of the post-job keeper PID, verified by bounded /proc startticks and exact
+fixed-unit cgroup before/after pidfd opening, liveness checks and original
+transaction rechecks. This is not original birth provenance or cgroup2
+mount/ancestry custody; no source currently provides trusted creation
+or a positive root launch. Unprivileged tests cover parsing and denial;
+no root execution, systemd mutation, ACK or protected release. See
+`ge04-protected-root-controller-phase4a1.md`. All gates OPEN; HOLD ACTIVE.
