@@ -523,3 +523,15 @@ FD provenance, keeper mount namespace, root-controlled mount source or
 new-unit creation. All checks remain UNQUALIFIED. Native tests are
 unprivileged/read-only; root entrypoint exits 77, no unit mutation or ACK.
 See `ge04-protected-root-controller-phase4a2.md`. SECURITY HOLD ACTIVE.
+
+## Phase 4A3 native mount namespace provenance (unqualified)
+
+`protected-mount-namespace.[ch]` adds root-gated, read-only retained
+keeper and controller nsfs mount namespace descriptors and exact bounded
+mountinfo cgroup2 root/source/mount ID matching to the existing cgroup2
+dirfd chain. Different namespace generation, mount point, root, filesystem,
+source or ID fail closed. This is post-observation only, NOT birth-time
+source custody, immutable root installation, authorized new-unit creation or
+ACK. Unprivileged native tests cover parser and refusal. Controller main
+still exits 77. See `ge04-protected-root-controller-phase4a3.md`.
+SECURITY HOLD ACTIVE; all B1 gates remain OPEN.

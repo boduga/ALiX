@@ -20,6 +20,12 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `protected-mount-namespace.[ch]`: Phase 4A3 candidate native
+  root-gated keeper/controller mount namespace descriptors and bounded
+  mountinfo provenance compared against original cgroup2 mount ID.
+  Refuses namespace substitution and remains UNQUALIFIED; no birth-time
+  custody, immutable privileged source, setns/mount or ACK. See
+  `docs/security/ge04-protected-root-controller-phase4a3.md`.
 - `protected-cgroup-custody.[ch]`: Phase 4A2 native root-only source
   for retaining three no-follow cgroup2 directory descriptors, comparing
   stable inode/device/statx mount IDs and original keeper generation.

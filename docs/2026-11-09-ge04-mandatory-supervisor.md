@@ -718,3 +718,13 @@ keeper generation verification. This remains post-observation, not proven
 original birth-time custody. Tests run unprivileged/read-only; no root
 controller activation, cgroup mutation or phase ACK. See
 `docs/security/ge04-protected-root-controller-phase4a2.md`.
+
+### Phase 4A3 — native mount namespace identity and provenance candidate
+
+Added `protected-mount-namespace.[ch]` for root-gated keeper/controller
+nsfs mount descriptor pinning and bounded /proc/PID/mountinfo cgroup2 mount
+ID/root/source reconciliation with Phase 4A2 dirfd ancestry. Current-only
+UNQUALIFIED identity, no proof of original unit birth; one unprivileged
+C test covers parser and root refusal. No mount mutation, systemd creation,
+root controller activation, ACK, or security gate clearance. See
+`docs/security/ge04-protected-root-controller-phase4a3.md`.
