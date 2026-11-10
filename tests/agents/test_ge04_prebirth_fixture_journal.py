@@ -136,6 +136,29 @@ class PrebirthJournalTests(unittest.TestCase):
             journal.publish_fixture_once(self.fd, prebirth(), probe)
         self.assertEqual(calls[0], 2)
 
+    def test_real_manager_absence_fixture_is_still_unqualified(self):
+        if os.geteuid() == 0:
+            self.skipTest("Root denied")
+        from types import MappingProxyType
+        with mock.patch("systemd_absence_observer.probe_fixed_unit_absence",
+                        return_value=MappingProxyType({
+                            "status": "UNQUALIFIED_SYSTEMD_ABSENCE_OBSERVATION"})) as probe:
+            result = journal.publish_observed_fixture_once(self.fd, prebirth())
+        self.assertEqual(probe.call_count, 2)
+        self.assertEqual(result["status"],
+                         "UNQUALIFIED_FIXTURE_PREBIRTH_PERSISTED")
+        with self.assertRaises(ValueError):
+            journal.publish_observed_fixture_once(self.fd, prebirth())
+
+    def test_manager_refusal_never_writes_original(self):
+        if os.geteuid() == 0:
+            self.skipTest("Root denied")
+        with mock.patch("systemd_absence_observer.probe_fixed_unit_absence",
+                        side_effect=ValueError("unit already present")):
+            with self.assertRaises(ValueError):
+                journal.publish_observed_fixture_once(self.fd, prebirth())
+        self.assertFalse((self.path / journal.FILENAME).exists())
+
     def test_noncanonical_and_missing_fields_never_write(self):
         if os.geteuid() == 0:
             self.skipTest("Root denied")

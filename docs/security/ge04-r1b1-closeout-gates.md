@@ -319,3 +319,16 @@ neither creates a systemd unit nor enables root issuance/ACK/recovery.
 The protected root-owned journal, manager creation and Q13 remain B1-B/D
 blockers. See `ge04-unprivileged-prebirth-journal-fixture.md`.
 GE-04 SECURITY HOLD ACTIVE.
+
+## Real read-only systemd absence probe — not exclusive unit birth
+
+Added `native/ge04/systemd_absence_observer.py`: pins the root-owned unique
+systemd system-bus owner and requires exact negative GetUnit and
+GetUnitFileState responses for the fixed unit twice, rejecting any installed,
+loaded, restarted/changed-owner, ambiguous or unavailable state. The optional
+`publish_observed_fixture_once` runs this actual read-only manager check
+before and after an unprivileged original fixture journal fsync. There is
+still NO atomic absence-to-exclusive-create transaction or authenticated
+prebirth issuer; any concurrent systemd unit creation after an observation
+remains possible. No privileged service action or ACK. The positive result
+is UNQUALIFIED only. B1-B and human Q13 still OPEN, SECURITY HOLD ACTIVE.

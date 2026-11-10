@@ -20,6 +20,12 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `systemd_absence_observer.py`: read-only pinned root-owned systemd bus
+  negative checks for both fixed GetUnit and GetUnitFileState twice. Output
+  remains UNQUALIFIED and cannot lock or reserve the missing unit. The
+  unprivileged fixture can use this observer before/after journaling; no
+  privileged source or ACK is enabled. See
+  `docs/security/ge04-systemd-absence-observation.md`.
 - `systemd_unit_observer.py`: read-only fixed-unit system D-Bus query pinned to
   root-owned unique bus owner, exact object path and stable Unit/Service
   property snapshots. Does not create/adopt units or prove original birth;

@@ -537,3 +537,15 @@ injection after write/file fsync/dir fsync, corrupt journal, symlink, wrong
 permissions, forced root refusal and missing absence. It creates no systemd
 unit or root file, and has no ACK or recovery authority. A protected issuer
 and independently verified new unit birth remain unimplemented; GE-04 HOLD.
+
+### Actual systemd absence observation for unprivileged original journal
+
+Added a read-only system-bus negative observer that pins the root-owned
+manager name and requires two exact fixed-unit GetUnit NoSuchUnit and
+GetUnitFileState FileNotFound observations. Installed, loaded, ambiguous and
+owner-substituted cases refuse. The optional unprivileged journal fixture
+can use this observer before and after file/dir fsync, replacing a synthetic
+absence callback with real current systemd evidence. Absence is not a lock
+or atomic exclusive unit creation; original attempt and publisher are not
+authenticated. No service creation, root access or ACK was enabled. B1-B,
+independent security review, disposable VM and Q13 remain OPEN.

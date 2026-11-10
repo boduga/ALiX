@@ -131,3 +131,18 @@ def publish_fixture_once(directory, prebirth, absent_unit_probe, fault=None):
     finally:
         os.close(fd)
         # Preserve partial files after failure. No cleanup, retry, or adoption.
+
+
+def publish_observed_fixture_once(directory, prebirth, fault=None):
+    """Use genuine read-only systemd absence checks for a user-only fixture.
+
+    This still cannot reserve, lock, or create the unit. It does not grant
+    authority: the systemd state may change immediately after the query.
+    """
+    from systemd_absence_observer import probe_fixed_unit_absence
+
+    def absent():
+        result = probe_fixed_unit_absence()
+        return result["status"] == "UNQUALIFIED_SYSTEMD_ABSENCE_OBSERVATION"
+
+    return publish_fixture_once(directory, prebirth, absent, fault)
