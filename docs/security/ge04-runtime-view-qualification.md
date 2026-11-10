@@ -101,11 +101,15 @@ From the existing worktree, without root:
 python3 -B -m unittest discover -s tests/agents -p test_ge04_runtime_view.py -v
 ```
 
-Latest local result: 26 tests passed, zero failures (including unprivileged
+Latest local result: 27 tests passed, zero failures (including unprivileged
 pidfd/namespace snapshots, supplied cgroup/FD parsing and exact six-phase
 cgroup membership matrix, synthetic directory-bound/mountinfo checks and
 read-only root-to-leaf cgroup ancestry substitution negatives, and all eight
-closed fixture-mode terminal/crash transcript cases). The C source also compiled
+closed fixture-mode terminal/crash transcript cases, plus one composite
+read-only live self-process/mount namespace check against synthetic cgroup
+files). The composite result is UNQUALIFIED_OBSERVATION only; expected
+systemd unit and directory identity are not independently authenticated.
+The C source also compiled
 with `cc -std=c11 -O2 -Wall -Wextra -Werror -fanalyzer`.
 These observations concern local grammar/refusal plus read-only pidfd and
 procfs sampling of the unprivileged test process, not namespace-view, root,

@@ -287,3 +287,18 @@ and the full adversarial matrix. Remaining work requires independently
 protected original systemd invocation/keeper and cgroup/mount provenance,
 full kernel-backed observation of EMPTY/DENIED/recovery and independently
 reviewed disposable VM qualification. R1-B1 remains OPEN; SECURITY HOLD active.
+
+### Read-only composite kernel binding probe — engineering only
+
+Implemented `observe_read_only_bound_view` within the unprivileged Python
+qualification tests: compares a caller-supplied canonical binding with an
+actual Linux pidfd/proc generation, namespace link identities and the exact
+keeper `/proc/<pid>/mountinfo` cgroup2 mount ID/device; re-observes them across
+bounded dirfd-relative reads of a synthetic root/outer/leaf cgroup tree.
+The result is fixed `UNQUALIFIED_OBSERVATION`, never ACK, admission, release or
+permission to execute as root. Negative tests reject wrong mount identity,
+keeper generation, cgroup inode and malformed event data; **27/27 local tests
+pass**. The expected bootstrap/systemd identity is NOT authenticated and the
+cgroup file fixture is not a real delegated subtree. The production backend,
+privileged controller and independent security gates remain incomplete;
+GE-04 SECURITY HOLD ACTIVE.

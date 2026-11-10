@@ -30,7 +30,8 @@ control plane or treat a VM/remote host as already qualified.
 - `cgroup-runtime-view-qualification.c`: separate, not-yet-reviewed closed
   namespace-view/bootstrap fixture for two trusted children under the original
   exclusive outer cgroup. `tests/agents/test_ge04_runtime_view.py` currently
-  covers only local parser, immutable-stage and refusal contracts; its root
+  covers local parsing, immutable-stage, real unprivileged read-only kernel
+  observations, synthetic binding checks and refusal contracts; its root
   admission intentionally fails closed. No privileged run or worker acceptance
   is authorized. See `docs/security/ge04-runtime-view-qualification.md`.
 - `tests/fixtures/ge04-native-stream-probe.c` and

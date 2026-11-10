@@ -558,6 +558,54 @@ def validate_external_cgroup_binding(binding, observed):
     return True
 
 
+def observe_read_only_bound_view(binding, root_path, components):
+    """Compare real local /proc and supplied directory bindings, no authority.
+
+    This function is deliberately NOT a privileged phase observer: the caller
+    may forge the binding and the checked directories can be ordinary files.
+    It never creates a trusted bootstrap record, sends ACK or permits root.
+    """
+    validate_external_cgroup_binding(binding, binding)
+    if type(components) is not tuple or len(components) != 2:
+        raise ValueError("Expected exact root/outer/leaf chain")
+    if not hasattr(os, "pidfd_open") or sys.platform != "linux":
+        raise RuntimeError("Linux pidfd observation required")
+    def local_mount():
+        fd = os.open("/proc/%d/mountinfo" % binding["keeperPid"],
+                     os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise ValueError("Unexpected mountinfo type")
+            data = bytearray()
+            while len(data) <= 1024 * 1024:
+                chunk = os.read(fd, min(4096, 1024 * 1024 + 1 - len(data)))
+                if not chunk:
+                    break
+                data.extend(chunk)
+            return parse_cgroup2_mountinfo(bytes(data))
+        finally:
+            os.close(fd)
+    mount = local_mount()
+    if mount != (binding["mountId"], binding["mountDevice"]):
+        raise ValueError("Local cgroup2 mount not bound to original record")
+    generation = (binding["keeperPid"], binding["keeperTicks"])
+    first = observe_live_generation(generation)
+    ns_before = observe_namespace_links(generation)
+    observe_bound_cgroup_ancestry(root_path, components, binding["ancestry"])
+    leaf = os.path.join(os.fspath(root_path), *components)
+    files = read_bound_cgroup_snapshot(leaf, binding["ancestry"][-1])
+    if (local_mount() != mount or observe_namespace_links(generation) != ns_before
+            or observe_live_generation(generation) != first):
+        raise ValueError("Kernel identity changed across observation")
+    return {
+        "status": "UNQUALIFIED_OBSERVATION",
+        "mount": mount,
+        "process": first,
+        "namespace": ns_before,
+        "cgroupFiles": files,
+    }
+
+
 def _read_proc_file(pid, name, cap=16384):
     """Read one procfs regular file without following a final-component link.
 
@@ -1274,6 +1322,53 @@ class LocalContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             evaluate_closed_qualification_transcript(
                 "run", events, result_raw=result, cleanup={**clean, "extra": True})
+
+    @unittest.skipUnless(sys.platform == "linux" and hasattr(os, "pidfd_open"),
+                         "Linux read-only observation only; skip is not qualification")
+    def test_composite_live_kernel_binding_diagnostic_only(self):
+        pid = os.getpid()
+        _, ticks = parse_proc_stat(_read_proc_file(pid, "stat"), pid)
+        with open("/proc/self/mountinfo", "rb") as handle:
+            mount = parse_cgroup2_mountinfo(handle.read(1024 * 1024 + 1))
+        with tempfile.TemporaryDirectory(prefix="ge04-observer-") as temp:
+            root, outer, leaf = (Path(temp) / "root",
+                                 Path(temp) / "root" / "outer",
+                                 Path(temp) / "root" / "outer" / "leaf")
+            leaf.mkdir(parents=True)
+            fixtures = {
+                "cgroup.procs": b"",
+                "cgroup.events": b"populated 0\n",
+                "cgroup.subtree_control": b"\n",
+            }
+            for filename, raw in fixtures.items():
+                (leaf / filename).write_bytes(raw)
+            binding = {
+                "invocation": "a" * 32,
+                "unit": "ge04-r1b2-view-qualification.service",
+                "mountId": mount[0], "mountDevice": mount[1], "mountRoot": "/",
+                "keeperPid": pid, "keeperTicks": ticks,
+                "ancestry": tuple((p.stat().st_dev, p.stat().st_ino)
+                                  for p in (root, outer, leaf)),
+            }
+            result = observe_read_only_bound_view(binding, root, ("outer", "leaf"))
+            self.assertEqual(result["status"], "UNQUALIFIED_OBSERVATION")
+            self.assertEqual(result["mount"], mount)
+            self.assertEqual(result["process"]["pid"], pid)
+            self.assertEqual(result["cgroupFiles"], fixtures)
+            mutations = (
+                {**binding, "mountId": mount[0] + 1},
+                {**binding, "keeperTicks": ticks + 1},
+                {**binding, "ancestry": (binding["ancestry"][0],
+                                      binding["ancestry"][1],
+                                      (binding["ancestry"][2][0],
+                                       binding["ancestry"][2][1] + 1))},
+            )
+            for changed in mutations:
+                with self.subTest(changed=changed), self.assertRaises(ValueError):
+                    observe_read_only_bound_view(changed, root, ("outer", "leaf"))
+            (leaf / "cgroup.events").write_bytes(b"populated 2\n")
+            with self.assertRaises(ValueError):
+                observe_read_only_bound_view(binding, root, ("outer", "leaf"))
 
     def test_live_entry_refuses(self):
         with self.assertRaises(RuntimeError):

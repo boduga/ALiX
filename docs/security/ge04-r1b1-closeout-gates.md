@@ -13,11 +13,16 @@ privileged commands, register workers, remove quarantine or deploy anything.
   unavailable by default, not a native production implementation.
 - `native/ge04/cgroup-runtime-view-qualification.c` is a fixed, closed,
   synthetic qualification helper, **not** production source or a service.
-- The local read-only runtime-view Python suite has **26/26 passing tests**
+- The local read-only runtime-view Python suite has **27/27 passing tests**
   for stage validation, bounded diagnostics, pidfd/procfs sampling, namespace
   links, supplied unit/mount/keeper/cgroup records, bounded dirfd cgroup
   observations, exact six-phase cgroup membership grammar, and terminal/crash
-  transcript consistency for all eight closed modes. No privileged run.
+  transcript consistency for all eight closed modes. A further read-only
+  composite check observes the actual unprivileged keeper PID/starttime via
+  pidfd, its namespace links, its /proc/<pid>/mountinfo and supplied cgroup
+  directory bytes, comparing before/after. Result is explicitly
+  UNQUALIFIED_OBSERVATION; the cgroup files are local fixtures and no protected
+  bootstrap/systemd identity is established. No privileged run.
 - `evaluate_closed_qualification_transcript` is deliberately limited to
   `LOCAL_CONTRACT_ONLY` and `QUARANTINE_PENDING_RECOVERY`. Its input is
   caller-supplied; it never grants an ACK, registers a worker, proves cleanup
