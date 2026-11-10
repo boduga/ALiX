@@ -535,3 +535,15 @@ source custody, immutable root installation, authorized new-unit creation or
 ACK. Unprivileged native tests cover parser and refusal. Controller main
 still exits 77. See `ge04-protected-root-controller-phase4a3.md`.
 SECURITY HOLD ACTIVE; all B1 gates remain OPEN.
+
+## Phase 3B4A: protected native request preparation, not dispatch
+
+`protected-dispatch-preparation.[ch]` now integrates the existing fixed
+StartTransientUnit serializer into a candidate method message on the same
+pinned manager bus, gated by original attempt/prebirth FD custody and
+manager/subscription rechecks. The header and signature are verified;
+failed preparation poisons, successful preparation holds a local message
+only. The send API is unconditional EPERM, no request cookie or
+request_in_flight transition occurs, and root main exits 77. No true
+exclusive birth, keeper install, original kernel birth custody or ACK.
+See `ge04-protected-root-controller-phase3b4a.md`. B1 gates OPEN; HOLD.

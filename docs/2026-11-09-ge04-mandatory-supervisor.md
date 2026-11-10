@@ -728,3 +728,14 @@ UNQUALIFIED identity, no proof of original unit birth; one unprivileged
 C test covers parser and root refusal. No mount mutation, systemd creation,
 root controller activation, ACK, or security gate clearance. See
 `docs/security/ge04-protected-root-controller-phase4a3.md`.
+
+### Phase 3B4A — native protected StartTransientUnit message preparation
+
+Added `protected-dispatch-preparation.[ch]` to bridge existing fixed
+request serialization to the original pinned libsystemd manager transaction:
+root-only original custody before/after, exact method/header/signature,
+single held message, fail-closed cleanup. No live send/call, cookie,
+request_in_flight, unit creation, ACK or privileged execution; controller
+main remains exit 77. Unprivileged wrapped native tests exercise eight
+preparation/failure scenarios. All B1 gates stay OPEN. See
+`docs/security/ge04-protected-root-controller-phase3b4a.md`.

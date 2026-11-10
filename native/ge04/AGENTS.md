@@ -20,6 +20,12 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `protected-dispatch-preparation.[ch]`: Phase 3B4A native integration
+  of original protected manager/attempt/prebirth custody with an exact
+  fixed StartTransientUnit method *object*, on the same retained bus.
+  No sd_bus_send/call or request cookie: dispatch ALWAYS denies EPERM;
+  controller main exits 77 and all B1 gates remain OPEN. See
+  `docs/security/ge04-protected-root-controller-phase3b4a.md`.
 - `protected-mount-namespace.[ch]`: Phase 4A3 candidate native
   root-gated keeper/controller mount namespace descriptors and bounded
   mountinfo provenance compared against original cgroup2 mount ID.
