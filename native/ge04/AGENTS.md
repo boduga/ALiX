@@ -20,6 +20,12 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `protected-systemd-birth-observer.[ch]`: Phase 3B3A native read-only
+  systemd post-job observation with original transaction rechecks and two
+  stable fixed-unit/keeper PID/invocation snapshots. Always UNQUALIFIED;
+  observations cannot prove new unit birth, pidfd/mount/cgroup custody,
+  trusted request dispatch or ACK. No privileged entrypoint enabled.
+  See `docs/security/ge04-protected-root-controller-phase3b3a.md`.
 - `protected-systemd-request.[ch]`: Phase 3B2 native fixed
   StartTransientUnit payload serializer with literal fixed unit, fail mode,
   Type=exec, NoNewPrivileges/Delegate, one UNINSTALLED keeper path and no

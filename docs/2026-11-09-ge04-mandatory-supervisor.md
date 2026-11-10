@@ -687,3 +687,14 @@ creation remains unconditional EPERM and controller still exits 77.
 Unprivileged tests verify literal fields, container ordering and injected
 serialization failures. No service launched, root run, ACK or Q13 clearance.
 See `docs/security/ge04-protected-root-controller-phase3b2.md`.
+
+### Phase 3B3A — production-intended native read-only birth corroboration
+
+Added `protected-systemd-birth-observer.[ch]` sampling the exact systemd
+unit object/path/status/main PID/InvocationID/cgroup with held manager and
+original journal/attempt rechecks before, between and after snapshots.
+Twelve unprivileged C injected scenarios cover stable-but-unqualified and
+invalid/changing manager/unit/keeper observations. No original creation
+provenance, kernel descriptor ownership, privileged execution or phase ACK.
+Security hold remains active. See
+`docs/security/ge04-protected-root-controller-phase3b3a.md`.

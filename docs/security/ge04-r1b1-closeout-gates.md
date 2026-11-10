@@ -488,3 +488,15 @@ entrypoint exits 77. Unprivileged tests check exact serialization and
 per-call failure refusal. Actual keeper/source approval, full privilege
 policy, authentic birth, kernel custody, VM and Q13 gates remain OPEN.
 See `ge04-protected-root-controller-phase3b2.md`. SECURITY HOLD ACTIVE.
+
+## Phase 3B3A: fixed unit post-job native read-only observation (unqualified)
+
+`protected-systemd-birth-observer.[ch]` adds two stable native manager
+post-job snapshots, requiring pinned manager and original attempt/prebirth
+custody rechecked before/between/after, canonical fixed GetUnit path,
+loaded/active/running, matching cgroup, zero restarts, main PID and nonzero
+invocation identity. Even a consistent unit is **UNQUALIFIED**, not newly
+created, original kernel-custodied or authorized. The method send and root
+controller remain held; no root execution, privileged subscription, unit
+creation, keeper launch, or ACK. See `ge04-protected-root-controller-phase3b3a.md`.
+B1-B/D/E/H, disposable VM and Q13 remain OPEN. SECURITY HOLD ACTIVE.
