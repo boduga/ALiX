@@ -360,3 +360,17 @@ creation request or job completion: test event dictionaries remain forgeable.
 Real protected subscription must precede StartTransientUnit; crash/missed
 signal must quarantine, and authentic manager/kernel/cgroup birth remains
 separately required. B1-B/E/H and Q13 remain OPEN. GE-04 SECURITY HOLD ACTIVE.
+
+## Actual read-only bounded-window systemd JobRemoved subscription
+
+`native/ge04/systemd_job_signal_observer.py` now subscribes on the actual
+system bus to the root-owned manager's JobRemoved notification, listens for
+a caller-supplied exact fixed-unit job and sender in a <=2s GLib event window,
+rejects wrong job/result/owner, and removes its match and subscription.
+This is a read-only *event-feed* registration, not unit creation or a trusted
+issuer. Positives remain `UNQUALIFIED_LIVE_SYSTEMD_JOB_SIGNAL`: the expected
+job is caller-supplied; setup/teardown D-Bus operations have separate
+per-call timeouts (not a hard process-wide budget), and no original protected
+StartTransientUnit request is bound to the subscription. The existing birth
+handoff is not wired into authorization. Independent original root creation,
+source review, disposable VM and Q13 remain OPEN. GE-04 SECURITY HOLD ACTIVE.

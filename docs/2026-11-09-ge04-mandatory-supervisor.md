@@ -575,3 +575,15 @@ ACK, recovery or production consumer exists. A protected controller must
 subscribe before the creation request and keep the original job receipt,
 fail closed on lost signals/restarts, and separately validate kernel birth.
 R1-B1 OPEN, GE-04 SECURITY HOLD ACTIVE.
+
+### Actual read-only systemd JobRemoved signal observer
+
+Added an unprivileged, short GLib/D-Bus JobRemoved listener for the fixed
+service and root-owned manager, validating expected job ID/path, unique
+sender, `done` and unchanged manager. A timeout, mismatch, missing signal or
+owner change refuses. The expected job is not authenticated original
+creation evidence; it is caller supplied and remains UNQUALIFIED. The event
+window is capped at 2 seconds, but synchronous D-Bus setup/cleanup is not
+bounded by that clock. No systemd unit is created, worker admitted, root
+helper invoked, ACK issued or security gate lifted. See
+`docs/security/ge04-systemd-live-job-signal-observation.md`.
