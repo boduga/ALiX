@@ -20,6 +20,12 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `protected-systemd-request.[ch]`: Phase 3B2 native fixed
+  StartTransientUnit payload serializer with literal fixed unit, fail mode,
+  Type=exec, NoNewPrivileges/Delegate, one UNINSTALLED keeper path and no
+  auxiliary units. Caller-supplied message only; no bus connection, request
+  dispatch, trusted cookie, keeper launch, ACK or enabled controller.
+  See `docs/security/ge04-protected-root-controller-phase3b2.md`.
 - `protected-systemd-transaction.[ch]`: Phase 3A/3B1 production-intended
   libsystemd C source for pinned root-owned systemd manager, original
   fence/journal custody, pre-request JobRemoved subscription and bounded

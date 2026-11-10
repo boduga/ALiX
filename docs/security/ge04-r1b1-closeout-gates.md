@@ -475,3 +475,16 @@ is NO StartTransientUnit sender, no real retained request serial, no
 privileged controller execution, ACK or kernel custody. Unprivileged C
 link-wrapper tests simulate the transitions. See
 `ge04-protected-root-controller-phase3b1.md`. R1-B1 OPEN; SECURITY HOLD.
+
+## Phase 3B2 native fixed transient request serializer — NO send authority
+
+`protected-systemd-request.[ch]` now serializes the fixed
+`StartTransientUnit` body (exact qualification service, mode `fail`,
+NoNewPrivileges/Delegate/Type=exec, one **uninstalled** fixed keeper path,
+no auxiliary units). It does NOT connect to or mutate systemd, send a
+request, or bind a genuine outgoing cookie. The existing
+`ge04_systemd_create_exclusive` still unconditionally denies and controller
+entrypoint exits 77. Unprivileged tests check exact serialization and
+per-call failure refusal. Actual keeper/source approval, full privilege
+policy, authentic birth, kernel custody, VM and Q13 gates remain OPEN.
+See `ge04-protected-root-controller-phase3b2.md`. SECURITY HOLD ACTIVE.

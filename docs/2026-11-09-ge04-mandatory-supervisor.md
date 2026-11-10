@@ -676,3 +676,14 @@ StartTransientUnit call remains EPERM-disabled; this is source and
 unprivileged injected-event tests only. No production manager birth, root
 run, phase ACK or Q13 clearance. See
 `docs/security/ge04-protected-root-controller-phase3b1.md`.
+
+### Phase 3B2 — fixed native systemd request body source, no dispatch
+
+Added `protected-systemd-request.[ch]` with an exact hardcoded
+StartTransientUnit message payload: fail-mode fixed unit, Type=exec,
+NoNewPrivileges, Delegate, one candidate uninstalled keeper path and no
+auxiliary units. The serializer has no bus/send operation; native held
+creation remains unconditional EPERM and controller still exits 77.
+Unprivileged tests verify literal fields, container ordering and injected
+serialization failures. No service launched, root run, ACK or Q13 clearance.
+See `docs/security/ge04-protected-root-controller-phase3b2.md`.
