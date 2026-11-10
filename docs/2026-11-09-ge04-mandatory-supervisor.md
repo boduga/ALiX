@@ -510,3 +510,18 @@ with mocked root metadata. This is **not** authenticated root-created
 prebirth evidence, unit birth authorization, source custody or a root-ready
 observer; no privileged operations or permissions changes were made. See
 `docs/security/ge04-existing-root-approval-custody.md`. GE-04 HOLD ACTIVE.
+
+### Original pre-birth issuance vs post-birth unit inode — design contract
+
+Identified a missing chronological trust boundary: existing native
+`approval.v1` references the unit cgroup inode, which may not exist before
+systemd unit creation. Added a pure `PrebirthIssuanceContract` separating
+immutable PREBIRTH expected-absence/durable intent from post-creation
+BIRTH_OBSERVED with exact boot/attempt/nonce, manager invocation, keeper,
+mount and cgroup identity, and permanent quarantine on ambiguous crash,
+restart, mismatch or replay. It shares the canonical sealed record schema
+and unconditionally refuses approval, ACK and recovery methods. The original
+absence/durability fields and all subsequent observations are mock-supplied;
+no protected root journal, actual unit birth, or trusted publisher exists.
+See `docs/security/ge04-original-prebirth-issuance.md`. R1-B1 OPEN and
+SECURITY HOLD ACTIVE.

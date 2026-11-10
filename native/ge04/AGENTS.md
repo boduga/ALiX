@@ -46,6 +46,12 @@ control plane or treat a VM/remote host as already qualified.
   keeper/mount/cgroup identities against pidfd/procfs and directory-bound
   cgroup observations, then resamples manager. Positive tests use fixtures;
   no unit is created, no protected original custody or ACK is established.
+- `prebirth_issuance_contract.py`: pure two-stage PREBIRTH-before-unit,
+  BIRTH_OBSERVED-after-new-unit diagnostic contract with explicit
+  boot/attempt/nonce fencing and irreversible ambiguity quarantine. All
+  original absence/durability claims are caller-supplied; it never writes
+  a journal, creates a unit, grants approval or issues ACK. See
+  `docs/security/ge04-original-prebirth-issuance.md`.
 - `bootstrap_publisher.py`: qualification-only, unprivileged three-record
   prebirth/manager/kernel reconciliation and test-only sealed memfd. Neither
   source callback is authenticated; the root publisher is an unconditional

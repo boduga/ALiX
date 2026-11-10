@@ -284,3 +284,21 @@ that an authorized bootstrap wrote it, or that the full sealed receipt has
 protected provenance. It may remain inaccessible to unprivileged observers;
 loosening permissions or running this worktree as root is prohibited. No ACK,
 source-root review, VM qualification or Q13. B1-B/D/E OPEN; GE-04 HOLD ACTIVE.
+
+## Distinct original pre-birth issuance vs post-birth cgroup approval
+
+The native `approval.v1` includes the unit cgroup inode, which can only be
+obtained after a genuinely new systemd service creates that cgroup. A
+post-birth approval record cannot itself prove authorization existed *before*
+unit creation. Added `native/ge04/prebirth_issuance_contract.py`, a pure
+in-memory two-stage contract requiring PREBIRTH (fixed unit absent, durable
+original attempt/boot ID/nonce and reviewed digests) before BIRTH_OBSERVED
+(authenticated-manager/kernel facts would have to match the original), with
+quarantine on ambiguous birth, replay, restart, failed or crashed transition.
+All claims in this prototype are caller-supplied assertions, including the
+absence/durability booleans: it proves **no protected root authority**.
+`issue_approval`, `issue_ack`, and `recover` unconditionally refuse.
+The full separate root-owned journal and exact new-unit birth implementation
+remain B1-B/D blockers; this module has no privileges, file write, D-Bus
+mutation, cleanup or production caller. See
+`docs/security/ge04-original-prebirth-issuance.md`. SECURITY HOLD ACTIVE.
