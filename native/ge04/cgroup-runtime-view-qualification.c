@@ -660,6 +660,13 @@ int main(int argc,char **argv) {
  const char *modes[]={"run","crash-pre-namespace","crash-pinned","crash-ready","fail-mount","fail-enable","recover","sweep-empty"};
  int valid=0;if(argc==2)for(size_t i=0;i<sizeof(modes)/sizeof(modes[0]);i++)if(!strcmp(argv[1],modes[i]))valid=1;
  if(!valid)return 64;
+ /* GE-04 SECURITY HOLD: regular builds MUST NOT enter a privileged fixture,
+  * even if root stages matching approval/unit files. The opt-in macro is
+  * deliberately absent from ordinary builds and is NOT approval itself;
+  * reviewed-source/staging/VM/Q13 gates remain independently mandatory. */
+#ifndef GE04_REVIEWED_DISPOSABLE_VM_QUALIFICATION
+ return 77;
+#endif
  if(getuid()||geteuid()||getgid()||getegid())return 77;
  signal(SIGPIPE,SIG_IGN);signal(SIGCHLD,SIG_DFL);
  struct context c={.work=-1,.lock=-1,.parent=-1,.outer=-1,.launcher=-1,.payload=-1,.procs=-1,.events=-1,.killfd=-1,

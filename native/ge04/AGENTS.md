@@ -53,7 +53,11 @@ control plane or treat a VM/remote host as already qualified.
   transient qualification unit; it must validate trusted root staging first.
 - `cgroup-runtime-view-qualification.c`: separate, not-yet-reviewed closed
   namespace-view/bootstrap fixture for two trusted children under the original
-  exclusive outer cgroup. `tests/agents/test_ge04_runtime_view.py` currently
+  exclusive outer cgroup. Ordinary C builds now return 77 before root setup
+  for every valid mode; only an explicitly reviewed disposable-VM-specific
+  compile macro can include its privileged path. That macro is NOT approval.
+  `tests/agents/test_ge04_native_default_hold.py` checks default refusal.
+  `tests/agents/test_ge04_runtime_view.py` currently
   covers local parsing, immutable-stage, real unprivileged read-only kernel
   observations (including a genuine read-only self-cgroup v2 snapshot),
   synthetic binding checks and refusal contracts; its root admission

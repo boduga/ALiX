@@ -184,3 +184,20 @@ and a synthetic directory tree because the real fixed qualification unit is
 absent. There is no protected source for original identity, no privileged
 controller, no unit birth, no phase ACK or cleanup/recovery acceptance. Any
 successful observation remains UNQUALIFIED. GE-04 SECURITY HOLD ACTIVE.
+
+## Native default-build entry refusal and source preaudit
+
+The closed `cgroup-runtime-view-qualification.c` helper is **default disabled
+at compile time**, returning 77 for every valid mode before root setup unless
+`GE04_REVIEWED_DISPOSABLE_VM_QUALIFICATION` is explicitly defined. That macro
+must never be enabled by routine builds and is NOT approval for a privileged
+run. Local `test_ge04_native_default_hold.py` compiles a regular default
+binary and confirms denial on eight fixed modes plus invalid mode 64. The
+post-change native source hash is
+`cb9a26c76e9e35199dac8326a0110739c401fb6733c0324202ecdae507a9a98d`.
+See `docs/security/ge04-native-controller-source-preaudit.md` for the exact
+high-risk ACK, prebirth custody, destructive cleanup and orphan windows
+requiring independent review. The native source hash changed and **must be
+reviewed afresh** before any approved VM execution. A separate Codex model
+review of the default-deny diff found a macOS test-discovery defect, now
+fixed with a Linux-only skip. No independent C security signoff or Q13.

@@ -413,3 +413,19 @@ scheduler transitions without weakening generation checks. 5/5 focused
 local tests pass. Positive tests use controlled fixtures; there is no live
 qualification unit and no authenticated protected original receipt. Root
 publisher is still refused, R1-B1 OPEN, GE-04 SECURITY HOLD ACTIVE.
+
+### Native root fixture default-disabled; source preaudit opened
+
+Default builds of the 740-line native cgroup-runtime-view fixture now refuse
+all valid modes (exit 77) before root setup; only a specifically named
+compile-time VM-qualification opt-in can include the privileged code path.
+The opt-in does not grant authorization or meet the independent source/root
+review, disposable VM, original bootstrap, worker ACK or Q13 gates.
+The `test_ge04_native_default_hold.py` Linux-only regression compiles the
+normal source and confirms exit 77 for all eight valid modes and 64 for
+unknown input. No root helper was executed. Preaudit observations and exact
+current source hash are recorded in
+`docs/security/ge04-native-controller-source-preaudit.md`.
+An external automated code review of the default-deny diff identified one
+cross-platform test skip issue, corrected. The broader C security review is
+still pending and GE-04 SECURITY HOLD remains active.
