@@ -13,13 +13,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from bootstrap_binding import LIMIT, parse_bootstrap_binding
 from unit_kernel_observer import observe_manager_and_kernel
+from protected_approval_observer import corroborate_existing_approval
 
 
 def main():
     try:
         raw = sys.stdin.buffer.read(LIMIT + 1)
         record = dict(parse_bootstrap_binding(raw))
+        original_approval = corroborate_existing_approval(record)
         observation = observe_manager_and_kernel(record)
+        if corroborate_existing_approval(record) != original_approval:
+            return 77
         if observation["status"] != "UNQUALIFIED_MANAGER_KERNEL_CORRELATION":
             return 77
         kernel = observation["kernel"]

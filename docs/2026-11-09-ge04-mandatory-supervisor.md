@@ -494,3 +494,19 @@ The fixed-unit live host reports absent; synthetic positive witness tests
 cannot prove root authority. See
 `docs/security/ge04-bounded-isolated-phase-observer.md`. R1-B1 OPEN, GE-04
 SECURITY HOLD ACTIVE.
+
+### Existing original root approval custody checked before/after observation
+
+A read-only `protected_approval_observer.py` checks the fixed C fixture's
+root-owned original `approval.v1` and zero-byte `.lock` against an externally
+supplied expected invocation and exact parent cgroup inode/device. It opens
+only fixed no-follow directory/file paths, rejects unsafe/missing/mutating
+records and reconfirms paths and files before returning an explicitly
+UNQUALIFIED correlation. The isolated manager/kernel worker now requires
+this check before and after each observation, failing closed when absent.
+Six local tests include malformed records, inode/invocation substitutions,
+symlink denial, real unprivileged ownership refusal, and a synthetic positive
+with mocked root metadata. This is **not** authenticated root-created
+prebirth evidence, unit birth authorization, source custody or a root-ready
+observer; no privileged operations or permissions changes were made. See
+`docs/security/ge04-existing-root-approval-custody.md`. GE-04 HOLD ACTIVE.

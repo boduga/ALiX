@@ -267,3 +267,20 @@ unbounded; no authenticated authority emerges. This mitigates local hanging
 observation, not bootstrap trust, privileged recovery or root-source review.
 See `ge04-bounded-isolated-phase-observer.md`. B1-B/E/F OPEN;
 SECURITY HOLD ACTIVE.
+
+## Existing root approval-file custody precondition (read-only)
+
+Added `native/ge04/protected_approval_observer.py` to refuse absent,
+inaccessible, malformed, substituted or changing fixed original
+`/run/ge04-view-qualification/approval.v1` and `.lock` against a supplied
+invocation and original parent cgroup dev/inode, traversing root-owned
+no-follow directory chains and checking exact file modes, links and identity
+before/after reading. The isolated read-only observer now corroborates this
+existing approval **before and after** systemd/kernel observation. Local
+positive tests mock root ownership explicitly; this host has no fixed
+qualification unit or approval, and no privileged read is attempted.
+This current-file check does not prove approval existed before unit birth,
+that an authorized bootstrap wrote it, or that the full sealed receipt has
+protected provenance. It may remain inaccessible to unprivileged observers;
+loosening permissions or running this worktree as root is prohibited. No ACK,
+source-root review, VM qualification or Q13. B1-B/D/E OPEN; GE-04 HOLD ACTIVE.

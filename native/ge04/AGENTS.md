@@ -24,6 +24,12 @@ control plane or treat a VM/remote host as already qualified.
   root-owned unique bus owner, exact object path and stable Unit/Service
   property snapshots. Does not create/adopt units or prove original birth;
   output UNQUALIFIED only. No production consumer.
+- `protected_approval_observer.py`: read-only exact original C fixture
+  `approval.v1` and `.lock` root-owned path/file custody corroboration against
+  supplied original invocation and parent cgroup inode, checked before/after
+  isolated manager/kernel observation. No original pre-birth provenance,
+  privileged reader, root publisher or ACK authority. See
+  `docs/security/ge04-existing-root-approval-custody.md`.
 - `bounded_phase_observer.py` and `isolated_phase_observer_worker.py`:
   separate unprivileged `python -I` read-only manager/kernel observation with
   a bounded hard deadline, incrementally limited stdout, kill/reap on timeout,
