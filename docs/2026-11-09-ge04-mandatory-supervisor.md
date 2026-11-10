@@ -630,3 +630,16 @@ unconditional refusals. Six focused adversarial tests pass; no actual trusted
 controller has been implemented. See
 `docs/security/ge04-protected-transaction-owner-contract.md`.
 R1-B1 OPEN; GE-04 SECURITY HOLD ACTIVE.
+
+### Protected Root Controller Phase 1 — native source implementation begins
+
+Added `protected-prebirth-journal.[ch]` with a root-only fixed-path exclusive
+prebirth journal primitive and held descriptor/inode rechecks, plus
+`protected-root-controller.c` whose main ALWAYS exits 77. This begins actual
+production-intended C source, replacing the earlier pattern of standalone
+synthetic validation layers. Tests compile the native library under strict
+warnings and check exact Python prebirth format compatibility, malformed
+inputs, unprivileged refusal and unconditional controller hold. No privileged
+execution, original boot/attempt source, service creation, ACK, cleanup,
+recovery, or security acceptance. See
+`docs/security/ge04-protected-root-controller-phase1.md`.

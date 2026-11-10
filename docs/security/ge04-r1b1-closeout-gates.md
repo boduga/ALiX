@@ -422,3 +422,17 @@ claim remains unverified even if all flags are true; all privileged actions
 publish/create/ACK/recover/admit refuse. This is a *refusal contract*, not
 implementation of the independent root owner. B1-A through B1-H remain
 OPEN. See `ge04-protected-transaction-owner-contract.md`. SECURITY HOLD.
+
+## Phase 1 protected root controller source candidate — NOT privileged-ready
+
+Added production-intended C source `protected-prebirth-journal.[ch]` with
+strict canonical prebirth serialization, existing fixed root-owned 0700
+private directory traversal, exclusive 0600 original journal creation,
+file/dir fsync and descriptor-inode recheck. It is not linked into an active
+privileged controller; `protected-root-controller.c` is a default entrypoint
+that always exits 77. Its tests compile and execute **only unprivileged**
+format and denial paths. Missing trusted boot/attempt publisher, immutable
+root staging, original mount custody, rollback/recovery and actual systemd
+creation remain open. Independent source and binary review must precede
+any privileged test. See `ge04-protected-root-controller-phase1.md`.
+R1-B1 OPEN — GE-04 SECURITY HOLD ACTIVE.

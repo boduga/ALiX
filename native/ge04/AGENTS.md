@@ -20,6 +20,15 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `protected-root-controller.c` plus `protected-prebirth-journal.[ch]`:
+  first production-intended native root-controller SOURCE CANDIDATE.
+  Default controller entrypoint unconditionally returns 77. The separate
+  C library encodes canonical prebirth claims and has a fixed root-only
+  exclusive journal create/fsync/recheck primitive, NEVER linked to an
+  activated privileged entrypoint. No root run, service creation, issuer
+  provenance, cleanup, ACK or staging clearance. Independently review
+  exact source before root use. See
+  `docs/security/ge04-protected-root-controller-phase1.md`.
 - `protected_owner_review_boundary.py`: fail-closed review-only gate map
   for protected issuer, exclusive birth, trusted job/kernel custody, ACK,
   approved VM and independent signoff. Caller-asserted passes are NEVER
