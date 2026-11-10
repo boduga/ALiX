@@ -559,3 +559,16 @@ positive dispatch. No root entrypoint or StartTransientUnit send exists:
 controller main still returns 77. The record is a durable *intent* only,
 not absence of actual dispatch after crash, exclusive birth proof or ACK.
 See `ge04-protected-root-controller-phase3b4b.md`; B1-A–H remain OPEN.
+
+## Phase 3B4C: independent security review handoff — NO-GO
+
+The scoped, source-linked review and disposable-VM qualification plan is
+`ge04-protected-root-controller-phase3b4c-review.md`. It enumerates critical
+review findings F1–F7, reproduces the **authoritative** B1-A–B1-H gate
+labels and evidence dependencies, and explicitly forbids treating editable
+source, a passed test, a model review or a VM proposal as root-run authority.
+`tests/agents/test_ge04_protected_dispatch_hold.py` provides nonprivileged
+hold regression tripwires (exit 77, no native dispatch sender and open
+gates). It cannot validate root trust, unit birth or recovery. No human
+approval, privileged execution, unit creation or Q13 acceptance occurred.
+All B1 gates OPEN. GE-04 SECURITY HOLD ACTIVE.

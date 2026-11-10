@@ -749,3 +749,13 @@ on an existing/failed marker. It does not send StartTransientUnit or record
 a genuine outgoing cookie; root controller exits 77. No privileged tests,
 unit launch or ACK. See
 `docs/security/ge04-protected-root-controller-phase3b4b.md`.
+
+### Phase 3B4C — independent protected-dispatch security review packet
+
+Added `docs/security/ge04-protected-root-controller-phase3b4c-review.md`
+with F1–F7 blockers, authoritative B1-A–H evidence mapping, an explicitly
+unauthorized disposable-VM adversarial test plan, and human signoff gates.
+Added unprivileged native hold regression tripwires in
+`tests/agents/test_ge04_protected_dispatch_hold.py`. No operational sender,
+privileged controller, ACK or release clearance is introduced. No human
+independent review is completed. The security hold remains active.
