@@ -13,7 +13,7 @@ privileged commands, register workers, remove quarantine or deploy anything.
   unavailable by default, not a native production implementation.
 - `native/ge04/cgroup-runtime-view-qualification.c` is a fixed, closed,
   synthetic qualification helper, **not** production source or a service.
-- The local read-only runtime-view Python suite has **29/29 passing tests**
+- The local read-only runtime-view Python suite has **32/32 passing tests**
   for stage validation, bounded diagnostics, pidfd/procfs sampling, namespace
   links, supplied unit/mount/keeper/cgroup records, bounded dirfd cgroup
   observations, exact six-phase cgroup membership grammar, and terminal/crash
@@ -81,3 +81,25 @@ result, an OCI digest, a successful build or GitHub CI.
    security acceptance before calling R1-B1 complete.
 
 **Final decision at this checkpoint:** R1-B1 OPEN, GE-04 SECURITY HOLD ACTIVE.
+
+## Read-only phase/terminal correlation checkpoint (2026-11-09)
+
+The local contract now independently **reads** three held directory-file
+snapshots for the six preterminal phase schemas and refuses changing ancestry,
+missing/extra cgroup members, wrong populated/controller values and unstopped
+root-child process observations. Tests use synthetic directory files and
+mocked stopped-child generation; they do not qualify a real delegated unit.
+`EMPTY` samples three empty membership/event states twice; `DENIED` stays
+quarantined. Both are **diagnostics only** and cannot prove exclusive cleanup,
+original prebirth intent, witness custody, removed descendants or permission
+for retry. No ACK writer or root controller is enabled.
+
+Engineering checks: runtime-view Python **32/32 PASS**, OCI-image **18/18
+PASS**, three focused supervisor Vitest files **36/36 PASS**, TypeScript and
+DOX **PASS**. A separate read-only Codex review of the uncommitted slice found
+no actionable regressions in the added changes but reproduced a pre-existing,
+environment-dependent live self-cgroup fixture rejection on the baseline
+(`parse_cgroup_procs: Invalid member`). This is a *test-stability review item*,
+not an approved security exception. Reviewer was a model, not an independent
+human security authority. Original bootstrap provenance, privileged controlled
+phase ACK, crash/cleanup qualification and Gate H remain OPEN.

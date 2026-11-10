@@ -321,3 +321,23 @@ The current-user cgroup source/expected inode identities remain unprotected;
 this is not the qualification worker or independently owned unit. Local
 runtime-view suite **29/29 PASS**. The C fixture was not modified; root entry
 continues unconditional refusal; production hold remains active.
+
+### Six-phase cgroup file correlation + terminal HOLD (2026-11-09)
+
+Added `observe_cgroup_phase_read_only`: reads and double-checks supplied
+root/unit/outer + launcher/payload directory identities and direct cgroup
+control-file bytes for INTENT through READY, verifies exact memberships,
+subtree populated/controllers, and root stopped child generations (mocked in
+local tests). Added `observe_terminal_cgroup_read_only`: EMPTY requires two
+stable empty-state snapshots; DENIED **always** quarantines pending independent
+recovery. Neither helper writes an ACK, launches or kills a worker, authenticates
+the original bootstrap or qualifies real child isolation; diagnostic return
+values contain UNQUALIFIED or QUARANTINE.
+
+Local runtime-view suite **32/32 PASS**; focused supervisor tests **36/36
+PASS**, OCI-image **18/18 PASS**, TypeScript and DOX PASS. Separate read-only
+Codex engineering review reported no actionable regression in this diff; it
+also reproduced an intermittent baseline live self-cgroup `Invalid member`
+fixture rejection, which remains documented as a test-stability issue.
+Independent human native/root review, protected controller/source ownership,
+disposable-VM qualification and production release remain blocked.

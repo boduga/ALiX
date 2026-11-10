@@ -13,9 +13,10 @@ production worker.
 ## Ownership and scope
 
 - `native/ge04/cgroup-runtime-view-qualification.c` is the closed
-  root-only trusted native helper for two child namespace transitions and
-  exact exclusive-cgroup cleanup. It is uncommitted and still requires
-  independent final source/root-scope review.
+  root-only qualification-only native helper for two child namespace
+  transitions and exact exclusive-cgroup cleanup. It is committed on the
+  draft feature branch and still requires independent final source/root-scope
+  review; no production caller is enabled.
 - `tests/agents/test_ge04_runtime_view.py` presently implements only
   local admission-contract helpers, canonical diagnostic decoding, binary
   deadline-bounded reading, phase order and stable diagnostic generation,
@@ -27,8 +28,9 @@ production worker.
   supplied-data parsers now cover cgroup.events populated/frozen counters,
   cgroup.subtree_control membership and exact numeric FD inventories. These
   are complemented by a supplied-data exact cgroup membership/populated/
-  controller-state matrix for INTENT through READY; EMPTY, DENIED and recovery
-  are intentionally not verified by this helper. None establish protected
+  controller-state matrix for INTENT through READY; EMPTY is checked only
+  through read-only empty-state sampling and DENIED is quarantine-only.
+  Actual crash recovery remains unqualified. None establish protected
   unit/cgroup custody, actual private mount-root identity, live FD target
   identities, independent kernel phase verification or ACK authority.
   A bounded cgroup v2 mountinfo parser now rejects absent, ambiguous and
@@ -101,7 +103,7 @@ From the existing worktree, without root:
 python3 -B -m unittest discover -s tests/agents -p test_ge04_runtime_view.py -v
 ```
 
-Latest local result: 29 tests passed, zero failures (including unprivileged
+Latest local result: 32 tests passed, zero failures (including unprivileged
 pidfd/namespace snapshots, supplied cgroup/FD parsing and exact six-phase
 cgroup membership matrix, synthetic directory-bound/mountinfo checks and
 read-only root-to-leaf cgroup ancestry substitution negatives, and all eight
@@ -128,3 +130,25 @@ procfs sampling of the unprivileged test process, not namespace-view, root,
 VM or end-to-end kernel qualification.
 Independent source, evidence and stage/root-scope reviews remain pending.
 No release gate is cleared, and R1-B1/B2/C–F remain open.
+
+## Read-only phase/terminal correlation (additional local contract)
+
+`observe_cgroup_phase_read_only` now samples three independently named
+outer/launcher/payload directory trees through held read-only descriptors,
+compares root/parent/outer and both inner directory (dev,ino) bindings, checks
+exact kernel-style membership/event/controller bytes for INTENT through READY,
+checks stopped root-owned child generation through the read-only pidfd
+observation, and repeats the directory/file snapshot to reject changed state.
+This covers six phase grammars with real openat-style fixture reads, **not** a
+trusted systemd unit or real stopped child test (the latter is mocked in tests).
+No ACK is sent, no process is signalled, and success returns only
+`UNQUALIFIED_PHASE_OBSERVATION`.
+
+`observe_terminal_cgroup_read_only` samples empty `cgroup.procs` and
+`cgroup.events populated 0` for all three groups twice, rejecting mismatched
+original records and nonempty states. It can report only
+`UNQUALIFIED_EMPTY_OBSERVATION`: it has no journal/cleanup authority and does
+not prove that removed or previously unknown descendants cannot survive.
+`DENIED` always reports `QUARANTINE_PENDING_INDEPENDENT_RECOVERY`, never an
+empty/recovered claim. No live recovery, protected mount identity, unit keeper
+custody, FD-target proof or privileged controller has been implemented.

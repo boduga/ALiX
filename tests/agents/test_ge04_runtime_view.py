@@ -383,6 +383,106 @@ def verify_phase_cgroup_snapshot(phase, pair_a, pair_b, outer_raw,
     return True
 
 
+def observe_cgroup_phase_read_only(phase, pair_a, pair_b, original,
+                                  observed, root_path, components, inner_ids):
+    """Correlate exact cgroup2 phase bytes and process generations, no ACK.
+
+    The caller MUST source original independently from a protected bootstrap.
+    This implementation cannot authenticate it, pin a mount namespace, or
+    authorize a worker. Success is UNQUALIFIED_PHASE_OBSERVATION only.
+    """
+    if (type(components) is not tuple or len(components) != 2
+            or type(inner_ids) is not tuple or len(inner_ids) != 2):
+        raise ValueError("Invalid phase ownership contract")
+    if original is observed:
+        raise ValueError("Original binding cannot self-attest")
+    validate_external_cgroup_binding(original, observed)
+    baseline = original.copy()
+    observer_baseline = observed.copy()
+    def take_snapshot():
+        observe_bound_cgroup_ancestry(root_path, components, original["ancestry"])
+        outer = Path(root_path).joinpath(*components)
+        inner = []
+        for name, expected_id in zip(("launcher", "payload"), inner_ids):
+            if (type(expected_id) is not tuple or len(expected_id) != 2
+                    or any(type(i) is not int or i <= 0 for i in expected_id)):
+                raise ValueError("Invalid inner directory identity")
+            path = outer / name
+            meta = path.lstat()
+            if (not stat.S_ISDIR(meta.st_mode)
+                    or (meta.st_dev, meta.st_ino) != expected_id):
+                raise ValueError("Subgroup replaced")
+            inner.append(read_bound_cgroup_snapshot(path, expected_id))
+        outer_data = read_bound_cgroup_snapshot(outer, original["ancestry"][-1])
+        observe_bound_cgroup_ancestry(root_path, components, original["ancestry"])
+        return (outer_data, *inner)
+    first = take_snapshot()
+    outer, launcher, payload = first
+    verify_phase_cgroup_snapshot(
+        phase, pair_a, pair_b,
+        outer["cgroup.procs"], launcher["cgroup.procs"], payload["cgroup.procs"],
+        outer["cgroup.events"], launcher["cgroup.events"], payload["cgroup.events"],
+        outer["cgroup.subtree_control"],
+    )
+    active = (pair_a,) if phase in ("PRE_NAMESPACE", "PINNED", "ENABLED") else (
+        (pair_a, pair_b) if phase in ("PRE_JOIN", "READY") else ())
+    processes = []
+    for pair in active:
+        result = observe_live_generation(pair, expected_uid=0, expected_gid=0)
+        if result["state"] != "T":
+            raise ValueError("Phase child not stopped")
+        processes.append(result)
+    second = take_snapshot()
+    if (first != second or original != baseline or observed != observer_baseline
+            or baseline != observer_baseline):
+        raise ValueError("Inconsistent phase or ownership observation")
+    return {"status": "UNQUALIFIED_PHASE_OBSERVATION", "phase": phase,
+            "generations": tuple((p["pid"], p["startticks"]) for p in processes)}
+
+
+def observe_terminal_cgroup_read_only(phase, original, observed, root_path,
+                                     components, inner_ids):
+    """Read-only EMPTY diagnostic or fail-closed DENIED quarantine marker.
+
+    Neither value authorizes cleanup, recovery, worker dispatch or releasing
+    quarantine: no protected original journal, cgroup.kill proof or witness.
+    """
+    if phase == "DENIED":
+        return "QUARANTINE_PENDING_INDEPENDENT_RECOVERY"
+    if phase != "EMPTY":
+        raise ValueError("Invalid terminal phase")
+    if (original is observed or type(components) is not tuple
+            or len(components) != 2 or type(inner_ids) is not tuple
+            or len(inner_ids) != 2):
+        raise ValueError("Missing independent cleanup binding")
+    validate_external_cgroup_binding(original, observed)
+    baseline = original.copy()
+    counterpart = observed.copy()
+    def snapshot():
+        observe_bound_cgroup_ancestry(root_path, components, baseline["ancestry"])
+        outer = Path(root_path).joinpath(*components)
+        result = []
+        for name, identity in (("outer", baseline["ancestry"][-1]),
+                               ("launcher", inner_ids[0]), ("payload", inner_ids[1])):
+            path = outer if name == "outer" else outer / name
+            if (type(identity) is not tuple or len(identity) != 2
+                    or any(type(part) is not int or part <= 0 for part in identity)):
+                raise ValueError("Invalid terminal identity")
+            result.append(read_bound_cgroup_snapshot(path, identity))
+        observe_bound_cgroup_ancestry(root_path, components, baseline["ancestry"])
+        return result
+    first = snapshot()
+    for data in first:
+        if (parse_cgroup_procs(data["cgroup.procs"])
+                or parse_cgroup_events(data["cgroup.events"])["populated"] != 0):
+            raise ValueError("Terminal cgroup not empty")
+    second = snapshot()
+    if (first != second or original != baseline or observed != counterpart
+            or baseline != counterpart):
+        raise ValueError("Cleanup observation changed")
+    return "UNQUALIFIED_EMPTY_OBSERVATION"
+
+
 def parse_cgroup2_mountinfo(raw, expected_mountpoint=b"/sys/fs/cgroup"):
     """Parse exactly one root-mounted cgroup2 entry from supplied mountinfo.
 
@@ -1217,6 +1317,148 @@ class LocalContractTests(unittest.TestCase):
             with self.subTest(phase=phase), self.assertRaises(ValueError):
                 verify_phase_cgroup_snapshot(*case)
 
+    def test_read_only_phase_kernel_files_six_phase_matrix(self):
+        with tempfile.TemporaryDirectory(prefix="ge04-phase-view-") as temp:
+            root = Path(temp) / "root"
+            outer = root / "unit" / "outer"
+            launcher, payload = outer / "launcher", outer / "payload"
+            launcher.mkdir(parents=True)
+            payload.mkdir()
+            chain = tuple((p.stat().st_dev, p.stat().st_ino)
+                          for p in (root, outer.parent, outer))
+            inner = tuple((p.stat().st_dev, p.stat().st_ino)
+                          for p in (launcher, payload))
+            binding = {
+                "invocation": "a" * 32,
+                "unit": "ge04-r1b2-view-qualification.service",
+                "mountId": 42, "mountDevice": "0:27", "mountRoot": "/",
+                "keeperPid": 101, "keeperTicks": 900,
+                "ancestry": chain,
+            }
+            def stopped(pair, expected_uid=None, expected_gid=None):
+                if expected_uid != 0 or expected_gid != 0:
+                    raise ValueError("Unexpected privilege expectations")
+                return {"state": "T", "pid": pair[0], "startticks": pair[1]}
+            def write_phase(phase):
+                p = self._phase_snapshot(phase)
+                _, a, b, out, launch, pay, events, lev, pev, controls = p
+                for path, procs, counter, subtree in (
+                    (outer, out, events, controls),
+                    (launcher, launch, lev, b"\n"),
+                    (payload, pay, pev, b"\n"),
+                ):
+                    (path / "cgroup.procs").write_bytes(procs)
+                    (path / "cgroup.events").write_bytes(counter)
+                    (path / "cgroup.subtree_control").write_bytes(subtree)
+                return a, b
+            with mock.patch.object(sys.modules[__name__], "observe_live_generation",
+                                   side_effect=stopped):
+                for phase in ("INTENT", "PRE_NAMESPACE", "PINNED", "ENABLED",
+                              "PRE_JOIN", "READY"):
+                    with self.subTest(phase=phase):
+                        a, b = write_phase(phase)
+                        result = observe_cgroup_phase_read_only(
+                            phase, a, b, binding, binding.copy(), root,
+                            ("unit", "outer"), inner)
+                        self.assertEqual(result["status"], "UNQUALIFIED_PHASE_OBSERVATION")
+                        self.assertEqual(result["phase"], phase)
+                        with self.assertRaises(ValueError):
+                            observe_cgroup_phase_read_only(
+                                phase, a, b, binding, binding, root,
+                                ("unit", "outer"), inner)
+                        changed = {**binding, "keeperTicks": 901}
+                        with self.assertRaises(ValueError):
+                            observe_cgroup_phase_read_only(
+                                phase, a, b, binding, changed, root,
+                                ("unit", "outer"), inner)
+                a, b = write_phase("READY")
+                (launcher / "cgroup.procs").write_bytes(b"17\n23\n99\n")
+                with self.assertRaises(ValueError):
+                    observe_cgroup_phase_read_only(
+                        "READY", a, b, binding, binding.copy(), root,
+                        ("unit", "outer"), inner)
+                a, b = write_phase("PINNED")
+                with mock.patch.object(sys.modules[__name__],
+                                       "observe_live_generation",
+                                       return_value={"state": "S", "pid": 17,
+                                                     "startticks": 1234}):
+                    with self.assertRaisesRegex(ValueError, "not stopped"):
+                        observe_cgroup_phase_read_only(
+                            "PINNED", a, b, binding, binding.copy(), root,
+                            ("unit", "outer"), inner)
+
+    def test_phase_custody_rejects_substituted_inner_directory(self):
+        with tempfile.TemporaryDirectory(prefix="ge04-phase-replace-") as temp:
+            root = Path(temp) / "root"
+            outer = root / "unit" / "outer"
+            (outer / "launcher").mkdir(parents=True)
+            (outer / "payload").mkdir()
+            chain = tuple((p.stat().st_dev, p.stat().st_ino)
+                          for p in (root, outer.parent, outer))
+            ids = tuple((p.stat().st_dev, p.stat().st_ino)
+                        for p in (outer / "launcher", outer / "payload"))
+            binding = {"invocation": "a" * 32,
+                       "unit": "ge04-r1b2-view-qualification.service",
+                       "mountId": 42, "mountDevice": "0:27", "mountRoot": "/",
+                       "keeperPid": 101, "keeperTicks": 900, "ancestry": chain}
+            launcher = outer / "launcher"
+            launcher.rename(outer / "moved")
+            launcher.symlink_to(outer / "moved", target_is_directory=True)
+            with self.assertRaises(ValueError):
+                observe_cgroup_phase_read_only(
+                    "INTENT", (0, 0), (0, 0), binding, binding.copy(), root,
+                    ("unit", "outer"), ids)
+
+    def test_terminal_empty_observation_never_releases_quarantine(self):
+        with tempfile.TemporaryDirectory(prefix="ge04-terminal-view-") as temp:
+            root = Path(temp) / "root"
+            outer = root / "unit" / "outer"
+            launcher, payload = outer / "launcher", outer / "payload"
+            launcher.mkdir(parents=True)
+            payload.mkdir()
+            chain = tuple((p.stat().st_dev, p.stat().st_ino)
+                          for p in (root, outer.parent, outer))
+            inner = tuple((p.stat().st_dev, p.stat().st_ino)
+                          for p in (launcher, payload))
+            binding = {"invocation": "a" * 32,
+                       "unit": "ge04-r1b2-view-qualification.service",
+                       "mountId": 42, "mountDevice": "0:27", "mountRoot": "/",
+                       "keeperPid": 101, "keeperTicks": 900, "ancestry": chain}
+            for directory in (outer, launcher, payload):
+                (directory / "cgroup.procs").write_bytes(b"")
+                (directory / "cgroup.events").write_bytes(b"populated 0\n")
+                (directory / "cgroup.subtree_control").write_bytes(b"\n")
+            self.assertEqual(observe_terminal_cgroup_read_only(
+                "EMPTY", binding, binding.copy(), root,
+                ("unit", "outer"), inner), "UNQUALIFIED_EMPTY_OBSERVATION")
+            self.assertEqual(observe_terminal_cgroup_read_only(
+                "DENIED", binding, binding.copy(), root, ("unit", "outer"), inner),
+                "QUARANTINE_PENDING_INDEPENDENT_RECOVERY")
+            for directory in (outer, launcher, payload):
+                with self.subTest(directory=directory):
+                    (directory / "cgroup.events").write_bytes(b"populated 1\n")
+                    with self.assertRaises(ValueError):
+                        observe_terminal_cgroup_read_only(
+                            "EMPTY", binding, binding.copy(), root,
+                            ("unit", "outer"), inner)
+                    (directory / "cgroup.events").write_bytes(b"populated 0\n")
+                    (directory / "cgroup.procs").write_bytes(b"17\n")
+                    with self.assertRaises(ValueError):
+                        observe_terminal_cgroup_read_only(
+                            "EMPTY", binding, binding.copy(), root,
+                            ("unit", "outer"), inner)
+                    (directory / "cgroup.procs").write_bytes(b"")
+            with self.assertRaises(ValueError):
+                observe_terminal_cgroup_read_only(
+                    "EMPTY", binding, binding, root, ("unit", "outer"), inner)
+            with self.assertRaises(ValueError):
+                observe_terminal_cgroup_read_only(
+                    "EMPTY", binding, {**binding, "keeperTicks": 901},
+                    root, ("unit", "outer"), inner)
+            with self.assertRaises(ValueError):
+                observe_terminal_cgroup_read_only(
+                    "RECOVERED", binding, binding.copy(),
+                    root, ("unit", "outer"), inner)
     def test_cgroup2_mountinfo_root_scope(self):
         good = (b"29 22 0:27 / /sys/fs/cgroup rw,nosuid,nodev - "
                 b"cgroup2 cgroup rw\n")
