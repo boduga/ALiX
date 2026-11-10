@@ -24,6 +24,11 @@ control plane or treat a VM/remote host as already qualified.
   root-owned unique bus owner, exact object path and stable Unit/Service
   property snapshots. Does not create/adopt units or prove original birth;
   output UNQUALIFIED only. No production consumer.
+- `phase_controller.py`: read-only, non-authorizing six-phase diagnostic
+  ordering and manager/kernel corroboration prototype. The canonical original
+  is caller-supplied, callbacks are not trusted, and EMPTY/DENIED quarantine;
+  `issue_ack` unconditionally refuses. Never wire into privileged native IPC.
+  See `docs/security/ge04-readonly-phase-controller.md`.
 - `unit_kernel_observer.py`: non-authorizing read-only manager + kernel
   correlation of the fixed existing unit. It compares supplied original
   keeper/mount/cgroup identities against pidfd/procfs and directory-bound

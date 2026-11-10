@@ -464,3 +464,17 @@ payloads. This prevents accidental protocol confusion but does not prove
 ACK-sender identity: stdin owner can forge the entire public frame. There
 is still no protected root controller or independent kernel-phase authority.
 Default native root entry remains disabled; R1-B1 OPEN and GE-04 HOLD ACTIVE.
+
+### Read-only phase-controller state machine — no ACK authority
+
+Added `native/ge04/phase_controller.py`, a nonprivileged diagnostic-only
+controller-side six-phase sequence validator. It normalizes caller-supplied
+original binding through the canonical schema, parses native EV records,
+checks manager/kernel witness correlation for keeper identity, rejects
+misordered/replayed/expired/contradictory observations, and permanently
+quarantines on failure. Both EMPTY and DENIED remain quarantined, and
+`issue_ack` always raises permission refusal. The default witness uses
+existing read-only systemd/pidfd/cgroup observation; the synthetic tests
+supply a fixture. The binding issuer is not authenticated, the observer has
+no hard callback timeout and this component has no IPC writer. No privileged
+execution, worker admission or phase ACK is possible. GE-04 HOLD ACTIVE.

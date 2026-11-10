@@ -238,3 +238,17 @@ all public fields. There remains no protected phase observer, original birth
 receipt, unit-owner exclusivity, or root admission authority. The C source
 hash changes and must undergo independent review again. B1-E OPEN,
 SECURITY HOLD ACTIVE. See `ge04-native-phase-ack-contract.md`.
+
+## Read-only controller-side phase state (unqualified)
+
+`native/ge04/phase_controller.py` adds a closed six-phase ordering and
+read-only manager/kernel-correlation prototype. It canonicalizes a *supplied*
+original binding, refuses malformed/reordered/stale diagnostics, checks
+original keeper against the read-only witness, and poisons on missing or
+expired evidence. DENIED and EMPTY both remain quarantined; no cleanup or
+recovery is presumed. Its `issue_ack()` unconditionally raises and the
+module has no socket/FD writer, root caller or worker admission. Six synthetic
+controller tests pass. Neither the supplied original nor observer callback
+has externally protected provenance; callback execution lacks a hard timeout.
+This is **not** B1-E ACK authorization, root-controller integration or source
+security approval. GE-04 SECURITY HOLD ACTIVE.
