@@ -564,3 +564,14 @@ recovery implementation exists; all authority methods refuse. The
 independent source/privilege review and approved disposable VM remain
 blocking, and SECURITY HOLD remains active. See
 `docs/security/ge04-exclusive-birth-handoff.md`.
+
+### One-use systemd JobRemoved event shape (diagnostic only)
+
+Added `systemd_job_event_contract.py` to reject caller-supplied job event
+mismatches and replays, checking fixed unit, manager unique sender, exact
+job path/numeric ID, and `done`. The result remains UNQUALIFIED: no real
+D-Bus subscription, authenticated manager event, root issuer, unit birth,
+ACK, recovery or production consumer exists. A protected controller must
+subscribe before the creation request and keep the original job receipt,
+fail closed on lost signals/restarts, and separately validate kernel birth.
+R1-B1 OPEN, GE-04 SECURITY HOLD ACTIVE.

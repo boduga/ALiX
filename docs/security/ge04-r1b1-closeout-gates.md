@@ -348,3 +348,15 @@ obtained from an authenticated systemd transaction**; this code does not
 perform exclusive creation or prove origin. It is a review contract only.
 See `ge04-exclusive-birth-handoff.md`. B1-B/E/H and Q13 remain OPEN;
 GE-04 SECURITY HOLD ACTIVE.
+
+## JobRemoved event correlation — unqualified pure input contract
+
+`native/ge04/systemd_job_event_contract.py` validates a single expected
+systemd JobRemoved event shape against pinned expected manager unique name,
+job ID/object path, fixed unit and `done` result. Any mismatch, replay,
+duplicate, unexpected failure or absent claim quarantines. It does not
+subscribe to the system bus or authenticate the event sender, origin,
+creation request or job completion: test event dictionaries remain forgeable.
+Real protected subscription must precede StartTransientUnit; crash/missed
+signal must quarantine, and authentic manager/kernel/cgroup birth remains
+separately required. B1-B/E/H and Q13 remain OPEN. GE-04 SECURITY HOLD ACTIVE.

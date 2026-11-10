@@ -20,6 +20,11 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `systemd_job_event_contract.py`: pure one-use JobRemoved shape check for
+  exact job ID/path, expected manager unique sender, fixed unit, and done
+  outcome; all caller-supplied events remain forgeable and UNQUALIFIED.
+  No actual bus subscription, unit creation, or phase authority. See
+  `docs/security/ge04-systemd-job-event-correlation.md`.
 - `exclusive_birth_handoff.py`: pure non-authorizing PREBIRTH_OBSERVED →
   CREATION_CLAIMED → JOB_COMPLETION_CLAIMED → BIRTH_CORRELATED contract. A fixed `fail`-mode
   StartTransientUnit job path is caller-supplied, not authenticated and
