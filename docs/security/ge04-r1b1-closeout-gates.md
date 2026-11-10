@@ -511,3 +511,15 @@ mount/ancestry custody; no source currently provides trusted creation
 or a positive root launch. Unprivileged tests cover parsing and denial;
 no root execution, systemd mutation, ACK or protected release. See
 `ge04-protected-root-controller-phase4a1.md`. All gates OPEN; HOLD ACTIVE.
+
+## Phase 4A2 native cgroup2 descriptor retention (unqualified candidate)
+
+`protected-cgroup-custody.[ch]` now pins the fixed current cgroup2 root,
+`system.slice` and service leaf through root-gated no-follow native dirfds,
+validates original keeper pidfd/startticks, checks consistent root-owned
+cgroup2 superblock, same statx mount ID/device, inode/name ancestry and
+fixed root remount replacement. It does not prove birth-time original
+FD provenance, keeper mount namespace, root-controlled mount source or
+new-unit creation. All checks remain UNQUALIFIED. Native tests are
+unprivileged/read-only; root entrypoint exits 77, no unit mutation or ACK.
+See `ge04-protected-root-controller-phase4a2.md`. SECURITY HOLD ACTIVE.

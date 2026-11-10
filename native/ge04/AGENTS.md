@@ -20,6 +20,13 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
+- `protected-cgroup-custody.[ch]`: Phase 4A2 native root-only source
+  for retaining three no-follow cgroup2 directory descriptors, comparing
+  stable inode/device/statx mount IDs and original keeper generation.
+  Always UNQUALIFIED: post-observed directories do not prove birth-time
+  mount namespace, original cgroup provenance, or worker authority.
+  No enabled root entrypoint or ACK. See
+  `docs/security/ge04-protected-root-controller-phase4a2.md`.
 - `protected-keeper-custody.[ch]`: Phase 4A1 production-intended C
   source for retaining a pidfd, bounded procfs keeper startticks and exact
   fixed-unit cgroup, bracketed by original transaction rechecks. Always

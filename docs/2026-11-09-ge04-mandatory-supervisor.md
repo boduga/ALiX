@@ -708,3 +708,13 @@ UNQUALIFIED observation, not original birth custody. Unprivileged C tests
 cover procfs parsing and root-only refusal. No activated controller,
 unit creation, cgroup manipulation, ACK or security hold clearance. See
 `docs/security/ge04-protected-root-controller-phase4a1.md`.
+
+### Phase 4A2 — native cgroup2 mount and ancestry directory FDs
+
+Added production-intended `protected-cgroup-custody.[ch]`, retaining
+root/slice/leaf cgroup2 directory FDs, strict fstatfs and statx mount
+identity, nofollow name ancestry and fixed-root rechecks, bracketed by
+keeper generation verification. This remains post-observation, not proven
+original birth-time custody. Tests run unprivileged/read-only; no root
+controller activation, cgroup mutation or phase ACK. See
+`docs/security/ge04-protected-root-controller-phase4a2.md`.
