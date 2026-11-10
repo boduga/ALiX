@@ -302,3 +302,22 @@ pass**. The expected bootstrap/systemd identity is NOT authenticated and the
 cgroup file fixture is not a real delegated subtree. The production backend,
 privileged controller and independent security gates remain incomplete;
 GE-04 SECURITY HOLD ACTIVE.
+
+### Independently supplied view records and real self-cgroup read-only observation
+
+Reworked the composite diagnostic to **reject one record compared with itself**.
+It now requires separate expected/observed binding dictionaries, fails on any
+mismatch or mutation during the observation, and rejects independently sampled
+namespace changes. These are agreement checks, **not** authentication of the
+external bootstrap source.
+
+Added `parse_self_cgroup_v2` with traversal/ambiguity refusals and a separate
+`observe_unprivileged_self_cgroup` that reads the **real current Linux cgroup v2
+subtree** without modification. It ties procfs-reported self scope and pidfd
+process generation to cgroup2 mount major/minor device, held directory
+ancestry, cgroup.procs membership and cgroup.events populated state, with
+post-read scope/generation checks. It returns only `UNQUALIFIED_LIVE_KERNEL_VIEW`.
+The current-user cgroup source/expected inode identities remain unprotected;
+this is not the qualification worker or independently owned unit. Local
+runtime-view suite **29/29 PASS**. The C fixture was not modified; root entry
+continues unconditional refusal; production hold remains active.

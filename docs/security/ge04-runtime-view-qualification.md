@@ -101,7 +101,7 @@ From the existing worktree, without root:
 python3 -B -m unittest discover -s tests/agents -p test_ge04_runtime_view.py -v
 ```
 
-Latest local result: 27 tests passed, zero failures (including unprivileged
+Latest local result: 29 tests passed, zero failures (including unprivileged
 pidfd/namespace snapshots, supplied cgroup/FD parsing and exact six-phase
 cgroup membership matrix, synthetic directory-bound/mountinfo checks and
 read-only root-to-leaf cgroup ancestry substitution negatives, and all eight
@@ -109,6 +109,18 @@ closed fixture-mode terminal/crash transcript cases, plus one composite
 read-only live self-process/mount namespace check against synthetic cgroup
 files). The composite result is UNQUALIFIED_OBSERVATION only; expected
 systemd unit and directory identity are not independently authenticated.
+The composite observer requires **two distinct supplied records**, rejecting
+self-comparison and mismatched expected/observed fields before inspection.
+It also checks that neither record changed during inspection and rejects
+namespace changes sampled across the read. Separate Python object identities
+are not independent provenance; no observer-root or ACK authority is gained.
+Added a separate `observe_unprivileged_self_cgroup` diagnostic which reads
+**actual** Linux cgroup v2 files under the process's `/proc/self/cgroup` scope,
+checks the cgroup2 mount's major/minor device, verifies held root-to-leaf
+inodes and the calling PID in `cgroup.procs`, and resamples process/scope
+identities. It neither creates a protected expected binding nor observes the
+qualification worker; it returns `UNQUALIFIED_LIVE_KERNEL_VIEW` only.
+Canonical scope-path refusal cases accompany this local read-only test.
 The C source also compiled
 with `cc -std=c11 -O2 -Wall -Wextra -Werror -fanalyzer`.
 These observations concern local grammar/refusal plus read-only pidfd and

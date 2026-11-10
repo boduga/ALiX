@@ -17,6 +17,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 CODE = Path("/run/ge04-view-code")
@@ -558,14 +559,20 @@ def validate_external_cgroup_binding(binding, observed):
     return True
 
 
-def observe_read_only_bound_view(binding, root_path, components):
+def observe_read_only_bound_view(binding, observed_binding, root_path, components):
     """Compare real local /proc and supplied directory bindings, no authority.
 
     This function is deliberately NOT a privileged phase observer: the caller
     may forge the binding and the checked directories can be ordinary files.
     It never creates a trusted bootstrap record, sends ACK or permits root.
     """
-    validate_external_cgroup_binding(binding, binding)
+    # Distinct caller-supplied expected and observed records are mandatory.
+    # This checks agreement, NOT the independently trusted origin of either.
+    if observed_binding is binding:
+        raise ValueError("Observer cannot self-validate original binding")
+    validate_external_cgroup_binding(binding, observed_binding)
+    expected_original = binding.copy()
+    expected_observed = observed_binding.copy()
     if type(components) is not tuple or len(components) != 2:
         raise ValueError("Expected exact root/outer/leaf chain")
     if not hasattr(os, "pidfd_open") or sys.platform != "linux":
@@ -597,6 +604,9 @@ def observe_read_only_bound_view(binding, root_path, components):
     if (local_mount() != mount or observe_namespace_links(generation) != ns_before
             or observe_live_generation(generation) != first):
         raise ValueError("Kernel identity changed across observation")
+    if (binding != expected_original or observed_binding != expected_observed):
+        raise ValueError("Original or observed binding mutated during observation")
+    validate_external_cgroup_binding(expected_original, expected_observed)
     return {
         "status": "UNQUALIFIED_OBSERVATION",
         "mount": mount,
@@ -604,6 +614,80 @@ def observe_read_only_bound_view(binding, root_path, components):
         "namespace": ns_before,
         "cgroupFiles": files,
     }
+
+
+def parse_self_cgroup_v2(raw):
+    """Single canonical unified cgroup membership path, never an authority."""
+    if (type(raw) is not bytes or not 0 < len(raw) <= 4096
+            or not raw.endswith(b"\n") or raw.count(b"\n") != 1
+            or not raw.startswith(b"0::/")):
+        raise ValueError("Invalid unified cgroup membership")
+    path = raw[3:-1]
+    if not path or len(path) > 2048 or b"\\" in path or bytes((0,)) in path:
+        raise ValueError("Unsupported cgroup scope path")
+    parts = path.split(b"/")[1:]
+    if (not 1 <= len(parts) <= 8 or any(
+            re.fullmatch(rb"[A-Za-z0-9_.-]{1,128}", item) is None
+            or item in (b".", b"..") for item in parts)):
+        raise ValueError("Invalid cgroup scope component")
+    return tuple(item.decode("ascii") for item in parts)
+
+
+def observe_unprivileged_self_cgroup():
+    """Read actual Linux cgroup v2/procfs without changing any kernel state.
+
+    Membership/expected inode values come from the same unprivileged host:
+    this is diagnostic evidence, NEVER externally protected unit ownership,
+    root/VM qualification, admission or an ACK decision.
+    """
+    if sys.platform != "linux" or not hasattr(os, "pidfd_open"):
+        raise RuntimeError("Linux pidfd and cgroup v2 required")
+    pid = os.getpid()
+    _, ticks = parse_proc_stat(_read_proc_file(pid, "stat"), pid)
+    pair = (pid, ticks)
+    process_before = observe_live_generation(pair, os.getuid(), os.getgid())
+    def read_fixed(filename, cap):
+        fd = os.open(filename, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise ValueError("Unexpected kernel evidence type")
+            data = bytearray()
+            while len(data) <= cap:
+                chunk = os.read(fd, min(4096, cap + 1 - len(data)))
+                if not chunk:
+                    break
+                data.extend(chunk)
+            if len(data) > cap:
+                raise ValueError("Oversized kernel evidence")
+            return bytes(data)
+        finally:
+            os.close(fd)
+    scope_before = read_fixed("/proc/self/cgroup", 4096)
+    parts = parse_self_cgroup_v2(scope_before)
+    mount = parse_cgroup2_mountinfo(read_fixed("/proc/self/mountinfo", 1024 * 1024))
+    root = Path("/sys/fs/cgroup")
+    root_meta = root.lstat()
+    if (not stat.S_ISDIR(root_meta.st_mode)
+            or "%d:%d" % (os.major(root_meta.st_dev), os.minor(root_meta.st_dev))
+            != mount[1]):
+        raise ValueError("Unified cgroup mount/device changed")
+    chain = tuple((node.lstat().st_dev, node.lstat().st_ino)
+                  for node in (root, *(root.joinpath(*parts[:n])
+                                      for n in range(1, len(parts) + 1))))
+    observe_bound_cgroup_ancestry(root, parts, chain)
+    files = read_bound_cgroup_snapshot(root.joinpath(*parts), chain[-1])
+    if (pid not in parse_cgroup_procs(files["cgroup.procs"])
+            or parse_cgroup_events(files["cgroup.events"])["populated"] != 1):
+        raise ValueError("Self process absent from observed cgroup")
+    if (read_fixed("/proc/self/cgroup", 4096) != scope_before
+            or parse_cgroup2_mountinfo(
+                read_fixed("/proc/self/mountinfo", 1024 * 1024)) != mount
+            or observe_live_generation(pair, os.getuid(), os.getgid()) != process_before):
+        raise ValueError("Kernel self-cgroup generation changed")
+    observe_bound_cgroup_ancestry(root, parts, chain)
+    return {"status": "UNQUALIFIED_LIVE_KERNEL_VIEW",
+            "pid": pid, "scope": "/" + "/".join(parts),
+            "mount": mount, "chain": chain}
 
 
 def _read_proc_file(pid, name, cap=16384):
@@ -1350,7 +1434,7 @@ class LocalContractTests(unittest.TestCase):
                 "ancestry": tuple((p.stat().st_dev, p.stat().st_ino)
                                   for p in (root, outer, leaf)),
             }
-            result = observe_read_only_bound_view(binding, root, ("outer", "leaf"))
+            result = observe_read_only_bound_view(binding, binding.copy(), root, ("outer", "leaf"))
             self.assertEqual(result["status"], "UNQUALIFIED_OBSERVATION")
             self.assertEqual(result["mount"], mount)
             self.assertEqual(result["process"]["pid"], pid)
@@ -1365,10 +1449,68 @@ class LocalContractTests(unittest.TestCase):
             )
             for changed in mutations:
                 with self.subTest(changed=changed), self.assertRaises(ValueError):
-                    observe_read_only_bound_view(changed, root, ("outer", "leaf"))
+                    observe_read_only_bound_view(binding, changed, root, ("outer", "leaf"))
+            with self.assertRaises(ValueError):
+                observe_read_only_bound_view(binding, binding, root, ("outer", "leaf"))
+            original_ns = observe_namespace_links
+            calls = [0]
+            def switched_namespace(pair):
+                calls[0] += 1
+                found = original_ns(pair)
+                if calls[0] > 1:
+                    return {**found, "mnt": (found["mnt"][0], found["mnt"][1] + 1)}
+                return found
+            with mock.patch.object(sys.modules[__name__], "observe_namespace_links",
+                                   side_effect=switched_namespace):
+                with self.assertRaisesRegex(ValueError, "Kernel identity changed"):
+                    observe_read_only_bound_view(binding, binding.copy(), root,
+                                                 ("outer", "leaf"))
+            second = binding.copy()
+            original_read = read_bound_cgroup_snapshot
+            def changed_record(*args):
+                outcome = original_read(*args)
+                second["keeperTicks"] += 1
+                return outcome
+            with mock.patch.object(sys.modules[__name__], "read_bound_cgroup_snapshot",
+                                   side_effect=changed_record):
+                with self.assertRaisesRegex(ValueError, "binding mutated"):
+                    observe_read_only_bound_view(binding, second, root, ("outer", "leaf"))
+            second = binding.copy()
+            def changed_original(*args):
+                outcome = original_read(*args)
+                binding["invocation"] = "b" * 32
+                return outcome
+            with mock.patch.object(sys.modules[__name__], "read_bound_cgroup_snapshot",
+                                   side_effect=changed_original):
+                with self.assertRaisesRegex(ValueError, "binding mutated"):
+                    observe_read_only_bound_view(binding, second, root, ("outer", "leaf"))
+            binding["invocation"] = "a" * 32
             (leaf / "cgroup.events").write_bytes(b"populated 2\n")
             with self.assertRaises(ValueError):
-                observe_read_only_bound_view(binding, root, ("outer", "leaf"))
+                observe_read_only_bound_view(binding, binding.copy(), root, ("outer", "leaf"))
+
+    def test_unified_cgroup_path_grammar_refuses_traversal(self):
+        self.assertEqual(parse_self_cgroup_v2(
+            b"0::/user.slice/user-1000.slice/session-c1.scope\n"),
+            ("user.slice", "user-1000.slice", "session-c1.scope"))
+        for raw in (b"0::/\n", b"0::/../other\n", b"0::/a/./b\n",
+                    b"0::/a//b\n", b"0::/a/../b\n",
+                    b"0::/user.slice\n1::/extra\n", b"1::/user.slice\n",
+                    b"0::/a", b"0::/a\\\\b\n", b"0::/a b\n",
+                    b"0::/a" + bytes((0,)) + b"b\n"):
+            with self.subTest(raw=raw), self.assertRaises(ValueError):
+                parse_self_cgroup_v2(raw)
+
+    @unittest.skipUnless(sys.platform == "linux" and hasattr(os, "pidfd_open")
+                         and os.path.exists("/sys/fs/cgroup/cgroup.controllers"),
+                         "Live cgroup v2 read-only test only; skip is NOT qualification")
+    def test_real_unprivileged_kernel_cgroup_scope_read_only(self):
+        observed = observe_unprivileged_self_cgroup()
+        self.assertEqual(observed["status"], "UNQUALIFIED_LIVE_KERNEL_VIEW")
+        self.assertEqual(observed["pid"], os.getpid())
+        self.assertTrue(observed["scope"].startswith("/"))
+        self.assertEqual(len(observed["chain"]),
+                         len(observed["scope"].strip("/").split("/")) + 1)
 
     def test_live_entry_refuses(self):
         with self.assertRaises(RuntimeError):

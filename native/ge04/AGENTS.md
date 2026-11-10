@@ -31,8 +31,9 @@ control plane or treat a VM/remote host as already qualified.
   namespace-view/bootstrap fixture for two trusted children under the original
   exclusive outer cgroup. `tests/agents/test_ge04_runtime_view.py` currently
   covers local parsing, immutable-stage, real unprivileged read-only kernel
-  observations, synthetic binding checks and refusal contracts; its root
-  admission intentionally fails closed. No privileged run or worker acceptance
+  observations (including a genuine read-only self-cgroup v2 snapshot),
+  synthetic binding checks and refusal contracts; its root admission
+  intentionally fails closed. No privileged run or worker acceptance
   is authorized. See `docs/security/ge04-runtime-view-qualification.md`.
 - `tests/fixtures/ge04-native-stream-probe.c` and
   `tests/agents/test_ge04_native_stream.py`: secret-free transport harness and
