@@ -25,11 +25,15 @@ The original record is validated through the exact canonical sealed-binding
 schema; the code does not authenticate who supplied it. The observer callback
 can be replaced by a test caller; even the default real observer cannot
 independently prove original service creation, original unit absence, protected
-pre-birth record or mount/root custody. The prototype **cannot interrupt a
-blocked observer callback** and therefore must never be connected to a
-privileged helper. A supplied absolute monotonic deadline is checked before
-and after observation only. Evidence is an unqualified diagnostic, not a
-release witness. No source hashes, nonces or model results constitute
+pre-birth record or mount/root custody.
+
+The default read-only observer now runs as a separate isolated unprivileged
+process, with parent-enforced deadline, bounded stdout and kill/reap on
+failure. This still cannot authenticate source custody or authority. Caller-
+injected test callbacks remain in-process and **cannot be interrupted**;
+they must never be used to drive a privileged helper. See
+`ge04-bounded-isolated-phase-observer.md`. Evidence is an unqualified
+diagnostic, not a release witness. No source hashes, nonces or model results constitute
 security approval.
 
 `tests/agents/test_ge04_phase_controller.py` tests all six ordered phases,

@@ -24,6 +24,12 @@ control plane or treat a VM/remote host as already qualified.
   root-owned unique bus owner, exact object path and stable Unit/Service
   property snapshots. Does not create/adopt units or prove original birth;
   output UNQUALIFIED only. No production consumer.
+- `bounded_phase_observer.py` and `isolated_phase_observer_worker.py`:
+  separate unprivileged `python -I` read-only manager/kernel observation with
+  a bounded hard deadline, incrementally limited stdout, kill/reap on timeout,
+  and strict canonical witness refusal. Worktree source custody remains
+  untrusted; no production ACK, privileges or protected publisher.
+  See `docs/security/ge04-bounded-isolated-phase-observer.md`.
 - `phase_controller.py`: read-only, non-authorizing six-phase diagnostic
   ordering and manager/kernel corroboration prototype. The canonical original
   is caller-supplied, callbacks are not trusted, and EMPTY/DENIED quarantine;

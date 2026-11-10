@@ -478,3 +478,19 @@ existing read-only systemd/pidfd/cgroup observation; the synthetic tests
 supply a fixture. The binding issuer is not authenticated, the observer has
 no hard callback timeout and this component has no IPC writer. No privileged
 execution, worker admission or phase ACK is possible. GE-04 HOLD ACTIVE.
+
+### Isolated bounded read-only phase observation — no ACK authority
+
+The default `ReadOnlyPhaseController` manager/kernel observer now executes
+inside a fresh unprivileged `python -I` subprocess, with a parent-enforced
+absolute deadline, bounded canonical stdin and incrementally capped stdout.
+A stuck child is killed and reaped; invalid, missing, oversized or late
+response poisons the controller attempt. The code still refuses every ACK,
+creates no systemd unit and never invokes the privileged C entry. Existing
+read-only D-Bus/procfs/pidfd/kernel observations are preserved; original
+identity and source custody are not independently authenticated. Injected
+test callbacks do not have an enforced deadline and remain non-authorizing.
+The fixed-unit live host reports absent; synthetic positive witness tests
+cannot prove root authority. See
+`docs/security/ge04-bounded-isolated-phase-observer.md`. R1-B1 OPEN, GE-04
+SECURITY HOLD ACTIVE.

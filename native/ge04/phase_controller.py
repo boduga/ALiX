@@ -12,7 +12,7 @@ from types import MappingProxyType
 from collections.abc import Mapping
 
 from bootstrap_binding import UNIT, FIELDS, parse_bootstrap_binding
-from unit_kernel_observer import observe_manager_and_kernel
+from bounded_phase_observer import observe_bounded
 
 PHASES = ("INTENT", "PRE_NAMESPACE", "PINNED", "ENABLED", "PRE_JOIN", "READY")
 TERMINAL = frozenset(("EMPTY", "DENIED"))
@@ -68,12 +68,13 @@ class ReadOnlyPhaseController:
     """
 
     __slots__ = ("_original", "_observe", "_phase_index", "_terminal",
-                 "_quarantined", "_records", "_limit")
+                 "_quarantined", "_records", "_limit", "_bounded")
 
     def __init__(self, original, observer=None, maximum_events=8):
         self._original = _exact_original(original)
+        self._bounded = observer is None
         if observer is None:
-            observer = observe_manager_and_kernel
+            observer = observe_bounded
         if not callable(observer) or type(maximum_events) is not int or maximum_events != 8:
             raise ValueError("Unsupported observer or event budget")
         self._observe = observer
@@ -97,8 +98,8 @@ class ReadOnlyPhaseController:
         """Observe and record only. A failure poisons this instance.
 
         deadline is an absolute monotonic time supplied by the owner. The
-        observer must be bounded externally; this prototype cannot interrupt
-        a stuck callback, so it must not be connected to a privileged loop.
+        default observer runs in a killed/reaped subprocess. Injected test
+        callbacks have no hard deadline and cannot authorize anything.
         """
         if self._quarantined or self._terminal:
             raise ValueError("Terminal or quarantined phase controller")
@@ -124,7 +125,8 @@ class ReadOnlyPhaseController:
                 raise ValueError("Unexpected or replayed phase")
             # This is genuine read-only corroboration when the real observer
             # is used; neither caller-supplied record nor callback is trusted.
-            witness = self._observe(self._original.copy())
+            witness = (self._observe(self._original.copy(), deadline)
+                       if self._bounded else self._observe(self._original.copy()))
             if not isinstance(witness, Mapping) or witness.get("status") != (
                     "UNQUALIFIED_MANAGER_KERNEL_CORRELATION"):
                 raise ValueError("Unqualified or missing kernel witness")

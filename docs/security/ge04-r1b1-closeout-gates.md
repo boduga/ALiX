@@ -252,3 +252,18 @@ controller tests pass. Neither the supplied original nor observer callback
 has externally protected provenance; callback execution lacks a hard timeout.
 This is **not** B1-E ACK authorization, root-controller integration or source
 security approval. GE-04 SECURITY HOLD ACTIVE.
+
+## Bounded isolated read-only phase observation (non-authorizing)
+
+The default phase-controller observation now runs in an **unprivileged**
+`python -I` child under an absolute monotonic deadline of at most 3 seconds.
+The parent sends only a canonical capped original-record request, reads
+stdout incrementally with a hard 1,024-byte ceiling, kills/reaps a hung
+observer, and refuses any nonzero exit, missing/late/noncanonical output or
+keeper-generation mismatch. No native ACK, root publisher or production
+admission is implemented. The worktree Python source is still user-writable,
+original prebirth intent is caller-provided, and injected test callbacks are
+unbounded; no authenticated authority emerges. This mitigates local hanging
+observation, not bootstrap trust, privileged recovery or root-source review.
+See `ge04-bounded-isolated-phase-observer.md`. B1-B/E/F OPEN;
+SECURITY HOLD ACTIVE.
