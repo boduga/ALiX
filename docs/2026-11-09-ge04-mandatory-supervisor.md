@@ -653,3 +653,14 @@ requires the same held attempt fence both before and after writing. The
 controller binary still exits 77 with no override; all tests execute only
 as unprivileged user. No trusted root staging or second-attempt/recovery
 protocol, no unit creation or phase ACK. B1 gates remain OPEN.
+
+### Protected Root Controller Phase 3A — native systemd manager subscription
+
+Added production-intended `protected-systemd-transaction.[ch]` with a private
+libsystemd bus, pinned root-owned manager unique owner, original attempt and
+prebirth held-descriptor checks, and a JobRemoved match before Subscribe.
+The fixed-unit creation API is an unconditional EPERM/security hold and the
+controller executable still exits 77. Unprivileged native compile/link,
+denial and cleanup tests cover the source; there is no actual exclusive
+creation request, job-completion authority, unit birth or phase ACK. B1 gates
+remain open pending independently reviewed protected root execution.

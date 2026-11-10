@@ -449,3 +449,16 @@ root execution, protected installed storage, independent source hashes,
 recovery, authenticated systemd birth, ACK and VM validation remain OPEN.
 Controller main still returns 77. See
 `ge04-protected-root-controller-phase2.md`. SECURITY HOLD ACTIVE.
+
+## Phase 3A: native root-manager subscription source (still held)
+
+`protected-systemd-transaction.[ch]` now defines a separate production-intended
+native libsystemd private bus connection, pinned unique root-owned manager,
+JobRemoved match and subscription ordered *after* original prebirth and
+first-attempt FD recheck. The exclusive-create API always denies with EPERM;
+no StartTransientUnit, job completion, keeper custody or ACK is enabled.
+Unprivileged tests compile/link native source and verify default controller
+exit 77; no privileged manager subscription was executed. Actual creation
+transaction, bus/socket provenance, process-wide timeout, independent source
+and VM review remain OPEN. See `ge04-protected-root-controller-phase3a.md`.
+GE-04 SECURITY HOLD ACTIVE.
