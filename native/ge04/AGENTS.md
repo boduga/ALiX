@@ -20,12 +20,16 @@ control plane or treat a VM/remote host as already qualified.
   mode/owner/inode and fixed claims but has **no authenticated publisher**;
   unprivileged process handoff in tests is transport plumbing, not root
   bootstrap or unit custody. Output is UNQUALIFIED only. No production caller.
-- `protected-systemd-transaction.[ch]`: Phase 3A production-intended
-  libsystemd C source for a pinned root-owned systemd manager connection
-  and JobRemoved subscription AFTER original fence/journal recheck.
-  Subscription and cleanup only; StartTransientUnit API ALWAYS refuses
-  with EPERM, no job ownership or ACK. No privileged entrypoint enabled.
-  See `docs/security/ge04-protected-root-controller-phase3a.md`.
+- `protected-systemd-transaction.[ch]`: Phase 3A/3B1 production-intended
+  libsystemd C source for pinned root-owned systemd manager, original
+  fence/journal custody, pre-request JobRemoved subscription and bounded
+  queued dispatch; now holds one method reply cookie and exact job path
+  and correlates early/late matching JobRemoved, poisoning substitutions
+  and replay. No trusted request sender sets the cookie; StartTransientUnit
+  creation still ALWAYS returns EPERM, no worker admission or ACK.
+  Controller entrypoint remains disabled. See
+  `docs/security/ge04-protected-root-controller-phase3a.md` and
+  `docs/security/ge04-protected-root-controller-phase3b1.md`.
 - `protected-attempt-fence.[ch]`: Phase 2 production-intended C source
   for kernel-derived boot ID, getrandom nonce, first-attempt-only root 0600
   O_EXCL journal and fsynced held descriptor custody. No retry, rollover,

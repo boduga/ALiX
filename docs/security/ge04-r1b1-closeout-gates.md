@@ -462,3 +462,16 @@ exit 77; no privileged manager subscription was executed. Actual creation
 transaction, bus/socket provenance, process-wide timeout, independent source
 and VM review remain OPEN. See `ge04-protected-root-controller-phase3a.md`.
 GE-04 SECURITY HOLD ACTIVE.
+
+## Phase 3B1 native job reply and JobRemoved binding (held source)
+
+The existing `protected-systemd-transaction.[ch]` object now binds a
+native systemd `METHOD_RETURN` reply path to the same retained bus,
+manager owner and the exact nonzero outgoing request cookie, and correlates
+one canonical fixed-unit JobRemoved even if it arrives before the reply.
+Malformed, substituted, repeated or failed events poison, and no job claims
+new unit birth. `ge04_systemd_create_exclusive` still always denies; there
+is NO StartTransientUnit sender, no real retained request serial, no
+privileged controller execution, ACK or kernel custody. Unprivileged C
+link-wrapper tests simulate the transitions. See
+`ge04-protected-root-controller-phase3b1.md`. R1-B1 OPEN; SECURITY HOLD.

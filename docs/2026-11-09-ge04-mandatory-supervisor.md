@@ -664,3 +664,15 @@ controller executable still exits 77. Unprivileged native compile/link,
 denial and cleanup tests cover the source; there is no actual exclusive
 creation request, job-completion authority, unit birth or phase ACK. B1 gates
 remain open pending independently reviewed protected root execution.
+
+### Phase 3B1 native request-cookie/job completion binding (no creation)
+
+Extended production-intended `protected-systemd-transaction.[ch]` with one
+nonzero outgoing D-Bus cookie, same-bus/manager METHOD_RETURN reply checks,
+canonical positive systemd job path, and one matching fixed-unit JobRemoved
+signal (either before or after the reply). Substitution, replay or failure
+poisons. The outgoing creator never sets its request cookie, as the entire
+StartTransientUnit call remains EPERM-disabled; this is source and
+unprivileged injected-event tests only. No production manager birth, root
+run, phase ACK or Q13 clearance. See
+`docs/security/ge04-protected-root-controller-phase3b1.md`.
