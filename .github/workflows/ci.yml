@@ -48,12 +48,23 @@ jobs:
       - name: Supply-chain gate (Sf.x)
         run: bash scripts/check-supply-chain.sh
       - name: Packaged CLI smoke
+        timeout-minutes: 8
         run: |
-          PACK_JSON="$(pnpm pack --json --pack-destination "$RUNNER_TEMP")"
+          set -euo pipefail
+          echo "::group::Pack tarball"
+          PACK_JSON="$(timeout --kill-after=10s 90s pnpm pack --json --pack-destination "$RUNNER_TEMP")"
           TARBALL="$(printf '%s' "$PACK_JSON" | node -p "const parsed = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8')); (Array.isArray(parsed) ? parsed[0] : parsed).filename")"
+          echo "::endgroup::"
           SMOKE_DIR="$(mktemp -d)"
-          npm install --prefix "$SMOKE_DIR" --no-audit --no-fund "$TARBALL"
-          (cd "$SMOKE_DIR" && ./node_modules/.bin/alix init && ./node_modules/.bin/alix doctor && ./node_modules/.bin/alix models doctor --json)
+          echo "::group::Install packaged CLI"
+          timeout --kill-after=10s 180s npm install --prefix "$SMOKE_DIR" --no-audit --no-fund "$TARBALL"
+          echo "::endgroup::"
+          cd "$SMOKE_DIR"
+          for args in "init" "doctor" "models doctor --json"; do
+            echo "::group::alix $args"
+            timeout --kill-after=10s 45s ./node_modules/.bin/alix $args
+            echo "::endgroup::"
+          done
 
   # ─── Lane 1: TypeScript typecheck (fast, no build needed) ─────────────
   typecheck:
