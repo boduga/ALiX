@@ -11,6 +11,8 @@ control plane or treat a VM/remote host as already qualified.
 
 ## Ownership
 
+- `diagnostic-deadline.[ch]`: non-operational native CLOCK_MONOTONIC absolute-budget sampling with overflow/expiry checks and absorbing quarantine. It cannot interrupt or bound a blocking syscall, authenticate a sender, authorize dispatch, or issue ACK; both authority queries always deny. See `tests/agents/test_ge04_diagnostic_deadline.py` and `docs/security/ge04-phase3b4f-transport-origin-lifetime-design.md`.
+
 - `nonexecuting-sender-contract.[ch]`: pure native C diagnostic for supplied ordered intent/send/reply/job observations, monotonic-domain timestamp comparison, serial/job consistency and absorbing quarantine. No clock is sampled, no blocking operation is bounded, no transport-origin authentication occurs, and `can_send`/`can_ack` always return false. See `docs/security/ge04-phase3b4f-transport-origin-lifetime-design.md` and `tests/agents/test_ge04_nonexecuting_sender_contract.py`.
 
 - `bounded_dispatch_evidence.py`: non-authorizing, caller-supplied four-event INTENT/SEND_ATTEMPTED/REPLY/JOB_REMOVED diagnostic with a 3s synthetic elapsed-time cap, exact manager/serial/job checks, and absorbing quarantine on mismatch, replay or process loss. The timestamps and serial are not authenticated transport facts, and the check does not enforce a wall-clock deadline. Sender/ACK always deny. See `tests/agents/test_ge04_bounded_dispatch_evidence.py`.
