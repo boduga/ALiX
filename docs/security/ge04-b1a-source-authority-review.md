@@ -91,3 +91,11 @@ This census enumerates the tracked C translation units, direct quoted headers an
 `arpa/inet.h`, `dirent.h`, `errno.h`, `fcntl.h`, `grp.h`, `limits.h`, `linux/magic.h`, `linux/nsfs.h`, `linux/openat2.h`, `linux/sched.h`, `linux/stat.h`, `poll.h`, `sched.h`, `signal.h`, `stdbool.h`, `stddef.h`, `stdint.h`, `stdio.h`, `stdlib.h`, `string.h`, `sys/file.h`, `sys/ioctl.h`, `sys/mount.h`, `sys/prctl.h`, `sys/random.h`, `sys/resource.h`, `sys/socket.h`, `sys/stat.h`, `sys/syscall.h`, `sys/sysmacros.h`, `sys/types.h`, `sys/un.h`, `sys/vfs.h`, `sys/wait.h`, `time.h`, `unistd.h`
 
 **Review blocker:** the C entrypoint/include census is now captured, but all-function privileged call paths, Python entrypoints, runtime dependencies, negative tests and independent acceptance are not completed. B1-A.03 remains PARTIAL/HOLD.
+
+## B1-A.03 additional review evidence — call graph and negative-path tests
+
+`ge04-b1a-candidate-callgraph.json` records 365 candidate function nodes and 743 lexical/AST call edges from native C/Python source. **This is not a verified whole-program call graph.** C lexical matching cannot resolve cross-file linkage, macros, indirect calls, conditionals or actual link closure; Python AST cannot resolve imports and dynamic dispatch. These unresolved edges are explicitly retained, not treated as verified authority paths.
+
+`tmp/ge04-b1a03-test-results.txt` is a local nonprivileged test run log (not committed). Passing tests do not establish completeness of negative-path coverage, crash/race resistance, or root safety.
+
+**Remaining mandatory gaps:** source/build graph closure, manual audit of each privileged operation and failure branch, independent reviewer sign-off, and source/binary/toolchain identity acceptance. B1-A.03 remains OPEN; no privileged execution or gate release.
