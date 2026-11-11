@@ -59,7 +59,9 @@ jobs:
           echo "::group::Install packaged CLI"
           # Surface the dependency/lifecycle step that stalls; preserve npm's
           # normal script policy until a separately reviewed fix is available.
-          timeout --kill-after=10s 180s npm install --prefix "$SMOKE_DIR" --no-audit --no-fund --foreground-scripts --loglevel=verbose --fetch-retries=1 --fetch-timeout=30000 "$TARBALL"
+          # Keep the isolated consumer under the same reviewed build policy.
+          cp pnpm-workspace.yaml "$SMOKE_DIR/pnpm-workspace.yaml"
+          timeout --kill-after=10s 180s pnpm --dir "$SMOKE_DIR" add "$TARBALL"
           echo "::endgroup::"
           cd "$SMOKE_DIR"
           for args in "init" "doctor" "models doctor --json"; do
@@ -275,7 +277,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - name: Boundedness + retrieval_precision thresholds (#645)
-        run: npx vitest run tests/benchmark-thresholds.vitest.ts --config vitest.config.mts
+        run: pnpm exec vitest run tests/benchmark-thresholds.vitest.ts --config vitest.config.mts
 
   # ─── Lane 9: node:test suite (unit-level, non-vitest) ────────────────
   # Covers the ~6500 node:test tests the vitest unit lane never runs
@@ -336,7 +338,7 @@ jobs:
           {
             echo "## Coverage summary"
             echo '```'
-            npx c8 report --reporter=text 2>/dev/null | tail -n 8
+            pnpm exec c8 report --reporter=text 2>/dev/null | tail -n 8
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       # actions/upload-artifact v4 — pinned SHA

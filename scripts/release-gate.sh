@@ -107,7 +107,8 @@ if [ -n "$TARBALL" ] && [ -f "$PROJECT_ROOT/$TARBALL" ]; then
   echo "▸ Pack-once smoke test (install tarball in clean temp dir)..."
   TMP_DIR="$(mktemp -d)"
 
-  if pnpm install --config.dangerously-allow-all-builds=true --prefix "$TMP_DIR" "$PROJECT_ROOT/$TARBALL" > /dev/null 2>&1; then
+  cp "$PROJECT_ROOT/pnpm-workspace.yaml" "$TMP_DIR/pnpm-workspace.yaml"
+  if pnpm --dir "$TMP_DIR" add "$PROJECT_ROOT/$TARBALL"; then
     if (cd "$TMP_DIR" && ./node_modules/.bin/alix init > /dev/null 2>&1 && \
         ./node_modules/.bin/alix doctor > /dev/null 2>&1 && \
         ./node_modules/.bin/alix models doctor --json > /dev/null 2>&1); then

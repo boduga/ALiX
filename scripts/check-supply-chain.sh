@@ -29,7 +29,7 @@ echo ""
 # ── Sf.2: Audit exceptions check ────────────────────────────────────────
 
 echo "▸ Sf.2 — Audit exceptions check..."
-if npx --prefix "$PROJECT_ROOT" alix security supply-chain exceptions check 2>/dev/null; then
+if node "$PROJECT_ROOT/dist/src/cli.js" security supply-chain exceptions check 2>/dev/null; then
   echo "  ✅ Audit exceptions — all advisories excepted or below threshold"
 else
   # alix may not be built; fall back to an independent audit. The fallback
@@ -108,7 +108,7 @@ echo ""
 echo "▸ Sf.5 — Tarball content verification..."
 TARBALL="$(ls "$PROJECT_ROOT"/alix-*.tgz 2>/dev/null | head -1 || echo "")"
 if [ -n "$TARBALL" ] && [ -f "$TARBALL" ]; then
-  if npx --prefix "$PROJECT_ROOT" alix security supply-chain verify-tarball "$TARBALL" 2>/dev/null; then
+  if node "$PROJECT_ROOT/dist/src/cli.js" security supply-chain verify-tarball "$TARBALL" 2>/dev/null; then
     echo "  ✅ Tarball — content verified"
   else
     # Fail closed (#691): a present-but-unverifiable tarball fails the gate.
