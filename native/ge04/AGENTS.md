@@ -11,7 +11,7 @@ control plane or treat a VM/remote host as already qualified.
 
 ## Ownership
 
-- `diagnostic-fd-wait.[ch]`: isolated nonprivileged poll readiness diagnostic for O_NONBLOCK descriptors with the original CLOCK_MONOTONIC absolute deadline, EINTR recheck, timeout and peer-loss quarantine. It performs no I/O, does not guarantee a subsequent syscall completes, does not authenticate systemd, and cannot dispatch or ACK. See `tests/agents/test_ge04_diagnostic_fd_wait.py` and `docs/security/ge04-phase3b4g-bounded-native-operation-plan.md`.
+- `diagnostic-fd-wait.[ch]`: isolated nonprivileged poll readiness diagnostic for O_NONBLOCK descriptors with the original CLOCK_MONOTONIC absolute deadline, EINTR recheck, timeout, peer-loss quarantine, and optional cancellation-pipe wakeup with cancellation precedence. The cancellation check is not atomic with return or later I/O; numeric fd reuse remains untrusted. It performs no I/O, does not guarantee a subsequent syscall completes, does not authenticate systemd, and cannot dispatch or ACK. See `tests/agents/test_ge04_diagnostic_fd_wait.py` and `docs/security/ge04-phase3b4g-bounded-native-operation-plan.md`.
 
 - `diagnostic-deadline.[ch]`: non-operational native CLOCK_MONOTONIC absolute-budget sampling with overflow/expiry checks and absorbing quarantine. It cannot interrupt or bound a blocking syscall, authenticate a sender, authorize dispatch, or issue ACK; both authority queries always deny. See `tests/agents/test_ge04_diagnostic_deadline.py` and `docs/security/ge04-phase3b4f-transport-origin-lifetime-design.md`.
 

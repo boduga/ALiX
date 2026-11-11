@@ -59,3 +59,7 @@ Tests must capture monotonic start/end, raw syscall outcomes, journal bytes and 
 ## Unprivileged adversarial fixture results and remaining gaps
 
 The standalone `test_ge04_diagnostic_fd_wait.py` exercises periodic SIGALRM interruptions against a single absolute 50ms budget, repeated empty nonblocking-pipe reads yielding EAGAIN, and numeric descriptor reuse. The test deliberately demonstrates that readiness can succeed on a *replacement* descriptor: numeric fd equality is **not** original-descriptor custody. No cancellation token or concurrent cancellation wakeup is implemented. Cancellation races remain an open requirement, not a passing security proof. The fixture never transmits data, authenticates a bus, or supplies privileged authority.
+
+## Cancellation wakeup diagnostic (non-authorizing)
+
+The standalone wait fixture now accepts an optional nonblocking cancellation descriptor, polls it alongside the data descriptor and quarantines on cancellation, including simultaneous data readiness. A second zero-time cancellation probe narrows but **cannot eliminate** the race between the last probe and return or any later I/O. A caller must retain original descriptor custody: fd number reuse is not authenticated, and this primitive does not solve it. It does not bound fcntl, descriptor close, systemd calls, or other blocking operations. The test child only writes to a local pipe and cannot authorize root operations.

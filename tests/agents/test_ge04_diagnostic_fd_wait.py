@@ -135,7 +135,53 @@ class DiagnosticFdAdversarialTests(unittest.TestCase):
     def test_eintr_eagain_and_fd_reuse_gap(self):
         _compile_and_run(ADVERSARIAL_PROGRAM)
 
-    def test_cancellation_gap_explicit(self):
+    def test_atomic_cancellation_gap_explicit(self):
         header = (SRC / "diagnostic-fd-wait.h").read_text()
-        self.assertNotIn("ge04_diagnostic_cancel", header)
+        self.assertIn("ge04_diagnostic_wait_fd_cancel", header)
         self.assertIn("never performs I/O", header)
+
+CANCEL_PROGRAM = r"""
+#define _POSIX_C_SOURCE 200809L
+#include "diagnostic-fd-wait.h"
+#include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <sys/wait.h>
+#include <unistd.h>
+static void nonblock(int fd) {
+    int flags=fcntl(fd,F_GETFL); assert(flags>=0);
+    assert(fcntl(fd,F_SETFL,flags|O_NONBLOCK)==0);
+}
+int main(void) {
+    int data[2], cancel[2];
+    assert(pipe(data)==0 && pipe(cancel)==0);
+    nonblock(data[0]); nonblock(cancel[0]);
+    struct ge04_diagnostic_deadline d;
+    assert(ge04_deadline_begin(&d, 200000000ULL)==0);
+    assert(write(data[1],"a",1)==1 && write(cancel[1],"x",1)==1);
+    assert(ge04_diagnostic_wait_fd_cancel(&d,data[0],POLLIN,cancel[0])==-1);
+    assert(errno==ECANCELED && d.quarantined); /* simultaneous readiness */
+    assert(ge04_deadline_begin(&d, 200000000ULL)==0);
+    char byte;
+    assert(read(data[0],&byte,1)==1);
+    assert(read(cancel[0],&byte,1)==1);
+    pid_t child=fork(); assert(child>=0);
+    if (child==0) { /* no privilege or network */
+        assert(write(cancel[1],"x",1)==1); _exit(0);
+    }
+    assert(ge04_diagnostic_wait_fd_cancel(&d,data[0],POLLIN,cancel[0])==-1);
+    assert(errno==ECANCELED && d.quarantined);
+    int status; assert(waitpid(child,&status,0)==child);
+    assert(WIFEXITED(status) && WEXITSTATUS(status)==0);
+    assert(ge04_deadline_begin(&d, 100000000ULL)==0);
+    assert(ge04_diagnostic_wait_fd_cancel(&d,data[0],POLLIN,data[0])==-1);
+    assert(errno==EINVAL && d.quarantined);
+    close(cancel[1]); close(cancel[0]); close(data[1]); close(data[0]);
+    return 0;
+}
+"""
+
+class DiagnosticCancellationTests(unittest.TestCase):
+    def test_cancel_precedence_and_wakeup(self):
+        _compile_and_run(CANCEL_PROGRAM)

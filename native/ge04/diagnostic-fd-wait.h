@@ -7,4 +7,8 @@
  */
 int ge04_diagnostic_wait_fd(struct ge04_diagnostic_deadline *deadline,
                             int fd, short events);
+/* cancel_fd: nonblocking readable pipe/eventfd owned by caller; cancellation wins.
+ * -1 disables cancellation. Caller must retain original descriptor custody. */
+int ge04_diagnostic_wait_fd_cancel(struct ge04_diagnostic_deadline *deadline,
+                                   int fd, short events, int cancel_fd);
 #endif
