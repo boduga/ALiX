@@ -131,8 +131,8 @@ echo ""
 if [ -n "$TARBALL" ] && [ -f "$PROJECT_ROOT/$TARBALL" ]; then
   echo "▸ SBOM generation..."
   SBOM_FILE="${TARBALL%.tgz}.sbom.json"
-  # npm sbom is retained — pnpm has no equivalent SBOM command
-  if npm sbom -- --json > "$PROJECT_ROOT/$SBOM_FILE" 2>/dev/null; then
+  # Generate CycloneDX SBOM with the repository package manager.
+  if pnpm sbom --sbom-format cyclonedx > "$PROJECT_ROOT/$SBOM_FILE" 2>/dev/null; then
     echo "  ✅ SBOM: $SBOM_FILE"
   else
     echo "  ⚠  SBOM generation failed — continuing (non-blocking)"

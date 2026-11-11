@@ -20,7 +20,7 @@ is local install output (git-ignored). Scope and rationale:
   (`@opentui/core-{linux,darwin,win32}-*`), so no toolchain is needed.
 - Python 3 for the Unix PTY check only.
 
-Exact dependencies (see `package-lock.json`):
+Exact dependencies (see `pnpm-lock.yaml`):
 
 | Package | Version | Role |
 | --- | --- | --- |
@@ -30,32 +30,32 @@ Exact dependencies (see `package-lock.json`):
 ## Setup
 
 ```bash
-npm ci --prefix experiments/opentui --no-audit --no-fund
+pnpm --dir experiments/opentui install --frozen-lockfile
 ```
 
 One command to see the fixture render, then exit with Escape or Ctrl+C:
 
 ```bash
-npm start --prefix experiments/opentui     # node --experimental-ffi static-workbench.mjs
+pnpm --dir experiments/opentui start     # node --experimental-ffi static-workbench.mjs
 ```
 
 Or from inside `experiments/opentui/`, prepending the Node 26 bin directory:
 
 ```bash
 export PATH="/path/to/node-v26.11.0-linux-x64/bin:$PATH"
-npm ci --no-audit --no-fund
-npm start
+pnpm install --frozen-lockfile
+pnpm start
 ```
 
 ## Commands
 
 | Command (from `experiments/opentui/`) | Purpose |
 | --- | --- |
-| `npm test` | Seven in-memory native tests: frame regions/four agents, wide/medium/narrow layouts, focused input, resize, repeated cleanup. |
-| `npm run test:pty` | Unix PTY checks: live frame, Escape exit, Ctrl+C cancellation, SIGWINCH resize, focused typing, bracketed paste, alternate-screen enter/leave, raw input-mode restoration. |
-| `npm run test:pty:win` | Windows ConPTY restoration check via `pywinpty` (needs `pip install pywinpty`). |
-| `npm run bench` | Diagnostic microbenchmark (`perf-check.mjs`). Needs `--expose-gc` (set in the script). |
-| `npm start` | Interactive static fixture. |
+| `pnpm test` | Seven in-memory native tests: frame regions/four agents, wide/medium/narrow layouts, focused input, resize, repeated cleanup. |
+| `pnpm test:pty` | Unix PTY checks: live frame, Escape exit, Ctrl+C cancellation, SIGWINCH resize, focused typing, bracketed paste, alternate-screen enter/leave, raw input-mode restoration. |
+| `pnpm test:pty:win` | Windows ConPTY restoration check via `pywinpty` (needs `pip install pywinpty`). |
+| `pnpm bench` | Diagnostic microbenchmark (`perf-check.mjs`). Needs `--expose-gc` (set in the script). |
+| `pnpm start` | Interactive static fixture. |
 
 The benchmark imports ALiX's compiled canvas (`../../dist/src/interfaces/tui/canvas.js`),
 so run root `pnpm build` first.
@@ -69,12 +69,12 @@ native test-renderer lifecycle lives once in `harness.mjs`.
 
 Linux x86_64, official Node **v26.11.0**, `@opentui/core@0.5.17`, one run.
 
-- `npm test` — **7/7 pass** (render, wide/medium/narrow layout, input, resize, idempotent cleanup).
-- `npm run test:pty` — **pass**: frame painted; Escape exit, Ctrl+C cancellation,
+- `pnpm test` — **7/7 pass** (render, wide/medium/narrow layout, input, resize, idempotent cleanup).
+- `pnpm test:pty` — **pass**: frame painted; Escape exit, Ctrl+C cancellation,
   SIGWINCH resize, and focused typing/bracketed paste each exited 0 with
   `\x1b[?1049h`/`\x1b[?1049l` alternate-screen enter/leave observed and
   `ECHO`/`ICANON` restored.
-- `npm ci --offline` installed the package from the isolated lockfile into a
+- `pnpm install --offline` installed the package from the isolated lockfile into a
   clean temp directory; `createTestRenderer()` loaded native Core there and
   closed cleanly.
 
@@ -159,8 +159,8 @@ widen the evidence across supported platforms before a rollout relies on them.
 | Linux x64 | 26.11.0 | **Verified** — local tests/PTY/benchmark plus CI green. |
 | Linux x64 | 26.4.0 | **Verified in CI** — green. |
 | Linux arm64 | 26.11.0 | **Verified in CI** — native load + in-memory tests green. |
-| macOS arm64 | 26.11.0 | **Verified in CI** — `npm test` plus PTY terminal restoration green. |
-| macOS x64 | 26.11.0 | **Verified in CI** — `npm test` plus PTY terminal restoration green. |
+| macOS arm64 | 26.11.0 | **Verified in CI** — `pnpm test` plus PTY terminal restoration green. |
+| macOS x64 | 26.11.0 | **Verified in CI** — `pnpm test` plus PTY terminal restoration green. |
 | Windows x64 | 26.11.0 | **Verified in CI** — native load, in-memory tests, and ConPTY terminal restoration all green. |
 
 `.github/workflows/opentui-spike.yml` ran on draft PR

@@ -15,7 +15,7 @@ production TUI code.
 | Path | Responsibility |
 |------|----------------|
 | `workbench-fixture.mjs` | Single source of the static four-agent fixture text. |
-| `static-workbench.mjs` | `mountWorkbench` (OpenTUI renderables) and the `npm start` entry. |
+| `static-workbench.mjs` | OpenTUI renderable mounting and the `pnpm start` entry. |
 | `harness.mjs` | Native test-renderer lifecycle (`withTestRenderer`, `disposeTestRenderer`). |
 | `perf-check.mjs` | Diagnostic benchmark: full frame, input latency, idle CPU, RSS plateau, frame coalescing, and a provisional threshold verdict. |
 | `pty-check.py` | Unix PTY checks: escape exit, Ctrl+C cancellation, SIGWINCH resize, focused typing, bracketed paste, terminal restoration. |
@@ -30,9 +30,8 @@ production TUI code.
   tree (built by `pnpm build`), and the experiment is excluded from the
   published package. It never changes the production renderer, root
   dependencies, or node_modules.
-- **npm-managed on purpose.** The experiment carries its own `package.json` and
-  `package-lock.json`; `scripts/check-package-manager.sh` exempts it. Project
-  dependency management stays pnpm.
+- **pnpm-managed.** The experiment carries its own `package.json` and
+  `pnpm-lock.yaml` for reproducible native renderer checks.
 - **Fixture text has one source.** Roster/transcript/inspector/placeholder/
   footer strings live in `workbench-fixture.mjs`; `static-workbench.mjs`,
   `perf-check.mjs`, and the frame assertions import them rather than re-typing.
@@ -57,13 +56,13 @@ production TUI code.
 ## Verification
 
 ```bash
-npm test --prefix experiments/opentui        # in-memory native tests
-npm run test:pty --prefix experiments/opentui # Unix terminal restoration
-npm run bench --prefix experiments/opentui    # diagnostic (needs root pnpm build)
+pnpm --dir experiments/opentui test        # in-memory native tests
+pnpm --dir experiments/opentui test:pty # Unix terminal restoration
+pnpm --dir experiments/opentui bench    # diagnostic (needs root pnpm build)
 # Windows only: pip install pywinpty && python pty-check-win.py
 ```
 
-`.github/workflows/opentui-spike.yml` runs the production native layout test, `npm test`, and the Unix PTY check
+`.github/workflows/opentui-spike.yml` runs the production native layout test, `pnpm test`, and the Unix PTY check
 (Linux/macOS) and the pywinpty ConPTY check (Windows) across Linux x64
 Node 26.4/26.11, Linux arm64, macOS arm64/x64, and Windows x64.
 

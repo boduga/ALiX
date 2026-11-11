@@ -3,7 +3,7 @@ set -euo pipefail
 
 echo "Checking package manager policy..."
 
-if [ -f package-lock.json ]; then
+if [ -f package-lock.json ] || [ -f experiments/opentui/package-lock.json ]; then
   echo "❌ package-lock.json is not allowed. Use pnpm-lock.yaml."
   exit 1
 fi
@@ -16,18 +16,9 @@ fi
 # Use -w for word-boundary matching so pnpm install is not caught by npm install
 SEARCH_PATHS=(.github/workflows scripts docs package.json)
 
-# Exemptions below: `npm publish`/`npm sbom` are not package-manager choices
-# for the project; `npm install ...$TARBALL` is the sanctioned smoke-install of
-# a PACKED tarball in a clean temp dir (pinning the tarball and its native
-# builds), because pnpm's tarball install trips ERR_PNPM_IGNORED_BUILDS for
-# protobufjs/sharp. Project dependency management stays pnpm. The isolated
-# OpenTUI spike (`experiments/opentui/`) deliberately carries its own npm
-# lockfile and is never published, so its workflow commands and hand-off notes
-# are exempt; no root or published dependency uses npm.
+# Historical documentation remains evidence; active scripts and workflows must
+# use pnpm. Registry names and package-ecosystem identifiers are not commands.
 
-# Relocated history is exempt wherever it lives: B1 re-parented docs/archive/
-# under docs/superseded/, and later batches land there too. Superseded docs
-# are evidence, not live instructions.
 if grep -Rnw "${SEARCH_PATHS[@]}" \
   -e "npm ci" \
   -e "npm install" \
@@ -39,12 +30,8 @@ if grep -Rnw "${SEARCH_PATHS[@]}" \
   --include='*.md' \
   --include='package.json' \
   2>/dev/null \
-  | grep -v "npm publish" \
-  | grep -v "npm sbom" \
-  | grep -v "npm install.*TARBALL" \
   | grep -v "package-manager" \
   | grep -v "check-supply-chain.sh" \
-  | grep -v "experiments/opentui" \
   | grep -v "docs/2026-10-09-node26-opentui-handoff.md" \
   | grep -v "docs/superseded/" \
   | grep -v "docs/superpowers/plans/" \

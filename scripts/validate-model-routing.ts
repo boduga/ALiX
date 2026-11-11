@@ -1,7 +1,7 @@
 /**
  * validate-model-routing.ts — Run model routing validation for M0.9.
  *
- * Usage: npx tsx scripts/validate-model-routing.ts
+ * Usage: pnpm exec tsx scripts/validate-model-routing.ts
  *
  * Tests each model tier (fast, thinking, coding) against curated prompts
  * and reports classification accuracy.

@@ -101,7 +101,7 @@ jobs:
       # Sf.7 step 7: Generate SBOM
       - name: Generate SBOM (Sf.7 step 7)
         run: |
-          npm sbom -- --json > "${{ steps.pack.outputs.tarball }}.sbom.json" 2>/dev/null || echo "{}" > "${{ steps.pack.outputs.tarball }}.sbom.json"
+          pnpm sbom --sbom-format cyclonedx > "${{ steps.pack.outputs.tarball }}.sbom.json" 2>/dev/null || echo "{}" > "${{ steps.pack.outputs.tarball }}.sbom.json"
           echo "SBOM generated: ${{ steps.pack.outputs.tarball }}.sbom.json"
 
       # Sf.7 step 8: Compute checksum
@@ -161,7 +161,7 @@ jobs:
 
       # Sf.7 step 10: Publish from artifact (exact tarball, with provenance)
       - name: Publish to npm (Sf.7 step 10)
-        run: npm publish "$TARBALL" --provenance --access public
+        run: pnpm publish "$TARBALL" --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
