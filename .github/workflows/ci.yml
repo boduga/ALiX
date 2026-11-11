@@ -57,7 +57,9 @@ jobs:
           echo "::endgroup::"
           SMOKE_DIR="$(mktemp -d)"
           echo "::group::Install packaged CLI"
-          timeout --kill-after=10s 180s npm install --prefix "$SMOKE_DIR" --no-audit --no-fund "$TARBALL"
+          # Surface the dependency/lifecycle step that stalls; preserve npm's
+          # normal script policy until a separately reviewed fix is available.
+          timeout --kill-after=10s 180s npm install --prefix "$SMOKE_DIR" --no-audit --no-fund --foreground-scripts --loglevel=verbose --fetch-retries=1 --fetch-timeout=30000 "$TARBALL"
           echo "::endgroup::"
           cd "$SMOKE_DIR"
           for args in "init" "doctor" "models doctor --json"; do
