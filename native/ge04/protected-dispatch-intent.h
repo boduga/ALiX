@@ -13,7 +13,8 @@ struct ge04_dispatch_intent_custody {
     int owned;
 };
 /* Non-authorizing exact bytes: original claim, pinned unique owner,
- * exact fixed request identity, and explicit "not-sent" state.
+ * exact fixed request identity, and pre-send RECORD-CREATION state.
+ * This marker never proves no later send occurred.
  */
 int ge04_dispatch_intent_encode(
     const struct ge04_prebirth_claim *claim,

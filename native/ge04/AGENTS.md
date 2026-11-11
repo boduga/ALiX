@@ -11,6 +11,8 @@ control plane or treat a VM/remote host as already qualified.
 
 ## Ownership
 
+- `protected-transaction-state.[ch]`: non-authorizing GE-04 dispatch-intent observation reducer. Process loss, restart, conflicts, invalid/out-of-order events quarantine permanently; `ge04_tx_can_retry` always refuses. No systemd sender, ACK, root integration or release. See `docs/security/ge04-ambiguous-dispatch-intent-reducer.md` and `tests/agents/test_ge04_protected_transaction_state.py`.
+
 - Phase 3B4C security-review handoff: `docs/security/ge04-protected-root-controller-phase3b4c-review.md` enumerates the exact source-to-gate evidence gaps and independently approved disposable-VM test prerequisites. `tests/agents/test_ge04_protected_dispatch_hold.py` adds only a nonprivileged exit-77/no-send regression tripwire. All B1 gates remain OPEN; the packet cannot authorize root execution, merge or ACK.
 - `oci_qualification_image.py`: pure bounded construction/verification of one
   canonical OCI qualification image byte format. Opaque payload digest matching
