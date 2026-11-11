@@ -55,3 +55,7 @@ Tests must capture monotonic start/end, raw syscall outcomes, journal bytes and 
 **NO-GO:** Existing `diagnostic-deadline.c` samples CLOCK_MONOTONIC but does not bound any blocking call. Existing `nonexecuting-sender-contract.c` consumes supplied observations, not authenticated D-Bus facts. The protected native controller still refuses execution; no sender or ACK is present.
 
 **Next legitimate step:** implement and test a *nonprivileged*, standalone nonblocking-fd wait primitive with a shared absolute deadline, including EINTR, EAGAIN and peer-loss adversarial tests. Keep it completely disconnected from systemd and root until independent source review.
+
+## Unprivileged adversarial fixture results and remaining gaps
+
+The standalone `test_ge04_diagnostic_fd_wait.py` exercises periodic SIGALRM interruptions against a single absolute 50ms budget, repeated empty nonblocking-pipe reads yielding EAGAIN, and numeric descriptor reuse. The test deliberately demonstrates that readiness can succeed on a *replacement* descriptor: numeric fd equality is **not** original-descriptor custody. No cancellation token or concurrent cancellation wakeup is implemented. Cancellation races remain an open requirement, not a passing security proof. The fixture never transmits data, authenticates a bus, or supplies privileged authority.
