@@ -30,3 +30,64 @@
 - Obtain independent reviewer acceptance; do not substitute author-side inspection, CI, or model review.
 
 **GE-04 SECURITY HOLD ACTIVE.** No root execution, worker dispatch, production admission, or B1-A gate clearance is authorized by this document.
+
+## B1-A.03 follow-up — static C entrypoint and include census
+
+This census enumerates the tracked C translation units, direct quoted headers and standalone `main()` declarations. It is **not** a complete function-level call graph, transitive include closure, executable runtime analysis or independent audit. C preprocessor branches, function pointers, build-specific linking, Python entrypoints and runtime library loads remain unverified.
+
+### Standalone C entrypoints (15)
+
+- `native/ge04/broker-peer-probe.c`
+- `native/ge04/cgroup-control-fd-qualification.c`
+- `native/ge04/cgroup-dirfd-qualification.c`
+- `native/ge04/cgroup-leaf-ownership-qualification.c`
+- `native/ge04/cgroup-runtime-view-qualification.c`
+- `native/ge04/cgroup-worker-qualification.c`
+- `native/ge04/cgroup2-fixed-preflight.c`
+- `native/ge04/cgroup2-mount-preflight.c`
+- `native/ge04/exec-pinned-probe.c`
+- `native/ge04/exec-pinned.c`
+- `native/ge04/isolated-worker-launcher.c`
+- `native/ge04/peercred.c`
+- `native/ge04/pidfd-lifecycle-qualification.c`
+- `native/ge04/pidfd-qualification.c`
+- `native/ge04/protected-root-controller.c`
+
+### Direct local header relationships (30 C files)
+
+- `broker-peer-probe.c`: (no quoted headers)
+- `cgroup-control-fd-qualification.c`: (no quoted headers)
+- `cgroup-dirfd-qualification.c`: (no quoted headers)
+- `cgroup-leaf-ownership-qualification.c`: (no quoted headers)
+- `cgroup-runtime-view-qualification.c`: (no quoted headers)
+- `cgroup-worker-qualification.c`: (no quoted headers)
+- `cgroup2-fixed-preflight.c`: (no quoted headers)
+- `cgroup2-mount-preflight.c`: (no quoted headers)
+- `diagnostic-deadline.c`: `diagnostic-deadline.h`
+- `diagnostic-fd-wait.c`: `diagnostic-fd-wait.h`
+- `exec-pinned-probe.c`: (no quoted headers)
+- `exec-pinned.c`: (no quoted headers)
+- `isolated-worker-launcher.c`: (no quoted headers)
+- `nonexecuting-sender-contract.c`: `nonexecuting-sender-contract.h`
+- `peercred.c`: (no quoted headers)
+- `pidfd-lifecycle-qualification.c`: (no quoted headers)
+- `pidfd-qualification.c`: (no quoted headers)
+- `protected-attempt-fence.c`: `protected-attempt-fence.h`
+- `protected-cgroup-custody.c`: `protected-cgroup-custody.h`, `protected-prebirth-journal.h`
+- `protected-dispatch-intent.c`: `protected-dispatch-intent.h`, `protected-prebirth-journal.h`
+- `protected-dispatch-preparation.c`: `protected-dispatch-preparation.h`, `protected-systemd-request.h`
+- `protected-keeper-custody.c`: `protected-keeper-custody.h`, `protected-prebirth-journal.h`
+- `protected-mount-namespace.c`: `protected-mount-namespace.h`
+- `protected-prebirth-journal.c`: `protected-prebirth-journal.h`, `protected-attempt-fence.h`
+- `protected-root-controller.c`: (no quoted headers)
+- `protected-systemd-birth-observer.c`: `protected-systemd-birth-observer.h`, `protected-prebirth-journal.h`
+- `protected-systemd-request.c`: `protected-systemd-request.h`, `protected-prebirth-journal.h`
+- `protected-systemd-transaction.c`: `protected-systemd-transaction.h`
+- `protected-transaction-state.c`: `protected-transaction-state.h`
+- `worker-stream.c`: `worker-stream.h`
+
+### External header names (36)
+
+`arpa/inet.h`, `dirent.h`, `errno.h`, `fcntl.h`, `grp.h`, `limits.h`, `linux/magic.h`, `linux/nsfs.h`, `linux/openat2.h`, `linux/sched.h`, `linux/stat.h`, `poll.h`, `sched.h`, `signal.h`, `stdbool.h`, `stddef.h`, `stdint.h`, `stdio.h`, `stdlib.h`, `string.h`, `sys/file.h`, `sys/ioctl.h`, `sys/mount.h`, `sys/prctl.h`, `sys/random.h`, `sys/resource.h`, `sys/socket.h`, `sys/stat.h`, `sys/syscall.h`, `sys/sysmacros.h`, `sys/types.h`, `sys/un.h`, `sys/vfs.h`, `sys/wait.h`, `time.h`, `unistd.h`
+
+**Review blocker:** the C entrypoint/include census is now captured, but all-function privileged call paths, Python entrypoints, runtime dependencies, negative tests and independent acceptance are not completed. B1-A.03 remains PARTIAL/HOLD.
