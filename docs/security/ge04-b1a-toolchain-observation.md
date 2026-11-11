@@ -20,3 +20,13 @@ This host is not an independently approved build environment. Observations do no
 - Pin Linux kernel/ABI constraints and target architecture; distinguish build host from disposable qualification VM.
 - Prove deterministic output or document and control reproducibility differences before binary hash freeze.
 - Obtain independent reviewer acceptance; do not enable root execution or dispatch.
+
+## B1-A.04 follow-up — Candidate executable identity manifest
+
+`docs/security/ge04-b1a-toolchain-candidate-manifest.json` records resolved executable paths and SHA-256 digests for locally available compiler, assembler, linker, pkg-config and Python tools, plus libsystemd pkg-config flags and status. These hashes identify **observed host binaries only**; they are not package provenance or an approved toolchain. Build flags, full sysroot/header/library digests, runtime closure and reproducibility remain unresolved.
+
+### Required next verification
+
+- Resolve the exact native controller/helper build recipe from tracked test scripts and approved deployment scripts; record per-target flags and link closure.
+- Hash the actual selected headers, linker libraries and runtime objects; approve architecture/kernel and trusted build host.
+- Have an independent reviewer accept the complete immutable source + binary + toolchain identity set.
