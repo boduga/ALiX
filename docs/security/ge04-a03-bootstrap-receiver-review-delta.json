@@ -1,0 +1,27 @@
+{
+  "scope": "GE-04 A03 independent re-review handoff after nonblocking recvmsg fix",
+  "old_reviewed_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+  "new_candidate_revision": "7b1d727f",
+  "source_files_verified": 54,
+  "unchanged_source_files": 53,
+  "changed_source_files": [
+    {
+      "path": "native/ge04/bootstrap_receiver.py",
+      "old_sha256": "165c615801665e0f16ec95b8150b33adb6d129b4b7392bd26c0d5a4599726207",
+      "new_sha256": "1d5936222ea9d0cdf16d4641ae90af89c620b8aba77659e389c703ec064b907c"
+    }
+  ],
+  "unchanged_evidence_artifacts_verified": 13,
+  "source_patch": "diff --git a/native/ge04/bootstrap_receiver.py b/native/ge04/bootstrap_receiver.py\nindex e971abbf..33bdfa85 100644\n--- a/native/ge04/bootstrap_receiver.py\n+++ b/native/ge04/bootstrap_receiver.py\n@@ -63,11 +63,12 @@ def receive_bootstrap_descriptor(sock, expected_peer, expected_inode,\n             raise TimeoutError(\"Bootstrap receive budget exceeded\")\n         ready, _, _ = select.select([sock], [], [], remaining)\n         if not ready:\n             raise TimeoutError(\"Bootstrap receive deadline\")\n         payload, ancillary, flags, _ = sock.recvmsg(\n-            2, socket.CMSG_SPACE(4 * 16), socket.MSG_CMSG_CLOEXEC)\n+            2, socket.CMSG_SPACE(4 * 16),\n+            socket.MSG_CMSG_CLOEXEC | socket.MSG_DONTWAIT)\n         # Always first extract *all* kernel-delivered descriptors for closure,\n         # including rejected extra or truncated ancillary records.\n         for level, kind, data in ancillary:\n             if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:\n                 valid = len(data) - (len(data) % array.array(\"i\").itemsize)\n",
+  "targeted_tests": "tests/agents/test_ge04_bootstrap_receiver.py",
+  "independent_reviewer_verdict": "PENDING",
+  "new_baseline_approved": false,
+  "old_baseline_still_valid_for_new_source": false,
+  "site_authority_verdict": "PENDING",
+  "security_hold": "ACTIVE",
+  "limitations": [
+    "Source delta and local tests do not replace independent human review",
+    "No operational root execution, worker admission, ACK or merge authorized",
+    "Old immutable baseline checker must continue rejecting changed source until renewed review"
+  ]
+}
