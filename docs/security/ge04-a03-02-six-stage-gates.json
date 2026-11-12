@@ -1,0 +1,850 @@
+{
+  "scope": "GE-04 A03-02 ordered six-work-package gate assessment",
+  "reviewed_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+  "historical_to_current_source_matches": {
+    "UNIQUE_EXACT_LINE": 63
+  },
+  "c_authority_site_effect_candidates": [
+    {
+      "file": "broker-peer-probe.c",
+      "line": 31,
+      "apis": [
+        "accept4"
+      ],
+      "compiler_call_targets": [
+        "accept4"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "line": 58,
+      "apis": [
+        "mkdirat"
+      ],
+      "compiler_call_targets": [
+        "mkdirat"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 354,
+      "apis": [
+        "waitpid"
+      ],
+      "compiler_call_targets": [
+        "waitpid",
+        "waitpid"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 405,
+      "apis": [
+        "mount"
+      ],
+      "compiler_call_targets": [
+        "mount",
+        "mount",
+        "_exit"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 407,
+      "apis": [
+        "mount"
+      ],
+      "compiler_call_targets": [
+        "mount",
+        "mount",
+        "mount",
+        "mount",
+        "_exit"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 443,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "compiler_call_targets": [],
+      "noncall_effect_target": "syscall",
+      "noncall_effect_line": 445,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 445,
+      "apis": [
+        "SYS_clone3"
+      ],
+      "compiler_call_targets": [
+        "syscall",
+        "syscall"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 531,
+      "apis": [
+        "unlinkat"
+      ],
+      "compiler_call_targets": [
+        "bindings",
+        "budget_ok",
+        "unlinkat"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 538,
+      "apis": [
+        "unlinkat"
+      ],
+      "compiler_call_targets": [
+        "intent",
+        "intent",
+        "records_equal",
+        "records_equal",
+        "budget_ok",
+        "unlinkat"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 568,
+      "apis": [
+        "waitpid"
+      ],
+      "compiler_call_targets": [
+        "waitpid",
+        "waitpid"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 585,
+      "apis": [
+        "unlinkat"
+      ],
+      "compiler_call_targets": [
+        "unlinkat"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 601,
+      "apis": [
+        "flock"
+      ],
+      "compiler_call_targets": [
+        "flock"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 675,
+      "apis": [
+        "unlinkat"
+      ],
+      "compiler_call_targets": [
+        "bindings",
+        "unlinkat",
+        "unlinkat"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 683,
+      "apis": [
+        "waitpid"
+      ],
+      "compiler_call_targets": [
+        "waitpid",
+        "waitpid"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 724,
+      "apis": [
+        "mkdirat"
+      ],
+      "compiler_call_targets": [
+        "budget_ok",
+        "mkdirat",
+        "mkdirat",
+        "mkdirat",
+        "mkdirat"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 730,
+      "apis": [
+        "mkdirat"
+      ],
+      "compiler_call_targets": [
+        "budget_ok",
+        "mkdirat",
+        "mkdirat",
+        "budget_ok",
+        "mkdirat",
+        "mkdirat"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 287,
+      "apis": [
+        "waitpid"
+      ],
+      "compiler_call_targets": [
+        "waitpid",
+        "waitpid"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 308,
+      "apis": [
+        "setgroups"
+      ],
+      "compiler_call_targets": [
+        "prctl",
+        "setgroups"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 309,
+      "apis": [
+        "setresgid",
+        "setresuid"
+      ],
+      "compiler_call_targets": [
+        "setresgid",
+        "setresuid",
+        "_exit"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 311,
+      "apis": [
+        "fork"
+      ],
+      "compiler_call_targets": [
+        "fork",
+        "_exit"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 331,
+      "apis": [
+        "unlinkat"
+      ],
+      "compiler_call_targets": [
+        "unlinkat"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 346,
+      "apis": [
+        "waitpid"
+      ],
+      "compiler_call_targets": [
+        "waitpid",
+        "waitpid"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 353,
+      "apis": [
+        "unlinkat"
+      ],
+      "compiler_call_targets": [
+        "bindings",
+        "empty",
+        "unlinkat"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 372,
+      "apis": [
+        "flock"
+      ],
+      "compiler_call_targets": [
+        "flock"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 428,
+      "apis": [
+        "unlinkat"
+      ],
+      "compiler_call_targets": [
+        "open_recorded_leaf",
+        "empty",
+        "bindings",
+        "unlinkat"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 438,
+      "apis": [
+        "unlinkat"
+      ],
+      "compiler_call_targets": [
+        "fstatat",
+        "fstatat",
+        "fstatat",
+        "fstatat",
+        "__errno_location",
+        "unlinkat",
+        "unlinkat"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 469,
+      "apis": [
+        "mkdirat"
+      ],
+      "compiler_call_targets": [
+        "mkdirat",
+        "mkdirat",
+        "mkdirat",
+        "mkdirat"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 482,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "compiler_call_targets": [],
+      "noncall_effect_target": "syscall",
+      "noncall_effect_line": 484,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 484,
+      "apis": [
+        "SYS_clone3"
+      ],
+      "compiler_call_targets": [
+        "syscall",
+        "syscall"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "line": 14,
+      "apis": [
+        "execveat"
+      ],
+      "compiler_call_targets": [
+        "execveat",
+        "execveat",
+        "execveat"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "exec-pinned.c",
+      "line": 13,
+      "apis": [
+        "execveat"
+      ],
+      "compiler_call_targets": [
+        "execveat",
+        "execveat",
+        "execveat"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 116,
+      "apis": [
+        "setgroups",
+        "setresgid"
+      ],
+      "compiler_call_targets": [
+        "setgroups",
+        "setresgid"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 117,
+      "apis": [
+        "setresuid"
+      ],
+      "compiler_call_targets": [
+        "setresuid",
+        "die",
+        "die"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 35,
+      "apis": [
+        "fork"
+      ],
+      "compiler_call_targets": [
+        "fork"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 45,
+      "apis": [
+        "waitpid"
+      ],
+      "compiler_call_targets": [
+        "waitpid",
+        "waitpid"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 50,
+      "apis": [
+        "waitpid"
+      ],
+      "compiler_call_targets": [
+        "waitpid",
+        "waitpid"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 63,
+      "apis": [
+        "kill"
+      ],
+      "compiler_call_targets": [
+        "kill",
+        "__errno_location"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 67,
+      "apis": [
+        "waitpid"
+      ],
+      "compiler_call_targets": [
+        "waitpid",
+        "waitpid",
+        "__errno_location"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 122,
+      "apis": [
+        "pread"
+      ],
+      "compiler_call_targets": [
+        "pread"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 129,
+      "apis": [
+        "pread"
+      ],
+      "compiler_call_targets": [
+        "pread",
+        "pread"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 104,
+      "apis": [
+        "pread"
+      ],
+      "compiler_call_targets": [
+        "pread"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 111,
+      "apis": [
+        "pread"
+      ],
+      "compiler_call_targets": [
+        "pread",
+        "pread"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "line": 67,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "compiler_call_targets": [
+        "sd_bus_message_new_method_call"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 144,
+      "apis": [
+        "pread"
+      ],
+      "compiler_call_targets": [
+        "pread"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 151,
+      "apis": [
+        "pread"
+      ],
+      "compiler_call_targets": [
+        "pread",
+        "pread",
+        "refuse"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 83,
+      "apis": [
+        "Unsubscribe"
+      ],
+      "compiler_call_targets": [
+        "sd_bus_call_method",
+        "sd_bus_call_method"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 283,
+      "apis": [
+        "Subscribe"
+      ],
+      "compiler_call_targets": [
+        "sd_bus_call_method",
+        "sd_bus_call_method"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 170,
+      "apis": [
+        "accept4"
+      ],
+      "compiler_call_targets": [
+        "accept4"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 189,
+      "apis": [
+        "SCM_RIGHTS"
+      ],
+      "compiler_call_targets": [],
+      "noncall_effect_target": "close",
+      "noncall_effect_line": 195,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 212,
+      "apis": [
+        "recvmsg"
+      ],
+      "compiler_call_targets": [
+        "recvmsg",
+        "recvmsg"
+      ],
+      "noncall_effect_target": null,
+      "noncall_effect_line": null,
+      "semantic_effect_verdict": "PENDING",
+      "authority_guard_verdict": "PENDING"
+    }
+  ],
+  "c_unresolved_object_symbol_categories": {
+    "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED": 247,
+    "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED": 20,
+    "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK": 86,
+    "OBJECT_UNDEFINED_WITH_REPOSITORY_DEFINITION": 9,
+    "OBJECT_LOCAL_DEFINITION_LEXICAL_MISS": 3
+  },
+  "python_dynamic_candidates": [
+    {
+      "file": "systemd_absence_observer.py",
+      "line": 46,
+      "expression": "getattr(manager, method)",
+      "selector_candidates": [
+        "GetUnit",
+        "GetUnitFileState"
+      ]
+    }
+  ],
+  "stages": [
+    {
+      "stage": 1,
+      "name": "Historical-to-current effect mapping",
+      "source_lines_located": 63,
+      "unique_exact_source_lines": 63,
+      "semantic_effects_approved": 0,
+      "gate": "BLOCKED",
+      "reason": "Source matches do not establish equivalent authority effects"
+    },
+    {
+      "stage": 2,
+      "name": "C authority-site semantic review",
+      "compiler_or_noncall_effect_crosswalk": 50,
+      "security_dispositions_approved": 0,
+      "gate": "BLOCKED",
+      "reason": "Compiler evidence does not prove authorization boundaries or effects"
+    },
+    {
+      "stage": 3,
+      "name": "C wrapper and API closure",
+      "wrapper_origin_candidates": 365,
+      "c_api_gap_names": 642,
+      "draft_compiler_mismatches": 20,
+      "semantic_effects_approved": 0,
+      "gate": "BLOCKED",
+      "reason": "External, macro, transitive and indirect effects remain unverified"
+    },
+    {
+      "stage": 4,
+      "name": "Python transitive-effect closure",
+      "python_gap_calls": 1377,
+      "dynamic_invocations": 1,
+      "semantic_effects_approved": 0,
+      "gate": "BLOCKED",
+      "reason": "Runtime binding, receiver and transitive effects remain unresolved"
+    },
+    {
+      "stage": 5,
+      "name": "Indirect-call and macro completeness",
+      "compiler_candidate_sites": 2626,
+      "semantic_completeness_proven": false,
+      "gate": "BLOCKED",
+      "reason": "Negative indirect-call searches and compiler lowering are not exhaustive semantic proof"
+    },
+    {
+      "stage": 6,
+      "name": "Final independent reconciliation",
+      "historical_omissions": 63,
+      "c_authority_sites": 50,
+      "python_ast_calls": 1379,
+      "semantic_completeness_proven": false,
+      "gate": "BLOCKED",
+      "reason": "Prior stage gates remain blocked; cannot certify independent closure"
+    }
+  ],
+  "overall": "NOT_SATISFIED_DO_NOT_ADVANCE_TO_A03_03",
+  "review_note": "All six packages assessed in order. None can be declared semantically complete from available evidence; source matches and compiler symbols are not approvals.",
+  "security_hold": "ACTIVE"
+}

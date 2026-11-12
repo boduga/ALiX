@@ -1,0 +1,1496 @@
+{
+  "scope": "A03-02 63 historical omissions to reviewed current source-line candidate crosswalk",
+  "historical_revision": "d6e22669712e90ace6e4439d005c1856901964f3",
+  "reviewed_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+  "entries": [
+    {
+      "file": "bootstrap_binding.py",
+      "historical_line": 113,
+      "historical_source": "raw = os.pread(fd, before.st_size + 1, 0)",
+      "historical_line_sha256": "4982710ab6835a0d7442489d1179eed8f444b0411d7f10250e423a509557eb73",
+      "reviewed_source_sha256": "ed644fe1187c268903a7404c561fe056d8169ccf356960da0b85298fd229431d",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        113
+      ],
+      "current_line_text": [
+        "raw = os.pread(fd, before.st_size + 1, 0)"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [
+        {
+          "line": 113,
+          "calls": [
+            "os.pread"
+          ]
+        }
+      ],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "historical_line": 108,
+      "historical_source": "if not SUPPORTED or not hasattr(os, \"memfd_create\"):",
+      "historical_line_sha256": "a4c66c5dfca5d6fd1d48b75bf9e3defdb1dbbc55df106bbafe64efae6715148c",
+      "reviewed_source_sha256": "eb8eee722e8cc595faa6a1c29c9da632423825863c9d603547ad688a133ba74e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        108
+      ],
+      "current_line_text": [
+        "if not SUPPORTED or not hasattr(os, \"memfd_create\"):"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [
+        {
+          "line": 108,
+          "calls": [
+            "hasattr"
+          ]
+        }
+      ],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "historical_line": 123,
+      "historical_source": "fd = os.memfd_create(\"ge04-unqualified-bootstrap\",",
+      "historical_line_sha256": "ec0d24eca7a516c2db5531fce6218b397db7abef645b4b8767abc89f94d56be7",
+      "reviewed_source_sha256": "eb8eee722e8cc595faa6a1c29c9da632423825863c9d603547ad688a133ba74e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        123
+      ],
+      "current_line_text": [
+        "fd = os.memfd_create(\"ge04-unqualified-bootstrap\","
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [
+        {
+          "line": 123,
+          "calls": [
+            "os.memfd_create"
+          ]
+        }
+      ],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "historical_line": 3,
+      "historical_source": "Validates kernel SO_PEERCRED, bounded SCM_RIGHTS payload, expected generation,",
+      "historical_line_sha256": "8106614b420428877dd30d6ffd15adc3cc46d306bf4bf85e4dcfae927b7d4e97",
+      "reviewed_source_sha256": "165c615801665e0f16ec95b8150b33adb6d129b4b7392bd26c0d5a4599726207",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        3
+      ],
+      "current_line_text": [
+        "Validates kernel SO_PEERCRED, bounded SCM_RIGHTS payload, expected generation,"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [
+        {
+          "line": 3,
+          "calls": []
+        }
+      ],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "historical_line": 72,
+      "historical_source": "if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:",
+      "historical_line_sha256": "816bbee46438c74e1db96e3a4df941a9a68d8b81d6decf99332e31494a670a74",
+      "reviewed_source_sha256": "165c615801665e0f16ec95b8150b33adb6d129b4b7392bd26c0d5a4599726207",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        72
+      ],
+      "current_line_text": [
+        "if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [
+        {
+          "line": 72,
+          "calls": []
+        }
+      ],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "bounded_job_signal_observer.py",
+      "historical_line": 79,
+      "historical_source": "process = subprocess.Popen(",
+      "historical_line_sha256": "0b366d0ca06d5df0b894ba71acc181831764541e1b125a784c46979cb48d5fb4",
+      "reviewed_source_sha256": "e6e25fc89ae66a815d54c8498af1f311962b2bc2d1512562c354f6637dbc6329",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        79
+      ],
+      "current_line_text": [
+        "process = subprocess.Popen("
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [
+        {
+          "line": 79,
+          "calls": [
+            "subprocess.Popen"
+          ]
+        }
+      ],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "historical_line": 41,
+      "historical_source": "process = subprocess.Popen(",
+      "historical_line_sha256": "0b366d0ca06d5df0b894ba71acc181831764541e1b125a784c46979cb48d5fb4",
+      "reviewed_source_sha256": "55a44fcabd6a4c2e47374d02bbc3ebef05cabaa98a8475aa620b684ed507d4aa",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        43
+      ],
+      "current_line_text": [
+        "process = subprocess.Popen("
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [
+        {
+          "line": 43,
+          "calls": [
+            "subprocess.Popen"
+          ]
+        }
+      ],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "historical_line": 31,
+      "historical_source": "int client = accept4(listener, NULL, NULL, SOCK_CLOEXEC);",
+      "historical_line_sha256": "c3de5913857d297bf8bcb471959d7d47fc478fead5bc50af67635988bc6c0ce7",
+      "reviewed_source_sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        31
+      ],
+      "current_line_text": [
+        "int client = accept4(listener, NULL, NULL, SOCK_CLOEXEC);"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 31,
+          "apis": [
+            "accept4"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "historical_line": 58,
+      "historical_source": "if(mkdirat(parent,argv[2],0700)){",
+      "historical_line_sha256": "d5ab0e146cd88dbec132becde5c35a600c534180de44565c6a86cb919bfe51c6",
+      "reviewed_source_sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        58
+      ],
+      "current_line_text": [
+        "if(mkdirat(parent,argv[2],0700)){"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 58,
+          "apis": [
+            "mkdirat"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 300,
+      "historical_source": "#ifdef SYS_renameat2",
+      "historical_line_sha256": "c10bb82da64479ba2ef5b17a661343ebdef7c3ddb17e8848c51e3724b7c519fe",
+      "reviewed_source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        300
+      ],
+      "current_line_text": [
+        "#ifdef SYS_renameat2"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 354,
+      "historical_source": "int status;pid_t got=waitpid(c->child[slot],&status,WNOHANG|WUNTRACED);",
+      "historical_line_sha256": "62a3badc1916063a9127c51ecab36f2963707c7f4a1fe5986433cde96f830e47",
+      "reviewed_source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        354
+      ],
+      "current_line_text": [
+        "int status;pid_t got=waitpid(c->child[slot],&status,WNOHANG|WUNTRACED);"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 354,
+          "apis": [
+            "waitpid"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 442,
+      "historical_source": "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)",
+      "historical_line_sha256": "4a7a511a0b95b022fc29b36962e21a37e8761f7ef5af1e5de25a530abe515607",
+      "reviewed_source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        442
+      ],
+      "current_line_text": [
+        "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 443,
+      "historical_source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],",
+      "historical_line_sha256": "3a5043fc1fa3675c3c7d4492ca3f09163dca776af5303e807ebe90902be4030e",
+      "reviewed_source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        443
+      ],
+      "current_line_text": [
+        "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 443,
+          "apis": [
+            "CLONE_INTO_CGROUP"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 531,
+      "historical_source": "bindings(c)&&budget_ok()&&unlinkat(c->outer,name,AT_REMOVEDIR)==0;",
+      "historical_line_sha256": "e78abf7181ed2d17aa43d6014c8877686f6ccef414763b33884e5af554ba0cec",
+      "reviewed_source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        531
+      ],
+      "current_line_text": [
+        "bindings(c)&&budget_ok()&&unlinkat(c->outer,name,AT_REMOVEDIR)==0;"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 531,
+          "apis": [
+            "unlinkat"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 538,
+      "historical_source": "return intent(c->work,name,&r)&&records_equal(&r,&c->record)&&budget_ok()&&unlinkat(c->work,name,0)==0;",
+      "historical_line_sha256": "5dbc575f0c62249fec3dc43468982a6e4c3012e44d4e5f61634e4eb64d178f44",
+      "reviewed_source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        538
+      ],
+      "current_line_text": [
+        "return intent(c->work,name,&r)&&records_equal(&r,&c->record)&&budget_ok()&&unlinkat(c->work,name,0)==0;"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 538,
+          "apis": [
+            "unlinkat"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 568,
+      "historical_source": "while((got=waitpid(-1,&status,WNOHANG))>0){}",
+      "historical_line_sha256": "a45ca0ef9dafc0ee024dc35ee624dc2d1b42a05d64e7a6bc723962b5a379d788",
+      "reviewed_source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        568
+      ],
+      "current_line_text": [
+        "while((got=waitpid(-1,&status,WNOHANG))>0){}"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 568,
+          "apis": [
+            "waitpid"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 585,
+      "historical_source": "unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "historical_line_sha256": "082780cd16e6d7e8b48609f569a35472a72556821fb47bfdef8a8d85dfdb0027",
+      "reviewed_source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        585
+      ],
+      "current_line_text": [
+        "unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 585,
+          "apis": [
+            "unlinkat"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 601,
+      "historical_source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "historical_line_sha256": "a512207be4aa37bae0070174559a4b5bef38b489e033ee771429d894e928e670",
+      "reviewed_source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        601
+      ],
+      "current_line_text": [
+        "if(flock(c->lock,LOCK_EX|LOCK_NB)){"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 601,
+          "apis": [
+            "flock"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 675,
+      "historical_source": "!bindings(c)||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "historical_line_sha256": "b5a3064b38d5dbb8ab59c5200698f41da0b2247fa40fda8a9b8759b8dc72db6f",
+      "reviewed_source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        675
+      ],
+      "current_line_text": [
+        "!bindings(c)||unlinkat(c->work,\"intent.tmp\",0))return 0;"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 675,
+          "apis": [
+            "unlinkat"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 683,
+      "historical_source": "int status;pid_t got=waitpid(c->child[0],&status,WNOHANG);",
+      "historical_line_sha256": "19187b6491110599b6908e03c833dc910bd91b11da07fc4a2f6c4d7cddcedcd2",
+      "reviewed_source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        683
+      ],
+      "current_line_text": [
+        "int status;pid_t got=waitpid(c->child[0],&status,WNOHANG);"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 683,
+          "apis": [
+            "waitpid"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 724,
+      "historical_source": "if(!budget_ok()||mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "historical_line_sha256": "b24a38dab7e08902a4c640bce49a7f2e55966487a0ea057904753357c8f70ddf",
+      "reviewed_source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        724
+      ],
+      "current_line_text": [
+        "if(!budget_ok()||mkdirat(c.parent,c.record.name,0700))goto finished;"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 724,
+          "apis": [
+            "mkdirat"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 730,
+      "historical_source": "!budget_ok()||mkdirat(c.outer,\"launcher\",0700)||!budget_ok()||mkdirat(c.outer,\"payload\",0700)||",
+      "historical_line_sha256": "c98d1ca0c3927db050750da1927d34389d57a57b691a7b1db86da24518e2b815",
+      "reviewed_source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        730
+      ],
+      "current_line_text": [
+        "!budget_ok()||mkdirat(c.outer,\"launcher\",0700)||!budget_ok()||mkdirat(c.outer,\"payload\",0700)||"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 730,
+          "apis": [
+            "mkdirat"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 199,
+      "historical_source": "#ifdef SYS_renameat2",
+      "historical_line_sha256": "c10bb82da64479ba2ef5b17a661343ebdef7c3ddb17e8848c51e3724b7c519fe",
+      "reviewed_source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        224
+      ],
+      "current_line_text": [
+        "#ifdef SYS_renameat2"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 262,
+      "historical_source": "int status;pid_t got=waitpid(c->child,&status,WNOHANG|WUNTRACED);",
+      "historical_line_sha256": "2022ed818aab1a4e0b5788974cfb0a2cea647b52b11bcea32279799d32701d65",
+      "reviewed_source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        287
+      ],
+      "current_line_text": [
+        "int status;pid_t got=waitpid(c->child,&status,WNOHANG|WUNTRACED);"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 287,
+          "apis": [
+            "waitpid"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 283,
+      "historical_source": "if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||",
+      "historical_line_sha256": "9ac3fc3cec734c390cb7d876c5b93165e8e0f9ae6121896186f21795dc8d5838",
+      "reviewed_source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        308
+      ],
+      "current_line_text": [
+        "if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 308,
+          "apis": [
+            "setgroups"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 284,
+      "historical_source": "setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+      "historical_line_sha256": "c12887963325ac80a883b8aca44bfb8bb13933f6cae48558506d4cd42783f917",
+      "reviewed_source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        309
+      ],
+      "current_line_text": [
+        "setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 309,
+          "apis": [
+            "setresgid",
+            "setresuid"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 305,
+      "historical_source": "return unlinkat(c->work,name,0)==0;",
+      "historical_line_sha256": "1ee9cb2e10701ae6f7d27983688a4c788f508ca2362b863f65f85d3edbbdd936",
+      "reviewed_source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        331
+      ],
+      "current_line_text": [
+        "return unlinkat(c->work,name,0)==0;"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 331,
+          "apis": [
+            "unlinkat"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 319,
+      "historical_source": "while((n=waitpid(-1,&status,WNOHANG))>0){}",
+      "historical_line_sha256": "f43a1210b3c32d2fb558a2ff62feab2cdfeab27c39b81be18a58c7125915a787",
+      "reviewed_source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        346
+      ],
+      "current_line_text": [
+        "while((n=waitpid(-1,&status,WNOHANG))>0){}"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 346,
+          "apis": [
+            "waitpid"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 326,
+      "historical_source": "if(!bindings(c)||!empty(c)||unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "historical_line_sha256": "cac0fb626adad57c80e65e9c25931d3536287c6999d5a92a4175a299689c77a4",
+      "reviewed_source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        353
+      ],
+      "current_line_text": [
+        "if(!bindings(c)||!empty(c)||unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 353,
+          "apis": [
+            "unlinkat"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 345,
+      "historical_source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "historical_line_sha256": "a512207be4aa37bae0070174559a4b5bef38b489e033ee771429d894e928e670",
+      "reviewed_source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        372
+      ],
+      "current_line_text": [
+        "if(flock(c->lock,LOCK_EX|LOCK_NB)){"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 372,
+          "apis": [
+            "flock"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 386,
+      "historical_source": "if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}",
+      "historical_line_sha256": "ddce77aac403180205ba62b68e60763869870a795fdba84a599be892875b7711",
+      "reviewed_source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        428
+      ],
+      "current_line_text": [
+        "if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 428,
+          "apis": [
+            "unlinkat"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 396,
+      "historical_source": "fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "historical_line_sha256": "d39a6f9b7235102c377322e7c9b9cbeb2d424b6af3e45b4293755ae2c45e46e8",
+      "reviewed_source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        438
+      ],
+      "current_line_text": [
+        "fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,\"intent.tmp\",0))return 0;"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 438,
+          "apis": [
+            "unlinkat"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 401,
+      "historical_source": "const char *modes[]={\"run\",\"fail-before-clone\",\"fail-attach\",\"fail-verify\",\"fail-resume\",\"fail-publish\",",
+      "historical_line_sha256": "cef81fa894bf9eba07468465b6ab4cb75de49b98ddf0270e91c09bb84f8acad3",
+      "reviewed_source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        443
+      ],
+      "current_line_text": [
+        "const char *modes[]={\"run\",\"fail-before-clone\",\"fail-attach\",\"fail-verify\",\"fail-resume\",\"fail-publish\","
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 425,
+      "historical_source": "if(mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "historical_line_sha256": "cf1fb4fdda1c225ed34131425864c1ec75e3ebcd1e2d1aa7f77c0ef30a7165d9",
+      "reviewed_source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        469
+      ],
+      "current_line_text": [
+        "if(mkdirat(c.parent,c.record.name,0700))goto finished;"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 469,
+          "apis": [
+            "mkdirat"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 434,
+      "historical_source": "if(!strcmp(c.mode,\"fail-before-clone\")){reason=\"BEFORE_CLONE\";goto rollback;}",
+      "historical_line_sha256": "d03329b37ce1ae5175b9d87302eaa0d9ad1c31b99c3c5f6695c3a67ede0e4df8",
+      "reviewed_source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        478
+      ],
+      "current_line_text": [
+        "if(!strcmp(c.mode,\"fail-before-clone\")){reason=\"BEFORE_CLONE\";goto rollback;}"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 437,
+      "historical_source": "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)",
+      "historical_line_sha256": "4a7a511a0b95b022fc29b36962e21a37e8761f7ef5af1e5de25a530abe515607",
+      "reviewed_source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        481
+      ],
+      "current_line_text": [
+        "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 438,
+      "historical_source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,",
+      "historical_line_sha256": "94162eb583a2676eb1848252ec84eb37f0786247e528ed173c031e37fb158a95",
+      "reviewed_source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        482
+      ],
+      "current_line_text": [
+        "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 482,
+          "apis": [
+            "CLONE_INTO_CGROUP"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "historical_line": 116,
+      "historical_source": "if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||",
+      "historical_line_sha256": "02a7df900ff3436c669b2fe3f32897986388b7242cadf1439b0a32c8dc7f3cf0",
+      "reviewed_source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        116
+      ],
+      "current_line_text": [
+        "if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 116,
+          "apis": [
+            "setgroups",
+            "setresgid"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "historical_line": 117,
+      "historical_source": "setresuid(target,target,target))die(\"identity isolation failed\");",
+      "historical_line_sha256": "78d7a286890a7f30c8147ff640052ec951d5ae9c2fbe93a2c98b7e93c5da6b4f",
+      "reviewed_source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        117
+      ],
+      "current_line_text": [
+        "setresuid(target,target,target))die(\"identity isolation failed\");"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 117,
+          "apis": [
+            "setresuid"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "historical_line": 125,
+      "historical_source": "#ifdef SYS_execveat",
+      "historical_line_sha256": "c076b61c5953c6cb656ca29358abc3be734d473bf99434a3e4fb7d097ca8f4d5",
+      "reviewed_source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        128
+      ],
+      "current_line_text": [
+        "#ifdef SYS_execveat"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "historical_line": 128,
+      "historical_source": "die(\"execveat unavailable\");",
+      "historical_line_sha256": "c3e14675e83d07ea2791f7881dbc05ebac8def3decf9266fe4faab09a59533e7",
+      "reviewed_source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        131
+      ],
+      "current_line_text": [
+        "die(\"execveat unavailable\");"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "historical_line": 45,
+      "historical_source": "if(waitpid(child,&status,WUNTRACED)!=child||!WIFSTOPPED(status)||WSTOPSIG(status)!=SIGSTOP){result=74;goto cleanup;}",
+      "historical_line_sha256": "e3b468b01f1a7ab6046eeee2dce4225eb2648b4c32d6a2ab63f720f0fbf74877",
+      "reviewed_source_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        45
+      ],
+      "current_line_text": [
+        "if(waitpid(child,&status,WUNTRACED)!=child||!WIFSTOPPED(status)||WSTOPSIG(status)!=SIGSTOP){result=74;goto cleanup;}"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 45,
+          "apis": [
+            "waitpid"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "historical_line": 50,
+      "historical_source": "if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}",
+      "historical_line_sha256": "71b074ae3e622d79bc214794b8a52959270dc77e8020ab8321955c3d0a32f849",
+      "reviewed_source_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        50
+      ],
+      "current_line_text": [
+        "if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 50,
+          "apis": [
+            "waitpid"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "historical_line": 122,
+      "historical_source": "ssize_t n = pread(held->fence_fd, observed + offset,",
+      "historical_line_sha256": "b7a70919c59212cd1065ac15c829d3f4ccc9770099f0982b4dd063e4f6baaae2",
+      "reviewed_source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        122
+      ],
+      "current_line_text": [
+        "ssize_t n = pread(held->fence_fd, observed + offset,"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 122,
+          "apis": [
+            "pread"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "historical_line": 129,
+      "historical_source": "if (pread(held->fence_fd, &trailer, 1, (off_t)size) != 0 ||",
+      "historical_line_sha256": "39ffc2a487494e57ec305a46451cc168b95dee4d0a42cb736cfa53e0168cb01c",
+      "reviewed_source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        129
+      ],
+      "current_line_text": [
+        "if (pread(held->fence_fd, &trailer, 1, (off_t)size) != 0 ||"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 129,
+          "apis": [
+            "pread"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "historical_line": 84,
+      "historical_source": "static int fixed_root_open(void);",
+      "historical_line_sha256": "609901845f08a411a432cdbc1a5f63ab44ef54e95f755aab6d9cb934648edb8b",
+      "reviewed_source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        84
+      ],
+      "current_line_text": [
+        "static int fixed_root_open(void);"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "historical_line": 87,
+      "historical_source": "int current_fd = fixed_root_open();",
+      "historical_line_sha256": "d6ad858d8775c234631dfc5b3c463d742b21161de6302cff5f78d835df51d4a5",
+      "reviewed_source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        87
+      ],
+      "current_line_text": [
+        "int current_fd = fixed_root_open();"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "historical_line": 111,
+      "historical_source": "static int fixed_root_open(void) {",
+      "historical_line_sha256": "ec9bc9db3478d9c6c49be7cb0b5c73d2d078dad8aac9b3340b4df4639417f944",
+      "reviewed_source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        111
+      ],
+      "current_line_text": [
+        "static int fixed_root_open(void) {"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "historical_line": 158,
+      "historical_source": "candidate.root_fd = fixed_root_open();",
+      "historical_line_sha256": "da3c1a29dae4cf46ea50b6cbc37f485af19727a36bc949bf60f9b49668dde8c1",
+      "reviewed_source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        158
+      ],
+      "current_line_text": [
+        "candidate.root_fd = fixed_root_open();"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "historical_line": 104,
+      "historical_source": "ssize_t got = pread(held->intent_fd, observed + count,",
+      "historical_line_sha256": "1f4cca0f380c0efbad41de2757a37e7bdf91ff4a4a9a72e0fc328d400c20f6cd",
+      "reviewed_source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        104
+      ],
+      "current_line_text": [
+        "ssize_t got = pread(held->intent_fd, observed + count,"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 104,
+          "apis": [
+            "pread"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "historical_line": 111,
+      "historical_source": "if (pread(held->intent_fd, &excess, 1, (off_t)length) != 0 ||",
+      "historical_line_sha256": "bd2ede0925b25fc0fc4940e1f73c815dd61b3cd0f010edb04714eaaad7d84377",
+      "reviewed_source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        111
+      ],
+      "current_line_text": [
+        "if (pread(held->intent_fd, &excess, 1, (off_t)length) != 0 ||"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 111,
+          "apis": [
+            "pread"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "historical_line": 144,
+      "historical_source": "ssize_t read_bytes = pread(fd, bytes + offset, expected - offset,",
+      "historical_line_sha256": "d711fc9c05d983e59a11ac26009eac6c21a6783aa4ace526f20732ea5ebafa86",
+      "reviewed_source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        144
+      ],
+      "current_line_text": [
+        "ssize_t read_bytes = pread(fd, bytes + offset, expected - offset,"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 144,
+          "apis": [
+            "pread"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "historical_line": 151,
+      "historical_source": "if (pread(fd, &trailer, 1, (off_t)expected) != 0) return refuse(EIO);",
+      "historical_line_sha256": "b08d0bf4a0733fe25ca331be7d14281327719685a74af0d08a62779ac0df9ec7",
+      "reviewed_source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        151
+      ],
+      "current_line_text": [
+        "if (pread(fd, &trailer, 1, (off_t)expected) != 0) return refuse(EIO);"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 151,
+          "apis": [
+            "pread"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "historical_line": 100,
+      "historical_source": "match = bus.add_signal_receiver(",
+      "historical_line_sha256": "931b180ee58c3c8986829f702e06d907c8ce28a7ead500ede8b266c7862adecd",
+      "reviewed_source_sha256": "e36da0146da76da7c89f713e51bfc5e6d10b867563ea668bd76184b1c21a80e9",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        100
+      ],
+      "current_line_text": [
+        "match = bus.add_signal_receiver("
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [
+        {
+          "line": 100,
+          "calls": [
+            "bus.add_signal_receiver"
+          ]
+        }
+      ],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "historical_line": 106,
+      "historical_source": "manager.Subscribe(timeout=1)",
+      "historical_line_sha256": "7a2ae2cfeadfa920eb5a537e4615e7952676d7a66d6cf39b228dee295c169fb1",
+      "reviewed_source_sha256": "e36da0146da76da7c89f713e51bfc5e6d10b867563ea668bd76184b1c21a80e9",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        106
+      ],
+      "current_line_text": [
+        "manager.Subscribe(timeout=1)"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [
+        {
+          "line": 106,
+          "calls": [
+            "manager.Subscribe"
+          ]
+        }
+      ],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "historical_line": 137,
+      "historical_source": "manager.Unsubscribe(timeout=1)",
+      "historical_line_sha256": "8a5584c64aa16f0dc2ba22406cc85cbedd9ece6f7dff39d006dcb247dcf8511d",
+      "reviewed_source_sha256": "e36da0146da76da7c89f713e51bfc5e6d10b867563ea668bd76184b1c21a80e9",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        137
+      ],
+      "current_line_text": [
+        "manager.Unsubscribe(timeout=1)"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [
+        {
+          "line": 137,
+          "calls": [
+            "manager.Unsubscribe"
+          ]
+        }
+      ],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "historical_line": 57,
+      "historical_source": "def _mount(raw):",
+      "historical_line_sha256": "b47d2b64a2810c9e25e19bd16dfd4a5ff5afd68716d97e997d0a983e61599429",
+      "reviewed_source_sha256": "86da8c10920d5ad3f54554d3bd264ff98bc6f3aa11c46b13d782233ec2df631e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        58
+      ],
+      "current_line_text": [
+        "def _mount(raw):"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [
+        {
+          "line": 58,
+          "calls": []
+        }
+      ],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "historical_line": 121,
+      "historical_source": "mount = _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576))",
+      "historical_line_sha256": "dc63d97b9de3d52d78760608c613e4f23edbc37d50e99ad9a596b4715e18eaa0",
+      "reviewed_source_sha256": "86da8c10920d5ad3f54554d3bd264ff98bc6f3aa11c46b13d782233ec2df631e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        123
+      ],
+      "current_line_text": [
+        "mount = _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576))"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [
+        {
+          "line": 123,
+          "calls": [
+            "_mount",
+            "_read_fixed"
+          ]
+        }
+      ],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "historical_line": 165,
+      "historical_source": "or _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576)) != mount",
+      "historical_line_sha256": "4f19c86f5855944c9201b52ef6893a733287c6664c1c1b2dada60b45e7821200",
+      "reviewed_source_sha256": "86da8c10920d5ad3f54554d3bd264ff98bc6f3aa11c46b13d782233ec2df631e",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        167
+      ],
+      "current_line_text": [
+        "or _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576)) != mount"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [
+        {
+          "line": 167,
+          "calls": [
+            "_mount",
+            "_read_fixed"
+          ]
+        }
+      ],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "historical_line": 170,
+      "historical_source": "s->fd=accept4(listener,NULL,NULL,SOCK_CLOEXEC|SOCK_NONBLOCK);",
+      "historical_line_sha256": "8d5fa78d86a5cdfb77c9cd381ca8814a3d4b2ff4945567887ff10f1fa0cb04b8",
+      "reviewed_source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        170
+      ],
+      "current_line_text": [
+        "s->fd=accept4(listener,NULL,NULL,SOCK_CLOEXEC|SOCK_NONBLOCK);"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 170,
+          "apis": [
+            "accept4"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "historical_line": 189,
+      "historical_source": "if(c->cmsg_level==SOL_SOCKET&&(c->cmsg_type==SCM_RIGHTS",
+      "historical_line_sha256": "9f002d1045858465f005ba9a9c5adfef9fd23717c965db56505739bc54eb4d71",
+      "reviewed_source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        189
+      ],
+      "current_line_text": [
+        "if(c->cmsg_level==SOL_SOCKET&&(c->cmsg_type==SCM_RIGHTS"
+      ],
+      "c_authority_queue_matches": [
+        {
+          "line": 189,
+          "apis": [
+            "SCM_RIGHTS"
+          ]
+        }
+      ],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "historical_line": 221,
+      "historical_source": "int ge04_stream_read(struct ge04_stream_session *s,unsigned char *buffer,size_t capacity,size_t *length,int ms) {",
+      "historical_line_sha256": "04fbf9b14b64491f92a2c46d06abbe2aaa46643766ceeafc581169ec1ac878b7",
+      "reviewed_source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        221
+      ],
+      "current_line_text": [
+        "int ge04_stream_read(struct ge04_stream_session *s,unsigned char *buffer,size_t capacity,size_t *length,int ms) {"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "historical_line": 248,
+      "historical_source": "int ge04_stream_write(struct ge04_stream_session *s,const unsigned char *buffer,size_t length,int ms) {",
+      "historical_line_sha256": "33125ef951fac0cbc678cbdda218934e87b1d1779ad40531fa92b1abe617c71e",
+      "reviewed_source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "source_match_kind": "UNIQUE_EXACT_LINE",
+      "current_candidate_lines": [
+        248
+      ],
+      "current_line_text": [
+        "int ge04_stream_write(struct ge04_stream_session *s,const unsigned char *buffer,size_t length,int ms) {"
+      ],
+      "c_authority_queue_matches": [],
+      "python_ast_call_matches": [],
+      "semantic_effect_status": "PENDING_MANUAL_VERIFICATION",
+      "security_verdict": "PENDING"
+    }
+  ],
+  "match_counts": {
+    "UNIQUE_EXACT_LINE": 63
+  },
+  "total": 63,
+  "semantic_mapping_approved": 0,
+  "status": "SOURCE_CANDIDATES_ONLY_SEMANTIC_EFFECT_MAPPING_OPEN",
+  "limitations": [
+    "Exact source text equality does not establish equivalent runtime authority effects",
+    "Fuzzy suggestions are not mappings or evidence of effect equivalence",
+    "Preprocessor directives, docstrings, signatures and function calls require distinct semantic analysis",
+    "Current source locations may be duplicated, moved, changed or deleted",
+    "All 63 effect dispositions remain pending independent review"
+  ],
+  "security_hold": "ACTIVE"
+}
