@@ -1,0 +1,1007 @@
+{
+  "scope": "A03-02 GCC source-callsite to 50 C authority sites reconciliation",
+  "gimple_candidate_count": 2626,
+  "candidate_classification_counts": {
+    "LOWERED_NAMED_CALL_CANDIDATE": 2047,
+    "DIAGNOSTIC_ANNOTATION_NOT_CALL": 579
+  },
+  "c_authority_sites": 50,
+  "authority_sites_with_same_line_gimple_call": 47,
+  "authority_sites_without_same_line_gimple_call": 3,
+  "unmatched_authority_sites": [
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 443,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "reason": "NO_GIMPLE_CALL_AT_EXACT_SOURCE_LINE; MAY_BE_FLAG_OR_MULTILINE_CALL"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 482,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "reason": "NO_GIMPLE_CALL_AT_EXACT_SOURCE_LINE; MAY_BE_FLAG_OR_MULTILINE_CALL"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 189,
+      "apis": [
+        "SCM_RIGHTS"
+      ],
+      "reason": "NO_GIMPLE_CALL_AT_EXACT_SOURCE_LINE; MAY_BE_FLAG_OR_MULTILINE_CALL"
+    }
+  ],
+  "authority_crosswalk": [
+    {
+      "file": "broker-peer-probe.c",
+      "line": 31,
+      "apis": [
+        "accept4"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "accept4",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "line": 58,
+      "apis": [
+        "mkdirat"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "mkdirat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 354,
+      "apis": [
+        "waitpid"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "waitpid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "waitpid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 405,
+      "apis": [
+        "mount"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "mount",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "mount",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "_exit",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 407,
+      "apis": [
+        "mount"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "mount",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "mount",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "mount",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "mount",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "_exit",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 443,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "gimple_call_candidates": [],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 445,
+      "apis": [
+        "SYS_clone3"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "syscall",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "syscall",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 531,
+      "apis": [
+        "unlinkat"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "bindings",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "budget_ok",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "unlinkat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 538,
+      "apis": [
+        "unlinkat"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "intent",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "intent",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "records_equal",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "records_equal",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "budget_ok",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "unlinkat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 568,
+      "apis": [
+        "waitpid"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "waitpid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "waitpid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 585,
+      "apis": [
+        "unlinkat"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "unlinkat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 601,
+      "apis": [
+        "flock"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "flock",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 675,
+      "apis": [
+        "unlinkat"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "bindings",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "unlinkat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "unlinkat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 683,
+      "apis": [
+        "waitpid"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "waitpid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "waitpid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 724,
+      "apis": [
+        "mkdirat"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "budget_ok",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "mkdirat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "mkdirat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "mkdirat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "mkdirat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 730,
+      "apis": [
+        "mkdirat"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "budget_ok",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "mkdirat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "mkdirat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "budget_ok",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "mkdirat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "mkdirat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 287,
+      "apis": [
+        "waitpid"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "waitpid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "waitpid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 308,
+      "apis": [
+        "setgroups"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "prctl",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "setgroups",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 309,
+      "apis": [
+        "setresgid",
+        "setresuid"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "setresgid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "setresuid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "_exit",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 311,
+      "apis": [
+        "fork"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "fork",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "_exit",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 331,
+      "apis": [
+        "unlinkat"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "unlinkat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 346,
+      "apis": [
+        "waitpid"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "waitpid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "waitpid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 353,
+      "apis": [
+        "unlinkat"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "bindings",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "empty",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "unlinkat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 372,
+      "apis": [
+        "flock"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "flock",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 428,
+      "apis": [
+        "unlinkat"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "open_recorded_leaf",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "empty",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "bindings",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "unlinkat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 438,
+      "apis": [
+        "unlinkat"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "fstatat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "fstatat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "fstatat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "fstatat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "__errno_location",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "unlinkat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "unlinkat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 469,
+      "apis": [
+        "mkdirat"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "mkdirat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "mkdirat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "mkdirat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "mkdirat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 482,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "gimple_call_candidates": [],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 484,
+      "apis": [
+        "SYS_clone3"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "syscall",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "syscall",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "line": 14,
+      "apis": [
+        "execveat"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "execveat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "execveat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "execveat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "exec-pinned.c",
+      "line": 13,
+      "apis": [
+        "execveat"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "execveat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "execveat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "execveat",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 116,
+      "apis": [
+        "setgroups",
+        "setresgid"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "setgroups",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "setresgid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 117,
+      "apis": [
+        "setresuid"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "setresuid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "die",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "die",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 35,
+      "apis": [
+        "fork"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "fork",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 45,
+      "apis": [
+        "waitpid"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "waitpid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "waitpid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 50,
+      "apis": [
+        "waitpid"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "waitpid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "waitpid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 63,
+      "apis": [
+        "kill"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "kill",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "__errno_location",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 67,
+      "apis": [
+        "waitpid"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "waitpid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "waitpid",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "__errno_location",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 122,
+      "apis": [
+        "pread"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "pread",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 129,
+      "apis": [
+        "pread"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "pread",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "pread",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 104,
+      "apis": [
+        "pread"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "pread",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 111,
+      "apis": [
+        "pread"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "pread",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "pread",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "line": 67,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "sd_bus_message_new_method_call",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 144,
+      "apis": [
+        "pread"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "pread",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 151,
+      "apis": [
+        "pread"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "pread",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "pread",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "refuse",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 83,
+      "apis": [
+        "Unsubscribe"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "sd_bus_call_method",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "sd_bus_call_method",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 283,
+      "apis": [
+        "Subscribe"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "sd_bus_call_method",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "sd_bus_call_method",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 170,
+      "apis": [
+        "accept4"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "accept4",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 189,
+      "apis": [
+        "SCM_RIGHTS"
+      ],
+      "gimple_call_candidates": [],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 212,
+      "apis": [
+        "recvmsg"
+      ],
+      "gimple_call_candidates": [
+        {
+          "target": "recvmsg",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        },
+        {
+          "target": "recvmsg",
+          "kind": "LOWERED_NAMED_CALL_CANDIDATE"
+        }
+      ],
+      "disposition": "UNADJUDICATED_AUTHORITY_SITE"
+    }
+  ],
+  "result": "CROSSWALK_ONLY_NOT_SEMANTIC_CLOSURE",
+  "limitations": [
+    "Exact-line matching does not account for macro-origin provenance or multiline calls",
+    "Compiler-generated calls can share source locations with other operations",
+    "Named calls can dispatch through wrappers and have unknown effects",
+    "All 50 authority sites still require individual review",
+    "No unlisted authority site is deemed absent or safe"
+  ],
+  "security_hold": "ACTIVE"
+}
