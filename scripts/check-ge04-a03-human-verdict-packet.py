@@ -20,11 +20,19 @@ writer=json.loads((docs/'ge04-b1a-writer-exclusion-review.json').read_text())['e
 assert all(e['writer_exclusion']=='NOT_PROVEN' for e in writer)
 rev='d6e22669712e90ace6e4439d005c1856901964f3'  # Original authoring parent; stable across review-document commits
 status=subprocess.run(['git','status','--porcelain','--untracked-files=all'],cwd=root,text=True,capture_output=True,check=True).stdout
+# Pin the human-reviewed source and evidence bytes to the actual reviewed Git tree.
+review_rev='f748ea2e3030bec9d1e3fa375374663721e7496a'
+def reviewed_bytes(path):
+ return subprocess.run(['git','show',f'{review_rev}:{path.relative_to(root).as_posix()}'],cwd=root,capture_output=True,check=True).stdout
+baseline_paths=[*source_files,*(root/a['path'] for a in artifacts)]
+baseline_mismatches=[str(p.relative_to(root)) for p in baseline_paths if hashlib.sha256(reviewed_bytes(p)).digest()!=hashlib.sha256(p.read_bytes()).digest()]
+assert not baseline_mismatches, f'Reviewed source/evidence baseline changed: {baseline_mismatches}'
 report={'scope':'GE-04 A.03 M2.12 INDEPENDENT HUMAN VERDICT HANDOFF',
  'decision':'HUMAN_REVIEW_APPROVED; OPERATIONAL_HOLD_ACTIVE',
  'decision_authority':'USER_HUMAN_REVIEWER',
  'authoring_parent_revision':rev,'review_revision':'f748ea2e3030bec9d1e3fa375374663721e7496a','working_tree_dirty':bool(status.strip()),
- 'immutable_review_baseline_established':False,
+ 'immutable_review_baseline_established':True,
+ 'review_baseline':{'revision':review_rev,'source_files_verified':len(source_files),'evidence_artifacts_verified':len(artifacts),'source_and_evidence_match_reviewed_git_tree':True,'working_tree_dirty_scope':'GLOBAL_REPOSITORY_ONLY_NOT_REVIEWED_SOURCE_OR_EVIDENCE','future_changes_require_new_review':True},
  'user_reported_verdict':{'decision':'APPROVED','reported_on':'2026-11-11','channel':'ChatGPT conversation','reviewed_revision_claim':'f748ea2e3030bec9d1e3fa375374663721e7496a','attestation_status':'DIRECT_HUMAN_REVIEWER_APPROVAL_IN_CONVERSATION','reviewer_identity':'PROJECT_OWNER_USER','per_site_review':'NOT_PROVIDED','blocker_dispositions':'NOT_PROVIDED','effect':'HUMAN_REVIEW_APPROVED_SEPARATE_HOLD_RELEASE_REQUIRED'},
  'source_hashes':[{'path':str(p.relative_to(root)),'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in source_files],
  'author_evidence_artifacts':artifacts,
@@ -36,7 +44,7 @@ report={'scope':'GE-04 A.03 M2.12 INDEPENDENT HUMAN VERDICT HANDOFF',
  {'id':'A03-04','issue':'Writer exclusion, inode-conditional name deletion and crash-recovery durability not proven','required':'Independent design resolution and authorized negative/fault-injection evidence'},
  {'id':'A03-05','issue':'Privileged transition, process, descriptor transfer and D-Bus adversarial validation not completed','required':'Authorized qualification and reviewer adjudication; no protected execution under current hold'},
  {'id':'A03-06','issue':'Candidate-only CI drift gate cannot detect unknown authority surfaces and has not run in GitHub Actions','required':'Human-approved reviewed-API regression gate at immutable final source revision and CI evidence'},
- {'id':'A03-07','issue':'Uncommitted source remediation and evidence prevent immutable final review baseline','required':'Pin exact final revision and all source hashes after approved workflow; re-review changes'},
+ {'id':'A03-07','issue':'Reviewed source and evidence are pinned to an immutable Git revision; future changes require re-review','required':'SATISFIED for reviewed source/evidence at f748ea2e; re-verify and re-review any subsequent changes'},
  {'id':'A03-08','issue':'Human reviewer approved; detailed signed evidence and dispositions not separately documented','required':'Retain reviewer approval and document any required site-level dispositions or exceptions separately'}],
  'human_verdict_template':{'reviewer_identity':'PROJECT_OWNER_USER','review_date':'2026-11-11','reviewed_revision':'f748ea2e3030bec9d1e3fa375374663721e7496a','reviewed_source_hash_manifest':'source_hashes','per_site_verdicts':'NOT_SEPARATELY_DOCUMENTED','exceptions_and_owners':'NOT_SEPARATELY_DOCUMENTED','decision':'APPROVED'},
  'prohibited_inferences':['Author-side checks are not human acceptance','AI reviewer findings are not independent human acceptance','A.03 evidence does not authorize root execution, worker admission, ACK, systemd dispatch or PR merge'],

@@ -5,7 +5,15 @@
   "authoring_parent_revision": "d6e22669712e90ace6e4439d005c1856901964f3",
   "review_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
   "working_tree_dirty": true,
-  "immutable_review_baseline_established": false,
+  "immutable_review_baseline_established": true,
+  "review_baseline": {
+    "revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+    "source_files_verified": 54,
+    "evidence_artifacts_verified": 13,
+    "source_and_evidence_match_reviewed_git_tree": true,
+    "working_tree_dirty_scope": "GLOBAL_REPOSITORY_ONLY_NOT_REVIEWED_SOURCE_OR_EVIDENCE",
+    "future_changes_require_new_review": true
+  },
   "user_reported_verdict": {
     "decision": "APPROVED",
     "reported_on": "2026-11-11",
@@ -343,8 +351,8 @@
     },
     {
       "id": "A03-07",
-      "issue": "Uncommitted source remediation and evidence prevent immutable final review baseline",
-      "required": "Pin exact final revision and all source hashes after approved workflow; re-review changes"
+      "issue": "Reviewed source and evidence are pinned to an immutable Git revision; future changes require re-review",
+      "required": "SATISFIED for reviewed source/evidence at f748ea2e; re-verify and re-review any subsequent changes"
     },
     {
       "id": "A03-08",
