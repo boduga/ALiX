@@ -1,0 +1,5993 @@
+{
+  "scope": "A03-01 Python AST dispatch expansion of 7 historical reviewer files",
+  "reviewed_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+  "files": 7,
+  "calls": 545,
+  "assignment_alias_candidates": 99,
+  "dynamic_dispatch_candidates": 1,
+  "attribute_or_subscript_references": 480,
+  "rows": [
+    {
+      "file": "bootstrap_binding.py",
+      "sha256": "ed644fe1187c268903a7404c561fe056d8169ccf356960da0b85298fd229431d",
+      "imports": {
+        "json": "json",
+        "os": "os",
+        "re": "re",
+        "stat": "stat",
+        "sys": "sys",
+        "MappingProxyType": "types.MappingProxyType",
+        "fcntl": "fcntl"
+      },
+      "assignment_alias_candidates": [
+        {
+          "line": 24,
+          "target": "FIELDS",
+          "value": "frozenset(('schemaVersion', 'unit', 'invocation', 'keeperPid', 'keeperTicks', 'mountId', 'mountDevice', 'mountRoot', 'ancestry', 'attempt', 'nonce', 'sourceSha256', 'controllerSha256'))"
+        },
+        {
+          "line": 78,
+          "target": "expected",
+          "value": "(json.dumps(data, sort_keys=True, separators=(',', ':'), ensure_ascii=True) + '\\n').encode('ascii')"
+        },
+        {
+          "line": 82,
+          "target": "data['ancestry']",
+          "value": "tuple((tuple(pair) for pair in data['ancestry']))"
+        },
+        {
+          "line": 104,
+          "target": "before",
+          "value": "os.fstat(fd)"
+        },
+        {
+          "line": 113,
+          "target": "raw",
+          "value": "os.pread(fd, before.st_size + 1, 0)"
+        },
+        {
+          "line": 114,
+          "target": "record",
+          "value": "parse_bootstrap_binding(raw)"
+        },
+        {
+          "line": 115,
+          "target": "after",
+          "value": "os.fstat(fd)"
+        },
+        {
+          "line": 37,
+          "target": "result[name]",
+          "value": "value"
+        },
+        {
+          "line": 46,
+          "target": "data",
+          "value": "json.loads(raw.decode('ascii'), object_pairs_hook=_unique, parse_float=lambda _: (_ for _ in ()).throw(ValueError('float')), parse_constant=lambda _: (_ for _ in ()).throw(ValueError('constant')))"
+        },
+        {
+          "line": 64,
+          "target": "value",
+          "value": "data[key]"
+        }
+      ],
+      "calls": [
+        {
+          "line": 24,
+          "column": 9,
+          "callee": "frozenset",
+          "shape": "Name"
+        },
+        {
+          "line": 21,
+          "column": 17,
+          "callee": "all",
+          "shape": "Name"
+        },
+        {
+          "line": 22,
+          "column": 9,
+          "callee": "sum",
+          "shape": "Name"
+        },
+        {
+          "line": 78,
+          "column": 15,
+          "callee": "(json.dumps(data, sort_keys=True, separators=(',', ':'), ensure_ascii=True) + '\\n').encode",
+          "shape": "Attribute"
+        },
+        {
+          "line": 82,
+          "column": 23,
+          "callee": "tuple",
+          "shape": "Name"
+        },
+        {
+          "line": 83,
+          "column": 11,
+          "callee": "MappingProxyType",
+          "shape": "Name",
+          "import_target": "types.MappingProxyType"
+        },
+        {
+          "line": 104,
+          "column": 13,
+          "callee": "os.fstat",
+          "shape": "Attribute",
+          "import_target": "os.fstat"
+        },
+        {
+          "line": 113,
+          "column": 10,
+          "callee": "os.pread",
+          "shape": "Attribute",
+          "import_target": "os.pread"
+        },
+        {
+          "line": 114,
+          "column": 13,
+          "callee": "parse_bootstrap_binding",
+          "shape": "Name"
+        },
+        {
+          "line": 115,
+          "column": 12,
+          "callee": "os.fstat",
+          "shape": "Attribute",
+          "import_target": "os.fstat"
+        },
+        {
+          "line": 122,
+          "column": 11,
+          "callee": "MappingProxyType",
+          "shape": "Name",
+          "import_target": "types.MappingProxyType"
+        },
+        {
+          "line": 44,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 46,
+          "column": 15,
+          "callee": "json.loads",
+          "shape": "Attribute",
+          "import_target": "json.loads"
+        },
+        {
+          "line": 52,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 62,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 68,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 70,
+          "column": 15,
+          "callee": "any",
+          "shape": "Name"
+        },
+        {
+          "line": 73,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 81,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 94,
+          "column": 14,
+          "callee": "RuntimeError",
+          "shape": "Name"
+        },
+        {
+          "line": 98,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 103,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 110,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 111,
+          "column": 7,
+          "callee": "fcntl.fcntl",
+          "shape": "Attribute",
+          "import_target": "fcntl.fcntl"
+        },
+        {
+          "line": 112,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 121,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 21,
+          "column": 21,
+          "callee": "hasattr",
+          "shape": "Name"
+        },
+        {
+          "line": 22,
+          "column": 13,
+          "callee": "getattr",
+          "shape": "Name"
+        },
+        {
+          "line": 36,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 43,
+          "column": 7,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 43,
+          "column": 66,
+          "callee": "raw.endswith",
+          "shape": "Attribute"
+        },
+        {
+          "line": 46,
+          "column": 26,
+          "callee": "raw.decode",
+          "shape": "Attribute"
+        },
+        {
+          "line": 50,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 51,
+          "column": 7,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 51,
+          "column": 33,
+          "callee": "frozenset",
+          "shape": "Name"
+        },
+        {
+          "line": 53,
+          "column": 8,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 55,
+          "column": 15,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 56,
+          "column": 15,
+          "callee": "re.fullmatch",
+          "shape": "Attribute",
+          "import_target": "re.fullmatch"
+        },
+        {
+          "line": 57,
+          "column": 15,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 58,
+          "column": 15,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 59,
+          "column": 15,
+          "callee": "re.fullmatch",
+          "shape": "Attribute",
+          "import_target": "re.fullmatch"
+        },
+        {
+          "line": 60,
+          "column": 15,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 61,
+          "column": 15,
+          "callee": "re.fullmatch",
+          "shape": "Attribute",
+          "import_target": "re.fullmatch"
+        },
+        {
+          "line": 66,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 69,
+          "column": 8,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 69,
+          "column": 46,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 76,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 82,
+          "column": 29,
+          "callee": "tuple",
+          "shape": "Name"
+        },
+        {
+          "line": 95,
+          "column": 8,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 95,
+          "column": 41,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 96,
+          "column": 48,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 101,
+          "column": 11,
+          "callee": "any",
+          "shape": "Name"
+        },
+        {
+          "line": 105,
+          "column": 12,
+          "callee": "stat.S_ISREG",
+          "shape": "Attribute",
+          "import_target": "stat.S_ISREG"
+        },
+        {
+          "line": 120,
+          "column": 15,
+          "callee": "fcntl.fcntl",
+          "shape": "Attribute",
+          "import_target": "fcntl.fcntl"
+        },
+        {
+          "line": 43,
+          "column": 41,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 65,
+          "column": 11,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 75,
+          "column": 11,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 75,
+          "column": 41,
+          "callee": "re.fullmatch",
+          "shape": "Attribute",
+          "import_target": "re.fullmatch"
+        },
+        {
+          "line": 78,
+          "column": 16,
+          "callee": "json.dumps",
+          "shape": "Attribute",
+          "import_target": "json.dumps"
+        },
+        {
+          "line": 100,
+          "column": 8,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 100,
+          "column": 45,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 47,
+          "column": 48,
+          "callee": "(_ for _ in ()).throw",
+          "shape": "Attribute"
+        },
+        {
+          "line": 48,
+          "column": 51,
+          "callee": "(_ for _ in ()).throw",
+          "shape": "Attribute"
+        },
+        {
+          "line": 71,
+          "column": 22,
+          "callee": "any",
+          "shape": "Name"
+        },
+        {
+          "line": 47,
+          "column": 70,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 48,
+          "column": 73,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 70,
+          "column": 19,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 70,
+          "column": 45,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 101,
+          "column": 15,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 71,
+          "column": 26,
+          "callee": "type",
+          "shape": "Name"
+        }
+      ],
+      "dynamic_dispatch_candidates": [
+        {
+          "line": 22,
+          "column": 13,
+          "callee": "getattr",
+          "shape": "Name"
+        }
+      ],
+      "attribute_or_subscript_references": [
+        {
+          "line": 82,
+          "expr": "data['ancestry']"
+        },
+        {
+          "line": 20,
+          "expr": "sys.platform"
+        },
+        {
+          "line": 37,
+          "expr": "result[name]"
+        },
+        {
+          "line": 64,
+          "expr": "data[key]"
+        },
+        {
+          "line": 78,
+          "expr": "(json.dumps(data, sort_keys=True, separators=(',', ':'), ensure_ascii=True) + '\\n').encode"
+        },
+        {
+          "line": 104,
+          "expr": "os.fstat"
+        },
+        {
+          "line": 113,
+          "expr": "os.pread"
+        },
+        {
+          "line": 115,
+          "expr": "os.fstat"
+        },
+        {
+          "line": 46,
+          "expr": "json.loads"
+        },
+        {
+          "line": 49,
+          "expr": "json.JSONDecodeError"
+        },
+        {
+          "line": 53,
+          "expr": "data['schemaVersion']"
+        },
+        {
+          "line": 54,
+          "expr": "data['unit']"
+        },
+        {
+          "line": 57,
+          "expr": "data['mountRoot']"
+        },
+        {
+          "line": 67,
+          "expr": "data['keeperPid']"
+        },
+        {
+          "line": 105,
+          "expr": "before.st_uid"
+        },
+        {
+          "line": 106,
+          "expr": "before.st_gid"
+        },
+        {
+          "line": 106,
+          "expr": "before.st_nlink"
+        },
+        {
+          "line": 111,
+          "expr": "fcntl.fcntl"
+        },
+        {
+          "line": 111,
+          "expr": "fcntl.F_GET_SEALS"
+        },
+        {
+          "line": 113,
+          "expr": "before.st_size"
+        },
+        {
+          "line": 22,
+          "expr": "_SEAL_NAMES[:-1]"
+        },
+        {
+          "line": 43,
+          "expr": "raw.endswith"
+        },
+        {
+          "line": 46,
+          "expr": "raw.decode"
+        },
+        {
+          "line": 53,
+          "expr": "data['schemaVersion']"
+        },
+        {
+          "line": 55,
+          "expr": "data['invocation']"
+        },
+        {
+          "line": 56,
+          "expr": "re.fullmatch"
+        },
+        {
+          "line": 56,
+          "expr": "data['invocation']"
+        },
+        {
+          "line": 57,
+          "expr": "data['mountRoot']"
+        },
+        {
+          "line": 58,
+          "expr": "data['mountDevice']"
+        },
+        {
+          "line": 59,
+          "expr": "re.fullmatch"
+        },
+        {
+          "line": 59,
+          "expr": "data['mountDevice']"
+        },
+        {
+          "line": 60,
+          "expr": "data['nonce']"
+        },
+        {
+          "line": 61,
+          "expr": "re.fullmatch"
+        },
+        {
+          "line": 61,
+          "expr": "data['nonce']"
+        },
+        {
+          "line": 69,
+          "expr": "data['ancestry']"
+        },
+        {
+          "line": 69,
+          "expr": "data['ancestry']"
+        },
+        {
+          "line": 82,
+          "expr": "data['ancestry']"
+        },
+        {
+          "line": 105,
+          "expr": "stat.S_ISREG"
+        },
+        {
+          "line": 105,
+          "expr": "before.st_mode"
+        },
+        {
+          "line": 107,
+          "expr": "before.st_size"
+        },
+        {
+          "line": 116,
+          "expr": "before.st_dev"
+        },
+        {
+          "line": 116,
+          "expr": "before.st_ino"
+        },
+        {
+          "line": 116,
+          "expr": "before.st_uid"
+        },
+        {
+          "line": 116,
+          "expr": "before.st_gid"
+        },
+        {
+          "line": 117,
+          "expr": "before.st_nlink"
+        },
+        {
+          "line": 117,
+          "expr": "before.st_size"
+        },
+        {
+          "line": 118,
+          "expr": "after.st_dev"
+        },
+        {
+          "line": 118,
+          "expr": "after.st_ino"
+        },
+        {
+          "line": 118,
+          "expr": "after.st_uid"
+        },
+        {
+          "line": 118,
+          "expr": "after.st_gid"
+        },
+        {
+          "line": 119,
+          "expr": "after.st_nlink"
+        },
+        {
+          "line": 119,
+          "expr": "after.st_size"
+        },
+        {
+          "line": 120,
+          "expr": "fcntl.fcntl"
+        },
+        {
+          "line": 120,
+          "expr": "fcntl.F_GET_SEALS"
+        },
+        {
+          "line": 124,
+          "expr": "before.st_dev"
+        },
+        {
+          "line": 124,
+          "expr": "before.st_ino"
+        },
+        {
+          "line": 72,
+          "expr": "data['ancestry']"
+        },
+        {
+          "line": 75,
+          "expr": "data[key]"
+        },
+        {
+          "line": 75,
+          "expr": "re.fullmatch"
+        },
+        {
+          "line": 75,
+          "expr": "data[key]"
+        },
+        {
+          "line": 78,
+          "expr": "json.dumps"
+        },
+        {
+          "line": 109,
+          "expr": "before.st_dev"
+        },
+        {
+          "line": 109,
+          "expr": "before.st_ino"
+        },
+        {
+          "line": 47,
+          "expr": "(_ for _ in ()).throw"
+        },
+        {
+          "line": 48,
+          "expr": "(_ for _ in ()).throw"
+        }
+      ]
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "sha256": "eb8eee722e8cc595faa6a1c29c9da632423825863c9d603547ad688a133ba74e",
+      "imports": {
+        "json": "json",
+        "os": "os",
+        "re": "re",
+        "sys": "sys",
+        "MappingProxyType": "types.MappingProxyType",
+        "LIMIT": "bootstrap_binding.LIMIT",
+        "SEALS": "bootstrap_binding.SEALS",
+        "SUPPORTED": "bootstrap_binding.SUPPORTED",
+        "UNIT": "bootstrap_binding.UNIT",
+        "parse_bootstrap_binding": "bootstrap_binding.parse_bootstrap_binding",
+        "fcntl": "fcntl"
+      },
+      "assignment_alias_candidates": [
+        {
+          "line": 23,
+          "target": "_FIELDS",
+          "value": "frozenset(('invocation', 'unit', 'keeperPid', 'keeperTicks', 'mountId', 'mountDevice', 'mountRoot', 'ancestry', 'attempt', 'nonce', 'sourceSha256', 'controllerSha256'))"
+        },
+        {
+          "line": 28,
+          "target": "_MANAGER_FIELDS",
+          "value": "frozenset(('unit', 'invocation', 'mainPid', 'controlGroup', 'activeState', 'subState', 'restartCount', 'startTicks'))"
+        },
+        {
+          "line": 32,
+          "target": "_KERNEL_FIELDS",
+          "value": "frozenset(('keeperPid', 'keeperTicks', 'mountId', 'mountDevice', 'mountRoot', 'ancestry', 'scope', 'keeperState', 'unitPresent'))"
+        },
+        {
+          "line": 87,
+          "target": "payload",
+          "value": "dict(prebirth)"
+        },
+        {
+          "line": 90,
+          "target": "encoded",
+          "value": "(json.dumps(payload, sort_keys=True, separators=(',', ':')) + '\\n').encode('ascii')"
+        },
+        {
+          "line": 94,
+          "target": "canonical",
+          "value": "parse_bootstrap_binding(encoded)"
+        },
+        {
+          "line": 114,
+          "target": "before",
+          "value": "validate_prepublished_evidence(prebirth, read_manager(), read_kernel())"
+        },
+        {
+          "line": 116,
+          "target": "first",
+          "value": "before['canonicalBytes']"
+        },
+        {
+          "line": 119,
+          "target": "after",
+          "value": "validate_prepublished_evidence(prebirth, read_manager(), read_kernel())"
+        },
+        {
+          "line": 123,
+          "target": "fd",
+          "value": "os.memfd_create('ge04-unqualified-bootstrap', os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING)"
+        },
+        {
+          "line": 126,
+          "target": "written",
+          "value": "os.write(fd, first)"
+        }
+      ],
+      "calls": [
+        {
+          "line": 23,
+          "column": 10,
+          "callee": "frozenset",
+          "shape": "Name"
+        },
+        {
+          "line": 28,
+          "column": 18,
+          "callee": "frozenset",
+          "shape": "Name"
+        },
+        {
+          "line": 32,
+          "column": 17,
+          "callee": "frozenset",
+          "shape": "Name"
+        },
+        {
+          "line": 49,
+          "column": 4,
+          "callee": "_exact",
+          "shape": "Name"
+        },
+        {
+          "line": 50,
+          "column": 4,
+          "callee": "_exact",
+          "shape": "Name"
+        },
+        {
+          "line": 51,
+          "column": 4,
+          "callee": "_exact",
+          "shape": "Name"
+        },
+        {
+          "line": 87,
+          "column": 14,
+          "callee": "dict",
+          "shape": "Name"
+        },
+        {
+          "line": 90,
+          "column": 14,
+          "callee": "(json.dumps(payload, sort_keys=True, separators=(',', ':')) + '\\n').encode",
+          "shape": "Attribute"
+        },
+        {
+          "line": 94,
+          "column": 16,
+          "callee": "parse_bootstrap_binding",
+          "shape": "Name",
+          "import_target": "bootstrap_binding.parse_bootstrap_binding"
+        },
+        {
+          "line": 95,
+          "column": 11,
+          "callee": "MappingProxyType",
+          "shape": "Name",
+          "import_target": "types.MappingProxyType"
+        },
+        {
+          "line": 114,
+          "column": 13,
+          "callee": "validate_prepublished_evidence",
+          "shape": "Name"
+        },
+        {
+          "line": 119,
+          "column": 12,
+          "callee": "validate_prepublished_evidence",
+          "shape": "Name"
+        },
+        {
+          "line": 123,
+          "column": 9,
+          "callee": "os.memfd_create",
+          "shape": "Attribute",
+          "import_target": "os.memfd_create"
+        },
+        {
+          "line": 140,
+          "column": 10,
+          "callee": "PermissionError",
+          "shape": "Name"
+        },
+        {
+          "line": 40,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 52,
+          "column": 11,
+          "callee": "all",
+          "shape": "Name"
+        },
+        {
+          "line": 56,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 59,
+          "column": 15,
+          "callee": "any",
+          "shape": "Name"
+        },
+        {
+          "line": 61,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 64,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 77,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 81,
+          "column": 15,
+          "callee": "any",
+          "shape": "Name"
+        },
+        {
+          "line": 84,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 89,
+          "column": 27,
+          "callee": "list",
+          "shape": "Name"
+        },
+        {
+          "line": 92,
+          "column": 7,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 93,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 109,
+          "column": 14,
+          "callee": "RuntimeError",
+          "shape": "Name"
+        },
+        {
+          "line": 110,
+          "column": 7,
+          "callee": "os.geteuid",
+          "shape": "Attribute",
+          "import_target": "os.geteuid"
+        },
+        {
+          "line": 111,
+          "column": 14,
+          "callee": "PermissionError",
+          "shape": "Name"
+        },
+        {
+          "line": 113,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 115,
+          "column": 18,
+          "callee": "read_manager",
+          "shape": "Name"
+        },
+        {
+          "line": 115,
+          "column": 34,
+          "callee": "read_kernel",
+          "shape": "Name"
+        },
+        {
+          "line": 120,
+          "column": 18,
+          "callee": "read_manager",
+          "shape": "Name"
+        },
+        {
+          "line": 120,
+          "column": 34,
+          "callee": "read_kernel",
+          "shape": "Name"
+        },
+        {
+          "line": 122,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 126,
+          "column": 18,
+          "callee": "os.write",
+          "shape": "Attribute",
+          "import_target": "os.write"
+        },
+        {
+          "line": 129,
+          "column": 8,
+          "callee": "fcntl.fcntl",
+          "shape": "Attribute",
+          "import_target": "fcntl.fcntl"
+        },
+        {
+          "line": 39,
+          "column": 7,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 39,
+          "column": 36,
+          "callee": "frozenset",
+          "shape": "Name"
+        },
+        {
+          "line": 58,
+          "column": 15,
+          "callee": "re.fullmatch",
+          "shape": "Attribute",
+          "import_target": "re.fullmatch"
+        },
+        {
+          "line": 62,
+          "column": 8,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 71,
+          "column": 15,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 73,
+          "column": 15,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 75,
+          "column": 15,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 108,
+          "column": 28,
+          "callee": "hasattr",
+          "shape": "Name"
+        },
+        {
+          "line": 112,
+          "column": 11,
+          "callee": "callable",
+          "shape": "Name"
+        },
+        {
+          "line": 112,
+          "column": 41,
+          "callee": "callable",
+          "shape": "Name"
+        },
+        {
+          "line": 127,
+          "column": 22,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 128,
+          "column": 18,
+          "callee": "OSError",
+          "shape": "Name"
+        },
+        {
+          "line": 130,
+          "column": 11,
+          "callee": "fcntl.fcntl",
+          "shape": "Attribute",
+          "import_target": "fcntl.fcntl"
+        },
+        {
+          "line": 131,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 134,
+          "column": 8,
+          "callee": "os.close",
+          "shape": "Attribute",
+          "import_target": "os.close"
+        },
+        {
+          "line": 90,
+          "column": 15,
+          "callee": "json.dumps",
+          "shape": "Attribute",
+          "import_target": "json.dumps"
+        },
+        {
+          "line": 52,
+          "column": 15,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 59,
+          "column": 19,
+          "callee": "re.fullmatch",
+          "shape": "Attribute",
+          "import_target": "re.fullmatch"
+        }
+      ],
+      "dynamic_dispatch_candidates": [],
+      "attribute_or_subscript_references": [
+        {
+          "line": 88,
+          "expr": "payload['schemaVersion']"
+        },
+        {
+          "line": 89,
+          "expr": "payload['ancestry']"
+        },
+        {
+          "line": 116,
+          "expr": "before['canonicalBytes']"
+        },
+        {
+          "line": 90,
+          "expr": "(json.dumps(payload, sort_keys=True, separators=(',', ':')) + '\\n').encode"
+        },
+        {
+          "line": 121,
+          "expr": "after['canonicalBytes']"
+        },
+        {
+          "line": 123,
+          "expr": "os.memfd_create"
+        },
+        {
+          "line": 57,
+          "expr": "prebirth['unit']"
+        },
+        {
+          "line": 62,
+          "expr": "prebirth['attempt']"
+        },
+        {
+          "line": 63,
+          "expr": "prebirth['attempt']"
+        },
+        {
+          "line": 66,
+          "expr": "manager['unit']"
+        },
+        {
+          "line": 67,
+          "expr": "manager['invocation']"
+        },
+        {
+          "line": 67,
+          "expr": "prebirth['invocation']"
+        },
+        {
+          "line": 68,
+          "expr": "manager['controlGroup']"
+        },
+        {
+          "line": 69,
+          "expr": "manager['activeState']"
+        },
+        {
+          "line": 70,
+          "expr": "manager['subState']"
+        },
+        {
+          "line": 72,
+          "expr": "manager['restartCount']"
+        },
+        {
+          "line": 74,
+          "expr": "manager['mainPid']"
+        },
+        {
+          "line": 74,
+          "expr": "prebirth['keeperPid']"
+        },
+        {
+          "line": 76,
+          "expr": "manager['startTicks']"
+        },
+        {
+          "line": 76,
+          "expr": "prebirth['keeperTicks']"
+        },
+        {
+          "line": 78,
+          "expr": "kernel['scope']"
+        },
+        {
+          "line": 79,
+          "expr": "kernel['keeperState']"
+        },
+        {
+          "line": 80,
+          "expr": "kernel['unitPresent']"
+        },
+        {
+          "line": 89,
+          "expr": "prebirth['ancestry']"
+        },
+        {
+          "line": 110,
+          "expr": "os.geteuid"
+        },
+        {
+          "line": 124,
+          "expr": "os.MFD_CLOEXEC"
+        },
+        {
+          "line": 124,
+          "expr": "os.MFD_ALLOW_SEALING"
+        },
+        {
+          "line": 126,
+          "expr": "os.write"
+        },
+        {
+          "line": 129,
+          "expr": "fcntl.fcntl"
+        },
+        {
+          "line": 129,
+          "expr": "fcntl.F_ADD_SEALS"
+        },
+        {
+          "line": 58,
+          "expr": "re.fullmatch"
+        },
+        {
+          "line": 58,
+          "expr": "prebirth['invocation']"
+        },
+        {
+          "line": 62,
+          "expr": "prebirth['attempt']"
+        },
+        {
+          "line": 71,
+          "expr": "manager['restartCount']"
+        },
+        {
+          "line": 73,
+          "expr": "manager['mainPid']"
+        },
+        {
+          "line": 75,
+          "expr": "manager['startTicks']"
+        },
+        {
+          "line": 130,
+          "expr": "fcntl.fcntl"
+        },
+        {
+          "line": 130,
+          "expr": "fcntl.F_GET_SEALS"
+        },
+        {
+          "line": 134,
+          "expr": "os.close"
+        },
+        {
+          "line": 81,
+          "expr": "kernel[field]"
+        },
+        {
+          "line": 81,
+          "expr": "prebirth[field]"
+        },
+        {
+          "line": 90,
+          "expr": "json.dumps"
+        },
+        {
+          "line": 53,
+          "expr": "prebirth['invocation']"
+        },
+        {
+          "line": 53,
+          "expr": "prebirth['unit']"
+        },
+        {
+          "line": 54,
+          "expr": "prebirth['nonce']"
+        },
+        {
+          "line": 54,
+          "expr": "prebirth['sourceSha256']"
+        },
+        {
+          "line": 55,
+          "expr": "prebirth['controllerSha256']"
+        },
+        {
+          "line": 59,
+          "expr": "re.fullmatch"
+        },
+        {
+          "line": 59,
+          "expr": "prebirth[key]"
+        }
+      ]
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "sha256": "165c615801665e0f16ec95b8150b33adb6d129b4b7392bd26c0d5a4599726207",
+      "imports": {
+        "array": "array",
+        "os": "os",
+        "select": "select",
+        "socket": "socket",
+        "struct": "struct",
+        "time": "time",
+        "MappingProxyType": "types.MappingProxyType",
+        "read_sealed_bootstrap_binding": "bootstrap_binding.read_sealed_bootstrap_binding"
+      },
+      "assignment_alias_candidates": [
+        {
+          "line": 51,
+          "target": "peer_raw",
+          "value": "sock.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize('3i'))"
+        },
+        {
+          "line": 55,
+          "target": "(pid, uid, gid)",
+          "value": "struct.unpack('3i', peer_raw)"
+        },
+        {
+          "line": 64,
+          "target": "(ready, _, _)",
+          "value": "select.select([sock], [], [], remaining)"
+        },
+        {
+          "line": 67,
+          "target": "(payload, ancillary, flags, _)",
+          "value": "sock.recvmsg(2, socket.CMSG_SPACE(4 * 16), socket.MSG_CMSG_CLOEXEC)"
+        },
+        {
+          "line": 81,
+          "target": "observation",
+          "value": "read_sealed_bootstrap_binding(received[0], expected_uid=uid, expected_gid=gid, expected_inode=expected_inode)"
+        },
+        {
+          "line": 84,
+          "target": "record",
+          "value": "observation['record']"
+        },
+        {
+          "line": 74,
+          "target": "chunk",
+          "value": "array.array('i')"
+        }
+      ],
+      "calls": [
+        {
+          "line": 51,
+          "column": 19,
+          "callee": "sock.getsockopt",
+          "shape": "Attribute"
+        },
+        {
+          "line": 55,
+          "column": 24,
+          "callee": "struct.unpack",
+          "shape": "Attribute",
+          "import_target": "struct.unpack"
+        },
+        {
+          "line": 64,
+          "column": 22,
+          "callee": "select.select",
+          "shape": "Attribute",
+          "import_target": "select.select"
+        },
+        {
+          "line": 67,
+          "column": 39,
+          "callee": "sock.recvmsg",
+          "shape": "Attribute"
+        },
+        {
+          "line": 81,
+          "column": 22,
+          "callee": "read_sealed_bootstrap_binding",
+          "shape": "Name",
+          "import_target": "bootstrap_binding.read_sealed_bootstrap_binding"
+        },
+        {
+          "line": 92,
+          "column": 15,
+          "callee": "MappingProxyType",
+          "shape": "Name",
+          "import_target": "types.MappingProxyType"
+        },
+        {
+          "line": 103,
+          "column": 11,
+          "callee": "isinstance",
+          "shape": "Name"
+        },
+        {
+          "line": 36,
+          "column": 19,
+          "callee": "any",
+          "shape": "Name"
+        },
+        {
+          "line": 38,
+          "column": 19,
+          "callee": "any",
+          "shape": "Name"
+        },
+        {
+          "line": 41,
+          "column": 19,
+          "callee": "any",
+          "shape": "Name"
+        },
+        {
+          "line": 43,
+          "column": 19,
+          "callee": "any",
+          "shape": "Name"
+        },
+        {
+          "line": 48,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 50,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 52,
+          "column": 35,
+          "callee": "struct.calcsize",
+          "shape": "Attribute",
+          "import_target": "struct.calcsize"
+        },
+        {
+          "line": 53,
+          "column": 11,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 53,
+          "column": 28,
+          "callee": "struct.calcsize",
+          "shape": "Attribute",
+          "import_target": "struct.calcsize"
+        },
+        {
+          "line": 54,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 57,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 58,
+          "column": 11,
+          "callee": "inspect_generation",
+          "shape": "Name"
+        },
+        {
+          "line": 59,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 60,
+          "column": 19,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        },
+        {
+          "line": 61,
+          "column": 31,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        },
+        {
+          "line": 63,
+          "column": 18,
+          "callee": "TimeoutError",
+          "shape": "Name"
+        },
+        {
+          "line": 66,
+          "column": 18,
+          "callee": "TimeoutError",
+          "shape": "Name"
+        },
+        {
+          "line": 68,
+          "column": 15,
+          "callee": "socket.CMSG_SPACE",
+          "shape": "Attribute",
+          "import_target": "socket.CMSG_SPACE"
+        },
+        {
+          "line": 80,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 89,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 90,
+          "column": 11,
+          "callee": "inspect_generation",
+          "shape": "Name"
+        },
+        {
+          "line": 91,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 104,
+          "column": 12,
+          "callee": "sock.close",
+          "shape": "Attribute"
+        },
+        {
+          "line": 34,
+          "column": 12,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 35,
+          "column": 19,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 35,
+          "column": 55,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 40,
+          "column": 19,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 40,
+          "column": 56,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 42,
+          "column": 19,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 42,
+          "column": 54,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 44,
+          "column": 19,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 45,
+          "column": 19,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 47,
+          "column": 53,
+          "callee": "callable",
+          "shape": "Name"
+        },
+        {
+          "line": 74,
+          "column": 24,
+          "callee": "array.array",
+          "shape": "Attribute",
+          "import_target": "array.array"
+        },
+        {
+          "line": 75,
+          "column": 16,
+          "callee": "chunk.frombytes",
+          "shape": "Attribute"
+        },
+        {
+          "line": 76,
+          "column": 16,
+          "callee": "received.extend",
+          "shape": "Attribute"
+        },
+        {
+          "line": 78,
+          "column": 37,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 78,
+          "column": 60,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 79,
+          "column": 19,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        },
+        {
+          "line": 100,
+          "column": 16,
+          "callee": "os.close",
+          "shape": "Attribute",
+          "import_target": "os.close"
+        },
+        {
+          "line": 73,
+          "column": 24,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 36,
+          "column": 23,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 73,
+          "column": 37,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 41,
+          "column": 23,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 73,
+          "column": 49,
+          "callee": "array.array",
+          "shape": "Attribute",
+          "import_target": "array.array"
+        }
+      ],
+      "dynamic_dispatch_candidates": [],
+      "attribute_or_subscript_references": [
+        {
+          "line": 84,
+          "expr": "observation['record']"
+        },
+        {
+          "line": 51,
+          "expr": "sock.getsockopt"
+        },
+        {
+          "line": 51,
+          "expr": "socket.SOL_SOCKET"
+        },
+        {
+          "line": 51,
+          "expr": "socket.SO_PEERCRED"
+        },
+        {
+          "line": 55,
+          "expr": "struct.unpack"
+        },
+        {
+          "line": 56,
+          "expr": "expected_peer[:3]"
+        },
+        {
+          "line": 64,
+          "expr": "select.select"
+        },
+        {
+          "line": 67,
+          "expr": "sock.recvmsg"
+        },
+        {
+          "line": 68,
+          "expr": "socket.MSG_CMSG_CLOEXEC"
+        },
+        {
+          "line": 82,
+          "expr": "received[0]"
+        },
+        {
+          "line": 103,
+          "expr": "socket.socket"
+        },
+        {
+          "line": 34,
+          "expr": "socket.socket"
+        },
+        {
+          "line": 39,
+          "expr": "expected_peer[3]"
+        },
+        {
+          "line": 49,
+          "expr": "sock.family"
+        },
+        {
+          "line": 49,
+          "expr": "socket.AF_UNIX"
+        },
+        {
+          "line": 49,
+          "expr": "socket.SOCK_SEQPACKET"
+        },
+        {
+          "line": 52,
+          "expr": "struct.calcsize"
+        },
+        {
+          "line": 53,
+          "expr": "struct.calcsize"
+        },
+        {
+          "line": 58,
+          "expr": "expected_peer[3]"
+        },
+        {
+          "line": 60,
+          "expr": "time.monotonic"
+        },
+        {
+          "line": 61,
+          "expr": "time.monotonic"
+        },
+        {
+          "line": 68,
+          "expr": "socket.CMSG_SPACE"
+        },
+        {
+          "line": 85,
+          "expr": "record['nonce']"
+        },
+        {
+          "line": 86,
+          "expr": "record['attempt']"
+        },
+        {
+          "line": 87,
+          "expr": "record['keeperPid']"
+        },
+        {
+          "line": 88,
+          "expr": "record['keeperTicks']"
+        },
+        {
+          "line": 88,
+          "expr": "expected_peer[3]"
+        },
+        {
+          "line": 90,
+          "expr": "expected_peer[3]"
+        },
+        {
+          "line": 104,
+          "expr": "sock.close"
+        },
+        {
+          "line": 37,
+          "expr": "expected_peer[0]"
+        },
+        {
+          "line": 49,
+          "expr": "sock.type"
+        },
+        {
+          "line": 72,
+          "expr": "socket.SOL_SOCKET"
+        },
+        {
+          "line": 72,
+          "expr": "socket.SCM_RIGHTS"
+        },
+        {
+          "line": 74,
+          "expr": "array.array"
+        },
+        {
+          "line": 75,
+          "expr": "chunk.frombytes"
+        },
+        {
+          "line": 75,
+          "expr": "data[:valid]"
+        },
+        {
+          "line": 76,
+          "expr": "received.extend"
+        },
+        {
+          "line": 77,
+          "expr": "socket.MSG_CTRUNC"
+        },
+        {
+          "line": 77,
+          "expr": "socket.MSG_TRUNC"
+        },
+        {
+          "line": 79,
+          "expr": "time.monotonic"
+        },
+        {
+          "line": 100,
+          "expr": "os.close"
+        },
+        {
+          "line": 38,
+          "expr": "expected_peer[1:3]"
+        },
+        {
+          "line": 73,
+          "expr": "array.array('i').itemsize"
+        },
+        {
+          "line": 73,
+          "expr": "array.array"
+        }
+      ]
+    },
+    {
+      "file": "bounded_job_signal_observer.py",
+      "sha256": "e6e25fc89ae66a815d54c8498af1f311962b2bc2d1512562c354f6637dbc6329",
+      "imports": {
+        "json": "json",
+        "math": "math",
+        "os": "os",
+        "Path": "pathlib.Path",
+        "re": "re",
+        "selectors": "selectors",
+        "subprocess": "subprocess",
+        "sys": "sys",
+        "time": "time",
+        "MappingProxyType": "types.MappingProxyType",
+        "JobEventWindow": "systemd_job_event_contract.JobEventWindow",
+        "UNIT": "systemd_unit_observer.UNIT"
+      },
+      "assignment_alias_candidates": [
+        {
+          "line": 21,
+          "target": "WORKER",
+          "value": "Path(__file__).resolve().with_name('isolated_job_signal_worker.py')"
+        },
+        {
+          "line": 24,
+          "target": "_OWNER",
+          "value": "re.compile(':[0-9]+\\\\.[0-9]+')"
+        },
+        {
+          "line": 25,
+          "target": "_JOB",
+          "value": "re.compile('/org/freedesktop/systemd1/job/[1-9][0-9]{0,18}')"
+        },
+        {
+          "line": 33,
+          "target": "raw",
+          "value": "(json.dumps(request, sort_keys=True, separators=(',', ':')) + '\\n').encode('ascii')"
+        },
+        {
+          "line": 78,
+          "target": "raw",
+          "value": "_canonical_request(expected, window_ms)"
+        },
+        {
+          "line": 79,
+          "target": "process",
+          "value": "subprocess.Popen([sys.executable, '-I', str(WORKER)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, close_fds=True, cwd='/', env={'PATH': '/usr/bin:/bin'})"
+        },
+        {
+          "line": 85,
+          "target": "output",
+          "value": "bytearray()"
+        },
+        {
+          "line": 86,
+          "target": "selector",
+          "value": "selectors.DefaultSelector()"
+        },
+        {
+          "line": 53,
+          "target": "witness",
+          "value": "json.loads(raw.decode('ascii'), object_pairs_hook=no_duplicates)"
+        },
+        {
+          "line": 92,
+          "target": "unsent",
+          "value": "memoryview(raw)"
+        },
+        {
+          "line": 49,
+          "target": "out[key]",
+          "value": "value"
+        },
+        {
+          "line": 97,
+          "target": "events",
+          "value": "selector.select(remaining)"
+        },
+        {
+          "line": 108,
+          "target": "unsent",
+          "value": "unsent[sent:]"
+        },
+        {
+          "line": 113,
+          "target": "chunk",
+          "value": "os.read(process.stdout.fileno(), MAX_RESPONSE + 1 - len(output))"
+        },
+        {
+          "line": 103,
+          "target": "sent",
+          "value": "os.write(process.stdin.fileno(), unsent)"
+        }
+      ],
+      "calls": [
+        {
+          "line": 21,
+          "column": 9,
+          "callee": "Path(__file__).resolve().with_name",
+          "shape": "Attribute"
+        },
+        {
+          "line": 24,
+          "column": 9,
+          "callee": "re.compile",
+          "shape": "Attribute",
+          "import_target": "re.compile"
+        },
+        {
+          "line": 25,
+          "column": 7,
+          "callee": "re.compile",
+          "shape": "Attribute",
+          "import_target": "re.compile"
+        },
+        {
+          "line": 29,
+          "column": 4,
+          "callee": "JobEventWindow",
+          "shape": "Name",
+          "import_target": "systemd_job_event_contract.JobEventWindow"
+        },
+        {
+          "line": 33,
+          "column": 10,
+          "callee": "(json.dumps(request, sort_keys=True, separators=(',', ':')) + '\\n').encode",
+          "shape": "Attribute"
+        },
+        {
+          "line": 69,
+          "column": 11,
+          "callee": "MappingProxyType",
+          "shape": "Name",
+          "import_target": "types.MappingProxyType"
+        },
+        {
+          "line": 78,
+          "column": 10,
+          "callee": "_canonical_request",
+          "shape": "Name"
+        },
+        {
+          "line": 79,
+          "column": 14,
+          "callee": "subprocess.Popen",
+          "shape": "Attribute",
+          "import_target": "subprocess.Popen"
+        },
+        {
+          "line": 85,
+          "column": 13,
+          "callee": "bytearray",
+          "shape": "Name"
+        },
+        {
+          "line": 86,
+          "column": 15,
+          "callee": "selectors.DefaultSelector",
+          "shape": "Attribute",
+          "import_target": "selectors.DefaultSelector"
+        },
+        {
+          "line": 140,
+          "column": 11,
+          "callee": "_canonical_witness",
+          "shape": "Name"
+        },
+        {
+          "line": 21,
+          "column": 9,
+          "callee": "Path(__file__).resolve",
+          "shape": "Attribute"
+        },
+        {
+          "line": 31,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 32,
+          "column": 27,
+          "callee": "dict",
+          "shape": "Name"
+        },
+        {
+          "line": 35,
+          "column": 7,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 36,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 42,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 53,
+          "column": 18,
+          "callee": "json.loads",
+          "shape": "Attribute",
+          "import_target": "json.loads"
+        },
+        {
+          "line": 68,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 77,
+          "column": 14,
+          "callee": "PermissionError",
+          "shape": "Name"
+        },
+        {
+          "line": 88,
+          "column": 8,
+          "callee": "os.set_blocking",
+          "shape": "Attribute",
+          "import_target": "os.set_blocking"
+        },
+        {
+          "line": 89,
+          "column": 8,
+          "callee": "os.set_blocking",
+          "shape": "Attribute",
+          "import_target": "os.set_blocking"
+        },
+        {
+          "line": 90,
+          "column": 8,
+          "callee": "selector.register",
+          "shape": "Attribute"
+        },
+        {
+          "line": 91,
+          "column": 8,
+          "callee": "selector.register",
+          "shape": "Attribute"
+        },
+        {
+          "line": 92,
+          "column": 17,
+          "callee": "memoryview",
+          "shape": "Name"
+        },
+        {
+          "line": 93,
+          "column": 14,
+          "callee": "selector.get_map",
+          "shape": "Attribute"
+        },
+        {
+          "line": 130,
+          "column": 8,
+          "callee": "selector.close",
+          "shape": "Attribute"
+        },
+        {
+          "line": 133,
+          "column": 8,
+          "callee": "process.wait",
+          "shape": "Attribute"
+        },
+        {
+          "line": 139,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 140,
+          "column": 30,
+          "callee": "bytes",
+          "shape": "Name"
+        },
+        {
+          "line": 30,
+          "column": 7,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 41,
+          "column": 47,
+          "callee": "raw.endswith",
+          "shape": "Attribute"
+        },
+        {
+          "line": 53,
+          "column": 29,
+          "callee": "raw.decode",
+          "shape": "Attribute"
+        },
+        {
+          "line": 55,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 56,
+          "column": 8,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 56,
+          "column": 37,
+          "callee": "frozenset",
+          "shape": "Name"
+        },
+        {
+          "line": 60,
+          "column": 12,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 61,
+          "column": 12,
+          "callee": "_OWNER.fullmatch",
+          "shape": "Attribute"
+        },
+        {
+          "line": 63,
+          "column": 12,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 64,
+          "column": 12,
+          "callee": "_JOB.fullmatch",
+          "shape": "Attribute"
+        },
+        {
+          "line": 66,
+          "column": 19,
+          "callee": "(json.dumps(witness, sort_keys=True, separators=(',', ':')) + '\\n').encode",
+          "shape": "Attribute"
+        },
+        {
+          "line": 74,
+          "column": 35,
+          "callee": "os.geteuid",
+          "shape": "Attribute",
+          "import_target": "os.geteuid"
+        },
+        {
+          "line": 75,
+          "column": 12,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 75,
+          "column": 54,
+          "callee": "math.isfinite",
+          "shape": "Attribute",
+          "import_target": "math.isfinite"
+        },
+        {
+          "line": 80,
+          "column": 31,
+          "callee": "str",
+          "shape": "Name"
+        },
+        {
+          "line": 88,
+          "column": 24,
+          "callee": "process.stdin.fileno",
+          "shape": "Attribute"
+        },
+        {
+          "line": 89,
+          "column": 24,
+          "callee": "process.stdout.fileno",
+          "shape": "Attribute"
+        },
+        {
+          "line": 97,
+          "column": 21,
+          "callee": "selector.select",
+          "shape": "Attribute"
+        },
+        {
+          "line": 122,
+          "column": 31,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        },
+        {
+          "line": 124,
+          "column": 18,
+          "callee": "TimeoutError",
+          "shape": "Name"
+        },
+        {
+          "line": 126,
+          "column": 12,
+          "callee": "process.wait",
+          "shape": "Attribute"
+        },
+        {
+          "line": 131,
+          "column": 11,
+          "callee": "process.poll",
+          "shape": "Attribute"
+        },
+        {
+          "line": 132,
+          "column": 12,
+          "callee": "process.kill",
+          "shape": "Attribute"
+        },
+        {
+          "line": 135,
+          "column": 12,
+          "callee": "process.stdin.close",
+          "shape": "Attribute"
+        },
+        {
+          "line": 137,
+          "column": 12,
+          "callee": "process.stdout.close",
+          "shape": "Attribute"
+        },
+        {
+          "line": 138,
+          "column": 34,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        },
+        {
+          "line": 21,
+          "column": 9,
+          "callee": "Path",
+          "shape": "Name",
+          "import_target": "pathlib.Path"
+        },
+        {
+          "line": 33,
+          "column": 11,
+          "callee": "json.dumps",
+          "shape": "Attribute",
+          "import_target": "json.dumps"
+        },
+        {
+          "line": 41,
+          "column": 15,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 48,
+          "column": 22,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 94,
+          "column": 35,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        },
+        {
+          "line": 96,
+          "column": 22,
+          "callee": "TimeoutError",
+          "shape": "Name"
+        },
+        {
+          "line": 99,
+          "column": 22,
+          "callee": "TimeoutError",
+          "shape": "Name"
+        },
+        {
+          "line": 128,
+          "column": 18,
+          "callee": "TimeoutError",
+          "shape": "Name"
+        },
+        {
+          "line": 76,
+          "column": 34,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        },
+        {
+          "line": 113,
+          "column": 28,
+          "callee": "os.read",
+          "shape": "Attribute",
+          "import_target": "os.read"
+        },
+        {
+          "line": 66,
+          "column": 20,
+          "callee": "json.dumps",
+          "shape": "Attribute",
+          "import_target": "json.dumps"
+        },
+        {
+          "line": 103,
+          "column": 31,
+          "callee": "os.write",
+          "shape": "Attribute",
+          "import_target": "os.write"
+        },
+        {
+          "line": 107,
+          "column": 30,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 110,
+          "column": 24,
+          "callee": "selector.unregister",
+          "shape": "Attribute"
+        },
+        {
+          "line": 111,
+          "column": 24,
+          "callee": "process.stdin.close",
+          "shape": "Attribute"
+        },
+        {
+          "line": 113,
+          "column": 36,
+          "callee": "process.stdout.fileno",
+          "shape": "Attribute"
+        },
+        {
+          "line": 116,
+          "column": 24,
+          "callee": "selector.unregister",
+          "shape": "Attribute"
+        },
+        {
+          "line": 117,
+          "column": 24,
+          "callee": "process.stdout.close",
+          "shape": "Attribute"
+        },
+        {
+          "line": 119,
+          "column": 24,
+          "callee": "output.extend",
+          "shape": "Attribute"
+        },
+        {
+          "line": 103,
+          "column": 40,
+          "callee": "process.stdin.fileno",
+          "shape": "Attribute"
+        },
+        {
+          "line": 105,
+          "column": 30,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 114,
+          "column": 55,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 120,
+          "column": 27,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 121,
+          "column": 34,
+          "callee": "ValueError",
+          "shape": "Name"
+        }
+      ],
+      "dynamic_dispatch_candidates": [],
+      "attribute_or_subscript_references": [
+        {
+          "line": 21,
+          "expr": "Path(__file__).resolve().with_name"
+        },
+        {
+          "line": 24,
+          "expr": "re.compile"
+        },
+        {
+          "line": 25,
+          "expr": "re.compile"
+        },
+        {
+          "line": 33,
+          "expr": "(json.dumps(request, sort_keys=True, separators=(',', ':')) + '\\n').encode"
+        },
+        {
+          "line": 79,
+          "expr": "subprocess.Popen"
+        },
+        {
+          "line": 86,
+          "expr": "selectors.DefaultSelector"
+        },
+        {
+          "line": 21,
+          "expr": "Path(__file__).resolve"
+        },
+        {
+          "line": 49,
+          "expr": "out[key]"
+        },
+        {
+          "line": 53,
+          "expr": "json.loads"
+        },
+        {
+          "line": 58,
+          "expr": "witness['status']"
+        },
+        {
+          "line": 59,
+          "expr": "witness['managerOwner']"
+        },
+        {
+          "line": 59,
+          "expr": "expected['managerOwner']"
+        },
+        {
+          "line": 62,
+          "expr": "witness['jobPath']"
+        },
+        {
+          "line": 62,
+          "expr": "expected['jobPath']"
+        },
+        {
+          "line": 65,
+          "expr": "witness['unit']"
+        },
+        {
+          "line": 65,
+          "expr": "witness['result']"
+        },
+        {
+          "line": 74,
+          "expr": "sys.platform"
+        },
+        {
+          "line": 80,
+          "expr": "sys.executable"
+        },
+        {
+          "line": 81,
+          "expr": "subprocess.PIPE"
+        },
+        {
+          "line": 81,
+          "expr": "subprocess.PIPE"
+        },
+        {
+          "line": 82,
+          "expr": "subprocess.DEVNULL"
+        },
+        {
+          "line": 88,
+          "expr": "os.set_blocking"
+        },
+        {
+          "line": 89,
+          "expr": "os.set_blocking"
+        },
+        {
+          "line": 90,
+          "expr": "selector.register"
+        },
+        {
+          "line": 90,
+          "expr": "process.stdin"
+        },
+        {
+          "line": 90,
+          "expr": "selectors.EVENT_WRITE"
+        },
+        {
+          "line": 91,
+          "expr": "selector.register"
+        },
+        {
+          "line": 91,
+          "expr": "process.stdout"
+        },
+        {
+          "line": 91,
+          "expr": "selectors.EVENT_READ"
+        },
+        {
+          "line": 93,
+          "expr": "selector.get_map"
+        },
+        {
+          "line": 127,
+          "expr": "subprocess.TimeoutExpired"
+        },
+        {
+          "line": 130,
+          "expr": "selector.close"
+        },
+        {
+          "line": 133,
+          "expr": "process.wait"
+        },
+        {
+          "line": 134,
+          "expr": "process.stdin"
+        },
+        {
+          "line": 136,
+          "expr": "process.stdout"
+        },
+        {
+          "line": 138,
+          "expr": "process.returncode"
+        },
+        {
+          "line": 41,
+          "expr": "raw.endswith"
+        },
+        {
+          "line": 53,
+          "expr": "raw.decode"
+        },
+        {
+          "line": 60,
+          "expr": "witness['managerOwner']"
+        },
+        {
+          "line": 61,
+          "expr": "_OWNER.fullmatch"
+        },
+        {
+          "line": 61,
+          "expr": "witness['managerOwner']"
+        },
+        {
+          "line": 63,
+          "expr": "witness['jobPath']"
+        },
+        {
+          "line": 64,
+          "expr": "_JOB.fullmatch"
+        },
+        {
+          "line": 64,
+          "expr": "witness['jobPath']"
+        },
+        {
+          "line": 66,
+          "expr": "(json.dumps(witness, sort_keys=True, separators=(',', ':')) + '\\n').encode"
+        },
+        {
+          "line": 74,
+          "expr": "os.geteuid"
+        },
+        {
+          "line": 75,
+          "expr": "math.isfinite"
+        },
+        {
+          "line": 88,
+          "expr": "process.stdin.fileno"
+        },
+        {
+          "line": 89,
+          "expr": "process.stdout.fileno"
+        },
+        {
+          "line": 97,
+          "expr": "selector.select"
+        },
+        {
+          "line": 122,
+          "expr": "time.monotonic"
+        },
+        {
+          "line": 126,
+          "expr": "process.wait"
+        },
+        {
+          "line": 131,
+          "expr": "process.poll"
+        },
+        {
+          "line": 132,
+          "expr": "process.kill"
+        },
+        {
+          "line": 134,
+          "expr": "process.stdin.closed"
+        },
+        {
+          "line": 135,
+          "expr": "process.stdin.close"
+        },
+        {
+          "line": 136,
+          "expr": "process.stdout.closed"
+        },
+        {
+          "line": 137,
+          "expr": "process.stdout.close"
+        },
+        {
+          "line": 138,
+          "expr": "time.monotonic"
+        },
+        {
+          "line": 33,
+          "expr": "json.dumps"
+        },
+        {
+          "line": 88,
+          "expr": "process.stdin"
+        },
+        {
+          "line": 89,
+          "expr": "process.stdout"
+        },
+        {
+          "line": 94,
+          "expr": "time.monotonic"
+        },
+        {
+          "line": 101,
+          "expr": "item.fileobj"
+        },
+        {
+          "line": 101,
+          "expr": "process.stdin"
+        },
+        {
+          "line": 108,
+          "expr": "unsent[sent:]"
+        },
+        {
+          "line": 134,
+          "expr": "process.stdin"
+        },
+        {
+          "line": 135,
+          "expr": "process.stdin"
+        },
+        {
+          "line": 136,
+          "expr": "process.stdout"
+        },
+        {
+          "line": 137,
+          "expr": "process.stdout"
+        },
+        {
+          "line": 76,
+          "expr": "time.monotonic"
+        },
+        {
+          "line": 113,
+          "expr": "os.read"
+        },
+        {
+          "line": 66,
+          "expr": "json.dumps"
+        },
+        {
+          "line": 103,
+          "expr": "os.write"
+        },
+        {
+          "line": 110,
+          "expr": "selector.unregister"
+        },
+        {
+          "line": 110,
+          "expr": "process.stdin"
+        },
+        {
+          "line": 111,
+          "expr": "process.stdin.close"
+        },
+        {
+          "line": 113,
+          "expr": "process.stdout.fileno"
+        },
+        {
+          "line": 116,
+          "expr": "selector.unregister"
+        },
+        {
+          "line": 116,
+          "expr": "process.stdout"
+        },
+        {
+          "line": 117,
+          "expr": "process.stdout.close"
+        },
+        {
+          "line": 119,
+          "expr": "output.extend"
+        },
+        {
+          "line": 103,
+          "expr": "process.stdin.fileno"
+        },
+        {
+          "line": 111,
+          "expr": "process.stdin"
+        },
+        {
+          "line": 113,
+          "expr": "process.stdout"
+        },
+        {
+          "line": 117,
+          "expr": "process.stdout"
+        },
+        {
+          "line": 103,
+          "expr": "process.stdin"
+        }
+      ]
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "sha256": "55a44fcabd6a4c2e47374d02bbc3ebef05cabaa98a8475aa620b684ed507d4aa",
+      "imports": {
+        "json": "json",
+        "os": "os",
+        "Path": "pathlib.Path",
+        "subprocess": "subprocess",
+        "selectors": "selectors",
+        "sys": "sys",
+        "time": "time",
+        "require_unprivileged": "unprivileged_observer.require_unprivileged",
+        "MappingProxyType": "types.MappingProxyType",
+        "LIMIT": "bootstrap_binding.LIMIT",
+        "FIELDS": "bootstrap_binding.FIELDS",
+        "parse_bootstrap_binding": "bootstrap_binding.parse_bootstrap_binding"
+      },
+      "assignment_alias_candidates": [
+        {
+          "line": 19,
+          "target": "WORKER",
+          "value": "Path(__file__).resolve().with_name('isolated_phase_observer_worker.py')"
+        },
+        {
+          "line": 31,
+          "target": "source",
+          "value": "dict(original)"
+        },
+        {
+          "line": 43,
+          "target": "process",
+          "value": "subprocess.Popen([sys.executable, '-I', str(WORKER)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, close_fds=True, cwd='/', env={'PATH': '/usr/bin:/bin'})"
+        },
+        {
+          "line": 49,
+          "target": "output",
+          "value": "bytearray()"
+        },
+        {
+          "line": 50,
+          "target": "selector",
+          "value": "selectors.DefaultSelector()"
+        },
+        {
+          "line": 101,
+          "target": "output",
+          "value": "bytes(output)"
+        },
+        {
+          "line": 129,
+          "target": "canonical",
+          "value": "(json.dumps(witness, sort_keys=True, separators=(',', ':')) + '\\n').encode('ascii')"
+        },
+        {
+          "line": 35,
+          "target": "raw",
+          "value": "(json.dumps(source, sort_keys=True, separators=(',', ':')) + '\\n').encode('ascii')"
+        },
+        {
+          "line": 37,
+          "target": "validated",
+          "value": "parse_bootstrap_binding(raw)"
+        },
+        {
+          "line": 56,
+          "target": "remaining_input",
+          "value": "memoryview(raw)"
+        },
+        {
+          "line": 113,
+          "target": "witness",
+          "value": "json.loads(output.decode('ascii'), object_pairs_hook=unique)"
+        },
+        {
+          "line": 61,
+          "target": "events",
+          "value": "selector.select(remaining)"
+        },
+        {
+          "line": 111,
+          "target": "parsed[key]",
+          "value": "value"
+        },
+        {
+          "line": 72,
+          "target": "remaining_input",
+          "value": "remaining_input[count:]"
+        },
+        {
+          "line": 77,
+          "target": "chunk",
+          "value": "os.read(process.stdout.fileno(), MAX_OUTPUT + 1 - len(output))"
+        },
+        {
+          "line": 67,
+          "target": "count",
+          "value": "os.write(process.stdin.fileno(), remaining_input)"
+        }
+      ],
+      "calls": [
+        {
+          "line": 19,
+          "column": 9,
+          "callee": "Path(__file__).resolve().with_name",
+          "shape": "Attribute"
+        },
+        {
+          "line": 25,
+          "column": 4,
+          "callee": "require_unprivileged",
+          "shape": "Name",
+          "import_target": "unprivileged_observer.require_unprivileged"
+        },
+        {
+          "line": 31,
+          "column": 13,
+          "callee": "dict",
+          "shape": "Name"
+        },
+        {
+          "line": 43,
+          "column": 14,
+          "callee": "subprocess.Popen",
+          "shape": "Attribute",
+          "import_target": "subprocess.Popen"
+        },
+        {
+          "line": 49,
+          "column": 13,
+          "callee": "bytearray",
+          "shape": "Name"
+        },
+        {
+          "line": 50,
+          "column": 15,
+          "callee": "selectors.DefaultSelector",
+          "shape": "Attribute",
+          "import_target": "selectors.DefaultSelector"
+        },
+        {
+          "line": 101,
+          "column": 13,
+          "callee": "bytes",
+          "shape": "Name"
+        },
+        {
+          "line": 129,
+          "column": 16,
+          "callee": "(json.dumps(witness, sort_keys=True, separators=(',', ':')) + '\\n').encode",
+          "shape": "Attribute"
+        },
+        {
+          "line": 133,
+          "column": 11,
+          "callee": "MappingProxyType",
+          "shape": "Name",
+          "import_target": "types.MappingProxyType"
+        },
+        {
+          "line": 19,
+          "column": 9,
+          "callee": "Path(__file__).resolve",
+          "shape": "Attribute"
+        },
+        {
+          "line": 28,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 29,
+          "column": 7,
+          "callee": "frozenset",
+          "shape": "Name"
+        },
+        {
+          "line": 30,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 32,
+          "column": 7,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 35,
+          "column": 14,
+          "callee": "(json.dumps(source, sort_keys=True, separators=(',', ':')) + '\\n').encode",
+          "shape": "Attribute"
+        },
+        {
+          "line": 37,
+          "column": 20,
+          "callee": "parse_bootstrap_binding",
+          "shape": "Name",
+          "import_target": "bootstrap_binding.parse_bootstrap_binding"
+        },
+        {
+          "line": 40,
+          "column": 27,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        },
+        {
+          "line": 42,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 52,
+          "column": 8,
+          "callee": "os.set_blocking",
+          "shape": "Attribute",
+          "import_target": "os.set_blocking"
+        },
+        {
+          "line": 53,
+          "column": 8,
+          "callee": "os.set_blocking",
+          "shape": "Attribute",
+          "import_target": "os.set_blocking"
+        },
+        {
+          "line": 54,
+          "column": 8,
+          "callee": "selector.register",
+          "shape": "Attribute"
+        },
+        {
+          "line": 55,
+          "column": 8,
+          "callee": "selector.register",
+          "shape": "Attribute"
+        },
+        {
+          "line": 56,
+          "column": 26,
+          "callee": "memoryview",
+          "shape": "Name"
+        },
+        {
+          "line": 57,
+          "column": 14,
+          "callee": "selector.get_map",
+          "shape": "Attribute"
+        },
+        {
+          "line": 93,
+          "column": 8,
+          "callee": "selector.close",
+          "shape": "Attribute"
+        },
+        {
+          "line": 96,
+          "column": 8,
+          "callee": "process.wait",
+          "shape": "Attribute"
+        },
+        {
+          "line": 104,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 113,
+          "column": 18,
+          "callee": "json.loads",
+          "shape": "Attribute",
+          "import_target": "json.loads"
+        },
+        {
+          "line": 128,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 132,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 26,
+          "column": 35,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 27,
+          "column": 15,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 33,
+          "column": 30,
+          "callee": "list",
+          "shape": "Name"
+        },
+        {
+          "line": 39,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 44,
+          "column": 31,
+          "callee": "str",
+          "shape": "Name"
+        },
+        {
+          "line": 52,
+          "column": 24,
+          "callee": "process.stdin.fileno",
+          "shape": "Attribute"
+        },
+        {
+          "line": 53,
+          "column": 24,
+          "callee": "process.stdout.fileno",
+          "shape": "Attribute"
+        },
+        {
+          "line": 61,
+          "column": 21,
+          "callee": "selector.select",
+          "shape": "Attribute"
+        },
+        {
+          "line": 85,
+          "column": 31,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        },
+        {
+          "line": 87,
+          "column": 18,
+          "callee": "TimeoutError",
+          "shape": "Name"
+        },
+        {
+          "line": 89,
+          "column": 12,
+          "callee": "process.wait",
+          "shape": "Attribute"
+        },
+        {
+          "line": 94,
+          "column": 11,
+          "callee": "process.poll",
+          "shape": "Attribute"
+        },
+        {
+          "line": 95,
+          "column": 12,
+          "callee": "process.kill",
+          "shape": "Attribute"
+        },
+        {
+          "line": 98,
+          "column": 12,
+          "callee": "process.stdin.close",
+          "shape": "Attribute"
+        },
+        {
+          "line": 100,
+          "column": 12,
+          "callee": "process.stdout.close",
+          "shape": "Attribute"
+        },
+        {
+          "line": 103,
+          "column": 19,
+          "callee": "output.endswith",
+          "shape": "Attribute"
+        },
+        {
+          "line": 113,
+          "column": 29,
+          "callee": "output.decode",
+          "shape": "Attribute"
+        },
+        {
+          "line": 115,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 116,
+          "column": 8,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 116,
+          "column": 37,
+          "callee": "frozenset",
+          "shape": "Name"
+        },
+        {
+          "line": 119,
+          "column": 15,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 120,
+          "column": 19,
+          "callee": "witness['managerOwner'].startswith",
+          "shape": "Attribute"
+        },
+        {
+          "line": 121,
+          "column": 15,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 122,
+          "column": 15,
+          "callee": "frozenset",
+          "shape": "Name"
+        },
+        {
+          "line": 124,
+          "column": 15,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 126,
+          "column": 15,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 136,
+          "column": 18,
+          "callee": "MappingProxyType",
+          "shape": "Name",
+          "import_target": "types.MappingProxyType"
+        },
+        {
+          "line": 19,
+          "column": 9,
+          "callee": "Path",
+          "shape": "Name",
+          "import_target": "pathlib.Path"
+        },
+        {
+          "line": 27,
+          "column": 68,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        },
+        {
+          "line": 58,
+          "column": 35,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        },
+        {
+          "line": 60,
+          "column": 22,
+          "callee": "TimeoutError",
+          "shape": "Name"
+        },
+        {
+          "line": 63,
+          "column": 22,
+          "callee": "TimeoutError",
+          "shape": "Name"
+        },
+        {
+          "line": 91,
+          "column": 18,
+          "callee": "TimeoutError",
+          "shape": "Name"
+        },
+        {
+          "line": 102,
+          "column": 43,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 103,
+          "column": 49,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        },
+        {
+          "line": 129,
+          "column": 17,
+          "callee": "json.dumps",
+          "shape": "Attribute",
+          "import_target": "json.dumps"
+        },
+        {
+          "line": 35,
+          "column": 15,
+          "callee": "json.dumps",
+          "shape": "Attribute",
+          "import_target": "json.dumps"
+        },
+        {
+          "line": 77,
+          "column": 28,
+          "callee": "os.read",
+          "shape": "Attribute",
+          "import_target": "os.read"
+        },
+        {
+          "line": 110,
+          "column": 26,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 67,
+          "column": 32,
+          "callee": "os.write",
+          "shape": "Attribute",
+          "import_target": "os.write"
+        },
+        {
+          "line": 71,
+          "column": 30,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 74,
+          "column": 24,
+          "callee": "selector.unregister",
+          "shape": "Attribute"
+        },
+        {
+          "line": 75,
+          "column": 24,
+          "callee": "process.stdin.close",
+          "shape": "Attribute"
+        },
+        {
+          "line": 77,
+          "column": 36,
+          "callee": "process.stdout.fileno",
+          "shape": "Attribute"
+        },
+        {
+          "line": 79,
+          "column": 24,
+          "callee": "selector.unregister",
+          "shape": "Attribute"
+        },
+        {
+          "line": 80,
+          "column": 24,
+          "callee": "process.stdout.close",
+          "shape": "Attribute"
+        },
+        {
+          "line": 82,
+          "column": 24,
+          "callee": "output.extend",
+          "shape": "Attribute"
+        },
+        {
+          "line": 67,
+          "column": 41,
+          "callee": "process.stdin.fileno",
+          "shape": "Attribute"
+        },
+        {
+          "line": 69,
+          "column": 30,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 77,
+          "column": 78,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 83,
+          "column": 27,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 84,
+          "column": 34,
+          "callee": "ValueError",
+          "shape": "Name"
+        }
+      ],
+      "dynamic_dispatch_candidates": [],
+      "attribute_or_subscript_references": [
+        {
+          "line": 19,
+          "expr": "Path(__file__).resolve().with_name"
+        },
+        {
+          "line": 33,
+          "expr": "source['ancestry']"
+        },
+        {
+          "line": 43,
+          "expr": "subprocess.Popen"
+        },
+        {
+          "line": 50,
+          "expr": "selectors.DefaultSelector"
+        },
+        {
+          "line": 129,
+          "expr": "(json.dumps(witness, sort_keys=True, separators=(',', ':')) + '\\n').encode"
+        },
+        {
+          "line": 19,
+          "expr": "Path(__file__).resolve"
+        },
+        {
+          "line": 26,
+          "expr": "sys.platform"
+        },
+        {
+          "line": 32,
+          "expr": "source['ancestry']"
+        },
+        {
+          "line": 35,
+          "expr": "(json.dumps(source, sort_keys=True, separators=(',', ':')) + '\\n').encode"
+        },
+        {
+          "line": 40,
+          "expr": "time.monotonic"
+        },
+        {
+          "line": 44,
+          "expr": "sys.executable"
+        },
+        {
+          "line": 45,
+          "expr": "subprocess.PIPE"
+        },
+        {
+          "line": 45,
+          "expr": "subprocess.PIPE"
+        },
+        {
+          "line": 46,
+          "expr": "subprocess.DEVNULL"
+        },
+        {
+          "line": 52,
+          "expr": "os.set_blocking"
+        },
+        {
+          "line": 53,
+          "expr": "os.set_blocking"
+        },
+        {
+          "line": 54,
+          "expr": "selector.register"
+        },
+        {
+          "line": 54,
+          "expr": "process.stdin"
+        },
+        {
+          "line": 54,
+          "expr": "selectors.EVENT_WRITE"
+        },
+        {
+          "line": 55,
+          "expr": "selector.register"
+        },
+        {
+          "line": 55,
+          "expr": "process.stdout"
+        },
+        {
+          "line": 55,
+          "expr": "selectors.EVENT_READ"
+        },
+        {
+          "line": 57,
+          "expr": "selector.get_map"
+        },
+        {
+          "line": 90,
+          "expr": "subprocess.TimeoutExpired"
+        },
+        {
+          "line": 93,
+          "expr": "selector.close"
+        },
+        {
+          "line": 96,
+          "expr": "process.wait"
+        },
+        {
+          "line": 97,
+          "expr": "process.stdin"
+        },
+        {
+          "line": 99,
+          "expr": "process.stdout"
+        },
+        {
+          "line": 102,
+          "expr": "process.returncode"
+        },
+        {
+          "line": 113,
+          "expr": "json.loads"
+        },
+        {
+          "line": 118,
+          "expr": "witness['status']"
+        },
+        {
+          "line": 123,
+          "expr": "witness['kernel']['status']"
+        },
+        {
+          "line": 125,
+          "expr": "witness['kernel']['pid']"
+        },
+        {
+          "line": 125,
+          "expr": "validated['keeperPid']"
+        },
+        {
+          "line": 127,
+          "expr": "witness['kernel']['startticks']"
+        },
+        {
+          "line": 127,
+          "expr": "validated['keeperTicks']"
+        },
+        {
+          "line": 135,
+          "expr": "witness['managerOwner']"
+        },
+        {
+          "line": 33,
+          "expr": "source['ancestry']"
+        },
+        {
+          "line": 52,
+          "expr": "process.stdin.fileno"
+        },
+        {
+          "line": 53,
+          "expr": "process.stdout.fileno"
+        },
+        {
+          "line": 61,
+          "expr": "selector.select"
+        },
+        {
+          "line": 85,
+          "expr": "time.monotonic"
+        },
+        {
+          "line": 89,
+          "expr": "process.wait"
+        },
+        {
+          "line": 94,
+          "expr": "process.poll"
+        },
+        {
+          "line": 95,
+          "expr": "process.kill"
+        },
+        {
+          "line": 97,
+          "expr": "process.stdin.closed"
+        },
+        {
+          "line": 98,
+          "expr": "process.stdin.close"
+        },
+        {
+          "line": 99,
+          "expr": "process.stdout.closed"
+        },
+        {
+          "line": 100,
+          "expr": "process.stdout.close"
+        },
+        {
+          "line": 103,
+          "expr": "output.endswith"
+        },
+        {
+          "line": 111,
+          "expr": "parsed[key]"
+        },
+        {
+          "line": 113,
+          "expr": "output.decode"
+        },
+        {
+          "line": 119,
+          "expr": "witness['managerOwner']"
+        },
+        {
+          "line": 120,
+          "expr": "witness['managerOwner'].startswith"
+        },
+        {
+          "line": 121,
+          "expr": "witness['kernel']"
+        },
+        {
+          "line": 122,
+          "expr": "witness['kernel']"
+        },
+        {
+          "line": 123,
+          "expr": "witness['kernel']"
+        },
+        {
+          "line": 124,
+          "expr": "witness['kernel']['pid']"
+        },
+        {
+          "line": 125,
+          "expr": "witness['kernel']"
+        },
+        {
+          "line": 126,
+          "expr": "witness['kernel']['startticks']"
+        },
+        {
+          "line": 127,
+          "expr": "witness['kernel']"
+        },
+        {
+          "line": 136,
+          "expr": "witness['kernel']"
+        },
+        {
+          "line": 27,
+          "expr": "time.monotonic"
+        },
+        {
+          "line": 52,
+          "expr": "process.stdin"
+        },
+        {
+          "line": 53,
+          "expr": "process.stdout"
+        },
+        {
+          "line": 58,
+          "expr": "time.monotonic"
+        },
+        {
+          "line": 65,
+          "expr": "item.fileobj"
+        },
+        {
+          "line": 65,
+          "expr": "process.stdin"
+        },
+        {
+          "line": 72,
+          "expr": "remaining_input[count:]"
+        },
+        {
+          "line": 97,
+          "expr": "process.stdin"
+        },
+        {
+          "line": 98,
+          "expr": "process.stdin"
+        },
+        {
+          "line": 99,
+          "expr": "process.stdout"
+        },
+        {
+          "line": 100,
+          "expr": "process.stdout"
+        },
+        {
+          "line": 103,
+          "expr": "time.monotonic"
+        },
+        {
+          "line": 120,
+          "expr": "witness['managerOwner']"
+        },
+        {
+          "line": 124,
+          "expr": "witness['kernel']"
+        },
+        {
+          "line": 126,
+          "expr": "witness['kernel']"
+        },
+        {
+          "line": 129,
+          "expr": "json.dumps"
+        },
+        {
+          "line": 35,
+          "expr": "json.dumps"
+        },
+        {
+          "line": 77,
+          "expr": "os.read"
+        },
+        {
+          "line": 67,
+          "expr": "os.write"
+        },
+        {
+          "line": 74,
+          "expr": "selector.unregister"
+        },
+        {
+          "line": 74,
+          "expr": "process.stdin"
+        },
+        {
+          "line": 75,
+          "expr": "process.stdin.close"
+        },
+        {
+          "line": 77,
+          "expr": "process.stdout.fileno"
+        },
+        {
+          "line": 79,
+          "expr": "selector.unregister"
+        },
+        {
+          "line": 79,
+          "expr": "process.stdout"
+        },
+        {
+          "line": 80,
+          "expr": "process.stdout.close"
+        },
+        {
+          "line": 82,
+          "expr": "output.extend"
+        },
+        {
+          "line": 67,
+          "expr": "process.stdin.fileno"
+        },
+        {
+          "line": 75,
+          "expr": "process.stdin"
+        },
+        {
+          "line": 77,
+          "expr": "process.stdout"
+        },
+        {
+          "line": 80,
+          "expr": "process.stdout"
+        },
+        {
+          "line": 67,
+          "expr": "process.stdin"
+        }
+      ]
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "sha256": "e36da0146da76da7c89f713e51bfc5e6d10b867563ea668bd76184b1c21a80e9",
+      "imports": {
+        "re": "re",
+        "os": "os",
+        "sys": "sys",
+        "time": "time",
+        "MappingProxyType": "types.MappingProxyType",
+        "SERVICE": "systemd_unit_observer.SERVICE",
+        "MANAGER_IFACE": "systemd_unit_observer.MANAGER_IFACE",
+        "MANAGER_PATH": "systemd_unit_observer.MANAGER_PATH",
+        "UNIT": "systemd_unit_observer.UNIT",
+        "JobEventWindow": "systemd_job_event_contract.JobEventWindow",
+        "dbus": "dbus",
+        "DBusGMainLoop": "dbus.mainloop.glib.DBusGMainLoop",
+        "GLib": "gi.repository.GLib"
+      },
+      "assignment_alias_candidates": [
+        {
+          "line": 20,
+          "target": "_OWNER",
+          "value": "re.compile(':[0-9]+\\\\.[0-9]+')"
+        },
+        {
+          "line": 37,
+          "target": "window",
+          "value": "JobEventWindow(expected)"
+        },
+        {
+          "line": 47,
+          "target": "bus",
+          "value": "dbus.bus.BusConnection(dbus.bus.BUS_SYSTEM, mainloop=DBusGMainLoop(set_as_default=False))"
+        },
+        {
+          "line": 50,
+          "target": "owner",
+          "value": "str(bus.get_name_owner(SERVICE))"
+        },
+        {
+          "line": 56,
+          "target": "loop",
+          "value": "GLib.MainLoop()"
+        },
+        {
+          "line": 100,
+          "target": "match",
+          "value": "bus.add_signal_receiver(on_signal, signal_name=SIGNAL, dbus_interface=MANAGER_IFACE, bus_name=owner, path=MANAGER_PATH, sender_keyword='sender')"
+        },
+        {
+          "line": 103,
+          "target": "manager",
+          "value": "dbus.Interface(bus.get_object(owner, MANAGER_PATH, follow_name_owner_changes=False), MANAGER_IFACE)"
+        },
+        {
+          "line": 110,
+          "target": "milliseconds",
+          "value": "max(1, int((deadline - time.monotonic()) * 1000))"
+        },
+        {
+          "line": 82,
+          "target": "recorded",
+          "value": "window.accept(event)"
+        },
+        {
+          "line": 114,
+          "target": "timeout_source",
+          "value": "GLib.timeout_add(milliseconds, on_timeout)"
+        },
+        {
+          "line": 85,
+          "target": "failure",
+          "value": "exc"
+        }
+      ],
+      "calls": [
+        {
+          "line": 20,
+          "column": 9,
+          "callee": "re.compile",
+          "shape": "Attribute",
+          "import_target": "re.compile"
+        },
+        {
+          "line": 37,
+          "column": 13,
+          "callee": "JobEventWindow",
+          "shape": "Name",
+          "import_target": "systemd_job_event_contract.JobEventWindow"
+        },
+        {
+          "line": 47,
+          "column": 10,
+          "callee": "dbus.bus.BusConnection",
+          "shape": "Attribute"
+        },
+        {
+          "line": 36,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 50,
+          "column": 16,
+          "callee": "str",
+          "shape": "Name"
+        },
+        {
+          "line": 56,
+          "column": 15,
+          "callee": "GLib.MainLoop",
+          "shape": "Attribute",
+          "import_target": "gi.repository.GLib.MainLoop"
+        },
+        {
+          "line": 144,
+          "column": 8,
+          "callee": "bus.close",
+          "shape": "Attribute"
+        },
+        {
+          "line": 33,
+          "column": 35,
+          "callee": "os.geteuid",
+          "shape": "Attribute",
+          "import_target": "os.geteuid"
+        },
+        {
+          "line": 34,
+          "column": 15,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 43,
+          "column": 14,
+          "callee": "RuntimeError",
+          "shape": "Name"
+        },
+        {
+          "line": 48,
+          "column": 38,
+          "callee": "DBusGMainLoop",
+          "shape": "Name",
+          "import_target": "dbus.mainloop.glib.DBusGMainLoop"
+        },
+        {
+          "line": 50,
+          "column": 20,
+          "callee": "bus.get_name_owner",
+          "shape": "Attribute"
+        },
+        {
+          "line": 54,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 61,
+          "column": 19,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        },
+        {
+          "line": 92,
+          "column": 12,
+          "callee": "window.quarantine",
+          "shape": "Attribute"
+        },
+        {
+          "line": 93,
+          "column": 12,
+          "callee": "loop.quit",
+          "shape": "Attribute"
+        },
+        {
+          "line": 100,
+          "column": 20,
+          "callee": "bus.add_signal_receiver",
+          "shape": "Attribute"
+        },
+        {
+          "line": 103,
+          "column": 22,
+          "callee": "dbus.Interface",
+          "shape": "Attribute",
+          "import_target": "dbus.Interface"
+        },
+        {
+          "line": 106,
+          "column": 12,
+          "callee": "manager.Subscribe",
+          "shape": "Attribute"
+        },
+        {
+          "line": 110,
+          "column": 27,
+          "callee": "max",
+          "shape": "Name"
+        },
+        {
+          "line": 122,
+          "column": 19,
+          "callee": "MappingProxyType",
+          "shape": "Name",
+          "import_target": "types.MappingProxyType"
+        },
+        {
+          "line": 130,
+          "column": 12,
+          "callee": "window.quarantine",
+          "shape": "Attribute"
+        },
+        {
+          "line": 51,
+          "column": 16,
+          "callee": "_OWNER.fullmatch",
+          "shape": "Attribute"
+        },
+        {
+          "line": 52,
+          "column": 19,
+          "callee": "int",
+          "shape": "Name"
+        },
+        {
+          "line": 66,
+          "column": 15,
+          "callee": "str",
+          "shape": "Name"
+        },
+        {
+          "line": 82,
+          "column": 27,
+          "callee": "window.accept",
+          "shape": "Attribute"
+        },
+        {
+          "line": 87,
+          "column": 16,
+          "callee": "loop.quit",
+          "shape": "Attribute"
+        },
+        {
+          "line": 104,
+          "column": 16,
+          "callee": "bus.get_object",
+          "shape": "Attribute"
+        },
+        {
+          "line": 108,
+          "column": 15,
+          "callee": "str",
+          "shape": "Name"
+        },
+        {
+          "line": 109,
+          "column": 22,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 110,
+          "column": 34,
+          "callee": "int",
+          "shape": "Name"
+        },
+        {
+          "line": 111,
+          "column": 15,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        },
+        {
+          "line": 112,
+          "column": 22,
+          "callee": "TimeoutError",
+          "shape": "Name"
+        },
+        {
+          "line": 114,
+          "column": 33,
+          "callee": "GLib.timeout_add",
+          "shape": "Attribute",
+          "import_target": "gi.repository.GLib.timeout_add"
+        },
+        {
+          "line": 115,
+          "column": 16,
+          "callee": "loop.run",
+          "shape": "Attribute"
+        },
+        {
+          "line": 117,
+          "column": 22,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 121,
+          "column": 22,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 132,
+          "column": 16,
+          "callee": "GLib.source_remove",
+          "shape": "Attribute",
+          "import_target": "gi.repository.GLib.source_remove"
+        },
+        {
+          "line": 134,
+          "column": 16,
+          "callee": "match.remove",
+          "shape": "Attribute"
+        },
+        {
+          "line": 52,
+          "column": 23,
+          "callee": "bus.get_unix_user",
+          "shape": "Attribute"
+        },
+        {
+          "line": 72,
+          "column": 26,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 73,
+          "column": 50,
+          "callee": "isinstance",
+          "shape": "Name"
+        },
+        {
+          "line": 74,
+          "column": 26,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 76,
+          "column": 30,
+          "callee": "str",
+          "shape": "Name"
+        },
+        {
+          "line": 76,
+          "column": 52,
+          "callee": "int",
+          "shape": "Name"
+        },
+        {
+          "line": 77,
+          "column": 31,
+          "callee": "str",
+          "shape": "Name"
+        },
+        {
+          "line": 77,
+          "column": 54,
+          "callee": "str",
+          "shape": "Name"
+        },
+        {
+          "line": 78,
+          "column": 30,
+          "callee": "str",
+          "shape": "Name"
+        },
+        {
+          "line": 84,
+          "column": 16,
+          "callee": "window.quarantine",
+          "shape": "Attribute"
+        },
+        {
+          "line": 108,
+          "column": 19,
+          "callee": "bus.get_name_owner",
+          "shape": "Attribute"
+        },
+        {
+          "line": 118,
+          "column": 16,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        },
+        {
+          "line": 119,
+          "column": 23,
+          "callee": "str",
+          "shape": "Name"
+        },
+        {
+          "line": 120,
+          "column": 23,
+          "callee": "int",
+          "shape": "Name"
+        },
+        {
+          "line": 137,
+          "column": 20,
+          "callee": "manager.Unsubscribe",
+          "shape": "Attribute"
+        },
+        {
+          "line": 69,
+          "column": 20,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        },
+        {
+          "line": 70,
+          "column": 27,
+          "callee": "str",
+          "shape": "Name"
+        },
+        {
+          "line": 71,
+          "column": 27,
+          "callee": "int",
+          "shape": "Name"
+        },
+        {
+          "line": 73,
+          "column": 23,
+          "callee": "isinstance",
+          "shape": "Name"
+        },
+        {
+          "line": 119,
+          "column": 27,
+          "callee": "bus.get_name_owner",
+          "shape": "Attribute"
+        },
+        {
+          "line": 120,
+          "column": 27,
+          "callee": "bus.get_unix_user",
+          "shape": "Attribute"
+        },
+        {
+          "line": 70,
+          "column": 31,
+          "callee": "bus.get_name_owner",
+          "shape": "Attribute"
+        },
+        {
+          "line": 71,
+          "column": 31,
+          "callee": "bus.get_unix_user",
+          "shape": "Attribute"
+        },
+        {
+          "line": 110,
+          "column": 50,
+          "callee": "time.monotonic",
+          "shape": "Attribute",
+          "import_target": "time.monotonic"
+        }
+      ],
+      "dynamic_dispatch_candidates": [],
+      "attribute_or_subscript_references": [
+        {
+          "line": 20,
+          "expr": "re.compile"
+        },
+        {
+          "line": 47,
+          "expr": "dbus.bus.BusConnection"
+        },
+        {
+          "line": 48,
+          "expr": "dbus.bus.BUS_SYSTEM"
+        },
+        {
+          "line": 33,
+          "expr": "sys.platform"
+        },
+        {
+          "line": 47,
+          "expr": "dbus.bus"
+        },
+        {
+          "line": 48,
+          "expr": "dbus.bus"
+        },
+        {
+          "line": 56,
+          "expr": "GLib.MainLoop"
+        },
+        {
+          "line": 144,
+          "expr": "bus.close"
+        },
+        {
+          "line": 33,
+          "expr": "os.geteuid"
+        },
+        {
+          "line": 50,
+          "expr": "bus.get_name_owner"
+        },
+        {
+          "line": 53,
+          "expr": "expected['managerOwner']"
+        },
+        {
+          "line": 61,
+          "expr": "time.monotonic"
+        },
+        {
+          "line": 92,
+          "expr": "window.quarantine"
+        },
+        {
+          "line": 93,
+          "expr": "loop.quit"
+        },
+        {
+          "line": 100,
+          "expr": "bus.add_signal_receiver"
+        },
+        {
+          "line": 103,
+          "expr": "dbus.Interface"
+        },
+        {
+          "line": 106,
+          "expr": "manager.Subscribe"
+        },
+        {
+          "line": 130,
+          "expr": "window.quarantine"
+        },
+        {
+          "line": 51,
+          "expr": "_OWNER.fullmatch"
+        },
+        {
+          "line": 82,
+          "expr": "window.accept"
+        },
+        {
+          "line": 87,
+          "expr": "loop.quit"
+        },
+        {
+          "line": 104,
+          "expr": "bus.get_object"
+        },
+        {
+          "line": 111,
+          "expr": "time.monotonic"
+        },
+        {
+          "line": 114,
+          "expr": "GLib.timeout_add"
+        },
+        {
+          "line": 115,
+          "expr": "loop.run"
+        },
+        {
+          "line": 125,
+          "expr": "recorded['jobPath']"
+        },
+        {
+          "line": 127,
+          "expr": "recorded['result']"
+        },
+        {
+          "line": 132,
+          "expr": "GLib.source_remove"
+        },
+        {
+          "line": 134,
+          "expr": "match.remove"
+        },
+        {
+          "line": 52,
+          "expr": "bus.get_unix_user"
+        },
+        {
+          "line": 84,
+          "expr": "window.quarantine"
+        },
+        {
+          "line": 108,
+          "expr": "bus.get_name_owner"
+        },
+        {
+          "line": 118,
+          "expr": "time.monotonic"
+        },
+        {
+          "line": 137,
+          "expr": "manager.Unsubscribe"
+        },
+        {
+          "line": 69,
+          "expr": "time.monotonic"
+        },
+        {
+          "line": 119,
+          "expr": "bus.get_name_owner"
+        },
+        {
+          "line": 120,
+          "expr": "bus.get_unix_user"
+        },
+        {
+          "line": 70,
+          "expr": "bus.get_name_owner"
+        },
+        {
+          "line": 71,
+          "expr": "bus.get_unix_user"
+        },
+        {
+          "line": 110,
+          "expr": "time.monotonic"
+        }
+      ]
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "sha256": "86da8c10920d5ad3f54554d3bd264ff98bc6f3aa11c46b13d782233ec2df631e",
+      "imports": {
+        "os": "os",
+        "re": "re",
+        "select": "select",
+        "stat": "stat",
+        "sys": "sys",
+        "require_unprivileged": "unprivileged_observer.require_unprivileged",
+        "MappingProxyType": "types.MappingProxyType",
+        "UNIT": "systemd_unit_observer.UNIT",
+        "observe_fixed_systemd_unit": "systemd_unit_observer.observe_fixed_systemd_unit"
+      },
+      "assignment_alias_candidates": [
+        {
+          "line": 23,
+          "target": "fd",
+          "value": "os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)"
+        },
+        {
+          "line": 44,
+          "target": "split",
+          "value": "raw.rfind(b') ')"
+        },
+        {
+          "line": 47,
+          "target": "fields",
+          "value": "raw[split + 2:].strip(b'\\n').split(b' ')"
+        },
+        {
+          "line": 52,
+          "target": "ticks",
+          "value": "int(fields[19])"
+        },
+        {
+          "line": 101,
+          "target": "pid",
+          "value": "original['keeperPid']"
+        },
+        {
+          "line": 102,
+          "target": "ticks",
+          "value": "original['keeperTicks']"
+        },
+        {
+          "line": 106,
+          "target": "original_snapshot",
+          "value": "original.copy()"
+        },
+        {
+          "line": 107,
+          "target": "manager_snapshot",
+          "value": "manager.copy()"
+        },
+        {
+          "line": 116,
+          "target": "state_before",
+          "value": "proc_sample()"
+        },
+        {
+          "line": 117,
+          "target": "pidfd",
+          "value": "os.pidfd_open(pid, 0)"
+        },
+        {
+          "line": 182,
+          "target": "first",
+          "value": "observe_fixed_systemd_unit()"
+        },
+        {
+          "line": 183,
+          "target": "manager",
+          "value": "dict(first['properties'])"
+        },
+        {
+          "line": 185,
+          "target": "observed",
+          "value": "observe_fixed_unit_kernel(original, manager)"
+        },
+        {
+          "line": 186,
+          "target": "second",
+          "value": "observe_fixed_systemd_unit()"
+        },
+        {
+          "line": 27,
+          "target": "raw",
+          "value": "bytearray()"
+        },
+        {
+          "line": 65,
+          "target": "(left, right)",
+          "value": "entry.split(b' - ', 1)"
+        },
+        {
+          "line": 66,
+          "target": "before",
+          "value": "left.split(b' ')"
+        },
+        {
+          "line": 67,
+          "target": "after",
+          "value": "right.split(b' ')"
+        },
+        {
+          "line": 109,
+          "target": "(state, current)",
+          "value": "_stat_generation(_read_fixed(f'/proc/{pid}/stat', 16384), pid)"
+        },
+        {
+          "line": 119,
+          "target": "poller",
+          "value": "select.poll()"
+        },
+        {
+          "line": 123,
+          "target": "mount",
+          "value": "_mount(_read_fixed(f'/proc/{pid}/mountinfo', 1048576))"
+        },
+        {
+          "line": 127,
+          "target": "ids",
+          "value": "original.get('ancestry')"
+        },
+        {
+          "line": 29,
+          "target": "chunk",
+          "value": "os.read(fd, min(4096, cap + 1 - len(raw)))"
+        },
+        {
+          "line": 141,
+          "target": "filefd",
+          "value": "os.open('cgroup.procs', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=opened[-1])"
+        },
+        {
+          "line": 136,
+          "target": "info",
+          "value": "os.fstat(fd)"
+        },
+        {
+          "line": 144,
+          "target": "members",
+          "value": "bytearray()"
+        },
+        {
+          "line": 152,
+          "target": "entries",
+          "value": "bytes(members).splitlines()"
+        },
+        {
+          "line": 160,
+          "target": "info",
+          "value": "os.fstat(fd)"
+        },
+        {
+          "line": 146,
+          "target": "chunk",
+          "value": "os.read(filefd, min(4096, 4097 - len(members)))"
+        }
+      ],
+      "calls": [
+        {
+          "line": 23,
+          "column": 9,
+          "callee": "os.open",
+          "shape": "Attribute",
+          "import_target": "os.open"
+        },
+        {
+          "line": 44,
+          "column": 12,
+          "callee": "raw.rfind",
+          "shape": "Attribute"
+        },
+        {
+          "line": 47,
+          "column": 13,
+          "callee": "raw[split + 2:].strip(b'\\n').split",
+          "shape": "Attribute"
+        },
+        {
+          "line": 52,
+          "column": 12,
+          "callee": "int",
+          "shape": "Name"
+        },
+        {
+          "line": 62,
+          "column": 17,
+          "callee": "raw.splitlines",
+          "shape": "Attribute"
+        },
+        {
+          "line": 92,
+          "column": 4,
+          "callee": "require_unprivileged",
+          "shape": "Name",
+          "import_target": "unprivileged_observer.require_unprivileged"
+        },
+        {
+          "line": 106,
+          "column": 24,
+          "callee": "original.copy",
+          "shape": "Attribute"
+        },
+        {
+          "line": 107,
+          "column": 23,
+          "callee": "manager.copy",
+          "shape": "Attribute"
+        },
+        {
+          "line": 116,
+          "column": 19,
+          "callee": "proc_sample",
+          "shape": "Name"
+        },
+        {
+          "line": 117,
+          "column": 12,
+          "callee": "os.pidfd_open",
+          "shape": "Attribute",
+          "import_target": "os.pidfd_open"
+        },
+        {
+          "line": 181,
+          "column": 4,
+          "callee": "require_unprivileged",
+          "shape": "Name",
+          "import_target": "unprivileged_observer.require_unprivileged"
+        },
+        {
+          "line": 182,
+          "column": 12,
+          "callee": "observe_fixed_systemd_unit",
+          "shape": "Name",
+          "import_target": "systemd_unit_observer.observe_fixed_systemd_unit"
+        },
+        {
+          "line": 183,
+          "column": 14,
+          "callee": "dict",
+          "shape": "Name"
+        },
+        {
+          "line": 185,
+          "column": 15,
+          "callee": "observe_fixed_unit_kernel",
+          "shape": "Name"
+        },
+        {
+          "line": 186,
+          "column": 13,
+          "callee": "observe_fixed_systemd_unit",
+          "shape": "Name",
+          "import_target": "systemd_unit_observer.observe_fixed_systemd_unit"
+        },
+        {
+          "line": 189,
+          "column": 11,
+          "callee": "MappingProxyType",
+          "shape": "Name",
+          "import_target": "types.MappingProxyType"
+        },
+        {
+          "line": 27,
+          "column": 14,
+          "callee": "bytearray",
+          "shape": "Name"
+        },
+        {
+          "line": 35,
+          "column": 15,
+          "callee": "bytes",
+          "shape": "Name"
+        },
+        {
+          "line": 37,
+          "column": 8,
+          "callee": "os.close",
+          "shape": "Attribute",
+          "import_target": "os.close"
+        },
+        {
+          "line": 43,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 46,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 49,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 50,
+          "column": 11,
+          "callee": "re.fullmatch",
+          "shape": "Attribute",
+          "import_target": "re.fullmatch"
+        },
+        {
+          "line": 51,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 54,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 55,
+          "column": 11,
+          "callee": "fields[0].decode",
+          "shape": "Attribute"
+        },
+        {
+          "line": 60,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 65,
+          "column": 22,
+          "callee": "entry.split",
+          "shape": "Attribute"
+        },
+        {
+          "line": 66,
+          "column": 17,
+          "callee": "left.split",
+          "shape": "Attribute"
+        },
+        {
+          "line": 67,
+          "column": 16,
+          "callee": "right.split",
+          "shape": "Attribute"
+        },
+        {
+          "line": 76,
+          "column": 7,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 77,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 82,
+          "column": 14,
+          "callee": "('0::/system.slice/' + UNIT + '\\n').encode",
+          "shape": "Attribute"
+        },
+        {
+          "line": 83,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 94,
+          "column": 14,
+          "callee": "RuntimeError",
+          "shape": "Name"
+        },
+        {
+          "line": 100,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 105,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 109,
+          "column": 25,
+          "callee": "_stat_generation",
+          "shape": "Name"
+        },
+        {
+          "line": 119,
+          "column": 17,
+          "callee": "select.poll",
+          "shape": "Attribute",
+          "import_target": "select.poll"
+        },
+        {
+          "line": 120,
+          "column": 8,
+          "callee": "poller.register",
+          "shape": "Attribute"
+        },
+        {
+          "line": 121,
+          "column": 11,
+          "callee": "poller.poll",
+          "shape": "Attribute"
+        },
+        {
+          "line": 123,
+          "column": 16,
+          "callee": "_mount",
+          "shape": "Name"
+        },
+        {
+          "line": 127,
+          "column": 14,
+          "callee": "original.get",
+          "shape": "Attribute"
+        },
+        {
+          "line": 170,
+          "column": 15,
+          "callee": "MappingProxyType",
+          "shape": "Name",
+          "import_target": "types.MappingProxyType"
+        },
+        {
+          "line": 176,
+          "column": 8,
+          "callee": "os.close",
+          "shape": "Attribute",
+          "import_target": "os.close"
+        },
+        {
+          "line": 188,
+          "column": 14,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 25,
+          "column": 15,
+          "callee": "stat.S_ISREG",
+          "shape": "Attribute",
+          "import_target": "stat.S_ISREG"
+        },
+        {
+          "line": 26,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 28,
+          "column": 14,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 29,
+          "column": 20,
+          "callee": "os.read",
+          "shape": "Attribute",
+          "import_target": "os.read"
+        },
+        {
+          "line": 32,
+          "column": 12,
+          "callee": "raw.extend",
+          "shape": "Attribute"
+        },
+        {
+          "line": 34,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 41,
+          "column": 8,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 42,
+          "column": 19,
+          "callee": "raw.startswith",
+          "shape": "Attribute"
+        },
+        {
+          "line": 47,
+          "column": 13,
+          "callee": "raw[split + 2:].strip",
+          "shape": "Attribute"
+        },
+        {
+          "line": 48,
+          "column": 7,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 59,
+          "column": 7,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 64,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 69,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 75,
+          "column": 12,
+          "callee": "mounts.append",
+          "shape": "Attribute"
+        },
+        {
+          "line": 93,
+          "column": 38,
+          "callee": "hasattr",
+          "shape": "Name"
+        },
+        {
+          "line": 95,
+          "column": 8,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 95,
+          "column": 38,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 96,
+          "column": 15,
+          "callee": "original.get",
+          "shape": "Attribute"
+        },
+        {
+          "line": 96,
+          "column": 47,
+          "callee": "manager.get",
+          "shape": "Attribute"
+        },
+        {
+          "line": 97,
+          "column": 15,
+          "callee": "manager.get",
+          "shape": "Attribute"
+        },
+        {
+          "line": 97,
+          "column": 41,
+          "callee": "original.get",
+          "shape": "Attribute"
+        },
+        {
+          "line": 98,
+          "column": 15,
+          "callee": "manager.get",
+          "shape": "Attribute"
+        },
+        {
+          "line": 98,
+          "column": 44,
+          "callee": "original.get",
+          "shape": "Attribute"
+        },
+        {
+          "line": 99,
+          "column": 15,
+          "callee": "manager.get",
+          "shape": "Attribute"
+        },
+        {
+          "line": 103,
+          "column": 8,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 104,
+          "column": 15,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 109,
+          "column": 42,
+          "callee": "_read_fixed",
+          "shape": "Name"
+        },
+        {
+          "line": 111,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 112,
+          "column": 11,
+          "callee": "_read_fixed",
+          "shape": "Name"
+        },
+        {
+          "line": 112,
+          "column": 55,
+          "callee": "('0::/system.slice/' + UNIT + '\\n').encode",
+          "shape": "Attribute"
+        },
+        {
+          "line": 114,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 122,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 123,
+          "column": 23,
+          "callee": "_read_fixed",
+          "shape": "Name"
+        },
+        {
+          "line": 125,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 129,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 132,
+          "column": 12,
+          "callee": "opened.append",
+          "shape": "Attribute"
+        },
+        {
+          "line": 135,
+          "column": 29,
+          "callee": "zip",
+          "shape": "Name"
+        },
+        {
+          "line": 141,
+          "column": 21,
+          "callee": "os.open",
+          "shape": "Attribute",
+          "import_target": "os.open"
+        },
+        {
+          "line": 159,
+          "column": 29,
+          "callee": "zip",
+          "shape": "Name"
+        },
+        {
+          "line": 164,
+          "column": 22,
+          "callee": "reversed",
+          "shape": "Name"
+        },
+        {
+          "line": 166,
+          "column": 57,
+          "callee": "poller.poll",
+          "shape": "Attribute"
+        },
+        {
+          "line": 169,
+          "column": 18,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 187,
+          "column": 8,
+          "callee": "dict",
+          "shape": "Name"
+        },
+        {
+          "line": 29,
+          "column": 32,
+          "callee": "min",
+          "shape": "Name"
+        },
+        {
+          "line": 33,
+          "column": 11,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 33,
+          "column": 44,
+          "callee": "raw.endswith",
+          "shape": "Attribute"
+        },
+        {
+          "line": 41,
+          "column": 42,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 59,
+          "column": 41,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 68,
+          "column": 11,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 68,
+          "column": 30,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 74,
+          "column": 22,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 124,
+          "column": 21,
+          "callee": "original.get",
+          "shape": "Attribute"
+        },
+        {
+          "line": 124,
+          "column": 46,
+          "callee": "original.get",
+          "shape": "Attribute"
+        },
+        {
+          "line": 128,
+          "column": 12,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 128,
+          "column": 38,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 132,
+          "column": 26,
+          "callee": "os.open",
+          "shape": "Attribute",
+          "import_target": "os.open"
+        },
+        {
+          "line": 134,
+          "column": 16,
+          "callee": "opened.append",
+          "shape": "Attribute"
+        },
+        {
+          "line": 136,
+          "column": 23,
+          "callee": "os.fstat",
+          "shape": "Attribute",
+          "import_target": "os.fstat"
+        },
+        {
+          "line": 144,
+          "column": 26,
+          "callee": "bytearray",
+          "shape": "Name"
+        },
+        {
+          "line": 152,
+          "column": 26,
+          "callee": "bytes(members).splitlines",
+          "shape": "Attribute"
+        },
+        {
+          "line": 158,
+          "column": 16,
+          "callee": "os.close",
+          "shape": "Attribute",
+          "import_target": "os.close"
+        },
+        {
+          "line": 160,
+          "column": 23,
+          "callee": "os.fstat",
+          "shape": "Attribute",
+          "import_target": "os.fstat"
+        },
+        {
+          "line": 165,
+          "column": 16,
+          "callee": "os.close",
+          "shape": "Attribute",
+          "import_target": "os.close"
+        },
+        {
+          "line": 166,
+          "column": 12,
+          "callee": "proc_sample",
+          "shape": "Name"
+        },
+        {
+          "line": 167,
+          "column": 19,
+          "callee": "_mount",
+          "shape": "Name"
+        },
+        {
+          "line": 25,
+          "column": 28,
+          "callee": "os.fstat",
+          "shape": "Attribute",
+          "import_target": "os.fstat"
+        },
+        {
+          "line": 42,
+          "column": 34,
+          "callee": "str(pid).encode",
+          "shape": "Attribute"
+        },
+        {
+          "line": 72,
+          "column": 27,
+          "callee": "re.fullmatch",
+          "shape": "Attribute",
+          "import_target": "re.fullmatch"
+        },
+        {
+          "line": 73,
+          "column": 27,
+          "callee": "re.fullmatch",
+          "shape": "Attribute",
+          "import_target": "re.fullmatch"
+        },
+        {
+          "line": 75,
+          "column": 27,
+          "callee": "int",
+          "shape": "Name"
+        },
+        {
+          "line": 75,
+          "column": 43,
+          "callee": "before[2].decode",
+          "shape": "Attribute"
+        },
+        {
+          "line": 134,
+          "column": 30,
+          "callee": "os.open",
+          "shape": "Attribute",
+          "import_target": "os.open"
+        },
+        {
+          "line": 140,
+          "column": 26,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 145,
+          "column": 22,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 146,
+          "column": 28,
+          "callee": "os.read",
+          "shape": "Attribute",
+          "import_target": "os.read"
+        },
+        {
+          "line": 149,
+          "column": 20,
+          "callee": "members.extend",
+          "shape": "Attribute"
+        },
+        {
+          "line": 151,
+          "column": 26,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 153,
+          "column": 20,
+          "callee": "any",
+          "shape": "Name"
+        },
+        {
+          "line": 156,
+          "column": 26,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 162,
+          "column": 26,
+          "callee": "ValueError",
+          "shape": "Name"
+        },
+        {
+          "line": 167,
+          "column": 26,
+          "callee": "_read_fixed",
+          "shape": "Name"
+        },
+        {
+          "line": 29,
+          "column": 52,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 137,
+          "column": 20,
+          "callee": "type",
+          "shape": "Name"
+        },
+        {
+          "line": 137,
+          "column": 48,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 139,
+          "column": 31,
+          "callee": "stat.S_ISDIR",
+          "shape": "Attribute",
+          "import_target": "stat.S_ISDIR"
+        },
+        {
+          "line": 146,
+          "column": 44,
+          "callee": "min",
+          "shape": "Name"
+        },
+        {
+          "line": 150,
+          "column": 19,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 152,
+          "column": 26,
+          "callee": "bytes",
+          "shape": "Name"
+        },
+        {
+          "line": 154,
+          "column": 27,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 154,
+          "column": 43,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 155,
+          "column": 27,
+          "callee": "str(pid).encode",
+          "shape": "Attribute"
+        },
+        {
+          "line": 42,
+          "column": 34,
+          "callee": "str",
+          "shape": "Name"
+        },
+        {
+          "line": 150,
+          "column": 58,
+          "callee": "members.endswith",
+          "shape": "Attribute"
+        },
+        {
+          "line": 154,
+          "column": 47,
+          "callee": "set",
+          "shape": "Name"
+        },
+        {
+          "line": 146,
+          "column": 61,
+          "callee": "len",
+          "shape": "Name"
+        },
+        {
+          "line": 153,
+          "column": 28,
+          "callee": "re.fullmatch",
+          "shape": "Attribute",
+          "import_target": "re.fullmatch"
+        },
+        {
+          "line": 155,
+          "column": 27,
+          "callee": "str",
+          "shape": "Name"
+        }
+      ],
+      "dynamic_dispatch_candidates": [],
+      "attribute_or_subscript_references": [
+        {
+          "line": 78,
+          "expr": "mounts[0]"
+        },
+        {
+          "line": 101,
+          "expr": "original['keeperPid']"
+        },
+        {
+          "line": 102,
+          "expr": "original['keeperTicks']"
+        },
+        {
+          "line": 23,
+          "expr": "os.open"
+        },
+        {
+          "line": 44,
+          "expr": "raw.rfind"
+        },
+        {
+          "line": 47,
+          "expr": "raw[split + 2:].strip(b'\\n').split"
+        },
+        {
+          "line": 52,
+          "expr": "fields[19]"
+        },
+        {
+          "line": 62,
+          "expr": "raw.splitlines"
+        },
+        {
+          "line": 106,
+          "expr": "original.copy"
+        },
+        {
+          "line": 107,
+          "expr": "manager.copy"
+        },
+        {
+          "line": 117,
+          "expr": "os.pidfd_open"
+        },
+        {
+          "line": 183,
+          "expr": "first['properties']"
+        },
+        {
+          "line": 23,
+          "expr": "os.O_NONBLOCK"
+        },
+        {
+          "line": 37,
+          "expr": "os.close"
+        },
+        {
+          "line": 48,
+          "expr": "fields[0]"
+        },
+        {
+          "line": 50,
+          "expr": "re.fullmatch"
+        },
+        {
+          "line": 50,
+          "expr": "fields[19]"
+        },
+        {
+          "line": 55,
+          "expr": "fields[0].decode"
+        },
+        {
+          "line": 65,
+          "expr": "entry.split"
+        },
+        {
+          "line": 66,
+          "expr": "left.split"
+        },
+        {
+          "line": 67,
+          "expr": "right.split"
+        },
+        {
+          "line": 70,
+          "expr": "after[0]"
+        },
+        {
+          "line": 82,
+          "expr": "('0::/system.slice/' + UNIT + '\\n').encode"
+        },
+        {
+          "line": 93,
+          "expr": "sys.platform"
+        },
+        {
+          "line": 119,
+          "expr": "select.poll"
+        },
+        {
+          "line": 120,
+          "expr": "poller.register"
+        },
+        {
+          "line": 121,
+          "expr": "poller.poll"
+        },
+        {
+          "line": 126,
+          "expr": "os.O_CLOEXEC"
+        },
+        {
+          "line": 127,
+          "expr": "original.get"
+        },
+        {
+          "line": 176,
+          "expr": "os.close"
+        },
+        {
+          "line": 187,
+          "expr": "second['owner']"
+        },
+        {
+          "line": 187,
+          "expr": "first['owner']"
+        },
+        {
+          "line": 191,
+          "expr": "first['owner']"
+        },
+        {
+          "line": 23,
+          "expr": "os.O_CLOEXEC"
+        },
+        {
+          "line": 25,
+          "expr": "stat.S_ISREG"
+        },
+        {
+          "line": 25,
+          "expr": "os.fstat(fd).st_mode"
+        },
+        {
+          "line": 29,
+          "expr": "os.read"
+        },
+        {
+          "line": 32,
+          "expr": "raw.extend"
+        },
+        {
+          "line": 42,
+          "expr": "raw.startswith"
+        },
+        {
+          "line": 47,
+          "expr": "raw[split + 2:].strip"
+        },
+        {
+          "line": 55,
+          "expr": "fields[0]"
+        },
+        {
+          "line": 75,
+          "expr": "mounts.append"
+        },
+        {
+          "line": 96,
+          "expr": "original.get"
+        },
+        {
+          "line": 96,
+          "expr": "manager.get"
+        },
+        {
+          "line": 97,
+          "expr": "manager.get"
+        },
+        {
+          "line": 97,
+          "expr": "original.get"
+        },
+        {
+          "line": 98,
+          "expr": "manager.get"
+        },
+        {
+          "line": 98,
+          "expr": "original.get"
+        },
+        {
+          "line": 99,
+          "expr": "manager.get"
+        },
+        {
+          "line": 112,
+          "expr": "('0::/system.slice/' + UNIT + '\\n').encode"
+        },
+        {
+          "line": 120,
+          "expr": "select.POLLERR"
+        },
+        {
+          "line": 126,
+          "expr": "os.O_NOFOLLOW"
+        },
+        {
+          "line": 132,
+          "expr": "opened.append"
+        },
+        {
+          "line": 141,
+          "expr": "os.open"
+        },
+        {
+          "line": 166,
+          "expr": "poller.poll"
+        },
+        {
+          "line": 187,
+          "expr": "second['properties']"
+        },
+        {
+          "line": 23,
+          "expr": "os.O_RDONLY"
+        },
+        {
+          "line": 23,
+          "expr": "os.O_NOFOLLOW"
+        },
+        {
+          "line": 33,
+          "expr": "raw.endswith"
+        },
+        {
+          "line": 47,
+          "expr": "raw[split + 2:]"
+        },
+        {
+          "line": 71,
+          "expr": "before[3:5]"
+        },
+        {
+          "line": 120,
+          "expr": "select.POLLIN"
+        },
+        {
+          "line": 120,
+          "expr": "select.POLLHUP"
+        },
+        {
+          "line": 124,
+          "expr": "original.get"
+        },
+        {
+          "line": 124,
+          "expr": "original.get"
+        },
+        {
+          "line": 126,
+          "expr": "os.O_RDONLY"
+        },
+        {
+          "line": 126,
+          "expr": "os.O_DIRECTORY"
+        },
+        {
+          "line": 132,
+          "expr": "os.open"
+        },
+        {
+          "line": 134,
+          "expr": "opened.append"
+        },
+        {
+          "line": 136,
+          "expr": "os.fstat"
+        },
+        {
+          "line": 142,
+          "expr": "os.O_CLOEXEC"
+        },
+        {
+          "line": 142,
+          "expr": "opened[-1]"
+        },
+        {
+          "line": 152,
+          "expr": "bytes(members).splitlines"
+        },
+        {
+          "line": 158,
+          "expr": "os.close"
+        },
+        {
+          "line": 160,
+          "expr": "os.fstat"
+        },
+        {
+          "line": 165,
+          "expr": "os.close"
+        },
+        {
+          "line": 25,
+          "expr": "os.fstat"
+        },
+        {
+          "line": 42,
+          "expr": "str(pid).encode"
+        },
+        {
+          "line": 72,
+          "expr": "re.fullmatch"
+        },
+        {
+          "line": 72,
+          "expr": "before[0]"
+        },
+        {
+          "line": 73,
+          "expr": "re.fullmatch"
+        },
+        {
+          "line": 73,
+          "expr": "before[2]"
+        },
+        {
+          "line": 75,
+          "expr": "before[0]"
+        },
+        {
+          "line": 75,
+          "expr": "before[2].decode"
+        },
+        {
+          "line": 134,
+          "expr": "os.open"
+        },
+        {
+          "line": 142,
+          "expr": "os.O_NONBLOCK"
+        },
+        {
+          "line": 146,
+          "expr": "os.read"
+        },
+        {
+          "line": 149,
+          "expr": "members.extend"
+        },
+        {
+          "line": 161,
+          "expr": "info.st_dev"
+        },
+        {
+          "line": 161,
+          "expr": "info.st_ino"
+        },
+        {
+          "line": 75,
+          "expr": "before[2]"
+        },
+        {
+          "line": 134,
+          "expr": "opened[-1]"
+        },
+        {
+          "line": 138,
+          "expr": "info.st_dev"
+        },
+        {
+          "line": 138,
+          "expr": "info.st_ino"
+        },
+        {
+          "line": 139,
+          "expr": "stat.S_ISDIR"
+        },
+        {
+          "line": 139,
+          "expr": "info.st_mode"
+        },
+        {
+          "line": 141,
+          "expr": "os.O_RDONLY"
+        },
+        {
+          "line": 141,
+          "expr": "os.O_NOFOLLOW"
+        },
+        {
+          "line": 155,
+          "expr": "str(pid).encode"
+        },
+        {
+          "line": 150,
+          "expr": "members.endswith"
+        },
+        {
+          "line": 153,
+          "expr": "re.fullmatch"
+        }
+      ]
+    }
+  ],
+  "status": "SOURCE_PINNED_STATIC_DISPATCH_EVIDENCE_NOT_SEMANTIC_COMPLETENESS",
+  "limitations": [
+    "Attribute receivers and runtime aliases are not proven call targets",
+    "Dynamic import and monkeypatch targets remain unresolved",
+    "Assignment candidates include ordinary data assignments",
+    "C authority and cross-language effects require separate review",
+    "No inference of the original 63 missing identities or human site verdicts"
+  ],
+  "security_hold": "ACTIVE"
+}
