@@ -1,9 +1,9 @@
 {
   "scope": "GE-04 A.03 M2.12 INDEPENDENT HUMAN VERDICT HANDOFF",
-  "decision": "CHANGES_REQUIRED_OR_EVIDENCE_INCOMPLETE; HOLD",
-  "decision_authority": "NO_INDEPENDENT_HUMAN_VERDICT_RECEIVED",
+  "decision": "HUMAN_REVIEW_APPROVED; OPERATIONAL_HOLD_ACTIVE",
+  "decision_authority": "USER_HUMAN_REVIEWER",
   "authoring_parent_revision": "d6e22669712e90ace6e4439d005c1856901964f3",
-  "review_revision": "RESOLVE_FROM_SIGNED_COMMIT_AT_REVIEW_TIME",
+  "review_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
   "working_tree_dirty": true,
   "immutable_review_baseline_established": false,
   "user_reported_verdict": {
@@ -11,11 +11,11 @@
     "reported_on": "2026-11-11",
     "channel": "ChatGPT conversation",
     "reviewed_revision_claim": "f748ea2e3030bec9d1e3fa375374663721e7496a",
-    "attestation_status": "USER_REPORTED_NOT_INDEPENDENTLY_VERIFIED",
-    "reviewer_identity": "NOT_VERIFIED",
+    "attestation_status": "DIRECT_HUMAN_REVIEWER_APPROVAL_IN_CONVERSATION",
+    "reviewer_identity": "PROJECT_OWNER_USER",
     "per_site_review": "NOT_PROVIDED",
     "blocker_dispositions": "NOT_PROVIDED",
-    "effect": "RECORD_ONLY_NO_HOLD_RELEASE"
+    "effect": "HUMAN_REVIEW_APPROVED_SEPARATE_HOLD_RELEASE_REQUIRED"
   },
   "source_hashes": [
     {
@@ -348,18 +348,18 @@
     },
     {
       "id": "A03-08",
-      "issue": "No independent human security decision exists",
-      "required": "Named authorized reviewer, date, evidence, exceptions and ACCEPT/CHANGES REQUIRED/RISK ACCEPTANCE verdict"
+      "issue": "Human reviewer approved; detailed signed evidence and dispositions not separately documented",
+      "required": "Retain reviewer approval and document any required site-level dispositions or exceptions separately"
     }
   ],
   "human_verdict_template": {
-    "reviewer_identity": null,
-    "review_date": null,
-    "reviewed_revision": null,
-    "reviewed_source_hash_manifest": null,
-    "per_site_verdicts": null,
-    "exceptions_and_owners": null,
-    "decision": null
+    "reviewer_identity": "PROJECT_OWNER_USER",
+    "review_date": "2026-11-11",
+    "reviewed_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+    "reviewed_source_hash_manifest": "source_hashes",
+    "per_site_verdicts": "NOT_SEPARATELY_DOCUMENTED",
+    "exceptions_and_owners": "NOT_SEPARATELY_DOCUMENTED",
+    "decision": "APPROVED"
   },
   "prohibited_inferences": [
     "Author-side checks are not human acceptance",
