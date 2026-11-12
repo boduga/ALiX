@@ -1,0 +1,178 @@
+{
+  "scope": "A03-02 historical Python calls with source-pinned AST callee classification",
+  "reviewed_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+  "entries": [
+    {
+      "file": "bootstrap_binding.py",
+      "line": 113,
+      "source": "raw = os.pread(fd, before.st_size + 1, 0)",
+      "ast_call_names_spanning_line": [
+        "os.pread"
+      ],
+      "effect_hypotheses": [
+        "DESCRIPTOR_READ"
+      ],
+      "source_sha256": "ed644fe1187c268903a7404c561fe056d8169ccf356960da0b85298fd229431d",
+      "callee_runtime_identity_verified": false,
+      "authorization_verified": false,
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "line": 108,
+      "source": "if not SUPPORTED or not hasattr(os, \"memfd_create\"):",
+      "ast_call_names_spanning_line": [
+        "hasattr"
+      ],
+      "effect_hypotheses": [
+        "CAPABILITY_QUERY"
+      ],
+      "source_sha256": "eb8eee722e8cc595faa6a1c29c9da632423825863c9d603547ad688a133ba74e",
+      "callee_runtime_identity_verified": false,
+      "authorization_verified": false,
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "line": 123,
+      "source": "fd = os.memfd_create(\"ge04-unqualified-bootstrap\",",
+      "ast_call_names_spanning_line": [
+        "os.memfd_create"
+      ],
+      "effect_hypotheses": [
+        "DESCRIPTOR_CREATION"
+      ],
+      "source_sha256": "eb8eee722e8cc595faa6a1c29c9da632423825863c9d603547ad688a133ba74e",
+      "callee_runtime_identity_verified": false,
+      "authorization_verified": false,
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "bounded_job_signal_observer.py",
+      "line": 79,
+      "source": "process = subprocess.Popen(",
+      "ast_call_names_spanning_line": [
+        "subprocess.Popen"
+      ],
+      "effect_hypotheses": [
+        "PROCESS_SPAWN"
+      ],
+      "source_sha256": "e6e25fc89ae66a815d54c8498af1f311962b2bc2d1512562c354f6637dbc6329",
+      "callee_runtime_identity_verified": false,
+      "authorization_verified": false,
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 43,
+      "source": "process = subprocess.Popen(",
+      "ast_call_names_spanning_line": [
+        "subprocess.Popen"
+      ],
+      "effect_hypotheses": [
+        "PROCESS_SPAWN"
+      ],
+      "source_sha256": "55a44fcabd6a4c2e47374d02bbc3ebef05cabaa98a8475aa620b684ed507d4aa",
+      "callee_runtime_identity_verified": false,
+      "authorization_verified": false,
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 100,
+      "source": "match = bus.add_signal_receiver(",
+      "ast_call_names_spanning_line": [
+        "bus.add_signal_receiver"
+      ],
+      "effect_hypotheses": [
+        "DBUS_SIGNAL_SUBSCRIPTION"
+      ],
+      "source_sha256": "e36da0146da76da7c89f713e51bfc5e6d10b867563ea668bd76184b1c21a80e9",
+      "callee_runtime_identity_verified": false,
+      "authorization_verified": false,
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 106,
+      "source": "manager.Subscribe(timeout=1)",
+      "ast_call_names_spanning_line": [
+        "manager.Subscribe"
+      ],
+      "effect_hypotheses": [
+        "DBUS_METHOD_CALL"
+      ],
+      "source_sha256": "e36da0146da76da7c89f713e51bfc5e6d10b867563ea668bd76184b1c21a80e9",
+      "callee_runtime_identity_verified": false,
+      "authorization_verified": false,
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 137,
+      "source": "manager.Unsubscribe(timeout=1)",
+      "ast_call_names_spanning_line": [
+        "manager.Unsubscribe"
+      ],
+      "effect_hypotheses": [
+        "DBUS_METHOD_CALL"
+      ],
+      "source_sha256": "e36da0146da76da7c89f713e51bfc5e6d10b867563ea668bd76184b1c21a80e9",
+      "callee_runtime_identity_verified": false,
+      "authorization_verified": false,
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 123,
+      "source": "mount = _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576))",
+      "ast_call_names_spanning_line": [
+        "_mount",
+        "_read_fixed"
+      ],
+      "effect_hypotheses": [
+        "FILESYSTEM_READ",
+        "LOCAL_PARSER_CALL"
+      ],
+      "source_sha256": "86da8c10920d5ad3f54554d3bd264ff98bc6f3aa11c46b13d782233ec2df631e",
+      "callee_runtime_identity_verified": false,
+      "authorization_verified": false,
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 167,
+      "source": "or _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576)) != mount",
+      "ast_call_names_spanning_line": [
+        "_mount",
+        "_read_fixed"
+      ],
+      "effect_hypotheses": [
+        "FILESYSTEM_READ",
+        "LOCAL_PARSER_CALL"
+      ],
+      "source_sha256": "86da8c10920d5ad3f54554d3bd264ff98bc6f3aa11c46b13d782233ec2df631e",
+      "callee_runtime_identity_verified": false,
+      "authorization_verified": false,
+      "security_verdict": "PENDING"
+    }
+  ],
+  "classified_historical_call_lines": 10,
+  "effect_hypothesis_counts": {
+    "CAPABILITY_QUERY": 1,
+    "DBUS_METHOD_CALL": 2,
+    "DBUS_SIGNAL_SUBSCRIPTION": 1,
+    "DESCRIPTOR_CREATION": 1,
+    "DESCRIPTOR_READ": 1,
+    "FILESYSTEM_READ": 2,
+    "LOCAL_PARSER_CALL": 2,
+    "PROCESS_SPAWN": 2
+  },
+  "security_approvals": 0,
+  "limitations": [
+    "AST callee names are syntactic, not proven runtime identities",
+    "Nested and multiline calls are included when spanning the source line",
+    "No authorization, descriptor/process lifetime, DBus identity or runtime effects proven"
+  ],
+  "security_hold": "ACTIVE"
+}
