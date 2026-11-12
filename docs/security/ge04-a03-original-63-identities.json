@@ -1,0 +1,819 @@
+{
+  "scope": "GE-04 A03-01 exact historical 63 omitted-line identities",
+  "historical_revision": "d6e22669712e90ace6e4439d005c1856901964f3",
+  "matrix_sha256": "7ea6016bca83d731c5c3991ef7356115519484f20751bf28acd47819533b46ad",
+  "scanner_provenance": "tmp/ge04-a03-independent-review/opencode-session.log; final 63-line script and output",
+  "scanner_method": "Exact preserved keyword list and source-line comment filters; compare non-inventoried line numbers against historical matrix",
+  "scanner_keywords": [
+    "openat(",
+    "open(",
+    "write(",
+    "read(",
+    "unlink",
+    "rename",
+    "mkdir",
+    "mount(",
+    "unshare",
+    "setns",
+    "setres",
+    "setgroups",
+    "sd_bus_call_method",
+    "sd_bus_send",
+    "sd_bus_match_signal",
+    "add_signal_receiver",
+    ".Subscribe",
+    ".Unsubscribe",
+    "socket(",
+    "bind(",
+    "listen(",
+    "accept4",
+    "recvmsg",
+    "sendmsg",
+    "subprocess.Popen",
+    "os.open",
+    "os.write",
+    "os.read",
+    "os.mkdir",
+    "os.unlink",
+    "os.fsync",
+    "os.pidfd_open",
+    "kill(",
+    "ioctl(",
+    "syscall(",
+    "flock(",
+    "fcntl(",
+    "ptrace",
+    "execve",
+    "fork(",
+    "clone",
+    "waitpid",
+    "memfd_create",
+    "SCM_RIGHTS",
+    "chmod(",
+    "unlinkat(",
+    "mkdirat(",
+    "renameat"
+  ],
+  "files": 18,
+  "omitted_line_identities": 63,
+  "per_file_counts": {
+    "bootstrap_binding.py": 1,
+    "bootstrap_publisher.py": 2,
+    "bootstrap_receiver.py": 2,
+    "bounded_job_signal_observer.py": 1,
+    "bounded_phase_observer.py": 1,
+    "broker-peer-probe.c": 1,
+    "cgroup-leaf-ownership-qualification.c": 1,
+    "cgroup-runtime-view-qualification.c": 13,
+    "cgroup-worker-qualification.c": 15,
+    "isolated-worker-launcher.c": 4,
+    "pidfd-lifecycle-qualification.c": 2,
+    "protected-attempt-fence.c": 2,
+    "protected-cgroup-custody.c": 4,
+    "protected-dispatch-intent.c": 2,
+    "protected-prebirth-journal.c": 2,
+    "systemd_job_signal_observer.py": 3,
+    "unit_kernel_observer.py": 3,
+    "worker-stream.c": 4
+  },
+  "historical_source_hashes": {
+    "bootstrap_binding.py": "ed644fe1187c268903a7404c561fe056d8169ccf356960da0b85298fd229431d",
+    "bootstrap_publisher.py": "eb8eee722e8cc595faa6a1c29c9da632423825863c9d603547ad688a133ba74e",
+    "bootstrap_receiver.py": "165c615801665e0f16ec95b8150b33adb6d129b4b7392bd26c0d5a4599726207",
+    "bounded_job_signal_observer.py": "e6e25fc89ae66a815d54c8498af1f311962b2bc2d1512562c354f6637dbc6329",
+    "bounded_phase_observer.py": "6175493224ad159be64c68a69d8bea1d23fc700cc8e9c5f18fe80d93c055912c",
+    "broker-peer-probe.c": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+    "cgroup-leaf-ownership-qualification.c": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+    "cgroup-runtime-view-qualification.c": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+    "cgroup-worker-qualification.c": "5362bdb0b08586f51151f0b53519a48ababb557f9c31758283f3aab2ec06d757",
+    "isolated-worker-launcher.c": "4a91aa56c3f07858ae5bbb6be0c8f0c75b33fc9abcd8abe362bc5172f26246bc",
+    "pidfd-lifecycle-qualification.c": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+    "protected-attempt-fence.c": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+    "protected-cgroup-custody.c": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+    "protected-dispatch-intent.c": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+    "protected-prebirth-journal.c": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+    "systemd_job_signal_observer.py": "e36da0146da76da7c89f713e51bfc5e6d10b867563ea668bd76184b1c21a80e9",
+    "unit_kernel_observer.py": "6c5c7514b31ffba580bd0d510dfc773154ffd684e55c2e373b5099985715a99b",
+    "worker-stream.c": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3"
+  },
+  "entries": [
+    {
+      "file": "bootstrap_binding.py",
+      "line": 113,
+      "matched_keyword": "read(",
+      "all_matched_keywords": [
+        "read("
+      ],
+      "historical_source": "raw = os.pread(fd, before.st_size + 1, 0)",
+      "line_sha256": "4982710ab6835a0d7442489d1179eed8f444b0411d7f10250e423a509557eb73",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "line": 108,
+      "matched_keyword": "memfd_create",
+      "all_matched_keywords": [
+        "memfd_create"
+      ],
+      "historical_source": "if not SUPPORTED or not hasattr(os, \"memfd_create\"):",
+      "line_sha256": "a4c66c5dfca5d6fd1d48b75bf9e3defdb1dbbc55df106bbafe64efae6715148c",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "line": 123,
+      "matched_keyword": "memfd_create",
+      "all_matched_keywords": [
+        "memfd_create"
+      ],
+      "historical_source": "fd = os.memfd_create(\"ge04-unqualified-bootstrap\",",
+      "line_sha256": "ec0d24eca7a516c2db5531fce6218b397db7abef645b4b8767abc89f94d56be7",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 3,
+      "matched_keyword": "SCM_RIGHTS",
+      "all_matched_keywords": [
+        "SCM_RIGHTS"
+      ],
+      "historical_source": "Validates kernel SO_PEERCRED, bounded SCM_RIGHTS payload, expected generation,",
+      "line_sha256": "8106614b420428877dd30d6ffd15adc3cc46d306bf4bf85e4dcfae927b7d4e97",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 72,
+      "matched_keyword": "SCM_RIGHTS",
+      "all_matched_keywords": [
+        "SCM_RIGHTS"
+      ],
+      "historical_source": "if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:",
+      "line_sha256": "816bbee46438c74e1db96e3a4df941a9a68d8b81d6decf99332e31494a670a74",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "bounded_job_signal_observer.py",
+      "line": 79,
+      "matched_keyword": "open(",
+      "all_matched_keywords": [
+        "open(",
+        "subprocess.Popen"
+      ],
+      "historical_source": "process = subprocess.Popen(",
+      "line_sha256": "0b366d0ca06d5df0b894ba71acc181831764541e1b125a784c46979cb48d5fb4",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 41,
+      "matched_keyword": "open(",
+      "all_matched_keywords": [
+        "open(",
+        "subprocess.Popen"
+      ],
+      "historical_source": "process = subprocess.Popen(",
+      "line_sha256": "0b366d0ca06d5df0b894ba71acc181831764541e1b125a784c46979cb48d5fb4",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "line": 31,
+      "matched_keyword": "accept4",
+      "all_matched_keywords": [
+        "accept4"
+      ],
+      "historical_source": "int client = accept4(listener, NULL, NULL, SOCK_CLOEXEC);",
+      "line_sha256": "c3de5913857d297bf8bcb471959d7d47fc478fead5bc50af67635988bc6c0ce7",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "line": 58,
+      "matched_keyword": "mkdir",
+      "all_matched_keywords": [
+        "mkdir",
+        "mkdirat("
+      ],
+      "historical_source": "if(mkdirat(parent,argv[2],0700)){",
+      "line_sha256": "d5ab0e146cd88dbec132becde5c35a600c534180de44565c6a86cb919bfe51c6",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 300,
+      "matched_keyword": "rename",
+      "all_matched_keywords": [
+        "rename",
+        "renameat"
+      ],
+      "historical_source": "#ifdef SYS_renameat2",
+      "line_sha256": "c10bb82da64479ba2ef5b17a661343ebdef7c3ddb17e8848c51e3724b7c519fe",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 354,
+      "matched_keyword": "waitpid",
+      "all_matched_keywords": [
+        "waitpid"
+      ],
+      "historical_source": "int status;pid_t got=waitpid(c->child[slot],&status,WNOHANG|WUNTRACED);",
+      "line_sha256": "62a3badc1916063a9127c51ecab36f2963707c7f4a1fe5986433cde96f830e47",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 442,
+      "matched_keyword": "clone",
+      "all_matched_keywords": [
+        "clone"
+      ],
+      "historical_source": "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)",
+      "line_sha256": "4a7a511a0b95b022fc29b36962e21a37e8761f7ef5af1e5de25a530abe515607",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 443,
+      "matched_keyword": "clone",
+      "all_matched_keywords": [
+        "clone"
+      ],
+      "historical_source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],",
+      "line_sha256": "3a5043fc1fa3675c3c7d4492ca3f09163dca776af5303e807ebe90902be4030e",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 531,
+      "matched_keyword": "unlink",
+      "all_matched_keywords": [
+        "unlink",
+        "unlinkat("
+      ],
+      "historical_source": "bindings(c)&&budget_ok()&&unlinkat(c->outer,name,AT_REMOVEDIR)==0;",
+      "line_sha256": "e78abf7181ed2d17aa43d6014c8877686f6ccef414763b33884e5af554ba0cec",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 538,
+      "matched_keyword": "unlink",
+      "all_matched_keywords": [
+        "unlink",
+        "unlinkat("
+      ],
+      "historical_source": "return intent(c->work,name,&r)&&records_equal(&r,&c->record)&&budget_ok()&&unlinkat(c->work,name,0)==0;",
+      "line_sha256": "5dbc575f0c62249fec3dc43468982a6e4c3012e44d4e5f61634e4eb64d178f44",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 568,
+      "matched_keyword": "waitpid",
+      "all_matched_keywords": [
+        "waitpid"
+      ],
+      "historical_source": "while((got=waitpid(-1,&status,WNOHANG))>0){}",
+      "line_sha256": "a45ca0ef9dafc0ee024dc35ee624dc2d1b42a05d64e7a6bc723962b5a379d788",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 585,
+      "matched_keyword": "unlink",
+      "all_matched_keywords": [
+        "unlink",
+        "unlinkat("
+      ],
+      "historical_source": "unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "line_sha256": "082780cd16e6d7e8b48609f569a35472a72556821fb47bfdef8a8d85dfdb0027",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 601,
+      "matched_keyword": "flock(",
+      "all_matched_keywords": [
+        "flock("
+      ],
+      "historical_source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "line_sha256": "a512207be4aa37bae0070174559a4b5bef38b489e033ee771429d894e928e670",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 675,
+      "matched_keyword": "unlink",
+      "all_matched_keywords": [
+        "unlink",
+        "unlinkat("
+      ],
+      "historical_source": "!bindings(c)||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "line_sha256": "b5a3064b38d5dbb8ab59c5200698f41da0b2247fa40fda8a9b8759b8dc72db6f",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 683,
+      "matched_keyword": "waitpid",
+      "all_matched_keywords": [
+        "waitpid"
+      ],
+      "historical_source": "int status;pid_t got=waitpid(c->child[0],&status,WNOHANG);",
+      "line_sha256": "19187b6491110599b6908e03c833dc910bd91b11da07fc4a2f6c4d7cddcedcd2",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 724,
+      "matched_keyword": "mkdir",
+      "all_matched_keywords": [
+        "mkdir",
+        "mkdirat("
+      ],
+      "historical_source": "if(!budget_ok()||mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "line_sha256": "b24a38dab7e08902a4c640bce49a7f2e55966487a0ea057904753357c8f70ddf",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 730,
+      "matched_keyword": "mkdir",
+      "all_matched_keywords": [
+        "mkdir",
+        "mkdirat("
+      ],
+      "historical_source": "!budget_ok()||mkdirat(c.outer,\"launcher\",0700)||!budget_ok()||mkdirat(c.outer,\"payload\",0700)||",
+      "line_sha256": "c98d1ca0c3927db050750da1927d34389d57a57b691a7b1db86da24518e2b815",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 199,
+      "matched_keyword": "rename",
+      "all_matched_keywords": [
+        "rename",
+        "renameat"
+      ],
+      "historical_source": "#ifdef SYS_renameat2",
+      "line_sha256": "c10bb82da64479ba2ef5b17a661343ebdef7c3ddb17e8848c51e3724b7c519fe",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 262,
+      "matched_keyword": "waitpid",
+      "all_matched_keywords": [
+        "waitpid"
+      ],
+      "historical_source": "int status;pid_t got=waitpid(c->child,&status,WNOHANG|WUNTRACED);",
+      "line_sha256": "2022ed818aab1a4e0b5788974cfb0a2cea647b52b11bcea32279799d32701d65",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 283,
+      "matched_keyword": "setgroups",
+      "all_matched_keywords": [
+        "setgroups"
+      ],
+      "historical_source": "if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||",
+      "line_sha256": "9ac3fc3cec734c390cb7d876c5b93165e8e0f9ae6121896186f21795dc8d5838",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 284,
+      "matched_keyword": "setres",
+      "all_matched_keywords": [
+        "setres"
+      ],
+      "historical_source": "setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+      "line_sha256": "c12887963325ac80a883b8aca44bfb8bb13933f6cae48558506d4cd42783f917",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 305,
+      "matched_keyword": "unlink",
+      "all_matched_keywords": [
+        "unlink",
+        "unlinkat("
+      ],
+      "historical_source": "return unlinkat(c->work,name,0)==0;",
+      "line_sha256": "1ee9cb2e10701ae6f7d27983688a4c788f508ca2362b863f65f85d3edbbdd936",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 319,
+      "matched_keyword": "waitpid",
+      "all_matched_keywords": [
+        "waitpid"
+      ],
+      "historical_source": "while((n=waitpid(-1,&status,WNOHANG))>0){}",
+      "line_sha256": "f43a1210b3c32d2fb558a2ff62feab2cdfeab27c39b81be18a58c7125915a787",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 326,
+      "matched_keyword": "unlink",
+      "all_matched_keywords": [
+        "unlink",
+        "unlinkat("
+      ],
+      "historical_source": "if(!bindings(c)||!empty(c)||unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "line_sha256": "cac0fb626adad57c80e65e9c25931d3536287c6999d5a92a4175a299689c77a4",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 345,
+      "matched_keyword": "flock(",
+      "all_matched_keywords": [
+        "flock("
+      ],
+      "historical_source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "line_sha256": "a512207be4aa37bae0070174559a4b5bef38b489e033ee771429d894e928e670",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 386,
+      "matched_keyword": "unlink",
+      "all_matched_keywords": [
+        "unlink",
+        "unlinkat("
+      ],
+      "historical_source": "if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}",
+      "line_sha256": "ddce77aac403180205ba62b68e60763869870a795fdba84a599be892875b7711",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 396,
+      "matched_keyword": "unlink",
+      "all_matched_keywords": [
+        "unlink",
+        "unlinkat("
+      ],
+      "historical_source": "fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "line_sha256": "d39a6f9b7235102c377322e7c9b9cbeb2d424b6af3e45b4293755ae2c45e46e8",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 401,
+      "matched_keyword": "clone",
+      "all_matched_keywords": [
+        "clone"
+      ],
+      "historical_source": "const char *modes[]={\"run\",\"fail-before-clone\",\"fail-attach\",\"fail-verify\",\"fail-resume\",\"fail-publish\",",
+      "line_sha256": "cef81fa894bf9eba07468465b6ab4cb75de49b98ddf0270e91c09bb84f8acad3",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 425,
+      "matched_keyword": "mkdir",
+      "all_matched_keywords": [
+        "mkdir",
+        "mkdirat("
+      ],
+      "historical_source": "if(mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "line_sha256": "cf1fb4fdda1c225ed34131425864c1ec75e3ebcd1e2d1aa7f77c0ef30a7165d9",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 434,
+      "matched_keyword": "clone",
+      "all_matched_keywords": [
+        "clone"
+      ],
+      "historical_source": "if(!strcmp(c.mode,\"fail-before-clone\")){reason=\"BEFORE_CLONE\";goto rollback;}",
+      "line_sha256": "d03329b37ce1ae5175b9d87302eaa0d9ad1c31b99c3c5f6695c3a67ede0e4df8",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 437,
+      "matched_keyword": "clone",
+      "all_matched_keywords": [
+        "clone"
+      ],
+      "historical_source": "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)",
+      "line_sha256": "4a7a511a0b95b022fc29b36962e21a37e8761f7ef5af1e5de25a530abe515607",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 438,
+      "matched_keyword": "clone",
+      "all_matched_keywords": [
+        "clone"
+      ],
+      "historical_source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,",
+      "line_sha256": "94162eb583a2676eb1848252ec84eb37f0786247e528ed173c031e37fb158a95",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 116,
+      "matched_keyword": "setres",
+      "all_matched_keywords": [
+        "setres",
+        "setgroups"
+      ],
+      "historical_source": "if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||",
+      "line_sha256": "02a7df900ff3436c669b2fe3f32897986388b7242cadf1439b0a32c8dc7f3cf0",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 117,
+      "matched_keyword": "setres",
+      "all_matched_keywords": [
+        "setres"
+      ],
+      "historical_source": "setresuid(target,target,target))die(\"identity isolation failed\");",
+      "line_sha256": "78d7a286890a7f30c8147ff640052ec951d5ae9c2fbe93a2c98b7e93c5da6b4f",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 125,
+      "matched_keyword": "execve",
+      "all_matched_keywords": [
+        "execve"
+      ],
+      "historical_source": "#ifdef SYS_execveat",
+      "line_sha256": "c076b61c5953c6cb656ca29358abc3be734d473bf99434a3e4fb7d097ca8f4d5",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 128,
+      "matched_keyword": "execve",
+      "all_matched_keywords": [
+        "execve"
+      ],
+      "historical_source": "die(\"execveat unavailable\");",
+      "line_sha256": "c3e14675e83d07ea2791f7881dbc05ebac8def3decf9266fe4faab09a59533e7",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 45,
+      "matched_keyword": "waitpid",
+      "all_matched_keywords": [
+        "waitpid"
+      ],
+      "historical_source": "if(waitpid(child,&status,WUNTRACED)!=child||!WIFSTOPPED(status)||WSTOPSIG(status)!=SIGSTOP){result=74;goto cleanup;}",
+      "line_sha256": "e3b468b01f1a7ab6046eeee2dce4225eb2648b4c32d6a2ab63f720f0fbf74877",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 50,
+      "matched_keyword": "waitpid",
+      "all_matched_keywords": [
+        "waitpid"
+      ],
+      "historical_source": "if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}",
+      "line_sha256": "71b074ae3e622d79bc214794b8a52959270dc77e8020ab8321955c3d0a32f849",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 122,
+      "matched_keyword": "read(",
+      "all_matched_keywords": [
+        "read("
+      ],
+      "historical_source": "ssize_t n = pread(held->fence_fd, observed + offset,",
+      "line_sha256": "b7a70919c59212cd1065ac15c829d3f4ccc9770099f0982b4dd063e4f6baaae2",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 129,
+      "matched_keyword": "read(",
+      "all_matched_keywords": [
+        "read("
+      ],
+      "historical_source": "if (pread(held->fence_fd, &trailer, 1, (off_t)size) != 0 ||",
+      "line_sha256": "39ffc2a487494e57ec305a46451cc168b95dee4d0a42cb736cfa53e0168cb01c",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "line": 84,
+      "matched_keyword": "open(",
+      "all_matched_keywords": [
+        "open("
+      ],
+      "historical_source": "static int fixed_root_open(void);",
+      "line_sha256": "609901845f08a411a432cdbc1a5f63ab44ef54e95f755aab6d9cb934648edb8b",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "line": 87,
+      "matched_keyword": "open(",
+      "all_matched_keywords": [
+        "open("
+      ],
+      "historical_source": "int current_fd = fixed_root_open();",
+      "line_sha256": "d6ad858d8775c234631dfc5b3c463d742b21161de6302cff5f78d835df51d4a5",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "line": 111,
+      "matched_keyword": "open(",
+      "all_matched_keywords": [
+        "open("
+      ],
+      "historical_source": "static int fixed_root_open(void) {",
+      "line_sha256": "ec9bc9db3478d9c6c49be7cb0b5c73d2d078dad8aac9b3340b4df4639417f944",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "line": 158,
+      "matched_keyword": "open(",
+      "all_matched_keywords": [
+        "open("
+      ],
+      "historical_source": "candidate.root_fd = fixed_root_open();",
+      "line_sha256": "da3c1a29dae4cf46ea50b6cbc37f485af19727a36bc949bf60f9b49668dde8c1",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 104,
+      "matched_keyword": "read(",
+      "all_matched_keywords": [
+        "read("
+      ],
+      "historical_source": "ssize_t got = pread(held->intent_fd, observed + count,",
+      "line_sha256": "1f4cca0f380c0efbad41de2757a37e7bdf91ff4a4a9a72e0fc328d400c20f6cd",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 111,
+      "matched_keyword": "read(",
+      "all_matched_keywords": [
+        "read("
+      ],
+      "historical_source": "if (pread(held->intent_fd, &excess, 1, (off_t)length) != 0 ||",
+      "line_sha256": "bd2ede0925b25fc0fc4940e1f73c815dd61b3cd0f010edb04714eaaad7d84377",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 144,
+      "matched_keyword": "read(",
+      "all_matched_keywords": [
+        "read("
+      ],
+      "historical_source": "ssize_t read_bytes = pread(fd, bytes + offset, expected - offset,",
+      "line_sha256": "d711fc9c05d983e59a11ac26009eac6c21a6783aa4ace526f20732ea5ebafa86",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 151,
+      "matched_keyword": "read(",
+      "all_matched_keywords": [
+        "read("
+      ],
+      "historical_source": "if (pread(fd, &trailer, 1, (off_t)expected) != 0) return refuse(EIO);",
+      "line_sha256": "b08d0bf4a0733fe25ca331be7d14281327719685a74af0d08a62779ac0df9ec7",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 100,
+      "matched_keyword": "add_signal_receiver",
+      "all_matched_keywords": [
+        "add_signal_receiver"
+      ],
+      "historical_source": "match = bus.add_signal_receiver(",
+      "line_sha256": "931b180ee58c3c8986829f702e06d907c8ce28a7ead500ede8b266c7862adecd",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 106,
+      "matched_keyword": ".Subscribe",
+      "all_matched_keywords": [
+        ".Subscribe"
+      ],
+      "historical_source": "manager.Subscribe(timeout=1)",
+      "line_sha256": "7a2ae2cfeadfa920eb5a537e4615e7952676d7a66d6cf39b228dee295c169fb1",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 137,
+      "matched_keyword": ".Unsubscribe",
+      "all_matched_keywords": [
+        ".Unsubscribe"
+      ],
+      "historical_source": "manager.Unsubscribe(timeout=1)",
+      "line_sha256": "8a5584c64aa16f0dc2ba22406cc85cbedd9ece6f7dff39d006dcb247dcf8511d",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 57,
+      "matched_keyword": "mount(",
+      "all_matched_keywords": [
+        "mount("
+      ],
+      "historical_source": "def _mount(raw):",
+      "line_sha256": "b47d2b64a2810c9e25e19bd16dfd4a5ff5afd68716d97e997d0a983e61599429",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 121,
+      "matched_keyword": "mount(",
+      "all_matched_keywords": [
+        "mount("
+      ],
+      "historical_source": "mount = _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576))",
+      "line_sha256": "dc63d97b9de3d52d78760608c613e4f23edbc37d50e99ad9a596b4715e18eaa0",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 165,
+      "matched_keyword": "mount(",
+      "all_matched_keywords": [
+        "mount("
+      ],
+      "historical_source": "or _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576)) != mount",
+      "line_sha256": "4f19c86f5855944c9201b52ef6893a733287c6664c1c1b2dada60b45e7821200",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 170,
+      "matched_keyword": "accept4",
+      "all_matched_keywords": [
+        "accept4"
+      ],
+      "historical_source": "s->fd=accept4(listener,NULL,NULL,SOCK_CLOEXEC|SOCK_NONBLOCK);",
+      "line_sha256": "8d5fa78d86a5cdfb77c9cd381ca8814a3d4b2ff4945567887ff10f1fa0cb04b8",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 189,
+      "matched_keyword": "SCM_RIGHTS",
+      "all_matched_keywords": [
+        "SCM_RIGHTS"
+      ],
+      "historical_source": "if(c->cmsg_level==SOL_SOCKET&&(c->cmsg_type==SCM_RIGHTS",
+      "line_sha256": "9f002d1045858465f005ba9a9c5adfef9fd23717c965db56505739bc54eb4d71",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 221,
+      "matched_keyword": "read(",
+      "all_matched_keywords": [
+        "read("
+      ],
+      "historical_source": "int ge04_stream_read(struct ge04_stream_session *s,unsigned char *buffer,size_t capacity,size_t *length,int ms) {",
+      "line_sha256": "04fbf9b14b64491f92a2c46d06abbe2aaa46643766ceeafc581169ec1ac878b7",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 248,
+      "matched_keyword": "write(",
+      "all_matched_keywords": [
+        "write("
+      ],
+      "historical_source": "int ge04_stream_write(struct ge04_stream_session *s,const unsigned char *buffer,size_t length,int ms) {",
+      "line_sha256": "33125ef951fac0cbc678cbdda218934e87b1d1779ad40531fa92b1abe617c71e",
+      "review_disposition": "NOT_SITE_ADJUDICATED"
+    }
+  ],
+  "identity_reconciliation": "RECONSTRUCTED_EXACTLY_63_OF_63_FROM_ORIGINAL_REVIEWER_SCANNER",
+  "limitations": [
+    "Original reviewer scanner is lexical; its 63 lines are not necessarily 63 distinct authority operations",
+    "Includes some docstrings and references due to original scanner filtering",
+    "Historical source lines are not current source line numbers",
+    "A03-02 semantic completeness and A03-03 site-level security dispositions remain independent requirements"
+  ],
+  "security_hold": "ACTIVE"
+}
