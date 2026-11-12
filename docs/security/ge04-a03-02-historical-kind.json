@@ -1,0 +1,675 @@
+{
+  "scope": "GE-04 A03-02 exact historical 63 syntax triage, source-pinned",
+  "reviewed_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+  "entries": [
+    {
+      "file": "bootstrap_binding.py",
+      "historical_line": 113,
+      "current_line": 113,
+      "source": "raw = os.pread(fd, before.st_size + 1, 0)",
+      "syntax_kind": "PYTHON_CALL_EXPRESSION",
+      "python_ast_callees_spanning_line": [
+        "os.pread"
+      ],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "historical_line": 108,
+      "current_line": 108,
+      "source": "if not SUPPORTED or not hasattr(os, \"memfd_create\"):",
+      "syntax_kind": "PYTHON_CALL_EXPRESSION",
+      "python_ast_callees_spanning_line": [
+        "hasattr"
+      ],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "historical_line": 123,
+      "current_line": 123,
+      "source": "fd = os.memfd_create(\"ge04-unqualified-bootstrap\",",
+      "syntax_kind": "PYTHON_CALL_EXPRESSION",
+      "python_ast_callees_spanning_line": [
+        "os.memfd_create"
+      ],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "historical_line": 3,
+      "current_line": 3,
+      "source": "Validates kernel SO_PEERCRED, bounded SCM_RIGHTS payload, expected generation,",
+      "syntax_kind": "PYTHON_DOCSTRING_NONCALL",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "historical_line": 72,
+      "current_line": 72,
+      "source": "if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:",
+      "syntax_kind": "PYTHON_NONCALL_EXPRESSION",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "bounded_job_signal_observer.py",
+      "historical_line": 79,
+      "current_line": 79,
+      "source": "process = subprocess.Popen(",
+      "syntax_kind": "PYTHON_CALL_EXPRESSION",
+      "python_ast_callees_spanning_line": [
+        "subprocess.Popen"
+      ],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "historical_line": 41,
+      "current_line": 43,
+      "source": "process = subprocess.Popen(",
+      "syntax_kind": "PYTHON_CALL_EXPRESSION",
+      "python_ast_callees_spanning_line": [
+        "subprocess.Popen"
+      ],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "historical_line": 31,
+      "current_line": 31,
+      "source": "int client = accept4(listener, NULL, NULL, SOCK_CLOEXEC);",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "historical_line": 58,
+      "current_line": 58,
+      "source": "if(mkdirat(parent,argv[2],0700)){",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 300,
+      "current_line": 300,
+      "source": "#ifdef SYS_renameat2",
+      "syntax_kind": "C_PREPROCESSOR_DIRECTIVE",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 354,
+      "current_line": 354,
+      "source": "int status;pid_t got=waitpid(c->child[slot],&status,WNOHANG|WUNTRACED);",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 442,
+      "current_line": 442,
+      "source": "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)",
+      "syntax_kind": "C_PREPROCESSOR_DIRECTIVE",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 443,
+      "current_line": 443,
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 531,
+      "current_line": 531,
+      "source": "bindings(c)&&budget_ok()&&unlinkat(c->outer,name,AT_REMOVEDIR)==0;",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 538,
+      "current_line": 538,
+      "source": "return intent(c->work,name,&r)&&records_equal(&r,&c->record)&&budget_ok()&&unlinkat(c->work,name,0)==0;",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 568,
+      "current_line": 568,
+      "source": "while((got=waitpid(-1,&status,WNOHANG))>0){}",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 585,
+      "current_line": 585,
+      "source": "unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 601,
+      "current_line": 601,
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 675,
+      "current_line": 675,
+      "source": "!bindings(c)||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 683,
+      "current_line": 683,
+      "source": "int status;pid_t got=waitpid(c->child[0],&status,WNOHANG);",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 724,
+      "current_line": 724,
+      "source": "if(!budget_ok()||mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 730,
+      "current_line": 730,
+      "source": "!budget_ok()||mkdirat(c.outer,\"launcher\",0700)||!budget_ok()||mkdirat(c.outer,\"payload\",0700)||",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 199,
+      "current_line": 224,
+      "source": "#ifdef SYS_renameat2",
+      "syntax_kind": "C_PREPROCESSOR_DIRECTIVE",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 262,
+      "current_line": 287,
+      "source": "int status;pid_t got=waitpid(c->child,&status,WNOHANG|WUNTRACED);",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 283,
+      "current_line": 308,
+      "source": "if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 284,
+      "current_line": 309,
+      "source": "setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 305,
+      "current_line": 331,
+      "source": "return unlinkat(c->work,name,0)==0;",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 319,
+      "current_line": 346,
+      "source": "while((n=waitpid(-1,&status,WNOHANG))>0){}",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 326,
+      "current_line": 353,
+      "source": "if(!bindings(c)||!empty(c)||unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 345,
+      "current_line": 372,
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 386,
+      "current_line": 428,
+      "source": "if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 396,
+      "current_line": 438,
+      "source": "fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 401,
+      "current_line": 443,
+      "source": "const char *modes[]={\"run\",\"fail-before-clone\",\"fail-attach\",\"fail-verify\",\"fail-resume\",\"fail-publish\",",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 425,
+      "current_line": 469,
+      "source": "if(mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 434,
+      "current_line": 478,
+      "source": "if(!strcmp(c.mode,\"fail-before-clone\")){reason=\"BEFORE_CLONE\";goto rollback;}",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 437,
+      "current_line": 481,
+      "source": "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)",
+      "syntax_kind": "C_PREPROCESSOR_DIRECTIVE",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 438,
+      "current_line": 482,
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "historical_line": 116,
+      "current_line": 116,
+      "source": "if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "historical_line": 117,
+      "current_line": 117,
+      "source": "setresuid(target,target,target))die(\"identity isolation failed\");",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "historical_line": 125,
+      "current_line": 128,
+      "source": "#ifdef SYS_execveat",
+      "syntax_kind": "C_PREPROCESSOR_DIRECTIVE",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "historical_line": 128,
+      "current_line": 131,
+      "source": "die(\"execveat unavailable\");",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "historical_line": 45,
+      "current_line": 45,
+      "source": "if(waitpid(child,&status,WUNTRACED)!=child||!WIFSTOPPED(status)||WSTOPSIG(status)!=SIGSTOP){result=74;goto cleanup;}",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "historical_line": 50,
+      "current_line": 50,
+      "source": "if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "historical_line": 122,
+      "current_line": 122,
+      "source": "ssize_t n = pread(held->fence_fd, observed + offset,",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "historical_line": 129,
+      "current_line": 129,
+      "source": "if (pread(held->fence_fd, &trailer, 1, (off_t)size) != 0 ||",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "historical_line": 84,
+      "current_line": 84,
+      "source": "static int fixed_root_open(void);",
+      "syntax_kind": "C_DECLARATION_OR_DEFINITION",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "historical_line": 87,
+      "current_line": 87,
+      "source": "int current_fd = fixed_root_open();",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "historical_line": 111,
+      "current_line": 111,
+      "source": "static int fixed_root_open(void) {",
+      "syntax_kind": "C_DECLARATION_OR_DEFINITION",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "historical_line": 158,
+      "current_line": 158,
+      "source": "candidate.root_fd = fixed_root_open();",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "historical_line": 104,
+      "current_line": 104,
+      "source": "ssize_t got = pread(held->intent_fd, observed + count,",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "historical_line": 111,
+      "current_line": 111,
+      "source": "if (pread(held->intent_fd, &excess, 1, (off_t)length) != 0 ||",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "historical_line": 144,
+      "current_line": 144,
+      "source": "ssize_t read_bytes = pread(fd, bytes + offset, expected - offset,",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "historical_line": 151,
+      "current_line": 151,
+      "source": "if (pread(fd, &trailer, 1, (off_t)expected) != 0) return refuse(EIO);",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "historical_line": 100,
+      "current_line": 100,
+      "source": "match = bus.add_signal_receiver(",
+      "syntax_kind": "PYTHON_CALL_EXPRESSION",
+      "python_ast_callees_spanning_line": [
+        "bus.add_signal_receiver"
+      ],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "historical_line": 106,
+      "current_line": 106,
+      "source": "manager.Subscribe(timeout=1)",
+      "syntax_kind": "PYTHON_CALL_EXPRESSION",
+      "python_ast_callees_spanning_line": [
+        "manager.Subscribe"
+      ],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "historical_line": 137,
+      "current_line": 137,
+      "source": "manager.Unsubscribe(timeout=1)",
+      "syntax_kind": "PYTHON_CALL_EXPRESSION",
+      "python_ast_callees_spanning_line": [
+        "manager.Unsubscribe"
+      ],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "historical_line": 57,
+      "current_line": 58,
+      "source": "def _mount(raw):",
+      "syntax_kind": "PYTHON_NONCALL_EXPRESSION",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "historical_line": 121,
+      "current_line": 123,
+      "source": "mount = _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576))",
+      "syntax_kind": "PYTHON_CALL_EXPRESSION",
+      "python_ast_callees_spanning_line": [
+        "_mount",
+        "_read_fixed"
+      ],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "historical_line": 165,
+      "current_line": 167,
+      "source": "or _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576)) != mount",
+      "syntax_kind": "PYTHON_CALL_EXPRESSION",
+      "python_ast_callees_spanning_line": [
+        "_mount",
+        "_read_fixed"
+      ],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "historical_line": 170,
+      "current_line": 170,
+      "source": "s->fd=accept4(listener,NULL,NULL,SOCK_CLOEXEC|SOCK_NONBLOCK);",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "historical_line": 189,
+      "current_line": 189,
+      "source": "if(c->cmsg_level==SOL_SOCKET&&(c->cmsg_type==SCM_RIGHTS",
+      "syntax_kind": "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "historical_line": 221,
+      "current_line": 221,
+      "source": "int ge04_stream_read(struct ge04_stream_session *s,unsigned char *buffer,size_t capacity,size_t *length,int ms) {",
+      "syntax_kind": "C_DECLARATION_OR_DEFINITION",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "historical_line": 248,
+      "current_line": 248,
+      "source": "int ge04_stream_write(struct ge04_stream_session *s,const unsigned char *buffer,size_t length,int ms) {",
+      "syntax_kind": "C_DECLARATION_OR_DEFINITION",
+      "python_ast_callees_spanning_line": [],
+      "is_proven_authority_effect": false,
+      "semantic_verdict": "PENDING"
+    }
+  ],
+  "counts": {
+    "C_DECLARATION_OR_DEFINITION": 4,
+    "C_PREPROCESSOR_DIRECTIVE": 5,
+    "C_SOURCE_EXPRESSION_REQUIRES_COMPILER_CONTEXT": 41,
+    "PYTHON_CALL_EXPRESSION": 10,
+    "PYTHON_DOCSTRING_NONCALL": 1,
+    "PYTHON_NONCALL_EXPRESSION": 2
+  },
+  "source_lines_verified": 63,
+  "semantically_cleared": 0,
+  "limitations": [
+    "AST calls spanning a line may be nested or multi-line and do not establish authority",
+    "C lexical categories require compiler/preprocessor verification",
+    "Noncall expressions can influence authority decisions",
+    "Docstrings and preprocessor directives are not executable calls but may reference security effects"
+  ],
+  "security_hold": "ACTIVE"
+}
