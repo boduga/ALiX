@@ -18,13 +18,14 @@ assert original['reviewer_reported_omissions']==63 and original['reviewer_report
 assert all(e['exact_omitted_line_identities']=='NOT_PUBLISHED_BY_REVIEWER' for e in original['per_file'])
 writer=json.loads((docs/'ge04-b1a-writer-exclusion-review.json').read_text())['entries']
 assert all(e['writer_exclusion']=='NOT_PROVEN' for e in writer)
-rev=subprocess.run(['git','rev-parse','HEAD^'],cwd=root,text=True,capture_output=True,check=True).stdout.strip()
+rev='d6e22669712e90ace6e4439d005c1856901964f3'  # Original authoring parent; stable across review-document commits
 status=subprocess.run(['git','status','--porcelain','--untracked-files=all'],cwd=root,text=True,capture_output=True,check=True).stdout
 report={'scope':'GE-04 A.03 M2.12 INDEPENDENT HUMAN VERDICT HANDOFF',
  'decision':'CHANGES_REQUIRED_OR_EVIDENCE_INCOMPLETE; HOLD',
  'decision_authority':'NO_INDEPENDENT_HUMAN_VERDICT_RECEIVED',
  'authoring_parent_revision':rev,'review_revision':'RESOLVE_FROM_SIGNED_COMMIT_AT_REVIEW_TIME','working_tree_dirty':bool(status.strip()),
  'immutable_review_baseline_established':False,
+ 'user_reported_verdict':{'decision':'APPROVED','reported_on':'2026-11-11','channel':'ChatGPT conversation','reviewed_revision_claim':'f748ea2e3030bec9d1e3fa375374663721e7496a','attestation_status':'USER_REPORTED_NOT_INDEPENDENTLY_VERIFIED','reviewer_identity':'NOT_VERIFIED','per_site_review':'NOT_PROVIDED','blocker_dispositions':'NOT_PROVIDED','effect':'RECORD_ONLY_NO_HOLD_RELEASE'},
  'source_hashes':[{'path':str(p.relative_to(root)),'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in source_files],
  'author_evidence_artifacts':artifacts,
  'review_queue':{'c_authority_sites':len(queue),'pending_c_authority_sites':sum(e['reviewer_verdict']=='PENDING_INDEPENDENT_HUMAN_REVIEW' for e in queue),'per_tu_draft_allowlists':allow['files'],'reviewer_reported_historical_omissions':original['reviewer_reported_omissions'],'historical_omission_identities_verified':0,'writer_exclusion_proven':False},

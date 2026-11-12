@@ -6,6 +6,17 @@
   "review_revision": "RESOLVE_FROM_SIGNED_COMMIT_AT_REVIEW_TIME",
   "working_tree_dirty": true,
   "immutable_review_baseline_established": false,
+  "user_reported_verdict": {
+    "decision": "APPROVED",
+    "reported_on": "2026-11-11",
+    "channel": "ChatGPT conversation",
+    "reviewed_revision_claim": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+    "attestation_status": "USER_REPORTED_NOT_INDEPENDENTLY_VERIFIED",
+    "reviewer_identity": "NOT_VERIFIED",
+    "per_site_review": "NOT_PROVIDED",
+    "blocker_dispositions": "NOT_PROVIDED",
+    "effect": "RECORD_ONLY_NO_HOLD_RELEASE"
+  },
   "source_hashes": [
     {
       "path": "native/ge04/bootstrap_binding.py",
