@@ -9,6 +9,7 @@ import re
 import select
 import stat
 import sys
+from unprivileged_observer import require_unprivileged
 from types import MappingProxyType
 
 from systemd_unit_observer import UNIT, observe_fixed_systemd_unit
@@ -88,6 +89,7 @@ def observe_fixed_unit_kernel(original, manager):
     Neither supplied input is authenticated here. Source/expected reader
     custody and unit birth require an independently reviewed root bootstrap.
     """
+    require_unprivileged()
     if sys.platform != "linux" or not hasattr(os, "pidfd_open"):
         raise RuntimeError("Linux pidfd required")
     if (type(original) is not dict or type(manager) is not dict
@@ -176,6 +178,7 @@ def observe_fixed_unit_kernel(original, manager):
 
 def observe_manager_and_kernel(original):
     """Composite read-only observer; absence is fail-closed, no ACK."""
+    require_unprivileged()
     first = observe_fixed_systemd_unit()
     manager = dict(first["properties"])
     # This deliberately cannot prove pre-birth original-record authenticity.

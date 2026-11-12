@@ -1,0 +1,156 @@
+{
+  "scope": "MEDIUM-2 M2.3 PRIVILEGE TRANSITIONS",
+  "method": "AUTHOR_SOURCE_PINNING_NOT_PRIVILEGED_VALIDATION",
+  "entries": [
+    {
+      "fixture": "launcher",
+      "source": "native/ge04/isolated-worker-launcher.c",
+      "anchors": [
+        {
+          "fragment": "PR_SET_NO_NEW_PRIVS",
+          "lines": [
+            115
+          ]
+        },
+        {
+          "fragment": "setgroups(0,NULL)",
+          "lines": [
+            116
+          ]
+        },
+        {
+          "fragment": "setresgid(",
+          "lines": [
+            116
+          ]
+        },
+        {
+          "fragment": "setresuid(",
+          "lines": [
+            117
+          ]
+        },
+        {
+          "fragment": "getresuid(&ru,&eu,&su)",
+          "lines": [
+            121
+          ]
+        },
+        {
+          "fragment": "getresgid(&rg,&eg,&sg)",
+          "lines": [
+            121
+          ]
+        },
+        {
+          "fragment": "getgroups(0,NULL)!=0",
+          "lines": [
+            121
+          ]
+        },
+        {
+          "fragment": "su!=target",
+          "lines": [
+            121
+          ]
+        },
+        {
+          "fragment": "sg!=(gid_t)target",
+          "lines": [
+            121
+          ]
+        },
+        {
+          "fragment": "syscall(SYS_execveat",
+          "lines": [
+            129
+          ]
+        }
+      ],
+      "observed": "NO_NEW_PRIVS_THEN_CLEAR_GROUPS_THEN_DROP_REAL_EFFECTIVE_SAVED_IDS_THEN_VERIFY_ALL_IDS_AND_ZERO_GROUPS",
+      "unresolved": [
+        "Kernel effective capability sets and securebits not independently measured",
+        "No privileged negative-path injection or exec-time identity/capability attestation",
+        "Launcher stopped-child handshake is not full parent-child authentication",
+        "Proof that all inherited privilege-bearing descriptors are closed remains separate"
+      ],
+      "review_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "fixture": "worker_fixture",
+      "source": "native/ge04/cgroup-worker-qualification.c",
+      "anchors": [
+        {
+          "fragment": "PR_SET_NO_NEW_PRIVS",
+          "lines": [
+            308
+          ]
+        },
+        {
+          "fragment": "setgroups(0,NULL)",
+          "lines": [
+            308
+          ]
+        },
+        {
+          "fragment": "setresgid(TEST_UID,TEST_UID,TEST_UID)",
+          "lines": [
+            309
+          ]
+        },
+        {
+          "fragment": "setresuid(TEST_UID,TEST_UID,TEST_UID)",
+          "lines": [
+            309
+          ]
+        },
+        {
+          "fragment": "getresuid(&ru,&eu,&su)",
+          "lines": [
+            310
+          ]
+        },
+        {
+          "fragment": "getresgid(&rg,&eg,&sg)",
+          "lines": [
+            310
+          ]
+        },
+        {
+          "fragment": "getgroups(0,NULL)!=0",
+          "lines": [
+            310
+          ]
+        },
+        {
+          "fragment": "su!=TEST_UID",
+          "lines": [
+            310
+          ]
+        },
+        {
+          "fragment": "sg!=TEST_UID",
+          "lines": [
+            310
+          ]
+        },
+        {
+          "fragment": "pid_t descendant=fork()",
+          "lines": [
+            311
+          ]
+        }
+      ],
+      "observed": "NO_NEW_PRIVS_THEN_CLEAR_GROUPS_THEN_DROP_REAL_EFFECTIVE_SAVED_IDS_THEN_VERIFY_ALL_IDS_AND_ZERO_GROUPS",
+      "unresolved": [
+        "Kernel effective capability sets and securebits not independently measured",
+        "No privileged negative-path injection or exec-time identity/capability attestation",
+        "Launcher stopped-child handshake is not full parent-child authentication",
+        "Proof that all inherited privilege-bearing descriptors are closed remains separate"
+      ],
+      "review_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    }
+  ],
+  "security_hold": "ACTIVE",
+  "limitations": "Source-shape assertions cannot prove kernel credential state, effective capabilities, or negative-path reachability."
+}

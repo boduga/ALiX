@@ -4,6 +4,7 @@ Runs solely as a child of bounded_phase_observer. stdin is one canonical
 bootstrap record, stdout one small canonical observation or nothing on error.
 """
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from pathlib import Path
 # Local path custody is NOT a security guarantee for a future root controller.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from unprivileged_observer import require_unprivileged
 from bootstrap_binding import LIMIT, parse_bootstrap_binding
 from unit_kernel_observer import observe_manager_and_kernel
 from protected_approval_observer import corroborate_existing_approval
@@ -18,6 +20,7 @@ from protected_approval_observer import corroborate_existing_approval
 
 def main():
     try:
+        require_unprivileged()
         raw = sys.stdin.buffer.read(LIMIT + 1)
         record = dict(parse_bootstrap_binding(raw))
         original_approval = corroborate_existing_approval(record)

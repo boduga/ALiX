@@ -1,0 +1,157 @@
+{
+  "scope": "MEDIUM-2 M2.1 JOURNAL REPLACEMENT AND CRASH RECOVERY",
+  "method": "AUTHOR_SOURCE_ANCHORS_AND_FAILURE_STATE_HYPOTHESES",
+  "entries": [
+    {
+      "fixture": "worker",
+      "source": "native/ge04/cgroup-worker-qualification.c",
+      "anchors": {
+        "exclusive_temp_create": {
+          "line_numbers": [
+            219
+          ],
+          "fragment": "openat(c->work,\"intent.tmp\",O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC,0600)"
+        },
+        "temp_file_sync": {
+          "line_numbers": [
+            221
+          ],
+          "fragment": "write_all(fd,text,strlen(text))&&!fsync(fd)"
+        },
+        "rename_no_replace": {
+          "line_numbers": [
+            225
+          ],
+          "fragment": "RENAME_NOREPLACE"
+        },
+        "directory_sync": {
+          "line_numbers": [
+            234,
+            440
+          ],
+          "fragment": "return fsync(c->work)==0;"
+        },
+        "crash_leaf": {
+          "line_numbers": [
+            474
+          ],
+          "fragment": "if(!strcmp(c.mode,\"crash-leaf\"))_exit(88);"
+        },
+        "crash_temp": {
+          "line_numbers": [
+            223
+          ],
+          "fragment": "if(!strcmp(c->mode,\"crash-temp\"))_exit(88);"
+        },
+        "crash_intent": {
+          "line_numbers": [
+            477
+          ],
+          "fragment": "if(!strcmp(c.mode,\"crash-intent\"))_exit(88);"
+        },
+        "recovery_requires_intent": {
+          "line_numbers": [
+            456
+          ],
+          "fragment": "if(!read_intent(c.work,\"intent.v1\",&r)"
+        },
+        "sweep_requires_temp": {
+          "line_numbers": [
+            426
+          ],
+          "fragment": "if(!sweep_candidate_allowed(has_temp,&pending,&st,e->d_name))"
+        },
+        "temp_removal": {
+          "line_numbers": [
+            438
+          ],
+          "fragment": "unlinkat(c->work,\"intent.tmp\",0)"
+        },
+        "record_removal": {
+          "line_numbers": [
+            331
+          ],
+          "fragment": "unlinkat(c->work,name,0)"
+        }
+      },
+      "unresolved_risks": {
+        "pre_intent_leaf_birth": "A crash after mkdirat but before durable temp publication leaves a cgroup with no original intent. Current sweep refuses adoption; manual quarantine/cleanup required.",
+        "temp_written_before_rename": "A canonical fsynced temp may allow tightly bound sweep; crash durability of the directory entry and parent cgroup birth is not independently established.",
+        "rename_before_directory_fsync": "A crash can leave intent.v1 or intent.tmp or neither depending on filesystem persistence; no automatic inference of authorization from filename.",
+        "record_validation_before_unlink": "Canonical contents and record equality do not atomically bind unlinkat to the verified inode; replacement requires independent writer-exclusion proof.",
+        "leaf_deleted_before_record_cleanup": "Failure/crash can leave intent.v1 referencing an absent leaf; subsequent recover must quarantine rather than declare success without an owned leaf.",
+        "post_unlink_before_directory_fsync": "Deletion can be rolled back by crash or leave partial records; replay must validate original durable authority and refuse ambiguous state.",
+        "cooperating_lock_only": "flock serializes cooperating participants, not all privileged or alternate-mount writers."
+      },
+      "review_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "fixture": "view",
+      "source": "native/ge04/cgroup-runtime-view-qualification.c",
+      "anchors": {
+        "exclusive_temp_create": {
+          "line_numbers": [
+            297
+          ],
+          "fragment": "openat(c->work,\"intent.tmp\",O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC,0600)"
+        },
+        "temp_file_sync": {
+          "line_numbers": [
+            299
+          ],
+          "fragment": "!fsync(fd)"
+        },
+        "rename_no_replace": {
+          "line_numbers": [
+            301
+          ],
+          "fragment": "RENAME_NOREPLACE"
+        },
+        "directory_sync": {
+          "line_numbers": [
+            305,
+            589,
+            677
+          ],
+          "fragment": "fsync(c->work)==0"
+        },
+        "recovery_requires_intent": {
+          "line_numbers": [
+            711
+          ],
+          "fragment": "if(!intent(c.work,\"intent.v1\",&r)"
+        },
+        "sweep_requires_temp": {
+          "line_numbers": [
+            664
+          ],
+          "fragment": "if(!has_temp||strcmp(name,pending.name)"
+        },
+        "temp_removal": {
+          "line_numbers": [
+            675
+          ],
+          "fragment": "unlinkat(c->work,\"intent.tmp\",0)"
+        },
+        "record_removal": {
+          "line_numbers": [
+            538
+          ],
+          "fragment": "unlinkat(c->work,name,0)"
+        }
+      },
+      "unresolved_risks": {
+        "pre_intent_leaf_birth": "A crash after mkdirat but before durable temp publication leaves a cgroup with no original intent. Current sweep refuses adoption; manual quarantine/cleanup required.",
+        "temp_written_before_rename": "A canonical fsynced temp may allow tightly bound sweep; crash durability of the directory entry and parent cgroup birth is not independently established.",
+        "rename_before_directory_fsync": "A crash can leave intent.v1 or intent.tmp or neither depending on filesystem persistence; no automatic inference of authorization from filename.",
+        "record_validation_before_unlink": "Canonical contents and record equality do not atomically bind unlinkat to the verified inode; replacement requires independent writer-exclusion proof.",
+        "leaf_deleted_before_record_cleanup": "Failure/crash can leave intent.v1 referencing an absent leaf; subsequent recover must quarantine rather than declare success without an owned leaf.",
+        "post_unlink_before_directory_fsync": "Deletion can be rolled back by crash or leave partial records; replay must validate original durable authority and refuse ambiguous state.",
+        "cooperating_lock_only": "flock serializes cooperating participants, not all privileged or alternate-mount writers."
+      },
+      "review_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    }
+  ],
+  "decision": "DO_NOT_ASSUME_CRASH_SAFE_OR_NAME_REPLACEMENT_SAFE",
+  "limitations": "No privileged crash-injection execution, filesystem persistence proof, writer enumeration, or independent security verdict."
+}

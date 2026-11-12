@@ -1,0 +1,3435 @@
+{
+  "method": "AUTHOR_CONTEXT_ENRICHMENT_NOT_SEMANTIC_SECURITY_VERDICT",
+  "entries": [
+    {
+      "file": "bootstrap_binding.py",
+      "line": 113,
+      "apis": [
+        "pread"
+      ],
+      "source": "raw = os.pread(fd, before.st_size + 1, 0)",
+      "scope_candidate": "read_sealed_bootstrap_binding",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "os.pread"
+      ],
+      "context_before": [
+        "        raise ValueError(\"Bootstrap descriptor custody mismatch\")",
+        "    if fcntl.fcntl(fd, fcntl.F_GET_SEALS) != SEALS:",
+        "        raise ValueError(\"Bootstrap descriptor not fully sealed\")"
+      ],
+      "context_after": [
+        "    record = parse_bootstrap_binding(raw)",
+        "    after = os.fstat(fd)",
+        "    if ((before.st_dev, before.st_ino, before.st_uid, before.st_gid,"
+      ],
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "line": 108,
+      "apis": [
+        "memfd_create"
+      ],
+      "source": "if not SUPPORTED or not hasattr(os, \"memfd_create\"):",
+      "scope_candidate": "prepare_unprivileged_fixture_fd",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "hasattr"
+      ],
+      "context_before": [
+        "    Never run this as root, including on a disposable VM. The real root",
+        "    publisher must be a separate, independently reviewed implementation.",
+        "    \"\"\""
+      ],
+      "context_after": [
+        "        raise RuntimeError(\"Linux sealed memfd unavailable\")",
+        "    if os.geteuid() == 0:",
+        "        raise PermissionError(\"Privileged bootstrap publisher disabled\")"
+      ],
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "line": 123,
+      "apis": [
+        "memfd_create"
+      ],
+      "source": "fd = os.memfd_create(\"ge04-unqualified-bootstrap\",",
+      "scope_candidate": "prepare_unprivileged_fixture_fd",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "os.memfd_create"
+      ],
+      "context_before": [
+        "        prebirth, read_manager(), read_kernel())",
+        "    if first != after[\"canonicalBytes\"]:",
+        "        raise ValueError(\"Bootstrap evidence changed during reconciliation\")"
+      ],
+      "context_after": [
+        "                         os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING)",
+        "    try:",
+        "        written = os.write(fd, first)"
+      ],
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 3,
+      "apis": [
+        "SCM_RIGHTS"
+      ],
+      "source": "Validates kernel SO_PEERCRED, bounded SCM_RIGHTS payload, expected generation,",
+      "scope_candidate": "<module>",
+      "syntax_classification": "REFERENCE_OR_NONCALL",
+      "ast_call_callees": [],
+      "context_before": [
+        "\"\"\"GE-04 read-only bootstrap FD receive boundary (qualification-only).",
+        ""
+      ],
+      "context_after": [
+        "and sealed canonical bytes. Expected peer/nonce/FD identity MUST be held by",
+        "a separately protected bootstrap controller; this code does not create trust.",
+        "No production caller, privileges, ACK, signaling, cleanup, or retries."
+      ],
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "required_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 67,
+      "apis": [
+        "recvmsg"
+      ],
+      "source": "payload, ancillary, flags, _ = sock.recvmsg(",
+      "scope_candidate": "receive_bootstrap_descriptor",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "sock.recvmsg"
+      ],
+      "context_before": [
+        "        ready, _, _ = select.select([sock], [], [], remaining)",
+        "        if not ready:",
+        "            raise TimeoutError(\"Bootstrap receive deadline\")"
+      ],
+      "context_after": [
+        "            2, socket.CMSG_SPACE(4 * 16), socket.MSG_CMSG_CLOEXEC)",
+        "        # Always first extract *all* kernel-delivered descriptors for closure,",
+        "        # including rejected extra or truncated ancillary records."
+      ],
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "required_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 72,
+      "apis": [
+        "SCM_RIGHTS"
+      ],
+      "source": "if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:",
+      "scope_candidate": "receive_bootstrap_descriptor",
+      "syntax_classification": "REFERENCE_OR_NONCALL",
+      "ast_call_callees": [],
+      "context_before": [
+        "        # Always first extract *all* kernel-delivered descriptors for closure,",
+        "        # including rejected extra or truncated ancillary records.",
+        "        for level, kind, data in ancillary:"
+      ],
+      "context_after": [
+        "                valid = len(data) - (len(data) % array.array(\"i\").itemsize)",
+        "                chunk = array.array(\"i\")",
+        "                chunk.frombytes(data[:valid])"
+      ],
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "required_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bounded_job_signal_observer.py",
+      "line": 132,
+      "apis": [
+        "kill"
+      ],
+      "source": "process.kill()",
+      "scope_candidate": "observe_job_signal_bounded",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "process.kill"
+      ],
+      "context_before": [
+        "    finally:",
+        "        selector.close()",
+        "        if process.poll() is None:"
+      ],
+      "context_after": [
+        "        process.wait()",
+        "        if process.stdin and not process.stdin.closed:",
+        "            process.stdin.close()"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 4,
+      "apis": [
+        "kill"
+      ],
+      "source": "with one end-to-end absolute monotonic deadline and terminal kill/reap.",
+      "scope_candidate": "<module>",
+      "syntax_classification": "REFERENCE_OR_NONCALL",
+      "ast_call_callees": [],
+      "context_before": [
+        "\"\"\"GE-04 bounded read-only observation subprocess, never ACK authority.",
+        "",
+        "A fresh isolated Python subprocess owns its read-only kernel/manager reads,"
+      ],
+      "context_after": [
+        "This DOES NOT authenticate the source tree or expected prebirth record.",
+        "\"\"\"",
+        "import json"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 95,
+      "apis": [
+        "kill"
+      ],
+      "source": "process.kill()",
+      "scope_candidate": "observe_bounded",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "process.kill"
+      ],
+      "context_before": [
+        "    finally:",
+        "        selector.close()",
+        "        if process.poll() is None:"
+      ],
+      "context_after": [
+        "        process.wait()",
+        "        if process.stdin and not process.stdin.closed:",
+        "            process.stdin.close()"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "line": 31,
+      "apis": [
+        "accept4"
+      ],
+      "source": "int client = accept4(listener, NULL, NULL, SOCK_CLOEXEC);",
+      "scope_candidate": "if",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "  if (bind(listener, (struct sockaddr *)&addr, sizeof(addr)) != 0) { perror(\"bind\"); close(listener); return 1; }",
+        "  if (chmod(argv[1], argc == 5 ? 0666 : 0600) != 0 || listen(listener, 1) != 0) { perror(\"listen/chmod\"); close(listener); unlink(argv[1]); return 1; }",
+        "  puts(\"READY\"); fflush(stdout);"
+      ],
+      "context_after": [
+        "  int result = 1;",
+        "  if (client >= 0) {",
+        "    struct ucred cred; socklen_t len = sizeof(cred);"
+      ],
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "required_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 28,
+      "apis": [
+        "kill"
+      ],
+      "source": "int kill=openat(leaf,\"cgroup.kill\",O_WRONLY|O_NOFOLLOW|O_CLOEXEC);",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " if(fstatfs(leaf,&fs)||fs.f_type==CGROUP2_SUPER_MAGIC){close(leaf);return 71;}",
+        " int procs=openat(leaf,\"cgroup.procs\",O_RDWR|O_NOFOLLOW|O_CLOEXEC);",
+        " int events=openat(leaf,\"cgroup.events\",O_RDONLY|O_NOFOLLOW|O_CLOEXEC);"
+      ],
+      "context_after": [
+        " if(procs<0||events<0||kill<0){",
+        "  if(procs>=0)close(procs);",
+        "  if(events>=0)close(events);"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 29,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(procs<0||events<0||kill<0){",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " int procs=openat(leaf,\"cgroup.procs\",O_RDWR|O_NOFOLLOW|O_CLOEXEC);",
+        " int events=openat(leaf,\"cgroup.events\",O_RDONLY|O_NOFOLLOW|O_CLOEXEC);",
+        " int kill=openat(leaf,\"cgroup.kill\",O_WRONLY|O_NOFOLLOW|O_CLOEXEC);"
+      ],
+      "context_after": [
+        "  if(procs>=0)close(procs);",
+        "  if(events>=0)close(events);",
+        "  if(kill>=0)close(kill);"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 32,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(kill>=0)close(kill);",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " if(procs<0||events<0||kill<0){",
+        "  if(procs>=0)close(procs);",
+        "  if(events>=0)close(events);"
+      ],
+      "context_after": [
+        "  close(leaf);return 73;",
+        " }",
+        " struct stat a,b,c;"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 36,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(fstat(procs,&a)||fstat(events,&b)||fstat(kill,&c)||",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "  close(leaf);return 73;",
+        " }",
+        " struct stat a,b,c;"
+      ],
+      "context_after": [
+        "    !S_ISREG(a.st_mode)||!S_ISREG(b.st_mode)||!S_ISREG(c.st_mode)){",
+        "  close(procs);close(events);close(kill);close(leaf);return 74;",
+        " }"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 38,
+      "apis": [
+        "kill"
+      ],
+      "source": "close(procs);close(events);close(kill);close(leaf);return 74;",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " struct stat a,b,c;",
+        " if(fstat(procs,&a)||fstat(events,&b)||fstat(kill,&c)||",
+        "    !S_ISREG(a.st_mode)||!S_ISREG(b.st_mode)||!S_ISREG(c.st_mode)){"
+      ],
+      "context_after": [
+        " }",
+        " /* Hold control FDs through a simulated attachment and membership readback.",
+        "  * No path is reopened for mutation or verification. */"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 45,
+      "apis": [
+        "kill"
+      ],
+      "source": "close(procs);close(events);close(kill);close(leaf);return 75;",
+      "scope_candidate": "lseek",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " const char *pid=\"424242\\n\";",
+        " if(ftruncate(procs,0)||write(procs,pid,strlen(pid))!=(ssize_t)strlen(pid)||",
+        "    lseek(procs,0,SEEK_SET)<0){"
+      ],
+      "context_after": [
+        " }",
+        " char buf[32]={0};ssize_t n=read(procs,buf,sizeof(buf)-1);",
+        " if(n!=(ssize_t)strlen(pid)||memcmp(buf,pid,strlen(pid))){"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 49,
+      "apis": [
+        "kill"
+      ],
+      "source": "close(procs);close(events);close(kill);close(leaf);return 76;",
+      "scope_candidate": "lseek",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " }",
+        " char buf[32]={0};ssize_t n=read(procs,buf,sizeof(buf)-1);",
+        " if(n!=(ssize_t)strlen(pid)||memcmp(buf,pid,strlen(pid))){"
+      ],
+      "context_after": [
+        " }",
+        " /* Keep cgroup.kill pinned but never write it in qualification. */",
+        " close(procs);close(events);close(kill);close(leaf);"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 52,
+      "apis": [
+        "kill"
+      ],
+      "source": "close(procs);close(events);close(kill);close(leaf);",
+      "scope_candidate": "lseek",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "  close(procs);close(events);close(kill);close(leaf);return 76;",
+        " }",
+        " /* Keep cgroup.kill pinned but never write it in qualification. */"
+      ],
+      "context_after": [
+        " puts(\"simulated descriptor-relative attach/readback: PASS\");return 0;",
+        "}"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "line": 77,
+      "apis": [
+        "kill"
+      ],
+      "source": "const char *name=i==0?\"cgroup.procs\":i==1?\"cgroup.events\":\"cgroup.kill\";",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "  * Ownership policy is deliberately outside this unprivileged probe. */",
+        " if(ls.st_ino==0||ls.st_dev==0)return fail(\"invalid inode\",leaf);",
+        " for(int i=0;i<3;i++){"
+      ],
+      "context_after": [
+        "  int fd=openat(leaf,name,O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);",
+        "  if(fd<0)return fail(\"control open denied\",leaf);",
+        "  struct stat st;"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "line": 58,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "if(mkdirat(parent,argv[2],0700)){",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "  }",
+        " }",
+        " /* mkdirat must fail with EEXIST: never adopt an existing leaf. */"
+      ],
+      "context_after": [
+        "  int result=errno==EEXIST?73:71;",
+        "  close(parent);return result;",
+        " }"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 230,
+      "apis": [
+        "kill"
+      ],
+      "source": "!control_custody(c->outer,\"cgroup.kill\",c->killfd))goto out;",
+      "scope_candidate": "bindings",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "     !same_inode(&s,&c->outer_stat)||(s.st_mode&07777)!=0700||s.st_uid||s.st_gid||",
+        "     !control_custody(c->outer,\"cgroup.procs\",c->procs)||",
+        "     !control_custody(c->outer,\"cgroup.events\",c->events)||"
+      ],
+      "context_after": [
+        " }",
+        " if(c->published&&(!intent(work,\"intent.v1\",&recorded)||!records_equal(&recorded,&c->record)))goto out;",
+        " ok=1;"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 354,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child[slot],&status,WNOHANG|WUNTRACED);",
+      "scope_candidate": "wait_stop",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " long long until=begin_operation();",
+        " for(;;){",
+        "  long long now=clock_ms();if(now<0||now>=until)return 0;"
+      ],
+      "context_after": [
+        "  if(got<0&&errno!=EINTR)return 0;",
+        "  if(got==c->child[slot]&&(WIFEXITED(status)||WIFSIGNALED(status)))return 0;",
+        "  int dir=slot==0&&!migrated?c->outer:c->launcher;"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 405,
+      "apis": [
+        "mount"
+      ],
+      "source": "if(mount(NULL,\"/\",NULL,MS_REC|MS_PRIVATE,NULL))_exit(121);",
+      "scope_candidate": "bootstrap_child",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "static void bootstrap_child(pid_t parent,int nullfd,int launcher,const char *mode) {",
+        " child_setup(parent,nullfd,launcher,-1);",
+        " if(unshare(CLONE_NEWNS|CLONE_NEWCGROUP))_exit(120);"
+      ],
+      "context_after": [
+        " if(!strcmp(mode,\"fail-mount\"))_exit(122);",
+        " if(mount(\"none\",\"/sys/fs/cgroup\",\"cgroup2\",MS_NOSUID|MS_NODEV|MS_NOEXEC,NULL))_exit(123);",
+        " if(write(3,\"0\",1)!=1)_exit(124);"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 406,
+      "apis": [
+        "mount"
+      ],
+      "source": "if(!strcmp(mode,\"fail-mount\"))_exit(122);",
+      "scope_candidate": "bootstrap_child",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " child_setup(parent,nullfd,launcher,-1);",
+        " if(unshare(CLONE_NEWNS|CLONE_NEWCGROUP))_exit(120);",
+        " if(mount(NULL,\"/\",NULL,MS_REC|MS_PRIVATE,NULL))_exit(121);"
+      ],
+      "context_after": [
+        " if(mount(\"none\",\"/sys/fs/cgroup\",\"cgroup2\",MS_NOSUID|MS_NODEV|MS_NOEXEC,NULL))_exit(123);",
+        " if(write(3,\"0\",1)!=1)_exit(124);",
+        " close(3);"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 407,
+      "apis": [
+        "mount"
+      ],
+      "source": "if(mount(\"none\",\"/sys/fs/cgroup\",\"cgroup2\",MS_NOSUID|MS_NODEV|MS_NOEXEC,NULL))_exit(123);",
+      "scope_candidate": "bootstrap_child",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " if(unshare(CLONE_NEWNS|CLONE_NEWCGROUP))_exit(120);",
+        " if(mount(NULL,\"/\",NULL,MS_REC|MS_PRIVATE,NULL))_exit(121);",
+        " if(!strcmp(mode,\"fail-mount\"))_exit(122);"
+      ],
+      "context_after": [
+        " if(write(3,\"0\",1)!=1)_exit(124);",
+        " close(3);",
+        " if(raise(SIGSTOP))_exit(124);"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 443,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],",
+      "scope_candidate": "spawn_child",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " pid_t parent=getpid();",
+        " if(!budget_ok()){for(int i=0;i<3;i++)if(high[i]>=0)close(high[i]);return 0;}",
+        "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)"
+      ],
+      "context_after": [
+        "  .exit_signal=SIGCHLD,.cgroup=(unsigned)(slot==0?c->outer:c->launcher)};",
+        " c->child[slot]=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+        " if(!c->child[slot]){"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 445,
+      "apis": [
+        "SYS_clone3"
+      ],
+      "source": "c->child[slot]=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+      "scope_candidate": "spawn_child",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)",
+        " struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],",
+        "  .exit_signal=SIGCHLD,.cgroup=(unsigned)(slot==0?c->outer:c->launcher)};"
+      ],
+      "context_after": [
+        " if(!c->child[slot]){",
+        "  if(slot==0)bootstrap_child(parent,high[0],high[1],c->mode);",
+        "  else join_child(parent,high[0],high[1],high[2]);"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 531,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "bindings(c)&&budget_ok()&&unlinkat(c->outer,name,AT_REMOVEDIR)==0;",
+      "scope_candidate": "empty_inner_remove",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "static int empty_inner_remove(struct context *c,const char *name,int fd,const struct stat *saved) {",
+        " int a,b;",
+        " return inner_custody(c,name,fd,saved)&&controllers(fd,0)&&known_children(fd,0,&a,&b)&&!a&&!b&&empty(fd)&&"
+      ],
+      "context_after": [
+        "}",
+        "static int remove_record(struct context *c,const char *name) {",
+        " if(!budget_ok())return 0;"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 538,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "return intent(c->work,name,&r)&&records_equal(&r,&c->record)&&budget_ok()&&unlinkat(c->work,name,0)==0;",
+      "scope_candidate": "remove_record",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " struct stat s;",
+        " if(fstatat(c->work,name,&s,AT_SYMLINK_NOFOLLOW))return errno==ENOENT;",
+        " struct record r={0};"
+      ],
+      "context_after": [
+        "}",
+        "static int cleanup_until(struct context *c,int notify,long long until) {",
+        " active_until=until;"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 568,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "while((got=waitpid(-1,&status,WNOHANG))>0){}",
+      "scope_candidate": "while",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " for(;;){",
+        "  long long now=clock_ms();if(now<0||now>=until)break;",
+        "  int status;pid_t got;"
+      ],
+      "context_after": [
+        "  if(got<0&&errno!=ECHILD&&errno!=EINTR)return 0;",
+        "  int reaped=got<0&&errno==ECHILD;",
+        "  if(empty(c->outer)&&(c->pidfd[0]<0||pidfd_state(c->pidfd[0])==1)&&"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 585,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "scope_candidate": "if",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " if(b&&(!empty_inner_remove(c,\"payload\",c->payload,&c->inner_stat[1])))return 0;",
+        " if(a&&(!empty_inner_remove(c,\"launcher\",c->launcher,&c->inner_stat[0])))return 0;",
+        " if(!bindings(c)||!empty(c->outer)||clock_ms()<0||clock_ms()>=until||"
+      ],
+      "context_after": [
+        " c->owned=0;",
+        " if(!bindings(c)||!remove_record(c,\"intent.v1\"))return 0;",
+        " c->published=0;"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 601,
+      "apis": [
+        "flock"
+      ],
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "scope_candidate": "setup",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "    workfs.f_type!=TMPFS_MAGIC)return 0;",
+        " c->lock=open_regular(c->work,\".lock\",O_RDWR,0600,0,1);",
+        " if(!regular_root(c->lock,0600,0)||fstat(c->lock,&c->lock_stat))return 0;"
+      ],
+      "context_after": [
+        "  c->reason=(errno==EAGAIN||errno==EWOULDBLOCK)?\"LOCK_DENIED\":\"LOCK_ERROR\";return 0;",
+        " }",
+        " if(!approval(c->work,&c->record))return 0;"
+      ],
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 621,
+      "apis": [
+        "kill"
+      ],
+      "source": "c->killfd=control(c->outer,\"cgroup.kill\",O_WRONLY);",
+      "scope_candidate": "open_outer",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "    (unsigned long long)c->outer_stat.st_ino!=c->record.outer_ino)return 0;",
+        " c->procs=control(c->outer,\"cgroup.procs\",O_RDONLY);",
+        " c->events=control(c->outer,\"cgroup.events\",O_RDONLY);"
+      ],
+      "context_after": [
+        " if(c->procs<0||c->events<0||c->killfd<0)return 0;",
+        " c->owned=1;return bindings(c);",
+        "}"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 675,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "!bindings(c)||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "scope_candidate": "sweep_empty",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " if(has_temp){",
+        "  if(fstatat(c->parent,pending.name,&s,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT)return 0;",
+        "  struct record now={0};if(!intent(c->work,\"intent.tmp\",&now)||!records_equal(&now,&pending)||"
+      ],
+      "context_after": [
+        " }",
+        " return budget_ok()&&fsync(c->work)==0&&budget_ok();",
+        "}"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 683,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child[0],&status,WNOHANG);",
+      "scope_candidate": "wait_injected_exit",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " long long until=begin_operation();",
+        " for(;;){",
+        "  long long now=clock_ms();if(now<0||now>=until)return 0;"
+      ],
+      "context_after": [
+        "  if(got==c->child[0])return WIFEXITED(status)&&WEXITSTATUS(status)==code;",
+        "  if(got<0&&errno!=EINTR)return 0;",
+        "  usleep(1000);"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 690,
+      "apis": [
+        "mount"
+      ],
+      "source": "const char *modes[]={\"run\",\"crash-pre-namespace\",\"crash-pinned\",\"crash-ready\",\"fail-mount\",\"fail-enable\",\"recover\",\"sweep-empty\"};",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " }",
+        "}",
+        "int main(int argc,char **argv) {"
+      ],
+      "context_after": [
+        " int valid=0;if(argc==2)for(size_t i=0;i<sizeof(modes)/sizeof(modes[0]);i++)if(!strcmp(argv[1],modes[i]))valid=1;",
+        " if(!valid)return 64;",
+        " /* GE-04 SECURITY HOLD: regular builds MUST NOT enter a privileged fixture,"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 724,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "if(!budget_ok()||mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "scope_candidate": "parent_single_outer",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " if(prctl(PR_SET_CHILD_SUBREAPER,1,0,0,0))goto finished;",
+        " unsigned char random[8];if(!budget_ok()||getrandom(random,8,GRND_NONBLOCK)!=8)goto finished;",
+        " strcpy(c.record.name,\"worker-\");for(int i=0;i<8;i++)snprintf(c.record.name+7+i*2,3,\"%02x\",random[i]);"
+      ],
+      "context_after": [
+        " int initial=openat(c.parent,c.record.name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);",
+        " if(initial<0||fstat(initial,&s)){if(initial>=0)close(initial);goto finished;}close(initial);",
+        " c.record.outer_dev=s.st_dev;c.record.outer_ino=s.st_ino;"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 730,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "!budget_ok()||mkdirat(c.outer,\"launcher\",0700)||!budget_ok()||mkdirat(c.outer,\"payload\",0700)||",
+      "scope_candidate": "parent_single_outer",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " c.record.outer_dev=s.st_dev;c.record.outer_ino=s.st_ino;",
+        " if(!open_outer(&c))goto finished;",
+        " if(!empty(c.outer)||!controllers(c.outer,0)||!text_is(c.outer,\"cgroup.type\",\"domain\\n\")||"
+      ],
+      "context_after": [
+        "    !open_inner(&c,\"launcher\",&c.launcher,&c.inner_stat[0])||",
+        "    !open_inner(&c,\"payload\",&c.payload,&c.inner_stat[1])||",
+        "    !set_text(c.outer,\"pids.max\",\"128\")||!set_text(c.outer,\"memory.max\",\"536870912\")||"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 743,
+      "apis": [
+        "mount"
+      ],
+      "source": "if(!strcmp(c.mode,\"fail-mount\")){",
+      "scope_candidate": "parent_single_outer",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " if(!event(&c,\"PRE_NAMESPACE\")){c.reason=\"ACK_DENIED\";goto rollback;}",
+        " if(!strcmp(c.mode,\"crash-pre-namespace\"))_exit(88);",
+        " if(!continue_child(&c,0)){c.reason=\"STOP_DENIED\";goto rollback;}"
+      ],
+      "context_after": [
+        "  c.reason=wait_injected_exit(&c,122)?\"MOUNT_INJECTED\":\"BOOTSTRAP_FAILED\";goto rollback;",
+        " }",
+        " if(!wait_stop(&c,0,1)||!pin_view(&c)){c.reason=\"VIEW_DENIED\";goto rollback;}"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 157,
+      "apis": [
+        "kill"
+      ],
+      "source": "c->killfd=control(c->leaf,\"cgroup.kill\",O_WRONLY);",
+      "scope_candidate": "open_controls",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "static int open_controls(struct context *c) {",
+        " c->procs=control(c->leaf,\"cgroup.procs\",O_RDWR);",
+        " c->events=control(c->leaf,\"cgroup.events\",O_RDONLY);"
+      ],
+      "context_after": [
+        " return c->procs>=0&&c->events>=0&&c->killfd>=0;",
+        "}",
+        "static int control_custody(int dir,const char *name,int fd,dev_t device) {"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 177,
+      "apis": [
+        "kill"
+      ],
+      "source": "!control_custody(c->leaf,\"cgroup.kill\",c->killfd,c->leaf_stat.st_dev))return 0;",
+      "scope_candidate": "bindings",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "    !S_ISDIR(s.st_mode)||!root_owned(&s)||(s.st_mode&0022)||!same_inode(&s,&c->leaf_stat))return 0;",
+        " if(!control_custody(c->leaf,\"cgroup.procs\",c->procs,c->leaf_stat.st_dev)||",
+        "    !control_custody(c->leaf,\"cgroup.events\",c->events,c->leaf_stat.st_dev)||"
+      ],
+      "context_after": [
+        " if(c->published){struct record r={0};if(!read_intent(c->work,\"intent.v1\",&r)||!records_equal(&r,&c->record))return 0;}",
+        " return 1;",
+        "}"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 287,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child,&status,WNOHANG|WUNTRACED);",
+      "scope_candidate": "wait_stopped",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " long long until=clock_ms()+3000;",
+        " while(1){",
+        "  long long now=clock_ms();if(now<0||now>=until)break;"
+      ],
+      "context_after": [
+        "  if(got==c->child){char state;return WIFSTOPPED(status)&&WSTOPSIG(status)==SIGSTOP&&",
+        "    pidfd_alive(c->pidfd)&&process_info(c->child,ticks,&state,0)&&state=='T';}",
+        "  if(got<0)return 0;"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 308,
+      "apis": [
+        "setgroups"
+      ],
+      "source": "if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||",
+      "scope_candidate": "worker",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " _exit(125);",
+        "#endif",
+        " if(raise(SIGSTOP))_exit(125);"
+      ],
+      "context_after": [
+        "    setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+        " uid_t ru,eu,su;gid_t rg,eg,sg;if(getresuid(&ru,&eu,&su)||getresgid(&rg,&eg,&sg)||ru!=TEST_UID||eu!=TEST_UID||su!=TEST_UID||rg!=TEST_UID||eg!=TEST_UID||sg!=TEST_UID||getgroups(0,NULL)!=0)_exit(125);",
+        " pid_t descendant=fork();if(descendant<0)_exit(125);"
+      ],
+      "review_categories": [
+        "privilege_transition"
+      ],
+      "required_checks": [
+        "failure handling before worker action",
+        "initial uid/euid/gid/egid custody",
+        "irreversible privilege drop"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 309,
+      "apis": [
+        "setresgid",
+        "setresuid"
+      ],
+      "source": "setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+      "scope_candidate": "worker",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "#endif",
+        " if(raise(SIGSTOP))_exit(125);",
+        " if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||"
+      ],
+      "context_after": [
+        " uid_t ru,eu,su;gid_t rg,eg,sg;if(getresuid(&ru,&eu,&su)||getresgid(&rg,&eg,&sg)||ru!=TEST_UID||eu!=TEST_UID||su!=TEST_UID||rg!=TEST_UID||eg!=TEST_UID||sg!=TEST_UID||getgroups(0,NULL)!=0)_exit(125);",
+        " pid_t descendant=fork();if(descendant<0)_exit(125);",
+        " if(!descendant&&setsid()<0)_exit(125);"
+      ],
+      "review_categories": [
+        "privilege_transition"
+      ],
+      "required_checks": [
+        "failure handling before worker action",
+        "initial uid/euid/gid/egid custody",
+        "irreversible privilege drop"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 311,
+      "apis": [
+        "fork"
+      ],
+      "source": "pid_t descendant=fork();if(descendant<0)_exit(125);",
+      "scope_candidate": "worker",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||",
+        "    setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+        " uid_t ru,eu,su;gid_t rg,eg,sg;if(getresuid(&ru,&eu,&su)||getresgid(&rg,&eg,&sg)||ru!=TEST_UID||eu!=TEST_UID||su!=TEST_UID||rg!=TEST_UID||eg!=TEST_UID||sg!=TEST_UID||getgroups(0,NULL)!=0)_exit(125);"
+      ],
+      "context_after": [
+        " if(!descendant&&setsid()<0)_exit(125);",
+        " for(;;)pause();",
+        "}"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 331,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "return unlinkat(c->work,name,0)==0;",
+      "scope_candidate": "remove_artifact",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " struct stat s;",
+        " if(fstatat(c->work,name,&s,AT_SYMLINK_NOFOLLOW))return errno==ENOENT;",
+        " struct record r={0};if(!read_intent(c->work,name,&r)||!records_equal(&r,&c->record))return 0;"
+      ],
+      "context_after": [
+        "}",
+        "static int cleanup(struct context *c,int notify) {",
+        " /* No pinned, owned leaf is not evidence of a successful cleanup. */"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 346,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "while((n=waitpid(-1,&status,WNOHANG))>0){}",
+      "scope_candidate": "while",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "  if(empty(c)){",
+        "   if(c->child>0){",
+        "    int status;pid_t n;"
+      ],
+      "context_after": [
+        "    if(n<0&&errno==ECHILD&&(!pidfd_alive(c->pidfd))){done=1;break;}",
+        "   }else{done=1;break;}",
+        "  }"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 353,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "if(!bindings(c)||!empty(c)||unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "scope_candidate": "if",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "  usleep(1000);",
+        " }",
+        " if(!done||!bindings(c)||(notify&&!event(\"EMPTY\")))return 0;"
+      ],
+      "context_after": [
+        " c->owned_leaf=0;",
+        " if(!remove_artifact(c,\"intent.v1\")||!remove_artifact(c,\"intent.tmp\")||fsync(c->work))return 0;",
+        " return 1;"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 372,
+      "apis": [
+        "flock"
+      ],
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "scope_candidate": "setup",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " if(c->work<0||fstat(c->work,&c->work_stat)||(c->work_stat.st_mode&07777)!=0700)return 0;",
+        " c->lock=openat(c->work,\".lock\",O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC,0600);",
+        " if(!regular_root(c->lock,0600,0)||fstat(c->lock,&c->lock_stat))return 0;"
+      ],
+      "context_after": [
+        "  c->setup_reason=(errno==EWOULDBLOCK||errno==EAGAIN)?\"LOCK_DENIED\":\"LOCK_ERROR\";",
+        "  return 0;",
+        " }"
+      ],
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 428,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}",
+      "scope_candidate": "if",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "   * directory and record its device/inode, otherwise quarantine. */",
+        "  if(!sweep_candidate_allowed(has_temp,&pending,&st,e->d_name)){ok=0;break;}",
+        "  c->record=pending;"
+      ],
+      "context_after": [
+        "  c->owned_leaf=0;",
+        "  close(c->procs);close(c->events);close(c->killfd);close(c->leaf);c->procs=c->events=c->killfd=c->leaf=-1;",
+        " }"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 438,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "scope_candidate": "if",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " if(fstatat(c->work,\"intent.tmp\",&st,AT_SYMLINK_NOFOLLOW)==0){",
+        "  if(!read_intent(c->work,\"intent.tmp\",&temp)||strcmp(temp.invocation,c->record.invocation)||",
+        "     temp.parent_dev!=c->record.parent_dev||temp.parent_ino!=c->record.parent_ino||"
+      ],
+      "context_after": [
+        " }else if(errno!=ENOENT)return 0;",
+        " return fsync(c->work)==0;",
+        "}"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 469,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "if(mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "scope_candidate": "fstatat",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " }",
+        " unsigned char random[8];if(getrandom(random,sizeof(random),0)!=(ssize_t)sizeof(random))goto finished;",
+        " strcpy(c.record.name,\"worker-\");for(int i=0;i<8;i++)snprintf(c.record.name+7+i*2,3,\"%02x\",random[i]);"
+      ],
+      "context_after": [
+        " c.leaf=openat(c.parent,c.record.name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);",
+        " if(!root_directory(c.leaf)||fstat(c.leaf,&c.leaf_stat))goto finished;",
+        " c.record.leaf_dev=c.leaf_stat.st_dev;c.record.leaf_ino=c.leaf_stat.st_ino;c.owned_leaf=1;"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 482,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,",
+      "scope_candidate": "fstatat",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " if(!bindings(&c)||!empty(&c)||prctl(PR_SET_CHILD_SUBREAPER,1,0,0,0))goto rollback;",
+        " signal(SIGCHLD,SIG_DFL);",
+        "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)"
+      ],
+      "context_after": [
+        "  .exit_signal=SIGCHLD,.cgroup=(unsigned)c.leaf};",
+        " c.child=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+        " if(c.child==0)worker();"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 484,
+      "apis": [
+        "SYS_clone3"
+      ],
+      "source": "c.child=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+      "scope_candidate": "fstatat",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)",
+        " struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,",
+        "  .exit_signal=SIGCHLD,.cgroup=(unsigned)c.leaf};"
+      ],
+      "context_after": [
+        " if(c.child==0)worker();",
+        "#else",
+        " c.child=-1;errno=ENOSYS;"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "line": 17,
+      "apis": [
+        "mount"
+      ],
+      "source": "_EXPECTED_KERNEL = frozenset((\"status\", \"pid\", \"startticks\", \"mount\", \"cgroup\"))",
+      "scope_candidate": "<module>",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "frozenset"
+      ],
+      "context_before": [
+        "from prebirth_issuance_contract import canonical_prebirth, canonical_birth",
+        "from systemd_job_event_contract import job_removed_diagnostic",
+        ""
+      ],
+      "context_after": [
+        "_EXPECTED_ORIGINAL = frozenset(FIELDS)",
+        "_FIXED_SCOPE = \"/system.slice/\" + UNIT",
+        ""
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "line": 84,
+      "apis": [
+        "mount"
+      ],
+      "source": "or tuple(kernel[\"mount\"]) !=",
+      "scope_candidate": "reconcile_birth_packet",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "tuple"
+      ],
+      "context_before": [
+        "                or kernel[\"pid\"] != post[\"keeperPid\"]",
+        "                or type(kernel[\"startticks\"]) is not int",
+        "                or kernel[\"startticks\"] != post[\"keeperTicks\"]"
+      ],
+      "context_after": [
+        "                   (post[\"mountId\"], post[\"mountDevice\"])",
+        "                or kernel[\"cgroup\"] != _FIXED_SCOPE):",
+        "            raise ValueError(\"Kernel generation and mount inconsistent\")"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "line": 87,
+      "apis": [
+        "mount"
+      ],
+      "source": "raise ValueError(\"Kernel generation and mount inconsistent\")",
+      "scope_candidate": "reconcile_birth_packet",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "ValueError"
+      ],
+      "context_before": [
+        "                or tuple(kernel[\"mount\"]) !=",
+        "                   (post[\"mountId\"], post[\"mountDevice\"])",
+        "                or kernel[\"cgroup\"] != _FIXED_SCOPE):"
+      ],
+      "context_after": [
+        "        props = manager[\"properties\"]",
+        "        if (handoff_result[\"invocation\"] != post[\"invocation\"]",
+        "                or handoff_result[\"keeperPid\"] != post[\"keeperPid\"]"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exclusive_birth_handoff.py",
+      "line": 41,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "if (value[\"unit\"] != UNIT or value[\"method\"] != \"StartTransientUnit\"",
+      "scope_candidate": "canonical_creation_receipt",
+      "syntax_classification": "REFERENCE_OR_NONCALL",
+      "ast_call_callees": [],
+      "context_before": [
+        "",
+        "def canonical_creation_receipt(value):",
+        "    _exact(value, _RECEIPT)"
+      ],
+      "context_after": [
+        "            or value[\"mode\"] != \"fail\"",
+        "            or type(value[\"managerOwner\"]) is not str",
+        "            or _OWNER.fullmatch(value[\"managerOwner\"]) is None"
+      ],
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "line": 14,
+      "apis": [
+        "execveat"
+      ],
+      "source": "execveat(3, \"\", argv + 1, (char *const[]){\"PATH=/usr/bin:/bin\", NULL}, AT_EMPTY_PATH);",
+      "scope_candidate": "execveat",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "int main(int argc, char **argv) {",
+        "  /* argv[0] is the launcher, argv[1] is the pinned probe identity. */",
+        "  if (argc != 5 && argc != 6) return 64;"
+      ],
+      "context_after": [
+        "  fprintf(stderr, \"execveat pinned probe failed: %s\\n\", strerror(errno));",
+        "  return 126;",
+        "}"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "line": 15,
+      "apis": [
+        "execveat"
+      ],
+      "source": "fprintf(stderr, \"execveat pinned probe failed: %s\\n\", strerror(errno));",
+      "scope_candidate": "execveat",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "  /* argv[0] is the launcher, argv[1] is the pinned probe identity. */",
+        "  if (argc != 5 && argc != 6) return 64;",
+        "  execveat(3, \"\", argv + 1, (char *const[]){\"PATH=/usr/bin:/bin\", NULL}, AT_EMPTY_PATH);"
+      ],
+      "context_after": [
+        "  return 126;",
+        "}"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned.c",
+      "line": 13,
+      "apis": [
+        "execveat"
+      ],
+      "source": "execveat(4, \"\", argv, environ, AT_EMPTY_PATH);",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " */",
+        "int main(void) {",
+        "  char *const argv[] = {(char *)\"peercred\", NULL};"
+      ],
+      "context_after": [
+        "  fprintf(stderr, \"execveat pinned helper failed: %s\\n\", strerror(errno));",
+        "  return 126;",
+        "}"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned.c",
+      "line": 14,
+      "apis": [
+        "execveat"
+      ],
+      "source": "fprintf(stderr, \"execveat pinned helper failed: %s\\n\", strerror(errno));",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "int main(void) {",
+        "  char *const argv[] = {(char *)\"peercred\", NULL};",
+        "  execveat(4, \"\", argv, environ, AT_EMPTY_PATH);"
+      ],
+      "context_after": [
+        "  return 126;",
+        "}"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 78,
+      "apis": [
+        "openat2"
+      ],
+      "source": "(void)path;die(\"openat2 unavailable\");",
+      "scope_candidate": "if",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " die(\"invalid executable path\");",
+        " return -1;",
+        "#else"
+      ],
+      "context_after": [
+        "#endif",
+        "}",
+        "static void close_inherited_fds(int preserve){"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 116,
+      "apis": [
+        "setgroups",
+        "setresgid"
+      ],
+      "source": "if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "  if(raise(SIGSTOP)!=0)die(\"pre-exec stop failed\");",
+        " }",
+        " if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0))die(\"no_new_privs failed\");"
+      ],
+      "context_after": [
+        "    setresuid(target,target,target))die(\"identity isolation failed\");",
+        " if(getuid()!=target||geteuid()!=target||getgid()!=(gid_t)target||",
+        "    getegid()!=(gid_t)target)die(\"identity mismatch\");"
+      ],
+      "review_categories": [
+        "privilege_transition"
+      ],
+      "required_checks": [
+        "failure handling before worker action",
+        "initial uid/euid/gid/egid custody",
+        "irreversible privilege drop"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 117,
+      "apis": [
+        "setresuid"
+      ],
+      "source": "setresuid(target,target,target))die(\"identity isolation failed\");",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " }",
+        " if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0))die(\"no_new_privs failed\");",
+        " if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||"
+      ],
+      "context_after": [
+        " if(getuid()!=target||geteuid()!=target||getgid()!=(gid_t)target||",
+        "    getegid()!=(gid_t)target)die(\"identity mismatch\");",
+        " uid_t ru,eu,su;gid_t rg,eg,sg;"
+      ],
+      "review_categories": [
+        "privilege_transition"
+      ],
+      "required_checks": [
+        "failure handling before worker action",
+        "initial uid/euid/gid/egid custody",
+        "irreversible privilege drop"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 131,
+      "apis": [
+        "execveat"
+      ],
+      "source": "die(\"execveat unavailable\");",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "#ifdef SYS_execveat",
+        " syscall(SYS_execveat,executable_fd,\"\",args,env,AT_EMPTY_PATH);",
+        "#else"
+      ],
+      "context_after": [
+        "#endif",
+        " die(\"worker exec failed\");",
+        "}"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 35,
+      "apis": [
+        "fork"
+      ],
+      "source": "pid_t child=fork();",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " int fail_cleanup_signal=argc==2 && !strcmp(argv[1],\"--fail-cleanup-pidfd-signal\");",
+        " if(argc!=1 && !fail_open && !fail_before_resume && !fail_cleanup_signal){fprintf(stderr,\"invalid arguments\\n\");return 64;}",
+        "#ifdef SYS_pidfd_open"
+      ],
+      "context_after": [
+        " if(child<0){perror(\"fork\");return 70;}",
+        " if(child==0){for(;;)pause();}",
+        " /* Child cannot exit voluntarily. The parent owns its lifetime and does"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 36,
+      "apis": [
+        "fork"
+      ],
+      "source": "if(child<0){perror(\"fork\");return 70;}",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " if(argc!=1 && !fail_open && !fail_before_resume && !fail_cleanup_signal){fprintf(stderr,\"invalid arguments\\n\");return 64;}",
+        "#ifdef SYS_pidfd_open",
+        " pid_t child=fork();"
+      ],
+      "context_after": [
+        " if(child==0){for(;;)pause();}",
+        " /* Child cannot exit voluntarily. The parent owns its lifetime and does",
+        "  * not accept an externally supplied PID. The pidfd stays open throughout. */"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 45,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "if(waitpid(child,&status,WUNTRACED)!=child||!WIFSTOPPED(status)||WSTOPSIG(status)!=SIGSTOP){result=74;goto cleanup;}",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " if(fd<0){if(!fail_open)perror(\"pidfd_open\");result=71;goto cleanup;}",
+        " if(!pinned_alive(fd)){result=72;goto cleanup;}",
+        " if(send_pinned(fd,SIGSTOP)<0){perror(\"stop\");result=73;goto cleanup;}"
+      ],
+      "context_after": [
+        " if(!pinned_alive(fd)){result=75;goto cleanup;}",
+        " if(fail_before_resume||fail_cleanup_signal){result=76;goto cleanup;}",
+        " if(send_pinned(fd,SIGCONT)<0){perror(\"resume\");result=76;goto cleanup;}"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 49,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(send_pinned(fd,SIGKILL)<0){perror(\"kill\");result=77;goto cleanup;}",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " if(!pinned_alive(fd)){result=75;goto cleanup;}",
+        " if(fail_before_resume||fail_cleanup_signal){result=76;goto cleanup;}",
+        " if(send_pinned(fd,SIGCONT)<0){perror(\"resume\");result=76;goto cleanup;}"
+      ],
+      "context_after": [
+        " if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}",
+        " child=-1;",
+        " if(pinned_alive(fd)){result=79;goto cleanup;}"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 50,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " if(fail_before_resume||fail_cleanup_signal){result=76;goto cleanup;}",
+        " if(send_pinned(fd,SIGCONT)<0){perror(\"resume\");result=76;goto cleanup;}",
+        " if(send_pinned(fd,SIGKILL)<0){perror(\"kill\");result=77;goto cleanup;}"
+      ],
+      "context_after": [
+        " child=-1;",
+        " if(pinned_alive(fd)){result=79;goto cleanup;}",
+        " if(send_pinned(fd,SIGCONT)==0||errno!=ESRCH){result=80;goto cleanup;}"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 63,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(kill(child,SIGKILL)<0 && errno!=ESRCH)result=82;",
+      "scope_candidate": "if",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "  if(!signaled){",
+        "   /* An owned direct child is the only safe PID fallback here. If the",
+        "    * pidfd signal failed, never block waiting for a still-running child. */"
+      ],
+      "context_after": [
+        "   if(fd>=0)result=82;",
+        "  }",
+        "  pid_t reaped;"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 67,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "do {reaped=waitpid(child,&status,0);}while(reaped<0&&errno==EINTR);",
+      "scope_candidate": "if",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "   if(fd>=0)result=82;",
+        "  }",
+        "  pid_t reaped;"
+      ],
+      "context_after": [
+        "  if(reaped!=child)result=83;",
+        " }",
+        " if(fd>=0)close(fd);"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "line": 24,
+      "apis": [
+        "kill"
+      ],
+      "source": "strcmp(argv[1],\"resume\")&&strcmp(argv[1],\"kill\")))return 64;",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "}",
+        "int main(int argc,char **argv){",
+        " if(argc!=3||(strcmp(argv[1],\"alive\")&&strcmp(argv[1],\"stop\")&&"
+      ],
+      "context_after": [
+        " int pid=parse_pid(argv[2]);if(pid<0)return 64;",
+        "#ifdef SYS_pidfd_open",
+        " int fd=(int)syscall(SYS_pidfd_open,pid,0);"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "line": 35,
+      "apis": [
+        "kill"
+      ],
+      "source": "else if(!strcmp(argv[1],\"kill\"))sig=SIGKILL;",
+      "scope_candidate": "main",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " int sig=0;",
+        " if(!strcmp(argv[1],\"stop\"))sig=SIGSTOP;",
+        " else if(!strcmp(argv[1],\"resume\"))sig=SIGCONT;"
+      ],
+      "context_after": [
+        " if(sig){",
+        "#ifdef SYS_pidfd_send_signal",
+        "  if(syscall(SYS_pidfd_send_signal,fd,sig,NULL,0)<0){perror(\"pidfd_send_signal\");close(fd);return 72;}"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "line": 38,
+      "apis": [
+        "pidfd_send_signal"
+      ],
+      "source": "if(syscall(SYS_pidfd_send_signal,fd,sig,NULL,0)<0){perror(\"pidfd_send_signal\");close(fd);return 72;}",
+      "scope_candidate": "if",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " else if(!strcmp(argv[1],\"kill\"))sig=SIGKILL;",
+        " if(sig){",
+        "#ifdef SYS_pidfd_send_signal"
+      ],
+      "context_after": [
+        "#else",
+        "  close(fd);return 73;",
+        "#endif"
+      ],
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "prebirth_issuance_contract.py",
+      "line": 80,
+      "apis": [
+        "mount"
+      ],
+      "source": "raise ValueError(\"Invalid original mount and cgroup ancestry\")",
+      "scope_candidate": "canonical_birth",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "ValueError"
+      ],
+      "context_before": [
+        "            or any(type(pair) is not list or len(pair) != 2 or",
+        "                   any(type(i) is not int or not 0 < i < 2**63 for i in pair)",
+        "                   for pair in claim[\"ancestry\"])):"
+      ],
+      "context_after": [
+        "    return (json.dumps(claim, sort_keys=True, separators=(\",\", \":\"))",
+        "            + \"\\n\").encode(\"ascii\")",
+        ""
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 122,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t n = pread(held->fence_fd, observed + offset,",
+      "scope_candidate": "while",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "    char observed[GE04_ATTEMPT_MAX];",
+        "    size_t offset = 0;",
+        "    while (offset < size) {"
+      ],
+      "context_after": [
+        "                          size - offset, (off_t)offset);",
+        "        if (n < 0 && errno == EINTR) continue;",
+        "        if (n <= 0) return deny(EIO);"
+      ],
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 129,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(held->fence_fd, &trailer, 1, (off_t)size) != 0 ||",
+      "scope_candidate": "while",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "        offset += (size_t)n;",
+        "    }",
+        "    char trailer;"
+      ],
+      "context_after": [
+        "        memcmp(observed, content, size) != 0) return deny(EIO);",
+        "    return 0;",
+        "}"
+      ],
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "line": 181,
+      "apis": [
+        "mount"
+      ],
+      "source": "return 0; /* Not proof of original cgroup birth or trusted mount owner. */",
+      "scope_candidate": "if",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "        ge04_cgroup_custody_close(held);",
+        "        return refuse();",
+        "    }"
+      ],
+      "context_after": [
+        "failed:",
+        "    if (candidate.unit_fd >= 0) close(candidate.unit_fd);",
+        "    if (candidate.slice_fd >= 0) close(candidate.slice_fd);"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 104,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t got = pread(held->intent_fd, observed + count,",
+      "scope_candidate": "while",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "    char observed[GE04_DISPATCH_INTENT_MAX];",
+        "    size_t count = 0;",
+        "    while (count < length) {"
+      ],
+      "context_after": [
+        "                            length - count, (off_t)count);",
+        "        if (got < 0 && errno == EINTR) continue;",
+        "        if (got <= 0) return refuse(EIO);"
+      ],
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 111,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(held->intent_fd, &excess, 1, (off_t)length) != 0 ||",
+      "scope_candidate": "while",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "        count += (size_t)got;",
+        "    }",
+        "    char excess;"
+      ],
+      "context_after": [
+        "        memcmp(bytes, observed, length) != 0)",
+        "        return refuse(EIO);",
+        "    return 0;"
+      ],
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 130,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "member && strcmp(member, \"StartTransientUnit\") == 0 &&",
+      "scope_candidate": "while",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "        dest && strcmp(dest, tx->owner) == 0 &&",
+        "        path && strcmp(path, MANAGER_PATH) == 0 &&",
+        "        iface && strcmp(iface, MANAGER_IFACE) == 0 &&"
+      ],
+      "context_after": [
+        "        sd_bus_message_has_signature(m, FIXED_SIGNATURE) == 1;",
+        "}",
+        "int ge04_dispatch_intent_stage("
+      ],
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "line": 46,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "member && strcmp(member, \"StartTransientUnit\") == 0 &&",
+      "scope_candidate": "ge04_prepared_dispatch_close",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "           destination && strcmp(destination, tx->owner) == 0 &&",
+        "           path && strcmp(path, MANAGER_PATH) == 0 &&",
+        "           interface && strcmp(interface, MANAGER_IFACE) == 0 &&"
+      ],
+      "context_after": [
+        "           sd_bus_message_has_signature(message, EXPECTED_SIGNATURE) == 1;",
+        "}",
+        "int ge04_prepare_fixed_dispatch("
+      ],
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "line": 67,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "\"StartTransientUnit\");",
+      "scope_candidate": "ge04_prepared_dispatch_close",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "    sd_bus_message *message = NULL;",
+        "    int r = sd_bus_message_new_method_call(",
+        "        tx->bus, &message, tx->owner, MANAGER_PATH, MANAGER_IFACE,"
+      ],
+      "context_after": [
+        "    if (r < 0 || !message) {",
+        "        sd_bus_message_unref(message);",
+        "        return refuse(tx);"
+      ],
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "line": 187,
+      "apis": [
+        "mount"
+      ],
+      "source": "return 0; /* UNQUALIFIED: matching current mount namespace only. */",
+      "scope_candidate": "open_keeper_namespace",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "    close(fresh);",
+        "    if (!ok || ge04_keeper_recheck_unqualified(keeper) < 0 ||",
+        "        ge04_cgroup_recheck_unqualified(keeper, cgroup) < 0) return deny();"
+      ],
+      "context_after": [
+        "}",
+        "int ge04_mount_namespace_pin_unqualified(",
+        "    struct ge04_keeper_custody *keeper,"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 144,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t read_bytes = pread(fd, bytes + offset, expected - offset,",
+      "scope_candidate": "while",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "static int read_all_at(int fd, char *bytes, size_t expected) {",
+        "    size_t offset = 0;",
+        "    while (offset < expected) {"
+      ],
+      "context_after": [
+        "                                  (off_t)offset);",
+        "        if (read_bytes < 0 && errno == EINTR) continue;",
+        "        if (read_bytes <= 0) return refuse(EIO);"
+      ],
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 151,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(fd, &trailer, 1, (off_t)expected) != 0) return refuse(EIO);",
+      "scope_candidate": "while",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "        offset += (size_t)read_bytes;",
+        "    }",
+        "    char trailer;"
+      ],
+      "context_after": [
+        "    return 0;",
+        "}",
+        ""
+      ],
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 83,
+      "apis": [
+        "Unsubscribe"
+      ],
+      "source": "GE04_MANAGER_IFACE, \"Unsubscribe\",",
+      "scope_candidate": "if",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "         * The bounded process supervisor will ultimately be required.",
+        "         */",
+        "        sd_bus_call_method(tx->bus, tx->owner, GE04_MANAGER_PATH,"
+      ],
+      "context_after": [
+        "                           NULL, NULL, \"\");",
+        "    }",
+        "    sd_bus_slot_unref(tx->job_slot);"
+      ],
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 283,
+      "apis": [
+        "Subscribe"
+      ],
+      "source": "GE04_MANAGER_IFACE, \"Subscribe\",",
+      "scope_candidate": "drain_pending",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "                            job_event, tx);",
+        "    if (r < 0) goto failed;",
+        "    r = sd_bus_call_method(bus, tx->owner, GE04_MANAGER_PATH,"
+      ],
+      "context_after": [
+        "                           NULL, NULL, \"\");",
+        "    if (r < 0) goto failed;",
+        "    tx->bus = bus;"
+      ],
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 306,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "return deny(EPERM); /* SECURITY HOLD: no StartTransientUnit */",
+      "scope_candidate": "ge04_systemd_create_exclusive",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "",
+        "int ge04_systemd_create_exclusive(struct ge04_systemd_transaction *tx) {",
+        "    if (tx) tx->poisoned = 1;"
+      ],
+      "context_after": [
+        "}"
+      ],
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected_owner_review_boundary.py",
+      "line": 25,
+      "apis": [
+        "mount"
+      ],
+      "source": "\"KERNEL_RESOURCE_CUSTODY\": \"Pinned original keeper, mount namespace and cgroup FDs\",",
+      "scope_candidate": "<module>",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "MappingProxyType"
+      ],
+      "context_before": [
+        "    \"ORIGINAL_JOURNAL_PROTECTED\": \"Externally root-owned prebirth and durable attempt fence\",",
+        "    \"EXCLUSIVE_UNIT_BIRTH\": \"Independent new fixed unit, non-adoption and request origin\",",
+        "    \"ROOT_MANAGER_JOB_BOUND\": \"Protected pre-request subscription and genuine job completion\","
+      ],
+      "context_after": [
+        "    \"PROTECTED_ACK_AND_TERMINAL\": \"Independent phase ACK, EMPTY/DENIED, cleanup and recovery\",",
+        "    \"APPROVED_DISPOSABLE_VM\": \"Authorized one-purpose root VM fault-injection evidence\",",
+        "    \"INDEPENDENT_HUMAN_ACCEPTANCE\": \"Adversarial human signoff and explicit Q13 release\","
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 24,
+      "apis": [
+        "Subscribe"
+      ],
+      "source": "\"\"\"Subscribe, listen, and remove listener under a short bounded GLib loop.",
+      "scope_candidate": "observe_fixed_job_signal",
+      "syntax_classification": "REFERENCE_OR_NONCALL",
+      "ast_call_callees": [],
+      "context_before": [
+        "",
+        "",
+        "def observe_fixed_job_signal(expected, *, window_seconds=1.0):"
+      ],
+      "context_after": [
+        "",
+        "    Does not create/modify units; registering for notifications is the only",
+        "    manager interaction besides querying its unique owner. The expected job"
+      ],
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 31,
+      "apis": [
+        "Subscribe"
+      ],
+      "source": "bus/Subscribe may extend wall-clock duration. Never use for authority.",
+      "scope_candidate": "observe_fixed_job_signal",
+      "syntax_classification": "REFERENCE_OR_NONCALL",
+      "ast_call_callees": [],
+      "context_before": [
+        "    identity is supplied by caller and has NO protected provenance.",
+        "",
+        "    NOTE: the GLib loop is time-limited, but synchronously establishing the"
+      ],
+      "context_after": [
+        "    \"\"\"",
+        "    if (sys.platform != \"linux\" or os.geteuid() == 0",
+        "            or type(window_seconds) not in (int, float)"
+      ],
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 100,
+      "apis": [
+        "add_signal_receiver"
+      ],
+      "source": "match = bus.add_signal_receiver(",
+      "scope_candidate": "observe_fixed_job_signal",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "bus.add_signal_receiver"
+      ],
+      "context_before": [
+        "        try:",
+        "            # Subscription precedes our observation interval. However, it is",
+        "            # NOT bound to any exclusive StartTransientUnit request here."
+      ],
+      "context_after": [
+        "                on_signal, signal_name=SIGNAL, dbus_interface=MANAGER_IFACE,",
+        "                bus_name=owner, path=MANAGER_PATH, sender_keyword=\"sender\")",
+        "            manager = dbus.Interface("
+      ],
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 106,
+      "apis": [
+        "Subscribe"
+      ],
+      "source": "manager.Subscribe(timeout=1)",
+      "scope_candidate": "observe_fixed_job_signal",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "manager.Subscribe"
+      ],
+      "context_before": [
+        "            manager = dbus.Interface(",
+        "                bus.get_object(owner, MANAGER_PATH,",
+        "                               follow_name_owner_changes=False), MANAGER_IFACE)"
+      ],
+      "context_after": [
+        "            subscribed = True",
+        "            if str(bus.get_name_owner(SERVICE)) != owner:",
+        "                raise ValueError(\"Manager changed before event loop\")"
+      ],
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 137,
+      "apis": [
+        "Unsubscribe"
+      ],
+      "source": "manager.Unsubscribe(timeout=1)",
+      "scope_candidate": "observe_fixed_job_signal",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "manager.Unsubscribe"
+      ],
+      "context_before": [
+        "                match.remove()",
+        "            if subscribed:",
+        "                try:"
+      ],
+      "context_after": [
+        "                except Exception:",
+        "                    # Cannot establish complete cancellation/manager state.",
+        "                    # No positive result should be treated as authoritative."
+      ],
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 58,
+      "apis": [
+        "_mount"
+      ],
+      "source": "def _mount(raw):",
+      "scope_candidate": "_mount",
+      "syntax_classification": "REFERENCE_OR_NONCALL",
+      "ast_call_callees": [],
+      "context_before": [
+        "    return fields[0].decode(\"ascii\"), ticks",
+        "",
+        ""
+      ],
+      "context_after": [
+        "    if type(raw) is not bytes or not 0 < len(raw) <= 1048576:",
+        "        raise ValueError(\"Unbounded keeper mountinfo\")",
+        "    mounts = []"
+      ],
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 74,
+      "apis": [
+        "mount"
+      ],
+      "source": "raise ValueError(\"Unexpected cgroup mount scope\")",
+      "scope_candidate": "_mount",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "ValueError"
+      ],
+      "context_before": [
+        "            if (before[3:5] != [b\"/\", b\"/sys/fs/cgroup\"]",
+        "                    or not re.fullmatch(rb\"[1-9][0-9]*\", before[0])",
+        "                    or not re.fullmatch(rb\"[0-9]+:[0-9]+\", before[2])):"
+      ],
+      "context_after": [
+        "            mounts.append((int(before[0]), before[2].decode(\"ascii\")))",
+        "    if len(mounts) != 1:",
+        "        raise ValueError(\"Missing or ambiguous keeper cgroup2 mount\")"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 77,
+      "apis": [
+        "mount"
+      ],
+      "source": "raise ValueError(\"Missing or ambiguous keeper cgroup2 mount\")",
+      "scope_candidate": "_mount",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "ValueError"
+      ],
+      "context_before": [
+        "                raise ValueError(\"Unexpected cgroup mount scope\")",
+        "            mounts.append((int(before[0]), before[2].decode(\"ascii\")))",
+        "    if len(mounts) != 1:"
+      ],
+      "context_after": [
+        "    return mounts[0]",
+        "",
+        ""
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 87,
+      "apis": [
+        "mount"
+      ],
+      "source": "\"\"\"Observe real pidfd/procfs/mount/cgroup, compare to original binding.",
+      "scope_candidate": "observe_fixed_unit_kernel",
+      "syntax_classification": "REFERENCE_OR_NONCALL",
+      "ast_call_callees": [],
+      "context_before": [
+        "",
+        "",
+        "def observe_fixed_unit_kernel(original, manager):"
+      ],
+      "context_after": [
+        "",
+        "    Neither supplied input is authenticated here. Source/expected reader",
+        "    custody and unit birth require an independently reviewed root bootstrap."
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 123,
+      "apis": [
+        "_mount",
+        "mount"
+      ],
+      "source": "mount = _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576))",
+      "scope_candidate": "observe_fixed_unit_kernel",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "_mount",
+        "_read_fixed"
+      ],
+      "context_before": [
+        "        poller.register(pidfd, select.POLLIN | select.POLLHUP | select.POLLERR)",
+        "        if poller.poll(0):",
+        "            raise ValueError(\"Keeper pidfd exited\")"
+      ],
+      "context_after": [
+        "        if mount != (original.get(\"mountId\"), original.get(\"mountDevice\")):",
+        "            raise ValueError(\"Keeper cgroup mount replaced\")",
+        "        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC"
+      ],
+      "review_categories": [
+        "custody_and_locking",
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "file provenance and ownership",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 124,
+      "apis": [
+        "mount"
+      ],
+      "source": "if mount != (original.get(\"mountId\"), original.get(\"mountDevice\")):",
+      "scope_candidate": "observe_fixed_unit_kernel",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "original.get"
+      ],
+      "context_before": [
+        "        if poller.poll(0):",
+        "            raise ValueError(\"Keeper pidfd exited\")",
+        "        mount = _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576))"
+      ],
+      "context_after": [
+        "            raise ValueError(\"Keeper cgroup mount replaced\")",
+        "        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC",
+        "        ids = original.get(\"ancestry\")"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 125,
+      "apis": [
+        "mount"
+      ],
+      "source": "raise ValueError(\"Keeper cgroup mount replaced\")",
+      "scope_candidate": "observe_fixed_unit_kernel",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "ValueError"
+      ],
+      "context_before": [
+        "            raise ValueError(\"Keeper pidfd exited\")",
+        "        mount = _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576))",
+        "        if mount != (original.get(\"mountId\"), original.get(\"mountDevice\")):"
+      ],
+      "context_after": [
+        "        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC",
+        "        ids = original.get(\"ancestry\")",
+        "        if (type(ids) is not tuple or len(ids) != 3):"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 167,
+      "apis": [
+        "_mount",
+        "mount"
+      ],
+      "source": "or _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576)) != mount",
+      "scope_candidate": "observe_fixed_unit_kernel",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "_mount",
+        "_read_fixed"
+      ],
+      "context_before": [
+        "            for fd in reversed(opened):",
+        "                os.close(fd)",
+        "        if (proc_sample() not in (\"R\", \"S\", \"D\", \"T\") or poller.poll(0)"
+      ],
+      "context_after": [
+        "                or original != original_snapshot or manager != manager_snapshot):",
+        "            raise ValueError(\"Original/kernel generation changed during read\")",
+        "        return MappingProxyType({"
+      ],
+      "review_categories": [
+        "custody_and_locking",
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "file provenance and ownership",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 172,
+      "apis": [
+        "mount"
+      ],
+      "source": "\"pid\": pid, \"startticks\": ticks, \"mount\": mount,",
+      "scope_candidate": "observe_fixed_unit_kernel",
+      "syntax_classification": "AST_CALL",
+      "ast_call_callees": [
+        "MappingProxyType"
+      ],
+      "context_before": [
+        "            raise ValueError(\"Original/kernel generation changed during read\")",
+        "        return MappingProxyType({",
+        "            \"status\": \"UNQUALIFIED_KERNEL_UNIT_CORRELATION\","
+      ],
+      "context_after": [
+        "            \"cgroup\": \"/system.slice/\" + UNIT,",
+        "        })",
+        "    finally:"
+      ],
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 170,
+      "apis": [
+        "accept4"
+      ],
+      "source": "s->fd=accept4(listener,NULL,NULL,SOCK_CLOEXEC|SOCK_NONBLOCK);",
+      "scope_candidate": "if",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " for(;;){",
+        "  int status=ready(s,listener,POLLIN,until);",
+        "  if(status)return fail(s,status);"
+      ],
+      "context_after": [
+        "  if(s->fd>=0)break;",
+        "  if(errno!=EINTR&&errno!=EAGAIN&&errno!=EWOULDBLOCK)return fail(s,GE04_STREAM_DENIED);",
+        " }"
+      ],
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "required_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 189,
+      "apis": [
+        "SCM_RIGHTS"
+      ],
+      "source": "if(c->cmsg_level==SOL_SOCKET&&(c->cmsg_type==SCM_RIGHTS",
+      "scope_candidate": "if",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        " for(struct cmsghdr *c=CMSG_FIRSTHDR(msg);c;c=CMSG_NXTHDR(msg,c)){",
+        "  if(c->cmsg_len<CMSG_LEN(0)){valid=0;continue;}",
+        "  size_t bytes=c->cmsg_len-CMSG_LEN(0);"
+      ],
+      "context_after": [
+        "#ifdef SCM_PIDFD",
+        "      ||c->cmsg_type==SCM_PIDFD",
+        "#endif"
+      ],
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "required_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 212,
+      "apis": [
+        "recvmsg"
+      ],
+      "source": "ssize_t n=recvmsg(s->fd,&msg,MSG_CMSG_CLOEXEC|MSG_DONTWAIT);",
+      "scope_candidate": "receive_exact",
+      "syntax_classification": "C_SOURCE_LEXICAL_CANDIDATE",
+      "ast_call_callees": [],
+      "context_before": [
+        "  union {struct cmsghdr align;unsigned char bytes[CMSG_SPACE(sizeof(struct ucred))+CMSG_SPACE(16*sizeof(int))];} control;",
+        "  struct iovec iov={.iov_base=out+used,.iov_len=length-used};",
+        "  struct msghdr msg={.msg_iov=&iov,.msg_iovlen=1,.msg_control=control.bytes,.msg_controllen=sizeof(control.bytes)};"
+      ],
+      "context_after": [
+        "  if(n<0){if(errno==EINTR||errno==EAGAIN||errno==EWOULDBLOCK)continue;return GE04_STREAM_DENIED;}",
+        "  int valid=controls(s,&msg); /* Close received descriptors even on EOF/rejection. */",
+        "  if(!valid||n<=0)return GE04_STREAM_DENIED;"
+      ],
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "required_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "author_disposition": "REQUIRES_SOURCE_LEVEL_SECURITY_ADJUDICATION",
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    }
+  ],
+  "limitations": "C scope approximation, no C AST, no interprocedural authorization proof, no runtime alias resolution, no human security acceptance."
+}

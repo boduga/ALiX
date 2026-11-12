@@ -115,7 +115,10 @@ int main(int argc,char **argv){
  if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0))die("no_new_privs failed");
  if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||
     setresuid(target,target,target))die("identity isolation failed");
- if(getuid()!=target||geteuid()!=target||getgid()!=(gid_t)target)die("identity mismatch");
+ if(getuid()!=target||geteuid()!=target||getgid()!=(gid_t)target||
+    getegid()!=(gid_t)target)die("identity mismatch");
+ uid_t ru,eu,su;gid_t rg,eg,sg;
+ if(getresuid(&ru,&eu,&su)||getresgid(&rg,&eg,&sg)||ru!=target||eu!=target||su!=target||rg!=(gid_t)target||eg!=(gid_t)target||sg!=(gid_t)target||getgroups(0,NULL)!=0)die("saved identity or supplementary groups mismatch");
  /* Close all inherited FDs except standard streams; stdout/stderr are
   * diagnostic-only and MUST NOT be treated as authenticated peer evidence. */
  close_inherited_fds(executable_fd);

@@ -57,7 +57,31 @@ power-loss durability or protected production registration.
 Pre-intent crash residues cannot authorize worker recovery. A separate empty
 sweep can rmdir only validated empty worker-named cgroups inside the newly owned
 unit and remove canonical unpublished metadata. It never writes cgroup.kill or
-adopts a process. Populated, malformed or mismatched state remains quarantined.
+adopts a process. A victim directory is removable only when a parsed canonical
+`intent.tmp` names it and its recorded device/inode equal the observed entry;
+the sweep never derives identity from the directory it is about to remove, and
+an absent or unparsable record is quarantine. Populated, malformed or
+mismatched state remains quarantined.
+
+Consequence: an empty `worker-*` directory left by a crash **before**
+`intent.tmp` publication (the `crash-leaf` mode) has no durable recovery
+record, so the native sweep now refuses it and reports QUARANTINE instead of
+removing it by name. Recovery authority for that residue is therefore an
+operator decision on the disposable-VM harness, not the helper. This is the
+intended fail-closed trade: the helper stops being able to delete a directory
+it can only identify by scanning.
+
+## Root identity and custody predicates
+
+The privileged entry gate requires real and effective uid **and** gid to be
+zero. A root-group-only or setgid invocation refuses with 77 before setup. Every
+custody predicate — private work directory, root0600 records, cgroup controls
+before and after reads, the leaf directory and the worker's validated
+`/dev/null` — requires root:root (`st_uid==0 && st_gid==0`), and record/work
+directory modes are compared exactly so a setgid object refuses. This matches
+the protected native libraries and the runtime-view fixture; root uid alone is
+not the protected context on the one fixture that writes cgroup.kill and
+cgroup.procs.
 
 ## Trusted staging and execution
 
@@ -90,7 +114,14 @@ Local compile/argument/nonroot checks:
 
 ```sh
 python3 -m unittest discover -s tests/agents -p test_ge04_cgroup_worker.py -v
+python3 -B -m unittest discover -s tests/agents -p test_ge04_worker_sweep_admission.py -v
 ```
+
+The second command pins the sweep intent-binding and root:root custody
+predicates. It compiles `tests/fixtures/ge04-sweep-admission-probe.c`, which
+includes the real helper source with `main` renamed and evaluates only the
+static admission predicates over fabricated inputs. It is a regression guard,
+not a privileged qualification.
 
 After reviewed root staging, exact privileged invocation on the designated VM:
 
@@ -145,3 +176,5 @@ unprivileged write permission is granted; exact modes are restored before recove
 Executed closed-fixture results and evidence limits are recorded in
 `docs/audits/evidence/ge04/r1b2-cgroup-2026-11-09/record.md`. This evidence
 does not change the SECURITY HOLD or qualify the remaining B2 requirements.
+
+> **Evidence supersession (2026-11-11):** The r1b2-cgroup-2026-11-09 packet qualifies the historical worker source `5362bdb0…` and controller `5f65166a…` only. HIGH-1/HIGH-2 changed source and the `crash-leaf` recovery expectation: an unjournaled leaf now causes helper refusal (77/QUARANTINE), not name-scan adoption. The previous 24 live cases are **not** qualification evidence for the revised source/controller; fresh independently approved staging, hashes and live evidence are required before privileged use.

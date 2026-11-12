@@ -1,0 +1,132 @@
+{
+  "method": "AUTHOR_SOURCE_CONTROL_FLOW_OBSERVATIONS_NOT_SECURITY_ACCEPTANCE",
+  "entries": [
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "line": 58,
+      "source": "if(mkdirat(parent,argv[2],0700)){",
+      "operation": "leaf creation",
+      "author_observed_guards": "strict-mode parent validation, EEXIST refusal",
+      "unresolved_risk": "non-strict arbitrary parent; fixture-only routing must be independently confirmed",
+      "independent_reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 405,
+      "source": "if(mount(NULL,\"/\",NULL,MS_REC|MS_PRIVATE,NULL))_exit(121);",
+      "operation": "namespace mount propagation",
+      "author_observed_guards": "child bootstrap; error terminates _exit(121)",
+      "unresolved_risk": "namespace isolation and mount capability require privileged independent gate",
+      "independent_reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 407,
+      "source": "if(mount(\"none\",\"/sys/fs/cgroup\",\"cgroup2\",MS_NOSUID|MS_NODEV|MS_NOEXEC,NULL))_exit(123);",
+      "operation": "cgroup2 mount",
+      "author_observed_guards": "child bootstrap; error terminates _exit(123)",
+      "unresolved_risk": "namespace target and mount propagation require privileged independent gate",
+      "independent_reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 531,
+      "source": "bindings(c)&&budget_ok()&&unlinkat(c->outer,name,AT_REMOVEDIR)==0;",
+      "operation": "inner directory removal",
+      "author_observed_guards": "inner_custody, controllers, known_children, empty, bindings, budget",
+      "unresolved_risk": "named entry may be replaced after fd/name identity check",
+      "independent_reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 538,
+      "source": "return intent(c->work,name,&r)&&records_equal(&r,&c->record)&&budget_ok()&&unlinkat(c->work,name,0)==0;",
+      "operation": "journal removal",
+      "author_observed_guards": "intent canonical parse, records_equal, budget",
+      "unresolved_risk": "record can be replaced between parse and unlink unless writer exclusion is established",
+      "independent_reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 585,
+      "source": "unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "operation": "outer directory removal",
+      "author_observed_guards": "owned outer, bindings, child cleanup, empty, deadline",
+      "unresolved_risk": "name replacement and partial cleanup/replay require review",
+      "independent_reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 675,
+      "source": "!bindings(c)||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "operation": "unpublished temp removal",
+      "author_observed_guards": "absence of named outer, pending intent equality, bindings",
+      "unresolved_risk": "name/record check-to-unlink race; crash replay",
+      "independent_reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 724,
+      "source": "if(!budget_ok()||mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "operation": "outer directory creation",
+      "author_observed_guards": "setup approval, pinned parent and budget, exclusive mkdirat",
+      "unresolved_risk": "birth-to-journal crash consistency and parent write exclusion",
+      "independent_reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 730,
+      "source": "!budget_ok()||mkdirat(c.outer,\"launcher\",0700)||!budget_ok()||mkdirat(c.outer,\"payload\",0700)||",
+      "operation": "inner directory creation",
+      "author_observed_guards": "outer custody and budget, exclusive mkdirat",
+      "unresolved_risk": "partial inner creation cleanup and crash replay",
+      "independent_reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 331,
+      "source": "return unlinkat(c->work,name,0)==0;",
+      "operation": "journal artifact removal",
+      "author_observed_guards": "read_intent and records_equal before unlinkat",
+      "unresolved_risk": "journal name replacement after record read",
+      "independent_reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 353,
+      "source": "if(!bindings(c)||!empty(c)||unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "operation": "worker leaf removal",
+      "author_observed_guards": "owned_leaf, bindings, kill/empty/reap, final bindings and empty",
+      "unresolved_risk": "name replacement after final identity check",
+      "independent_reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 428,
+      "source": "if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}",
+      "operation": "sweep worker leaf removal",
+      "author_observed_guards": "unpublished intent and inode binding, reopen, empty, bindings",
+      "unresolved_risk": "readdir/reopen/unlink identity race; quarantine on mismatch",
+      "independent_reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 438,
+      "source": "fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "operation": "unpublished temp removal",
+      "author_observed_guards": "temp canonical parse, invocation and parent match, no named leaf",
+      "unresolved_risk": "temp record replacement between read and unlink",
+      "independent_reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 469,
+      "source": "if(mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "operation": "worker leaf creation",
+      "author_observed_guards": "setup approval, pinned parent and work lock, exclusive mkdirat",
+      "unresolved_risk": "birth-to-intent crash replay and unauthorized parent writers",
+      "independent_reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    }
+  ],
+  "limitations": "Observed guards are not proof of writer exclusion, branch reachability, race freedom, privileged runtime behavior, or historical 63-line closure."
+}

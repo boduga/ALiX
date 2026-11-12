@@ -1,0 +1,1949 @@
+{
+  "classification": "AUTHOR_SIDE_REVIEW_QUEUE_NOT_SECURITY_VERDICTS",
+  "categories": {
+    "bus_authority": [
+      "StartTransientUnit",
+      "Subscribe",
+      "Unsubscribe",
+      "add_signal_receiver",
+      "send_message",
+      "send_with_reply"
+    ],
+    "descriptor_transfer": [
+      "SCM_RIGHTS",
+      "accept4",
+      "recvmsg",
+      "sendmsg"
+    ],
+    "privilege_transition": [
+      "setgid",
+      "setgroups",
+      "setresgid",
+      "setresuid",
+      "setuid"
+    ],
+    "destructive_mutation": [
+      "mkdirat",
+      "mount",
+      "renameat2",
+      "umount2",
+      "unlinkat"
+    ],
+    "process_lifecycle": [
+      "CLONE_INTO_CGROUP",
+      "SYS_clone3",
+      "clone3",
+      "execveat",
+      "fork",
+      "kill",
+      "openat2",
+      "pidfd_send_signal",
+      "waitpid"
+    ],
+    "custody_and_locking": [
+      "_mount",
+      "flock",
+      "memfd_create",
+      "pread"
+    ]
+  },
+  "required_checks": {
+    "bus_authority": [
+      "bus target and method allowlist",
+      "subscription ownership and bounded teardown",
+      "error propagation and cancellation"
+    ],
+    "descriptor_transfer": [
+      "peer identity and descriptor provenance",
+      "bounded ancillary data and fd lifetime",
+      "rejection and cleanup on malformed input"
+    ],
+    "privilege_transition": [
+      "initial uid/euid/gid/egid custody",
+      "irreversible privilege drop",
+      "failure handling before worker action"
+    ],
+    "destructive_mutation": [
+      "pinned dirfd and inode/device binding",
+      "authorized target and TOCTOU window",
+      "idempotency and crash recovery"
+    ],
+    "process_lifecycle": [
+      "admission and process identity binding",
+      "pidfd or generation freshness",
+      "reap/kill/error and replay behavior"
+    ],
+    "custody_and_locking": [
+      "file provenance and ownership",
+      "single-writer and seal invariants",
+      "race/error/cleanup behavior"
+    ]
+  },
+  "entries": [
+    {
+      "file": "bootstrap_binding.py",
+      "line": 113,
+      "apis": [
+        "pread"
+      ],
+      "source": "raw = os.pread(fd, before.st_size + 1, 0)",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "review_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "line": 108,
+      "apis": [
+        "memfd_create"
+      ],
+      "source": "if not SUPPORTED or not hasattr(os, \"memfd_create\"):",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "review_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "line": 123,
+      "apis": [
+        "memfd_create"
+      ],
+      "source": "fd = os.memfd_create(\"ge04-unqualified-bootstrap\",",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "review_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 3,
+      "apis": [
+        "SCM_RIGHTS"
+      ],
+      "source": "Validates kernel SO_PEERCRED, bounded SCM_RIGHTS payload, expected generation,",
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "review_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 67,
+      "apis": [
+        "recvmsg"
+      ],
+      "source": "payload, ancillary, flags, _ = sock.recvmsg(",
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "review_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 72,
+      "apis": [
+        "SCM_RIGHTS"
+      ],
+      "source": "if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:",
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "review_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bounded_job_signal_observer.py",
+      "line": 132,
+      "apis": [
+        "kill"
+      ],
+      "source": "process.kill()",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 4,
+      "apis": [
+        "kill"
+      ],
+      "source": "with one end-to-end absolute monotonic deadline and terminal kill/reap.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 95,
+      "apis": [
+        "kill"
+      ],
+      "source": "process.kill()",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "line": 31,
+      "apis": [
+        "accept4"
+      ],
+      "source": "int client = accept4(listener, NULL, NULL, SOCK_CLOEXEC);",
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "review_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 28,
+      "apis": [
+        "kill"
+      ],
+      "source": "int kill=openat(leaf,\"cgroup.kill\",O_WRONLY|O_NOFOLLOW|O_CLOEXEC);",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 29,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(procs<0||events<0||kill<0){",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 32,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(kill>=0)close(kill);",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 36,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(fstat(procs,&a)||fstat(events,&b)||fstat(kill,&c)||",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 38,
+      "apis": [
+        "kill"
+      ],
+      "source": "close(procs);close(events);close(kill);close(leaf);return 74;",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 45,
+      "apis": [
+        "kill"
+      ],
+      "source": "close(procs);close(events);close(kill);close(leaf);return 75;",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 49,
+      "apis": [
+        "kill"
+      ],
+      "source": "close(procs);close(events);close(kill);close(leaf);return 76;",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 52,
+      "apis": [
+        "kill"
+      ],
+      "source": "close(procs);close(events);close(kill);close(leaf);",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "line": 77,
+      "apis": [
+        "kill"
+      ],
+      "source": "const char *name=i==0?\"cgroup.procs\":i==1?\"cgroup.events\":\"cgroup.kill\";",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "line": 58,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "if(mkdirat(parent,argv[2],0700)){",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 230,
+      "apis": [
+        "kill"
+      ],
+      "source": "!control_custody(c->outer,\"cgroup.kill\",c->killfd))goto out;",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 354,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child[slot],&status,WNOHANG|WUNTRACED);",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 405,
+      "apis": [
+        "mount"
+      ],
+      "source": "if(mount(NULL,\"/\",NULL,MS_REC|MS_PRIVATE,NULL))_exit(121);",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 406,
+      "apis": [
+        "mount"
+      ],
+      "source": "if(!strcmp(mode,\"fail-mount\"))_exit(122);",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 407,
+      "apis": [
+        "mount"
+      ],
+      "source": "if(mount(\"none\",\"/sys/fs/cgroup\",\"cgroup2\",MS_NOSUID|MS_NODEV|MS_NOEXEC,NULL))_exit(123);",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 443,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 445,
+      "apis": [
+        "SYS_clone3"
+      ],
+      "source": "c->child[slot]=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 531,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "bindings(c)&&budget_ok()&&unlinkat(c->outer,name,AT_REMOVEDIR)==0;",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 538,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "return intent(c->work,name,&r)&&records_equal(&r,&c->record)&&budget_ok()&&unlinkat(c->work,name,0)==0;",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 568,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "while((got=waitpid(-1,&status,WNOHANG))>0){}",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 585,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 601,
+      "apis": [
+        "flock"
+      ],
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "review_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 621,
+      "apis": [
+        "kill"
+      ],
+      "source": "c->killfd=control(c->outer,\"cgroup.kill\",O_WRONLY);",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 675,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "!bindings(c)||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 683,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child[0],&status,WNOHANG);",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 690,
+      "apis": [
+        "mount"
+      ],
+      "source": "const char *modes[]={\"run\",\"crash-pre-namespace\",\"crash-pinned\",\"crash-ready\",\"fail-mount\",\"fail-enable\",\"recover\",\"sweep-empty\"};",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 724,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "if(!budget_ok()||mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 730,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "!budget_ok()||mkdirat(c.outer,\"launcher\",0700)||!budget_ok()||mkdirat(c.outer,\"payload\",0700)||",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 743,
+      "apis": [
+        "mount"
+      ],
+      "source": "if(!strcmp(c.mode,\"fail-mount\")){",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 157,
+      "apis": [
+        "kill"
+      ],
+      "source": "c->killfd=control(c->leaf,\"cgroup.kill\",O_WRONLY);",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 177,
+      "apis": [
+        "kill"
+      ],
+      "source": "!control_custody(c->leaf,\"cgroup.kill\",c->killfd,c->leaf_stat.st_dev))return 0;",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 287,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child,&status,WNOHANG|WUNTRACED);",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 308,
+      "apis": [
+        "setgroups"
+      ],
+      "source": "if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||",
+      "review_categories": [
+        "privilege_transition"
+      ],
+      "review_checks": [
+        "failure handling before worker action",
+        "initial uid/euid/gid/egid custody",
+        "irreversible privilege drop"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 309,
+      "apis": [
+        "setresgid",
+        "setresuid"
+      ],
+      "source": "setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+      "review_categories": [
+        "privilege_transition"
+      ],
+      "review_checks": [
+        "failure handling before worker action",
+        "initial uid/euid/gid/egid custody",
+        "irreversible privilege drop"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 311,
+      "apis": [
+        "fork"
+      ],
+      "source": "pid_t descendant=fork();if(descendant<0)_exit(125);",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 331,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "return unlinkat(c->work,name,0)==0;",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 346,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "while((n=waitpid(-1,&status,WNOHANG))>0){}",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 353,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "if(!bindings(c)||!empty(c)||unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 372,
+      "apis": [
+        "flock"
+      ],
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "review_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 428,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 438,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 469,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "if(mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 482,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 484,
+      "apis": [
+        "SYS_clone3"
+      ],
+      "source": "c.child=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "line": 17,
+      "apis": [
+        "mount"
+      ],
+      "source": "_EXPECTED_KERNEL = frozenset((\"status\", \"pid\", \"startticks\", \"mount\", \"cgroup\"))",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "line": 84,
+      "apis": [
+        "mount"
+      ],
+      "source": "or tuple(kernel[\"mount\"]) !=",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "line": 87,
+      "apis": [
+        "mount"
+      ],
+      "source": "raise ValueError(\"Kernel generation and mount inconsistent\")",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exclusive_birth_handoff.py",
+      "line": 41,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "if (value[\"unit\"] != UNIT or value[\"method\"] != \"StartTransientUnit\"",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "review_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "line": 14,
+      "apis": [
+        "execveat"
+      ],
+      "source": "execveat(3, \"\", argv + 1, (char *const[]){\"PATH=/usr/bin:/bin\", NULL}, AT_EMPTY_PATH);",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "line": 15,
+      "apis": [
+        "execveat"
+      ],
+      "source": "fprintf(stderr, \"execveat pinned probe failed: %s\\n\", strerror(errno));",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned.c",
+      "line": 13,
+      "apis": [
+        "execveat"
+      ],
+      "source": "execveat(4, \"\", argv, environ, AT_EMPTY_PATH);",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned.c",
+      "line": 14,
+      "apis": [
+        "execveat"
+      ],
+      "source": "fprintf(stderr, \"execveat pinned helper failed: %s\\n\", strerror(errno));",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 78,
+      "apis": [
+        "openat2"
+      ],
+      "source": "(void)path;die(\"openat2 unavailable\");",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 116,
+      "apis": [
+        "setgroups",
+        "setresgid"
+      ],
+      "source": "if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||",
+      "review_categories": [
+        "privilege_transition"
+      ],
+      "review_checks": [
+        "failure handling before worker action",
+        "initial uid/euid/gid/egid custody",
+        "irreversible privilege drop"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 117,
+      "apis": [
+        "setresuid"
+      ],
+      "source": "setresuid(target,target,target))die(\"identity isolation failed\");",
+      "review_categories": [
+        "privilege_transition"
+      ],
+      "review_checks": [
+        "failure handling before worker action",
+        "initial uid/euid/gid/egid custody",
+        "irreversible privilege drop"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 131,
+      "apis": [
+        "execveat"
+      ],
+      "source": "die(\"execveat unavailable\");",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 35,
+      "apis": [
+        "fork"
+      ],
+      "source": "pid_t child=fork();",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 36,
+      "apis": [
+        "fork"
+      ],
+      "source": "if(child<0){perror(\"fork\");return 70;}",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 45,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "if(waitpid(child,&status,WUNTRACED)!=child||!WIFSTOPPED(status)||WSTOPSIG(status)!=SIGSTOP){result=74;goto cleanup;}",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 49,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(send_pinned(fd,SIGKILL)<0){perror(\"kill\");result=77;goto cleanup;}",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 50,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 63,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(kill(child,SIGKILL)<0 && errno!=ESRCH)result=82;",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 67,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "do {reaped=waitpid(child,&status,0);}while(reaped<0&&errno==EINTR);",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "line": 24,
+      "apis": [
+        "kill"
+      ],
+      "source": "strcmp(argv[1],\"resume\")&&strcmp(argv[1],\"kill\")))return 64;",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "line": 35,
+      "apis": [
+        "kill"
+      ],
+      "source": "else if(!strcmp(argv[1],\"kill\"))sig=SIGKILL;",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "line": 38,
+      "apis": [
+        "pidfd_send_signal"
+      ],
+      "source": "if(syscall(SYS_pidfd_send_signal,fd,sig,NULL,0)<0){perror(\"pidfd_send_signal\");close(fd);return 72;}",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "review_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "prebirth_issuance_contract.py",
+      "line": 80,
+      "apis": [
+        "mount"
+      ],
+      "source": "raise ValueError(\"Invalid original mount and cgroup ancestry\")",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 122,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t n = pread(held->fence_fd, observed + offset,",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "review_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 129,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(held->fence_fd, &trailer, 1, (off_t)size) != 0 ||",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "review_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "line": 181,
+      "apis": [
+        "mount"
+      ],
+      "source": "return 0; /* Not proof of original cgroup birth or trusted mount owner. */",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 104,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t got = pread(held->intent_fd, observed + count,",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "review_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 111,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(held->intent_fd, &excess, 1, (off_t)length) != 0 ||",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "review_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 130,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "member && strcmp(member, \"StartTransientUnit\") == 0 &&",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "review_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "line": 46,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "member && strcmp(member, \"StartTransientUnit\") == 0 &&",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "review_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "line": 67,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "\"StartTransientUnit\");",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "review_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "line": 187,
+      "apis": [
+        "mount"
+      ],
+      "source": "return 0; /* UNQUALIFIED: matching current mount namespace only. */",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 144,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t read_bytes = pread(fd, bytes + offset, expected - offset,",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "review_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 151,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(fd, &trailer, 1, (off_t)expected) != 0) return refuse(EIO);",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "review_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 83,
+      "apis": [
+        "Unsubscribe"
+      ],
+      "source": "GE04_MANAGER_IFACE, \"Unsubscribe\",",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "review_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 283,
+      "apis": [
+        "Subscribe"
+      ],
+      "source": "GE04_MANAGER_IFACE, \"Subscribe\",",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "review_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 306,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "return deny(EPERM); /* SECURITY HOLD: no StartTransientUnit */",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "review_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected_owner_review_boundary.py",
+      "line": 25,
+      "apis": [
+        "mount"
+      ],
+      "source": "\"KERNEL_RESOURCE_CUSTODY\": \"Pinned original keeper, mount namespace and cgroup FDs\",",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 24,
+      "apis": [
+        "Subscribe"
+      ],
+      "source": "\"\"\"Subscribe, listen, and remove listener under a short bounded GLib loop.",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "review_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 31,
+      "apis": [
+        "Subscribe"
+      ],
+      "source": "bus/Subscribe may extend wall-clock duration. Never use for authority.",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "review_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 100,
+      "apis": [
+        "add_signal_receiver"
+      ],
+      "source": "match = bus.add_signal_receiver(",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "review_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 106,
+      "apis": [
+        "Subscribe"
+      ],
+      "source": "manager.Subscribe(timeout=1)",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "review_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 137,
+      "apis": [
+        "Unsubscribe"
+      ],
+      "source": "manager.Unsubscribe(timeout=1)",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "review_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 58,
+      "apis": [
+        "_mount"
+      ],
+      "source": "def _mount(raw):",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "review_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 74,
+      "apis": [
+        "mount"
+      ],
+      "source": "raise ValueError(\"Unexpected cgroup mount scope\")",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 77,
+      "apis": [
+        "mount"
+      ],
+      "source": "raise ValueError(\"Missing or ambiguous keeper cgroup2 mount\")",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 87,
+      "apis": [
+        "mount"
+      ],
+      "source": "\"\"\"Observe real pidfd/procfs/mount/cgroup, compare to original binding.",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 123,
+      "apis": [
+        "_mount",
+        "mount"
+      ],
+      "source": "mount = _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576))",
+      "review_categories": [
+        "custody_and_locking",
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "file provenance and ownership",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 124,
+      "apis": [
+        "mount"
+      ],
+      "source": "if mount != (original.get(\"mountId\"), original.get(\"mountDevice\")):",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 125,
+      "apis": [
+        "mount"
+      ],
+      "source": "raise ValueError(\"Keeper cgroup mount replaced\")",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 167,
+      "apis": [
+        "_mount",
+        "mount"
+      ],
+      "source": "or _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576)) != mount",
+      "review_categories": [
+        "custody_and_locking",
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "file provenance and ownership",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 172,
+      "apis": [
+        "mount"
+      ],
+      "source": "\"pid\": pid, \"startticks\": ticks, \"mount\": mount,",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "review_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 170,
+      "apis": [
+        "accept4"
+      ],
+      "source": "s->fd=accept4(listener,NULL,NULL,SOCK_CLOEXEC|SOCK_NONBLOCK);",
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "review_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 189,
+      "apis": [
+        "SCM_RIGHTS"
+      ],
+      "source": "if(c->cmsg_level==SOL_SOCKET&&(c->cmsg_type==SCM_RIGHTS",
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "review_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 212,
+      "apis": [
+        "recvmsg"
+      ],
+      "source": "ssize_t n=recvmsg(s->fd,&msg,MSG_CMSG_CLOEXEC|MSG_DONTWAIT);",
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "review_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    }
+  ]
+}

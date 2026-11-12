@@ -37,7 +37,7 @@ struct record {
 struct context {
  int work, lock, parent, leaf, procs, events, killfd, pidfd;
  pid_t child;
- struct stat work_stat, parent_stat, leaf_stat;
+ struct stat work_stat, lock_stat, parent_stat, leaf_stat;
  struct record record;
  int owned_leaf, published;
  const char *mode;
@@ -51,9 +51,26 @@ static long long clock_ms(void) {
 static int same_inode(const struct stat *a,const struct stat *b) {
  return a->st_dev==b->st_dev&&a->st_ino==b->st_ino;
 }
+/* Root:root ownership is a required part of every custody predicate. A
+ * root-group-only or setgid object is not the protected component. */
+static int root_owned(const struct stat *s) {
+ return s->st_uid==0&&s->st_gid==0;
+}
+/* The privileged entry gate is all four identities, matching the protected
+ * native libraries. Root-group-only or setgid invocation must refuse. Split
+ * from the syscall form so the exact predicate is executable in tests. */
+static int root_identity_of(uid_t uid,uid_t euid,gid_t gid,gid_t egid) {
+ return uid==0&&euid==0&&gid==0&&egid==0;
+}
+static int root_identity(void) {
+ return root_identity_of(getuid(),geteuid(),getgid(),getegid());
+}
+static int root_directory_stat(const struct stat *s) {
+ return S_ISDIR(s->st_mode)&&root_owned(s)&&!(s->st_mode&0022);
+}
 static int root_directory(int fd) {
  struct stat s;
- return fd>=0&&!fstat(fd,&s)&&S_ISDIR(s.st_mode)&&s.st_uid==0&&!(s.st_mode&0022);
+ return fd>=0&&!fstat(fd,&s)&&root_directory_stat(&s);
 }
 static int pin_directory(const char *path) {
  char copy[PATH_MAX];
@@ -68,10 +85,14 @@ static int pin_directory(const char *path) {
  }
  return fd;
 }
+static int regular_root_stat(const struct stat *s,mode_t mode,size_t max) {
+ /* Exact mode, including setgid/setuid bits: a setgid record is not trusted. */
+ return S_ISREG(s->st_mode)&&root_owned(s)&&s->st_nlink==1&&
+  (s->st_mode&07777)==mode&&s->st_size>=0&&(unsigned long long)s->st_size<=max;
+}
 static int regular_root(int fd,mode_t mode,size_t max) {
  struct stat s;
- return fd>=0&&!fstat(fd,&s)&&S_ISREG(s.st_mode)&&s.st_uid==0&&s.st_nlink==1&&
-  (s.st_mode&0777)==mode&&s.st_size>=0&&(unsigned long long)s.st_size<=max;
+ return fd>=0&&!fstat(fd,&s)&&regular_root_stat(&s,mode,max);
 }
 static int read_fd(int fd,char *out,size_t cap) {
  if(lseek(fd,0,SEEK_SET)<0)return 0;
@@ -121,10 +142,13 @@ static int records_equal(const struct record *a,const struct record *b) {
  return !strcmp(a->invocation,b->invocation)&&a->parent_dev==b->parent_dev&&a->parent_ino==b->parent_ino&&
   !strcmp(a->name,b->name)&&a->leaf_dev==b->leaf_dev&&a->leaf_ino==b->leaf_ino;
 }
+static int control_stat(const struct stat *s,const struct stat *base) {
+ return S_ISREG(s->st_mode)&&root_owned(s)&&!(s->st_mode&0022)&&s->st_dev==base->st_dev;
+}
 static int control(int leaf,const char *name,int flags) {
  int fd=openat(leaf,name,flags|O_NOFOLLOW|O_CLOEXEC);struct stat s,base;struct statfs fs;
  if(fd<0||fstat(fd,&s)||fstat(leaf,&base)||fstatfs(fd,&fs)||fs.f_type!=CGROUP2_SUPER_MAGIC||
-    !S_ISREG(s.st_mode)||s.st_uid!=0||(s.st_mode&0022)||s.st_dev!=base.st_dev){if(fd>=0)close(fd);return -1;}
+    !control_stat(&s,&base)){if(fd>=0)close(fd);return -1;}
  return fd;
 }
 static int open_controls(struct context *c) {
@@ -136,17 +160,18 @@ static int open_controls(struct context *c) {
 static int control_custody(int dir,const char *name,int fd,dev_t device) {
  struct stat pinned,named;
  return fd>=0&&!fstat(fd,&pinned)&&!fstatat(dir,name,&named,AT_SYMLINK_NOFOLLOW)&&
-  S_ISREG(pinned.st_mode)&&S_ISREG(named.st_mode)&&pinned.st_uid==0&&named.st_uid==0&&
+  S_ISREG(pinned.st_mode)&&S_ISREG(named.st_mode)&&root_owned(&pinned)&&root_owned(&named)&&
   !(pinned.st_mode&0022)&&!(named.st_mode&0022)&&pinned.st_dev==device&&same_inode(&pinned,&named);
 }
 static int bindings(struct context *c) {
  struct stat s;struct record a={0};int fd=pin_directory(WORK);
- int ok=fd>=0&&!fstat(fd,&s)&&(s.st_mode&0777)==0700&&same_inode(&s,&c->work_stat);if(fd>=0)close(fd);
- if(!ok||!approval(c->work,&a)||strcmp(a.invocation,c->record.invocation)||
+ int ok=fd>=0&&!fstat(fd,&s)&&(s.st_mode&07777)==0700&&same_inode(&s,&c->work_stat);if(fd>=0)close(fd);
+ if(!ok||!regular_root(c->lock,0600,0)||fstatat(c->work,".lock",&s,AT_SYMLINK_NOFOLLOW)||
+    !same_inode(&s,&c->lock_stat)||!approval(c->work,&a)||strcmp(a.invocation,c->record.invocation)||
     a.parent_dev!=c->record.parent_dev||a.parent_ino!=c->record.parent_ino)return 0;
  fd=pin_directory(PARENT);ok=fd>=0&&!fstat(fd,&s)&&same_inode(&s,&c->parent_stat);if(fd>=0)close(fd);
  if(!ok||!root_directory(c->leaf)||fstatat(c->parent,c->record.name,&s,AT_SYMLINK_NOFOLLOW)||
-    !S_ISDIR(s.st_mode)||s.st_uid!=0||(s.st_mode&0022)||!same_inode(&s,&c->leaf_stat))return 0;
+    !S_ISDIR(s.st_mode)||!root_owned(&s)||(s.st_mode&0022)||!same_inode(&s,&c->leaf_stat))return 0;
  if(!control_custody(c->leaf,"cgroup.procs",c->procs,c->leaf_stat.st_dev)||
     !control_custody(c->leaf,"cgroup.events",c->events,c->leaf_stat.st_dev)||
     !control_custody(c->leaf,"cgroup.kill",c->killfd,c->leaf_stat.st_dev))return 0;
@@ -272,7 +297,7 @@ static void worker(void) {
   * before stopping. A stopped orphan must neither retain the writer lock nor
   * prevent the controller observing privileged-helper EOF after a crash. */
  int nullfd=open("/dev/null",O_RDWR|O_NOFOLLOW|O_CLOEXEC);struct stat s;
- if(nullfd<0||fstat(nullfd,&s)||!S_ISCHR(s.st_mode)||s.st_uid!=0||s.st_rdev!=makedev(1,3))_exit(125);
+ if(nullfd<0||fstat(nullfd,&s)||!S_ISCHR(s.st_mode)||!root_owned(&s)||s.st_rdev!=makedev(1,3))_exit(125);
  for(int i=0;i<3;i++)if(dup2(nullfd,i)<0)_exit(125);
 #ifdef SYS_close_range
  if(syscall(SYS_close_range,3U,~0U,0))_exit(125);
@@ -282,6 +307,7 @@ static void worker(void) {
  if(raise(SIGSTOP))_exit(125);
  if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||
     setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);
+ uid_t ru,eu,su;gid_t rg,eg,sg;if(getresuid(&ru,&eu,&su)||getresgid(&rg,&eg,&sg)||ru!=TEST_UID||eu!=TEST_UID||su!=TEST_UID||rg!=TEST_UID||eg!=TEST_UID||sg!=TEST_UID||getgroups(0,NULL)!=0)_exit(125);
  pid_t descendant=fork();if(descendant<0)_exit(125);
  if(!descendant&&setsid()<0)_exit(125);
  for(;;)pause();
@@ -305,7 +331,8 @@ static int remove_artifact(struct context *c,const char *name) {
  return unlinkat(c->work,name,0)==0;
 }
 static int cleanup(struct context *c,int notify) {
- if(!c->owned_leaf)return 1;
+ /* No pinned, owned leaf is not evidence of a successful cleanup. */
+ if(!c->owned_leaf)return 0;
  if(!bindings(c))return 0;
  if(c->published){
   if(lseek(c->killfd,0,SEEK_SET)<0||write(c->killfd,"1",1)!=1)return 0;
@@ -339,9 +366,9 @@ static int no_worker_directories(struct context *c) {
 }
 static int setup(struct context *c) {
  c->work=pin_directory(WORK);
- if(c->work<0||fstat(c->work,&c->work_stat)||(c->work_stat.st_mode&0777)!=0700)return 0;
+ if(c->work<0||fstat(c->work,&c->work_stat)||(c->work_stat.st_mode&07777)!=0700)return 0;
  c->lock=openat(c->work,".lock",O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC,0600);
- if(!regular_root(c->lock,0600,0))return 0;
+ if(!regular_root(c->lock,0600,0)||fstat(c->lock,&c->lock_stat))return 0;
  if(flock(c->lock,LOCK_EX|LOCK_NB)){
   c->setup_reason=(errno==EWOULDBLOCK||errno==EAGAIN)?"LOCK_DENIED":"LOCK_ERROR";
   return 0;
@@ -363,26 +390,41 @@ static int open_recorded_leaf(struct context *c) {
     (unsigned long long)c->leaf_stat.st_ino!=c->record.leaf_ino||!open_controls(c))return 0;
  c->owned_leaf=1;return bindings(c);
 }
+/* Durable sweep admission: an existing worker-* directory may be removed only
+ * when a canonical unpublished intent.tmp was parsed AND its name/device/inode
+ * match the observed entry. A name scan is never recovery authority; absence of
+ * the original temp marker means QUARANTINE. Split out so tests exercise the
+ * exact predicate without privileged execution. */
+static int sweep_candidate_allowed(int has_temp,const struct record *pending,
+ const struct stat *observed,const char *name) {
+ if(!has_temp||!pending->leaf_dev||!pending->leaf_ino||!pending->parent_ino)return 0;
+ return !strcmp(name,pending->name)&&
+  (unsigned long long)observed->st_dev==pending->leaf_dev&&
+  (unsigned long long)observed->st_ino==pending->leaf_ino;
+}
 static int sweep_empty(struct context *c) {
  struct stat st;
  if(fstatat(c->work,"intent.v1",&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT)return 0;
- struct record pending={0};
+ struct record pending={0};int has_temp=0;
  if(fstatat(c->work,"intent.tmp",&st,AT_SYMLINK_NOFOLLOW)==0){
   if(!read_intent(c->work,"intent.tmp",&pending)||strcmp(pending.invocation,c->record.invocation)||
      pending.parent_dev!=c->record.parent_dev||pending.parent_ino!=c->record.parent_ino)return 0;
+  has_temp=1;
   if(fstatat(c->parent,pending.name,&st,AT_SYMLINK_NOFOLLOW)==0){
    if((unsigned long long)st.st_dev!=pending.leaf_dev||(unsigned long long)st.st_ino!=pending.leaf_ino)return 0;
   }else if(errno!=ENOENT)return 0;
  }else if(errno!=ENOENT)return 0;
  int copy=openat(c->parent,".",O_RDONLY|O_DIRECTORY|O_CLOEXEC);if(copy<0)return 0;
  DIR *dir=fdopendir(copy);if(!dir){close(copy);return 0;}struct dirent *e;int ok=1;
- struct record approved=c->record;
  while((e=readdir(dir))){
   if(!strcmp(e->d_name,".")||!strcmp(e->d_name,"..")||!strcmp(e->d_name,"controller"))continue;
   if(fstatat(c->parent,e->d_name,&st,AT_SYMLINK_NOFOLLOW)){ok=0;break;}
   if(!S_ISDIR(st.st_mode))continue;
   if(strlen(e->d_name)!=23||strncmp(e->d_name,"worker-",7)||!hex_string(e->d_name+7,16)){ok=0;break;}
-  c->record=approved;strcpy(c->record.name,e->d_name);c->record.leaf_dev=st.st_dev;c->record.leaf_ino=st.st_ino;
+  /* Never adopt by name: the durable unpublished intent must name this exact
+   * directory and record its device/inode, otherwise quarantine. */
+  if(!sweep_candidate_allowed(has_temp,&pending,&st,e->d_name)){ok=0;break;}
+  c->record=pending;
   if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}
   c->owned_leaf=0;
   close(c->procs);close(c->events);close(c->killfd);close(c->leaf);c->procs=c->events=c->killfd=c->leaf=-1;
@@ -391,8 +433,8 @@ static int sweep_empty(struct context *c) {
  if(!ok)return 0;
  struct record temp={0};
  if(fstatat(c->work,"intent.tmp",&st,AT_SYMLINK_NOFOLLOW)==0){
-  if(!read_intent(c->work,"intent.tmp",&temp)||strcmp(temp.invocation,approved.invocation)||
-     temp.parent_dev!=approved.parent_dev||temp.parent_ino!=approved.parent_ino||
+  if(!read_intent(c->work,"intent.tmp",&temp)||strcmp(temp.invocation,c->record.invocation)||
+     temp.parent_dev!=c->record.parent_dev||temp.parent_ino!=c->record.parent_ino||
      fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,"intent.tmp",0))return 0;
  }else if(errno!=ENOENT)return 0;
  return fsync(c->work)==0;
@@ -402,7 +444,9 @@ int main(int argc,char **argv) {
   "crash-leaf","crash-temp","crash-intent","crash-child","crash-running","recover","sweep-empty"};
  int valid=0;if(argc==2)for(size_t i=0;i<sizeof(modes)/sizeof(modes[0]);i++)if(!strcmp(argv[1],modes[i]))valid=1;
  if(!valid)return 64;
- if(getuid()!=0||geteuid()!=0)return 77;
+ /* All four identities must be root. A root-group-only or setgid invocation is
+  * not the protected root context and refuses before any setup. */
+ if(!root_identity())return 77;
  struct context c={.work=-1,.lock=-1,.parent=-1,.leaf=-1,.procs=-1,.events=-1,.killfd=-1,.pidfd=-1,.mode=argv[1]};
  int code=77,clean=0;const char *reason="PRECONDITION";
  if(!setup(&c)){if(c.setup_reason)reason=c.setup_reason;goto finished;}

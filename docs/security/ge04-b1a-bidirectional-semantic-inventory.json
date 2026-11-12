@@ -1,0 +1,567 @@
+{
+  "scope": "MEDIUM-2 M2.9 BIDIRECTIONAL INVENTORY COVERAGE",
+  "historical_matrix_units": 53,
+  "current_units": 54,
+  "current_extra_units": [
+    "unprivileged_observer.py"
+  ],
+  "per_file": [
+    {
+      "file": "bootstrap_binding.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 70,
+      "sensitive_lexical_sites": 1,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 55,
+      "sensitive_lexical_sites": 2,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 1,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 52,
+      "sensitive_lexical_sites": 3,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 1,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bounded_dispatch_evidence.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 24,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bounded_job_signal_observer.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 80,
+      "sensitive_lexical_sites": 1,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 1,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 82,
+      "sensitive_lexical_sites": 2,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 2,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 32,
+      "sensitive_lexical_sites": 1,
+      "c_authority_queue_sites": 1,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 26,
+      "sensitive_lexical_sites": 8,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 25,
+      "sensitive_lexical_sites": 1,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 19,
+      "sensitive_lexical_sites": 1,
+      "c_authority_queue_sites": 1,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 126,
+      "sensitive_lexical_sites": 19,
+      "c_authority_queue_sites": 14,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 109,
+      "sensitive_lexical_sites": 15,
+      "c_authority_queue_sites": 13,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup2-fixed-preflight.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 12,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup2-mount-preflight.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 11,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 43,
+      "sensitive_lexical_sites": 3,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 5,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "diagnostic-deadline.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 11,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "diagnostic-fd-wait.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 10,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exclusive_birth_handoff.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 67,
+      "sensitive_lexical_sites": 1,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 1,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 6,
+      "sensitive_lexical_sites": 2,
+      "c_authority_queue_sites": 1,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 5,
+      "sensitive_lexical_sites": 2,
+      "c_authority_queue_sites": 1,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 42,
+      "sensitive_lexical_sites": 4,
+      "c_authority_queue_sites": 2,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated_job_signal_worker.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 27,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 2,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated_phase_observer_worker.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 18,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 5,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "nonexecuting-sender-contract.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 8,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "oci_qualification_image.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 129,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "original_provenance_diagnostic.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 18,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "peercred.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 17,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "phase_controller.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 64,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 3,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 26,
+      "sensitive_lexical_sites": 7,
+      "c_authority_queue_sites": 5,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 20,
+      "sensitive_lexical_sites": 3,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "prebirth_fixture_journal.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 68,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 2,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "prebirth_issuance_contract.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 65,
+      "sensitive_lexical_sites": 1,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 1,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 41,
+      "sensitive_lexical_sites": 2,
+      "c_authority_queue_sites": 2,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 64,
+      "sensitive_lexical_sites": 1,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 76,
+      "sensitive_lexical_sites": 3,
+      "c_authority_queue_sites": 2,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 63,
+      "sensitive_lexical_sites": 2,
+      "c_authority_queue_sites": 1,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 66,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 63,
+      "sensitive_lexical_sites": 1,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 41,
+      "sensitive_lexical_sites": 2,
+      "c_authority_queue_sites": 2,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-root-controller.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 1,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-birth-observer.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 54,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-request.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 47,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 83,
+      "sensitive_lexical_sites": 3,
+      "c_authority_queue_sites": 2,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-transaction-state.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 3,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected_approval_observer.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 82,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 1,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected_owner_review_boundary.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 31,
+      "sensitive_lexical_sites": 1,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 1,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_absence_observer.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 27,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_event_contract.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 33,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 63,
+      "sensitive_lexical_sites": 5,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 1,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_unit_observer.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 58,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "transaction_consumption_fixture.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 75,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 8,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "kind": "Python",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 143,
+      "sensitive_lexical_sites": 9,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 4,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unprivileged_observer.py",
+      "kind": "Python",
+      "in_historical_matrix": false,
+      "compiler_name_candidates_or_ast_calls": 5,
+      "sensitive_lexical_sites": 0,
+      "c_authority_queue_sites": 0,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "worker-stream.c",
+      "kind": "C",
+      "in_historical_matrix": true,
+      "compiler_name_candidates_or_ast_calls": 65,
+      "sensitive_lexical_sites": 3,
+      "c_authority_queue_sites": 3,
+      "python_direct_import_call_candidates": 0,
+      "semantic_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    }
+  ],
+  "reconciled": {
+    "c_lexical_to_syntax_both_directions": 80,
+    "c_authority_queue_subset": 50,
+    "python_lexical_to_ast_api_candidates": 29,
+    "python_ast_calls": 1379,
+    "python_imported_call_candidates": 39,
+    "c_lowered_name_candidates": 1172
+  },
+  "unresolved": [
+    "This is artifact-to-artifact coverage, not bidirectional semantic completeness across every callsite.",
+    "C compiler lowered-name candidates have no source-level callsite provenance or indirect dispatch resolution.",
+    "Python AST and import candidates do not resolve dynamic imports, attribute aliases, decorators, monkeypatching or runtime targets.",
+    "Function-pointer, macro, wrapper, multiline and noncall authority reference coverage remains independently unproven.",
+    "Every translation unit needs reviewed per-file API allowlist and human site verdicts."
+  ],
+  "security_hold": "ACTIVE",
+  "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+}

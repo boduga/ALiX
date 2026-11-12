@@ -96,6 +96,6 @@ This census enumerates the tracked C translation units, direct quoted headers an
 
 `ge04-b1a-candidate-callgraph.json` records 365 candidate function nodes and 743 lexical/AST call edges from native C/Python source. **This is not a verified whole-program call graph.** C lexical matching cannot resolve cross-file linkage, macros, indirect calls, conditionals or actual link closure; Python AST cannot resolve imports and dynamic dispatch. These unresolved edges are explicitly retained, not treated as verified authority paths.
 
-`tmp/ge04-b1a03-test-results.txt` is a local nonprivileged test run log (not committed). Passing tests do not establish completeness of negative-path coverage, crash/race resistance, or root safety.
+`tmp/ge04-b1a03-test-results.txt` was a local, untracked nonprivileged test log and is **not authoritative or reproducible review evidence**. The tracked regression tests must be rerun at the final pinned revision. Passing tests do not establish completeness of negative-path coverage, crash/race resistance, or root safety.
 
 **Remaining mandatory gaps:** source/build graph closure, manual audit of each privileged operation and failure branch, independent reviewer sign-off, and source/binary/toolchain identity acceptance. B1-A.03 remains OPEN; no privileged execution or gate release.

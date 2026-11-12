@@ -1,0 +1,413 @@
+{
+  "method": "TOKEN_SPECIFIC_PYTHON_AST_CALL_SYNTAX_AUTHOR_TRIAGE",
+  "entries": [
+    {
+      "file": "bootstrap_binding.py",
+      "line": 113,
+      "source": "raw = os.pread(fd, before.st_size + 1, 0)",
+      "matches": [
+        {
+          "api": "pread",
+          "syntax": "MATCHED_API_DIRECT_CALL_SYNTAX",
+          "matching_callees": [
+            "os.pread"
+          ]
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "line": 108,
+      "source": "if not SUPPORTED or not hasattr(os, \"memfd_create\"):",
+      "matches": [
+        {
+          "api": "memfd_create",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "line": 123,
+      "source": "fd = os.memfd_create(\"ge04-unqualified-bootstrap\",",
+      "matches": [
+        {
+          "api": "memfd_create",
+          "syntax": "MATCHED_API_DIRECT_CALL_SYNTAX",
+          "matching_callees": [
+            "os.memfd_create"
+          ]
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 3,
+      "source": "Validates kernel SO_PEERCRED, bounded SCM_RIGHTS payload, expected generation,",
+      "matches": [
+        {
+          "api": "SCM_RIGHTS",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 67,
+      "source": "payload, ancillary, flags, _ = sock.recvmsg(",
+      "matches": [
+        {
+          "api": "recvmsg",
+          "syntax": "MATCHED_API_DIRECT_CALL_SYNTAX",
+          "matching_callees": [
+            "sock.recvmsg"
+          ]
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 72,
+      "source": "if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:",
+      "matches": [
+        {
+          "api": "SCM_RIGHTS",
+          "syntax": "AUTHORITY_CONSTANT_REFERENCE",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bounded_job_signal_observer.py",
+      "line": 132,
+      "source": "process.kill()",
+      "matches": [
+        {
+          "api": "kill",
+          "syntax": "MATCHED_API_DIRECT_CALL_SYNTAX",
+          "matching_callees": [
+            "process.kill"
+          ]
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 4,
+      "source": "with one end-to-end absolute monotonic deadline and terminal kill/reap.",
+      "matches": [
+        {
+          "api": "kill",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 95,
+      "source": "process.kill()",
+      "matches": [
+        {
+          "api": "kill",
+          "syntax": "MATCHED_API_DIRECT_CALL_SYNTAX",
+          "matching_callees": [
+            "process.kill"
+          ]
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "line": 17,
+      "source": "_EXPECTED_KERNEL = frozenset((\"status\", \"pid\", \"startticks\", \"mount\", \"cgroup\"))",
+      "matches": [
+        {
+          "api": "mount",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "line": 84,
+      "source": "or tuple(kernel[\"mount\"]) !=",
+      "matches": [
+        {
+          "api": "mount",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "line": 87,
+      "source": "raise ValueError(\"Kernel generation and mount inconsistent\")",
+      "matches": [
+        {
+          "api": "mount",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exclusive_birth_handoff.py",
+      "line": 41,
+      "source": "if (value[\"unit\"] != UNIT or value[\"method\"] != \"StartTransientUnit\"",
+      "matches": [
+        {
+          "api": "StartTransientUnit",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "prebirth_issuance_contract.py",
+      "line": 80,
+      "source": "raise ValueError(\"Invalid original mount and cgroup ancestry\")",
+      "matches": [
+        {
+          "api": "mount",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected_owner_review_boundary.py",
+      "line": 25,
+      "source": "\"KERNEL_RESOURCE_CUSTODY\": \"Pinned original keeper, mount namespace and cgroup FDs\",",
+      "matches": [
+        {
+          "api": "mount",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 24,
+      "source": "\"\"\"Subscribe, listen, and remove listener under a short bounded GLib loop.",
+      "matches": [
+        {
+          "api": "Subscribe",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 31,
+      "source": "bus/Subscribe may extend wall-clock duration. Never use for authority.",
+      "matches": [
+        {
+          "api": "Subscribe",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 100,
+      "source": "match = bus.add_signal_receiver(",
+      "matches": [
+        {
+          "api": "add_signal_receiver",
+          "syntax": "MATCHED_API_DIRECT_CALL_SYNTAX",
+          "matching_callees": [
+            "bus.add_signal_receiver"
+          ]
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 106,
+      "source": "manager.Subscribe(timeout=1)",
+      "matches": [
+        {
+          "api": "Subscribe",
+          "syntax": "MATCHED_API_DIRECT_CALL_SYNTAX",
+          "matching_callees": [
+            "manager.Subscribe"
+          ]
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 137,
+      "source": "manager.Unsubscribe(timeout=1)",
+      "matches": [
+        {
+          "api": "Unsubscribe",
+          "syntax": "MATCHED_API_DIRECT_CALL_SYNTAX",
+          "matching_callees": [
+            "manager.Unsubscribe"
+          ]
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 58,
+      "source": "def _mount(raw):",
+      "matches": [
+        {
+          "api": "_mount",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 74,
+      "source": "raise ValueError(\"Unexpected cgroup mount scope\")",
+      "matches": [
+        {
+          "api": "mount",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 77,
+      "source": "raise ValueError(\"Missing or ambiguous keeper cgroup2 mount\")",
+      "matches": [
+        {
+          "api": "mount",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 87,
+      "source": "\"\"\"Observe real pidfd/procfs/mount/cgroup, compare to original binding.",
+      "matches": [
+        {
+          "api": "mount",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 123,
+      "source": "mount = _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576))",
+      "matches": [
+        {
+          "api": "_mount",
+          "syntax": "MATCHED_API_DIRECT_CALL_SYNTAX",
+          "matching_callees": [
+            "_mount"
+          ]
+        },
+        {
+          "api": "mount",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 124,
+      "source": "if mount != (original.get(\"mountId\"), original.get(\"mountDevice\")):",
+      "matches": [
+        {
+          "api": "mount",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 125,
+      "source": "raise ValueError(\"Keeper cgroup mount replaced\")",
+      "matches": [
+        {
+          "api": "mount",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 167,
+      "source": "or _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576)) != mount",
+      "matches": [
+        {
+          "api": "_mount",
+          "syntax": "MATCHED_API_DIRECT_CALL_SYNTAX",
+          "matching_callees": [
+            "_mount"
+          ]
+        },
+        {
+          "api": "mount",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 172,
+      "source": "\"pid\": pid, \"startticks\": ticks, \"mount\": mount,",
+      "matches": [
+        {
+          "api": "mount",
+          "syntax": "MATCHED_API_NONCALL_OR_AMBIGUOUS",
+          "matching_callees": []
+        }
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    }
+  ],
+  "limitations": "Does not resolve dynamic dispatch, aliasing, semantic authority, provenance or negative paths."
+}

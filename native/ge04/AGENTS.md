@@ -205,6 +205,17 @@ control plane or treat a VM/remote host as already qualified.
 - `cgroup-worker-qualification.c`: closed fixed-worker fixture for exclusive
   cgroup birth/stop/attach/descendant cleanup and same-boot helper-crash recovery.
   It has no arbitrary path/PID/UID/executable interface or production consumer.
+  The privileged entry gate requires real/effective uid AND gid all zero, and
+  every custody predicate requires root:root with exact record/work-directory
+  modes. `sweep_empty` never adopts a `worker-*` directory by name scan: removal
+  needs a parsed canonical `intent.tmp` whose name/device/inode match the
+  observed entry (`sweep_candidate_allowed`), otherwise QUARANTINE.
+  Harness-only operator disposition of an unjournaled empty leaf must pin the
+  parent and leaf dirfds, revalidate device/inode custody and emptiness, and
+  remove relative to the pinned parent; this is not helper sweep authority.
+  `tests/agents/test_ge04_worker_sweep_admission.py` pins both invariants
+  unprivileged via source shape and `tests/fixtures/ge04-sweep-admission-probe.c`;
+  that is not privileged recovery or kernel-custody qualification.
   `tests/agents/test_ge04_cgroup_worker.py` owns only its newly created exact
   transient qualification unit; it must validate trusted root staging first.
 - `cgroup-runtime-view-qualification.c`: separate, not-yet-reviewed closed
@@ -249,6 +260,9 @@ control plane or treat a VM/remote host as already qualified.
   authority for the fixed fixture, including stopped root launchers. Lost unit,
   parent or leaf binding means quarantine, not another kill target. A unit timer
   must never bypass quarantine; no automatic whole-subtree teardown fallback.
+  A `worker-*` directory discovered by a name scan is never recovery authority:
+  the empty sweep requires a canonical unpublished intent that binds that exact
+  name, device and inode, and removal derives no identity from the entry itself.
 - Fixed-qualifier child setup closes inherited lock/control descriptors and
   redirects standard streams before stopping. Stopped children must not retain
   the parent writer lock or stdout lifetime. Recheck leaf/control custody before
@@ -257,6 +271,11 @@ control plane or treat a VM/remote host as already qualified.
   fixed source/binary hashes and the documented disposable-VM scope. Never adopt
   a preexisting unit/work directory, change the witness, or grant sudo to repo
   scripts. No cgroup mutation follows merely from passing unprivileged tests.
+  The closed cgroup worker and runtime-view fixtures and root-gated protected
+  libraries require all four root identities (uid/euid/gid/egid) and root:root
+  custody. This is not yet universal: `isolated-worker-launcher.c` and the
+  preflight/leaf-ownership probes have weaker or absent gates and remain open
+  security-review follow-ups. Do not infer authorization from their checks.
 
 ## Work Guidance
 
@@ -282,7 +301,10 @@ Its live controller is unimplemented and root admission refuses, even with
 staging and flags. Local parser/refusal success does not qualify namespace views.
 For the closed cgroup fixture, read
 `docs/security/ge04-cgroup-worker-qualification.md` and run its local command
-first. Its privileged staged command requires both explicit qualification flags
+first. Also run
+`python3 -B -m unittest discover -s tests/agents -p test_ge04_worker_sweep_admission.py -v`,
+which pins the sweep intent-binding and root:root custody predicates without
+privilege. Its privileged staged command requires both explicit qualification flags
 and independent native source/root-scope review. Unknown/changed ownership leaves
 the exact unit/journal quarantined; report it rather than claiming cleanup.
 Local skips are not cross-UID qualification. Root cases require explicit flags,

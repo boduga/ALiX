@@ -1,3 +1,8 @@
+# HISTORICAL B1-A candidate source manifest (commit d6e22669). Not current-source verification.
+# The worker line below pins pre-HIGH-1/HIGH-2 source 5362bdb0b08586f51151f0b53519a48ababb557f9c31758283f3aab2ec06d757.
+# Current uncommitted HIGH-1/HIGH-2 worker SHA-256: cdb6e9498bfe928480d0f666ed4939d268b2adbad4db0762dbaadad48a065ef6.
+# The worker source has changed; regenerate/review the current authority matrix and
+# candidate closure before A.03 acceptance. GE-04 SECURITY HOLD ACTIVE.
 0bd31cf72de0a092876833b25ca4ea771de3b8846f174eb597e583807fb977c5  native/ge04/AGENTS.md
 ed644fe1187c268903a7404c561fe056d8169ccf356960da0b85298fd229431d  native/ge04/bootstrap_binding.py
 eb8eee722e8cc595faa6a1c29c9da632423825863c9d603547ad688a133ba74e  native/ge04/bootstrap_publisher.py

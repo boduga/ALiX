@@ -638,9 +638,90 @@ class CgroupLive(_Build, unittest.TestCase):
         self.assertIn("reason=RESUME_EBADF clean=1", result); self.assert_clean()
 
     def test_preintent_leaf_crash(self):
+        # HIGH-1: an unjournaled worker-* leaf is NEVER native sweep authority.
         phases, _ = self.invoke("crash-leaf", 88); self.assertEqual(phases, ["LEAF"])
         self.invoke("recover", 77); self.assertEqual(len(self.leaves()), 1)
-        self.invoke("sweep-empty", 0); self.assert_clean()
+        # The hardened sweep refuses the missing durable intent: quarantine, not
+        # name-scan adoption. Missing/mismatched intent must not be swept.
+        self.invoke("sweep-empty", 77)
+        self.assertEqual(len(self.leaves()), 1)
+        self.assertFalse((WORK / "intent.v1").exists())
+        self.assertFalse((WORK / "intent.tmp").exists())
+        self.assertTrue(bounded(lambda: synthetic_count() == 0))
+        # Reviewed operator disposition on this disposable-VM harness: the test
+        # itself created exactly this empty, root:root leaf and removes it
+        # directly. This is not native adoption-by-scan; the helper refused.
+        self.remove_reviewed_empty_leaf()
+        self.assert_clean()
+
+    def remove_reviewed_empty_leaf(self):
+        """Harness-only disposition of a quarantined, verified empty leaf.
+
+        Never use a pathname-only rmdir: pin the leaf and its trusted parent,
+        compare identities immediately before removal, and refuse on drift.
+        This is not permission to run the privileged test outside its VM gate.
+        """
+        self.verify_unit()
+        self.verify_workdir()
+        leaves = self.leaves()
+        self.assertEqual(len(leaves), 1)
+        leaf = leaves[0]
+        name = leaf.name
+        self.assertRegex(name, r"^worker-[0-9a-f]{16}$")
+        parent_fd = self.parent_fd
+        self.assertIsNotNone(parent_fd)
+        parent_now = os.fstat(parent_fd)
+        self.assertEqual((parent_now.st_dev, parent_now.st_ino),
+                         (self.parent_stat.st_dev, self.parent_stat.st_ino))
+        self.assertEqual((parent_now.st_uid, parent_now.st_gid), (0, 0))
+        self.assertFalse(parent_now.st_mode & 0o022)
+        leaf_fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                          dir_fd=parent_fd)
+        try:
+            pinned = os.fstat(leaf_fd)
+            self.assertTrue(stat.S_ISDIR(pinned.st_mode))
+            self.assertEqual((pinned.st_uid, pinned.st_gid), (0, 0))
+            self.assertFalse(pinned.st_mode & 0o022)
+            initial_named = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+            self.assertEqual((pinned.st_dev, pinned.st_ino),
+                             (initial_named.st_dev, initial_named.st_ino))
+            def leaf_text(control):
+                fd = os.open(control, os.O_RDONLY | os.O_NOFOLLOW,
+                             dir_fd=leaf_fd)
+                try:
+                    return os.read(fd, 4096).decode("ascii")
+                finally:
+                    os.close(fd)
+            self.assertEqual(leaf_text("cgroup.procs"), "")
+            self.assertIn("populated 0\n", leaf_text("cgroup.events"))
+            self.assertFalse((WORK / "intent.v1").exists())
+            self.assertFalse((WORK / "intent.tmp").exists())
+            # Revalidate pinned and named identities, including parent custody,
+            # immediately before unlinkat(AT_REMOVEDIR) via the parent dirfd.
+            self.verify_unit()
+            self.verify_workdir()
+            current_parent = os.fstat(parent_fd)
+            self.assertEqual((current_parent.st_dev, current_parent.st_ino),
+                             (self.parent_stat.st_dev, self.parent_stat.st_ino))
+            current_leaf = os.fstat(leaf_fd)
+            named_leaf = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+            self.assertEqual((current_leaf.st_dev, current_leaf.st_ino),
+                             (pinned.st_dev, pinned.st_ino))
+            self.assertEqual((named_leaf.st_dev, named_leaf.st_ino),
+                             (pinned.st_dev, pinned.st_ino))
+            self.assertEqual((named_leaf.st_uid, named_leaf.st_gid), (0, 0))
+            self.assertTrue(stat.S_ISDIR(named_leaf.st_mode))
+            self.assertFalse(named_leaf.st_mode & 0o022)
+            self.assertEqual(leaf_text("cgroup.procs"), "")
+            self.assertIn("populated 0\n", leaf_text("cgroup.events"))
+            os.rmdir(name, dir_fd=parent_fd)
+        finally:
+            os.close(leaf_fd)
+        work_fd = os.open(WORK, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.fsync(work_fd)
+        finally:
+            os.close(work_fd)
 
     def test_temp_crash(self):
         phases, _ = self.invoke("crash-temp", 88); self.assertEqual(phases[-1], "TEMP")

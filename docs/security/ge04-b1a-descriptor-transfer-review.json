@@ -1,0 +1,260 @@
+{
+  "scope": "MEDIUM-2 M2.5 DESCRIPTOR TRANSFER AND PEER AUTHORITY",
+  "c_authority_sites": [
+    {
+      "file": "broker-peer-probe.c",
+      "line": 31,
+      "apis": [
+        "accept4"
+      ],
+      "source": "int client = accept4(listener, NULL, NULL, SOCK_CLOEXEC);"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 170,
+      "apis": [
+        "accept4"
+      ],
+      "source": "s->fd=accept4(listener,NULL,NULL,SOCK_CLOEXEC|SOCK_NONBLOCK);"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 189,
+      "apis": [
+        "SCM_RIGHTS"
+      ],
+      "source": "if(c->cmsg_level==SOL_SOCKET&&(c->cmsg_type==SCM_RIGHTS"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 212,
+      "apis": [
+        "recvmsg"
+      ],
+      "source": "ssize_t n=recvmsg(s->fd,&msg,MSG_CMSG_CLOEXEC|MSG_DONTWAIT);"
+    }
+  ],
+  "source_paths": [
+    {
+      "file": "native/ge04/worker-stream.c",
+      "source_anchors": [
+        {
+          "fragment": "SO_PEERCRED",
+          "lines": [
+            175
+          ]
+        },
+        {
+          "fragment": "SO_PASSCRED",
+          "lines": [
+            153,
+            177
+          ]
+        },
+        {
+          "fragment": "MSG_TRUNC|MSG_CTRUNC",
+          "lines": [
+            184
+          ]
+        },
+        {
+          "fragment": "SCM_RIGHTS",
+          "lines": [
+            189
+          ]
+        },
+        {
+          "fragment": "SCM_PIDFD",
+          "lines": [
+            190,
+            191
+          ]
+        },
+        {
+          "fragment": "close(fd)",
+          "lines": [
+            47,
+            48,
+            51,
+            195
+          ]
+        },
+        {
+          "fragment": "MSG_CMSG_CLOEXEC|MSG_DONTWAIT",
+          "lines": [
+            212
+          ]
+        },
+        {
+          "fragment": "credentials==1",
+          "lines": [
+            203
+          ]
+        },
+        {
+          "fragment": "cred.pid!=s->peer.pid",
+          "lines": [
+            200
+          ]
+        }
+      ],
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "native/ge04/bootstrap_receiver.py",
+      "source_anchors": [
+        {
+          "fragment": "socket.SO_PEERCRED",
+          "lines": [
+            51
+          ]
+        },
+        {
+          "fragment": "inspect_generation(pid)",
+          "lines": [
+            58,
+            90
+          ]
+        },
+        {
+          "fragment": "socket.MSG_CMSG_CLOEXEC",
+          "lines": [
+            68
+          ]
+        },
+        {
+          "fragment": "socket.SCM_RIGHTS",
+          "lines": [
+            72
+          ]
+        },
+        {
+          "fragment": "socket.MSG_CTRUNC | socket.MSG_TRUNC",
+          "lines": [
+            77
+          ]
+        },
+        {
+          "fragment": "len(ancillary) != 1",
+          "lines": [
+            78
+          ]
+        },
+        {
+          "fragment": "len(received) != 1",
+          "lines": [
+            78
+          ]
+        },
+        {
+          "fragment": "read_sealed_bootstrap_binding(",
+          "lines": [
+            81
+          ]
+        },
+        {
+          "fragment": "os.close(fd)",
+          "lines": [
+            100
+          ]
+        }
+      ],
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "native/ge04/bootstrap_publisher.py",
+      "source_anchors": [
+        {
+          "fragment": "os.geteuid() == 0",
+          "lines": [
+            110
+          ]
+        },
+        {
+          "fragment": "os.memfd_create(",
+          "lines": [
+            123
+          ]
+        },
+        {
+          "fragment": "os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING",
+          "lines": [
+            124
+          ]
+        },
+        {
+          "fragment": "fcntl.F_ADD_SEALS",
+          "lines": [
+            129
+          ]
+        },
+        {
+          "fragment": "fcntl.F_GET_SEALS",
+          "lines": [
+            130
+          ]
+        },
+        {
+          "fragment": "os.close(fd)",
+          "lines": [
+            134
+          ]
+        },
+        {
+          "fragment": "raise PermissionError(\"GE-04 SECURITY HOLD: root publisher unimplemented\")",
+          "lines": [
+            140
+          ]
+        }
+      ],
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "native/ge04/broker-peer-probe.c",
+      "source_anchors": [
+        {
+          "fragment": "accept4(",
+          "lines": [
+            31
+          ]
+        },
+        {
+          "fragment": "SO_PEERCRED",
+          "lines": [
+            35
+          ]
+        },
+        {
+          "fragment": "cred.pid > 0",
+          "lines": [
+            35
+          ]
+        },
+        {
+          "fragment": "cred.uid == allowed",
+          "lines": [
+            36
+          ]
+        }
+      ],
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    }
+  ],
+  "observations": [
+    "C stream rejects descriptor-bearing ancillary messages and closes SCM_RIGHTS/SCM_PIDFD fds",
+    "C stream validates kernel peer credentials and one SCM_CREDENTIALS record",
+    "Python bootstrap receiver closes all decoded SCM_RIGHTS descriptors in finally, including rejected messages",
+    "Python bootstrap receiver validates peer credentials, generation, sealed binding and nonce/attempt",
+    "Unprivileged fixture memfd is sealed and privileged publisher is disabled"
+  ],
+  "unresolved": [
+    "C ancillary parser handling of malformed/truncated control structures and kernel auto-closed excess descriptors requires adversarial testing",
+    "Python ancillary parsing closes complete int-sized SCM_RIGHTS entries; malformed remainder and truncation require kernel-level validation",
+    "Peer credential and process-generation observations are not atomic; verify pidfd/generation binding through transfer",
+    "SO_PEERCRED on stream/seqpacket and SCM_CREDENTIALS per-message semantics require independent review",
+    "Descriptor lifetime, leak prevention, and error branches require syscall-level fault injection",
+    "Broker peer probe is an isolated fixture, not protected broker authorization"
+  ],
+  "decision": "AUTHOR_SOURCE_REVIEW_ONLY_NO_PRIVILEGED_TRANSFER_OR_SECURITY_ACCEPTANCE",
+  "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+}

@@ -1,0 +1,359 @@
+{
+  "scope": "GE-04 A.03 M2.12 INDEPENDENT HUMAN VERDICT HANDOFF",
+  "decision": "CHANGES_REQUIRED_OR_EVIDENCE_INCOMPLETE; HOLD",
+  "decision_authority": "NO_INDEPENDENT_HUMAN_VERDICT_RECEIVED",
+  "authoring_parent_revision": "d6e22669712e90ace6e4439d005c1856901964f3",
+  "review_revision": "RESOLVE_FROM_SIGNED_COMMIT_AT_REVIEW_TIME",
+  "working_tree_dirty": true,
+  "immutable_review_baseline_established": false,
+  "source_hashes": [
+    {
+      "path": "native/ge04/bootstrap_binding.py",
+      "sha256": "ed644fe1187c268903a7404c561fe056d8169ccf356960da0b85298fd229431d"
+    },
+    {
+      "path": "native/ge04/bootstrap_publisher.py",
+      "sha256": "eb8eee722e8cc595faa6a1c29c9da632423825863c9d603547ad688a133ba74e"
+    },
+    {
+      "path": "native/ge04/bootstrap_receiver.py",
+      "sha256": "165c615801665e0f16ec95b8150b33adb6d129b4b7392bd26c0d5a4599726207"
+    },
+    {
+      "path": "native/ge04/bounded_dispatch_evidence.py",
+      "sha256": "81dd1b1101ad32932e468b5414aa9f5d4624ba3760a1ad8e8b4a4254f63d7144"
+    },
+    {
+      "path": "native/ge04/bounded_job_signal_observer.py",
+      "sha256": "e6e25fc89ae66a815d54c8498af1f311962b2bc2d1512562c354f6637dbc6329"
+    },
+    {
+      "path": "native/ge04/bounded_phase_observer.py",
+      "sha256": "55a44fcabd6a4c2e47374d02bbc3ebef05cabaa98a8475aa620b684ed507d4aa"
+    },
+    {
+      "path": "native/ge04/broker-peer-probe.c",
+      "sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2"
+    },
+    {
+      "path": "native/ge04/cgroup-control-fd-qualification.c",
+      "sha256": "c44a068849500e0c97b87673ab187c754831d2dc1d8ae4da725647618cbec041"
+    },
+    {
+      "path": "native/ge04/cgroup-dirfd-qualification.c",
+      "sha256": "6574105e67ebf5dab7cfb0c4c7e699f8628e7102b63872f7a37236011c483c81"
+    },
+    {
+      "path": "native/ge04/cgroup-leaf-ownership-qualification.c",
+      "sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4"
+    },
+    {
+      "path": "native/ge04/cgroup-runtime-view-qualification.c",
+      "sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af"
+    },
+    {
+      "path": "native/ge04/cgroup-worker-qualification.c",
+      "sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e"
+    },
+    {
+      "path": "native/ge04/cgroup2-fixed-preflight.c",
+      "sha256": "3f05def25625b16ef11429b593728d3db1f59196f44f66386a6daae497017c7e"
+    },
+    {
+      "path": "native/ge04/cgroup2-mount-preflight.c",
+      "sha256": "12e3e18fc3956fb2375c5eaa0f7916c572a91cc8948d5a60f732cc7856380c7c"
+    },
+    {
+      "path": "native/ge04/cross_source_birth_reconciliation.py",
+      "sha256": "0ec48576a0c4ab31d027f823c6424a2fae61e1cdeaf520d31066ce75af2e7eee"
+    },
+    {
+      "path": "native/ge04/diagnostic-deadline.c",
+      "sha256": "aa876e75acd520a1085836d3d000fd0802cb3d2321f2687a128d10886ed1f6fd"
+    },
+    {
+      "path": "native/ge04/diagnostic-fd-wait.c",
+      "sha256": "6c947418f6cdb90431b5152b2300c3f709b5fa7b090a5cb9ff8d249af1a2f575"
+    },
+    {
+      "path": "native/ge04/exclusive_birth_handoff.py",
+      "sha256": "4fd52133aa51a4a0d98d35856654055dca16fb3135f431db97907a2838433abd"
+    },
+    {
+      "path": "native/ge04/exec-pinned-probe.c",
+      "sha256": "269f48509a139586e52b49675ac148921176e6fc6cfd265243591b432044fc83"
+    },
+    {
+      "path": "native/ge04/exec-pinned.c",
+      "sha256": "5e1363d9e07961f1403d9a3662f0f123c0991efa37025719148ab6f50253335f"
+    },
+    {
+      "path": "native/ge04/isolated-worker-launcher.c",
+      "sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b"
+    },
+    {
+      "path": "native/ge04/isolated_job_signal_worker.py",
+      "sha256": "fbf47bc7f2693aff5dc9f3ab0d69b05587dd7319c31972ad22809b651e200b10"
+    },
+    {
+      "path": "native/ge04/isolated_phase_observer_worker.py",
+      "sha256": "586c15243886553fd5c7b5ffc11d90569f80fb9ce2edc7d14554439f336b56df"
+    },
+    {
+      "path": "native/ge04/nonexecuting-sender-contract.c",
+      "sha256": "224f05c939b1d0b73579a1efe781d85a0bbaf6e70224bee1610bfc9debcdcc8b"
+    },
+    {
+      "path": "native/ge04/oci_qualification_image.py",
+      "sha256": "7f96b8a9a6f80c6538bd996a77ace82e150fdd4a7329f009bc5ca7bc8d14eabb"
+    },
+    {
+      "path": "native/ge04/original_provenance_diagnostic.py",
+      "sha256": "b1194a154d57638e30e0b35ae58a1f23f63f23a219312b0368ffec9d68148a56"
+    },
+    {
+      "path": "native/ge04/peercred.c",
+      "sha256": "3048a51bc84b8ba8ee9871a27d07b91ec674ff52b46612d08dd429408f36d983"
+    },
+    {
+      "path": "native/ge04/phase_controller.py",
+      "sha256": "f128971f19621df77b5d72cea511e429c74c84822b1f41c3994111aeb6633fc6"
+    },
+    {
+      "path": "native/ge04/pidfd-lifecycle-qualification.c",
+      "sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac"
+    },
+    {
+      "path": "native/ge04/pidfd-qualification.c",
+      "sha256": "776ba0c0c885a52afb2d951279dc4a757c0c432b9bb09b015cfe77841142b695"
+    },
+    {
+      "path": "native/ge04/prebirth_fixture_journal.py",
+      "sha256": "273a4b6a1deecdbd379edb5c47d2916a8239b5e30c9a10b42125c5e7227ad79d"
+    },
+    {
+      "path": "native/ge04/prebirth_issuance_contract.py",
+      "sha256": "f3a5b9bf7e74dc73fe514cdbe36e7839ada600d7c83982fc98271e2ec1f53f7e"
+    },
+    {
+      "path": "native/ge04/protected-attempt-fence.c",
+      "sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7"
+    },
+    {
+      "path": "native/ge04/protected-cgroup-custody.c",
+      "sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3"
+    },
+    {
+      "path": "native/ge04/protected-dispatch-intent.c",
+      "sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49"
+    },
+    {
+      "path": "native/ge04/protected-dispatch-preparation.c",
+      "sha256": "2035b4b5a6d560a69075f7cb7ca8d995734da822738f76df92a8d98805d3a2f3"
+    },
+    {
+      "path": "native/ge04/protected-keeper-custody.c",
+      "sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc"
+    },
+    {
+      "path": "native/ge04/protected-mount-namespace.c",
+      "sha256": "3ea5c5a1bb21c35d3a6936891d4bc90c0c75a1c556d596f16ee395243dd80506"
+    },
+    {
+      "path": "native/ge04/protected-prebirth-journal.c",
+      "sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb"
+    },
+    {
+      "path": "native/ge04/protected-root-controller.c",
+      "sha256": "e994999de7933d55b838c882583fe415b2b32eb8cf2d7c1c0b58b9c711fc9e51"
+    },
+    {
+      "path": "native/ge04/protected-systemd-birth-observer.c",
+      "sha256": "2c83bf395265e723f5d5ed2892edac6879ad4f77a21c316c3ce2f3c13b6f7d36"
+    },
+    {
+      "path": "native/ge04/protected-systemd-request.c",
+      "sha256": "25218a14f73523a71bd451a304ac497273f0edcd3f85c53110e386a7a4d7a9a0"
+    },
+    {
+      "path": "native/ge04/protected-systemd-transaction.c",
+      "sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0"
+    },
+    {
+      "path": "native/ge04/protected-transaction-state.c",
+      "sha256": "d72d5456ab43763bb8cbfec70ca56dc003e834859c2cf0eab5c540e41efd1830"
+    },
+    {
+      "path": "native/ge04/protected_approval_observer.py",
+      "sha256": "066c5f5dd69cbb8baf63c38d3c9c908c0134cb565b046c0d5d465494340a94f5"
+    },
+    {
+      "path": "native/ge04/protected_owner_review_boundary.py",
+      "sha256": "edb9d9eaf793e1d5a0a89efafcb8ee732a441aeb9746f5440b943227901340b8"
+    },
+    {
+      "path": "native/ge04/systemd_absence_observer.py",
+      "sha256": "261c4d5af67989d73c5f64148a995ccae125ff25f42cf01baaa435b53fd877bb"
+    },
+    {
+      "path": "native/ge04/systemd_job_event_contract.py",
+      "sha256": "abf5eec49e17e8f2a65a7ffc5e49bb9bd5b8d6fa8792e9155a23a913333b8ca4"
+    },
+    {
+      "path": "native/ge04/systemd_job_signal_observer.py",
+      "sha256": "e36da0146da76da7c89f713e51bfc5e6d10b867563ea668bd76184b1c21a80e9"
+    },
+    {
+      "path": "native/ge04/systemd_unit_observer.py",
+      "sha256": "e91802061bd61da05be82c1cd113aad93731fe8cee3eac5bdb17039c2570ce56"
+    },
+    {
+      "path": "native/ge04/transaction_consumption_fixture.py",
+      "sha256": "f0accd44c3efa61fb3227c472934db7ecc65f5e5fdcafd99ac5591023e959891"
+    },
+    {
+      "path": "native/ge04/unit_kernel_observer.py",
+      "sha256": "86da8c10920d5ad3f54554d3bd264ff98bc6f3aa11c46b13d782233ec2df631e"
+    },
+    {
+      "path": "native/ge04/unprivileged_observer.py",
+      "sha256": "5ba85f846925b2ff0e5ad568c245186de1ee4bd6f973ce53dbdc7c50074b6107"
+    },
+    {
+      "path": "native/ge04/worker-stream.c",
+      "sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3"
+    }
+  ],
+  "author_evidence_artifacts": [
+    {
+      "path": "docs/security/ge04-b1a-original-63-reconciliation.json",
+      "sha256": "b867086fc56f4f19336699343b5e3fce80f278e05260c4589cdb5e0b41d3e03a",
+      "scope": "MEDIUM-2 M2.8 HISTORICAL 63 OMISSIONS"
+    },
+    {
+      "path": "docs/security/ge04-b1a-bidirectional-semantic-inventory.json",
+      "sha256": "5c72b3209d6bddc4728ea4fc440b5a2e9dbb148247dbf2769ea0afaf43d4a9c3",
+      "scope": "MEDIUM-2 M2.9 BIDIRECTIONAL INVENTORY COVERAGE"
+    },
+    {
+      "path": "docs/security/ge04-b1a-tu-api-allowlists.json",
+      "sha256": "10f65f702e267977cc4ffcfe8f57930d1f5132332d405333b19c392788dbce94",
+      "scope": "MEDIUM-2 M2.10 PER-TRANSLATION-UNIT CANDIDATE API ALLOWLISTS"
+    },
+    {
+      "path": "docs/security/ge04-b1a-c-authority-review-queue.json",
+      "sha256": "120a362f92d5e9a4ae92b757fbdf2cf5e5f1f1235c00d296fc6bef9c30fe078f",
+      "scope": "AUTHOR_AUTHORITY_REVIEW_QUEUE_NOT_SECURITY_ACCEPTANCE"
+    },
+    {
+      "path": "docs/security/ge04-b1a-destructive-site-review.json",
+      "sha256": "5872a1884fb04082ca36b5c29690e00434a17fc5ef7e1cbce2b144563a8a4bdf",
+      "scope": "AUTHOR_SOURCE_CONTROL_FLOW_OBSERVATIONS_NOT_SECURITY_ACCEPTANCE"
+    },
+    {
+      "path": "docs/security/ge04-b1a-journal-recovery-review.json",
+      "sha256": "482b5852b5acbc628ba6505d37f35a3daed222404870c87ca8022c4c03e34f7b",
+      "scope": "MEDIUM-2 M2.1 JOURNAL REPLACEMENT AND CRASH RECOVERY"
+    },
+    {
+      "path": "docs/security/ge04-b1a-toctou-disposition.json",
+      "sha256": "50a6ba1c0d27106cd8d0328b80920b97c04ca79f02bce9b9c9046a373a3314a9",
+      "scope": "MEDIUM-2 M2.2 DESTRUCTIVE TOCTOU AND WRITER EXCLUSION"
+    },
+    {
+      "path": "docs/security/ge04-b1a-writer-exclusion-review.json",
+      "sha256": "63421baca7705142c4fe98000a00a80336303c1307b63fb545bbb9fd8599a6bc",
+      "scope": "AUTHOR_SOURCE_EVIDENCE_ONLY"
+    },
+    {
+      "path": "docs/security/ge04-b1a-privilege-transition-review.json",
+      "sha256": "c3c11200a39e147bf99c3862e65b06030d9847be37f9606e130dcf981cf739f8",
+      "scope": "MEDIUM-2 M2.3 PRIVILEGE TRANSITIONS"
+    },
+    {
+      "path": "docs/security/ge04-b1a-process-lifecycle-review.json",
+      "sha256": "ea224fbae487bcf76d8725379a4d4048e404856bd0c23a0b61c8e60800f4e1b2",
+      "scope": "MEDIUM-2 M2.4 PROCESS LIFECYCLE"
+    },
+    {
+      "path": "docs/security/ge04-b1a-descriptor-transfer-review.json",
+      "sha256": "330cc058a71a7af5076538d3e450e822be584e9b654cae4b09b642754c532fd6",
+      "scope": "MEDIUM-2 M2.5 DESCRIPTOR TRANSFER AND PEER AUTHORITY"
+    },
+    {
+      "path": "docs/security/ge04-b1a-custody-locking-review.json",
+      "sha256": "bd5a639b8899ce4726133f755e56c5a76d7851973a75ccf4d400e35a9651d6f4",
+      "scope": "MEDIUM-2 M2.6 CUSTODY AND LOCKING"
+    },
+    {
+      "path": "docs/security/ge04-b1a-systemd-bus-review.json",
+      "sha256": "0a4563886fb4e3e1231c53287be6e97c45a9309dc28e6448364f81d521cb27de",
+      "scope": "MEDIUM-2 M2.7 SYSTEMD AND DBUS AUTHORITY"
+    }
+  ],
+  "review_queue": {
+    "c_authority_sites": 50,
+    "pending_c_authority_sites": 50,
+    "per_tu_draft_allowlists": 54,
+    "reviewer_reported_historical_omissions": 63,
+    "historical_omission_identities_verified": 0,
+    "writer_exclusion_proven": false
+  },
+  "blocking_human_review_decisions": [
+    {
+      "id": "A03-01",
+      "issue": "Original 63 omitted historical line identities not supplied or independently replaced",
+      "required": "Reviewer-approved identity-level reconciliation or independently accepted equivalent semantic audit"
+    },
+    {
+      "id": "A03-02",
+      "issue": "Semantic authority coverage incomplete: unknown APIs, indirect calls, aliases, wrappers, macros and noncall authority references",
+      "required": "Reviewed bidirectional operation inventory and per-TU allowlists for all current sources"
+    },
+    {
+      "id": "A03-03",
+      "issue": "50 C authority queue sites and other candidate sites lack individual independent human verdicts",
+      "required": "Site-level signed review of authorization, identity, TOCTOU, failure, cleanup and replay"
+    },
+    {
+      "id": "A03-04",
+      "issue": "Writer exclusion, inode-conditional name deletion and crash-recovery durability not proven",
+      "required": "Independent design resolution and authorized negative/fault-injection evidence"
+    },
+    {
+      "id": "A03-05",
+      "issue": "Privileged transition, process, descriptor transfer and D-Bus adversarial validation not completed",
+      "required": "Authorized qualification and reviewer adjudication; no protected execution under current hold"
+    },
+    {
+      "id": "A03-06",
+      "issue": "Candidate-only CI drift gate cannot detect unknown authority surfaces and has not run in GitHub Actions",
+      "required": "Human-approved reviewed-API regression gate at immutable final source revision and CI evidence"
+    },
+    {
+      "id": "A03-07",
+      "issue": "Uncommitted source remediation and evidence prevent immutable final review baseline",
+      "required": "Pin exact final revision and all source hashes after approved workflow; re-review changes"
+    },
+    {
+      "id": "A03-08",
+      "issue": "No independent human security decision exists",
+      "required": "Named authorized reviewer, date, evidence, exceptions and ACCEPT/CHANGES REQUIRED/RISK ACCEPTANCE verdict"
+    }
+  ],
+  "human_verdict_template": {
+    "reviewer_identity": null,
+    "review_date": null,
+    "reviewed_revision": null,
+    "reviewed_source_hash_manifest": null,
+    "per_site_verdicts": null,
+    "exceptions_and_owners": null,
+    "decision": null
+  },
+  "prohibited_inferences": [
+    "Author-side checks are not human acceptance",
+    "AI reviewer findings are not independent human acceptance",
+    "A.03 evidence does not authorize root execution, worker admission, ACK, systemd dispatch or PR merge"
+  ],
+  "security_hold": "ACTIVE"
+}

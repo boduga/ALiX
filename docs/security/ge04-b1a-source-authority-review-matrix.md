@@ -2,9 +2,11 @@
 
 **Disposition: AUTHOR EVIDENCE READY FOR INDEPENDENT REVIEW; A.03 NOT ACCEPTED.** No agent or author may substitute for the independent human reviewer. GE-04 SECURITY HOLD ACTIVE.
 
+> **PARTIAL SUPERSESSION — 2026-11-11:** This matrix was generated against commit `d6e22669` and its historical worker source SHA-256 `5362bdb0b08586f51151f0b53519a48ababb557f9c31758283f3aab2ec06d757`. The `cgroup-worker-qualification.c` aggregate row (33 candidates / 57 sites), its function list, and **all 57 line-numbered citations in that section are historical only**; 51 moved and six no longer match the revised predicates. The uncommitted HIGH-1/HIGH-2 worker source currently hashes to `cdb6e9498bfe928480d0f666ed4939d268b2adbad4db0762dbaadad48a065ef6`. **A new author-side lexical successor index exists at `docs/security/ge04-b1a-worker-authority-current-index.md` (41 function candidates / 95 sensitive-line citations); it is not independently accepted or exhaustive.** Do not use the historical row or citations to review the current worker; the A.03 evidence gate remains OPEN and the security hold remains active. Other rows have not been revalidated by this note.
+
 ## Scope and method
 
-All native `.c` and `.py` files in `native/ge04` are enumerated below. Function candidates come from the existing lexical/AST graph, not a verified whole-program call graph. Sensitive sites are line-numbered lexical matches for filesystem, process, bus, syscall and deny operations. Test links are source-text references, **not branch coverage proof**. An empty row does not prove absence of authority.
+All native `.c` and `.py` files in `native/ge04` are enumerated below. Function candidates come from the existing lexical/AST graph, not a verified whole-program call graph. Sensitive sites are line-numbered lexical matches for filesystem, process, bus, syscall and deny operations. Test links are source-text references, **not branch coverage proof**. The table counts test files (`tests/**/*.py` and `tests/**/*.ts`) containing the exact source filename or, for Python modules, a whole-token module name; counts are verified by `scripts/check-ge04-source-test-references.py` and can include incidental references. An empty row does not prove absence of authority.
 
 | Source | Function candidates | Sensitive sites | Test references |
 | --- | ---: | ---: | ---: |
@@ -13,33 +15,33 @@ All native `.c` and `.py` files in `native/ge04` are enumerated below. Function 
 | `bootstrap_receiver.py` | 1 | 3 | 1 |
 | `bounded_dispatch_evidence.py` | 6 | 0 | 1 |
 | `bounded_job_signal_observer.py` | 4 | 8 | 1 |
-| `bounded_phase_observer.py` | 2 | 8 | 1 |
-| `broker-peer-probe.c` | 1 | 6 | 0 |
-| `cgroup-control-fd-qualification.c` | 1 | 19 | 0 |
-| `cgroup-dirfd-qualification.c` | 3 | 14 | 0 |
-| `cgroup-leaf-ownership-qualification.c` | 3 | 14 | 0 |
-| `cgroup-runtime-view-qualification.c` | 55 | 99 | 2 |
-| `cgroup-worker-qualification.c` | 33 | 57 | 1 |
-| `cgroup2-fixed-preflight.c` | 2 | 16 | 0 |
-| `cgroup2-mount-preflight.c` | 1 | 14 | 0 |
-| `cross_source_birth_reconciliation.py` | 8 | 0 | 2 |
+| `bounded_phase_observer.py` | 2 | 8 | 2 |
+| `broker-peer-probe.c` | 1 | 6 | 3 |
+| `cgroup-control-fd-qualification.c` | 1 | 19 | 1 |
+| `cgroup-dirfd-qualification.c` | 3 | 14 | 1 |
+| `cgroup-leaf-ownership-qualification.c` | 3 | 14 | 1 |
+| `cgroup-runtime-view-qualification.c` | 55 | 99 | 4 |
+| `cgroup-worker-qualification.c` | 41 (current successor) | 95 (current successor) | 4 |
+| `cgroup2-fixed-preflight.c` | 2 | 16 | 1 |
+| `cgroup2-mount-preflight.c` | 1 | 14 | 1 |
+| `cross_source_birth_reconciliation.py` | 8 | 0 | 1 |
 | `diagnostic-deadline.c` | 8 | 0 | 2 |
 | `diagnostic-fd-wait.c` | 3 | 5 | 1 |
-| `exclusive_birth_handoff.py` | 13 | 0 | 2 |
-| `exec-pinned-probe.c` | 1 | 0 | 0 |
-| `exec-pinned.c` | 1 | 0 | 0 |
-| `isolated-worker-launcher.c` | 5 | 10 | 0 |
+| `exclusive_birth_handoff.py` | 13 | 0 | 1 |
+| `exec-pinned-probe.c` | 1 | 0 | 2 |
+| `exec-pinned.c` | 1 | 0 | 1 |
+| `isolated-worker-launcher.c` | 5 | 10 | 4 |
 | `isolated_job_signal_worker.py` | 2 | 2 | 0 |
-| `isolated_phase_observer_worker.py` | 1 | 2 | 0 |
+| `isolated_phase_observer_worker.py` | 1 | 2 | 1 |
 | `nonexecuting-sender-contract.c` | 5 | 1 | 1 |
 | `oci_qualification_image.py` | 13 | 0 | 1 |
 | `original_provenance_diagnostic.py` | 6 | 0 | 1 |
 | `peercred.c` | 1 | 0 | 3 |
 | `phase_controller.py` | 7 | 0 | 3 |
-| `pidfd-lifecycle-qualification.c` | 3 | 6 | 0 |
-| `pidfd-qualification.c` | 2 | 5 | 0 |
+| `pidfd-lifecycle-qualification.c` | 3 | 6 | 1 |
+| `pidfd-qualification.c` | 2 | 5 | 1 |
 | `prebirth_fixture_journal.py` | 6 | 14 | 2 |
-| `prebirth_issuance_contract.py` | 11 | 0 | 7 |
+| `prebirth_issuance_contract.py` | 11 | 0 | 5 |
 | `protected-attempt-fence.c` | 8 | 23 | 9 |
 | `protected-cgroup-custody.c` | 11 | 20 | 2 |
 | `protected-dispatch-intent.c` | 9 | 25 | 2 |
@@ -52,15 +54,15 @@ All native `.c` and `.py` files in `native/ge04` are enumerated below. Function 
 | `protected-systemd-request.c` | 3 | 26 | 3 |
 | `protected-systemd-transaction.c` | 15 | 44 | 9 |
 | `protected-transaction-state.c` | 1 | 0 | 1 |
-| `protected_approval_observer.py` | 4 | 18 | 1 |
+| `protected_approval_observer.py` | 4 | 18 | 2 |
 | `protected_owner_review_boundary.py` | 10 | 0 | 1 |
 | `systemd_absence_observer.py` | 2 | 0 | 2 |
 | `systemd_job_event_contract.py` | 6 | 0 | 1 |
-| `systemd_job_signal_observer.py` | 3 | 1 | 1 |
+| `systemd_job_signal_observer.py` | 3 | 1 | 2 |
 | `systemd_unit_observer.py` | 3 | 0 | 1 |
 | `transaction_consumption_fixture.py` | 3 | 13 | 1 |
-| `unit_kernel_observer.py` | 7 | 14 | 1 |
-| `worker-stream.c` | 18 | 16 | 1 |
+| `unit_kernel_observer.py` | 7 | 14 | 2 |
+| `worker-stream.c` | 18 | 16 | 2 |
 
 ## Sensitive-site inventory (review every entry)
 
@@ -286,6 +288,8 @@ Test modules referencing this source: `test_ge04_native_default_hold.py`, `test_
 - L775: `for(size_t i=0;i<sizeof(fds)/sizeof(fds[0]);i++)if(fds[i]>=0)close(fds[i]);`
 
 ### `cgroup-worker-qualification.c`
+
+> **SUPERSEDED SECTION — DO NOT AUDIT CURRENT SOURCE FROM THESE LINES.** The function candidates and 57 sensitive-site citations below apply only to `5362bdb0b08586f51151f0b53519a48ababb557f9c31758283f3aab2ec06d757` at `d6e22669`. Current HIGH-1/HIGH-2 working-tree source `cdb6e9498bfe928480d0f666ed4939d268b2adbad4db0762dbaadad48a065ef6` adds root:root predicates and durable sweep admission; its current lexical function inventory and sensitive-site citations are in `docs/security/ge04-b1a-worker-authority-current-index.md`, and require independent review before A.03 acceptance.
 Function candidates: `approval`, `bindings`, `cleanup`, `control`, `control_custody`, `empty`, `event`, `hex_string`, `intent_text`, `main`, `members`, `no_worker_directories`, `open_controls`, `open_recorded_leaf`, `pidfd_alive`, `pin_directory`, `process_info`, `publish`, `read_fd`, `read_intent`, `read_record_file`, `records_equal`, `regular_root`, `remove_artifact`, `root_directory`, `same_inode`, `setup`, `stat_info`, `sweep_empty`, `wait_running`, `wait_stopped`, `worker`, `write_all`.
 Test modules referencing this source: `test_ge04_cgroup_worker.py`.
 - L56: `return fd>=0&&!fstat(fd,&s)&&S_ISDIR(s.st_mode)&&s.st_uid==0&&!(s.st_mode&0022);`

@@ -8,6 +8,7 @@ No authority, root access, cgroup mutation, worker admission or IPC writer.
 import re
 import json
 import time
+from unprivileged_observer import require_unprivileged
 from types import MappingProxyType
 from collections.abc import Mapping
 
@@ -71,6 +72,7 @@ class ReadOnlyPhaseController:
                  "_quarantined", "_records", "_limit", "_bounded")
 
     def __init__(self, original, observer=None, maximum_events=8):
+        require_unprivileged()
         self._original = _exact_original(original)
         self._bounded = observer is None
         if observer is None:
@@ -101,6 +103,7 @@ class ReadOnlyPhaseController:
         default observer runs in a killed/reaped subprocess. Injected test
         callbacks have no hard deadline and cannot authorize anything.
         """
+        require_unprivileged()
         if self._quarantined or self._terminal:
             raise ValueError("Terminal or quarantined phase controller")
         try:

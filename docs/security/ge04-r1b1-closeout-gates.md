@@ -213,6 +213,33 @@ returns exit 77 for every valid mode. A Linux-only source-level guard test
 passes, but privileged recovery, crash windows and independent source
 review remain OPEN. No release or cleanup authority follows.
 
+The sibling **worker** fixture (`cgroup-worker-qualification.c`) previously
+removed any empty `worker-*` directory it found by name scan, overwriting the
+trusted record with the observed `st_dev`/`st_ino` first. Its `sweep_empty`
+now requires the same durable unpublished `intent.tmp` binding the runtime-view
+fixture does: a parsed canonical intent whose name, device and inode match the
+observed entry, evaluated by `sweep_candidate_allowed` before any `unlinkat`.
+Absent, mismatched or unparsable intent is QUARANTINE; the recorded identity is
+never derived from the directory being removed. `intent.v1`-present state still
+refuses the sweep. Pinned unprivileged by
+`tests/agents/test_ge04_worker_sweep_admission.py`; no privileged recovery,
+crash-window or kernel-custody claim follows.
+
+## Root-group custody and four-identity gate (worker fixture)
+
+`cgroup-worker-qualification.c` now matches every protected native library and
+the runtime-view sibling. The privileged entry gate requires real and effective
+uid **and** gid to be zero (`root_identity`), so a root-group-only or setgid
+invocation refuses with 77 before setup. Every custody predicate — the private
+work directory, `regular_root` records, `control()` cgroup controls,
+`control_custody` before/after pairs, the leaf directory and the worker's
+`/dev/null` — requires `st_uid==0 && st_gid==0`; record and work-directory modes
+are compared exactly (`07777`), so a setgid record refuses. Pinned unprivileged
+by `tests/agents/test_ge04_worker_sweep_admission.py` (source shape plus the
+compiled `tests/fixtures/ge04-sweep-admission-probe.c` exercising the same
+static predicates). A privileged setgid-exec probe, live kernel custody and
+independent source review remain OPEN; no worker admission or ACK follows.
+
 ## Final destructive-boundary custody recheck (engineering only)
 
 The native `cleanup_until` now refuses missing pinned original ownership

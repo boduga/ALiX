@@ -11,6 +11,7 @@ import subprocess
 import selectors
 import sys
 import time
+from unprivileged_observer import require_unprivileged
 from types import MappingProxyType
 
 from bootstrap_binding import LIMIT, FIELDS, parse_bootstrap_binding
@@ -21,6 +22,7 @@ MAX_OUTPUT = 1024
 
 def observe_bounded(original, deadline):
     """Diagnostic only; no writer to fixture, no credentials or privilege."""
+    require_unprivileged()
     if (sys.platform != "linux" or type(original) is not dict
             or type(deadline) not in (int, float) or not deadline > time.monotonic()):
         raise ValueError("Invalid bounded observation request")

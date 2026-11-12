@@ -29,7 +29,7 @@ This index maps existing `test_ge04_protected*.py` tests to explicitly reference
 | Root entry returns 77 | `test_ge04_protected_dispatch_hold.py`, `test_ge04_protected_systemd_transaction.py` | Does not attest future binary/source identity |
 | Exclusive create refuses | `test_ge04_protected_systemd_transaction.py`, `test_ge04_protected_dispatch_hold.py` | No trusted production send path qualified |
 | Prepared send refuses | `test_ge04_protected_dispatch_preparation.py` | Wrapped preparation does not prove runtime bus behavior |
-| Prebirth and attempt custody | `test_ge04_protected_native_journal.py`, `test_ge04_protected_attempt_fence.py` | Races, crash recovery and root provenance require independent audit |
+| Prebirth and attempt custody | `test_ge04_protected_native_journal.py` (attempt-fence modes 8, 9, 12–14) | Races, crash recovery and root provenance require independent audit |
 | systemd signal/job binding | `test_ge04_protected_systemd_job_binding.py`, `test_ge04_protected_systemd_signal_dispatch.py` | Signal correlation is not authenticated unit birth |
 | Keeper/cgroup/mount provenance | `test_ge04_protected_keeper_custody.py`, `test_ge04_protected_cgroup_custody.py`, `test_ge04_protected_mount_namespace.py` | Post-observation custody is UNQUALIFIED |
 

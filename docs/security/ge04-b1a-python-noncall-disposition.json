@@ -1,0 +1,93 @@
+{
+  "method": "AUTHOR_SYNTAX_DISPOSITION_NOT_HUMAN_SECURITY_REVIEW",
+  "entries": [
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 3,
+      "apis": [
+        "SCM_RIGHTS"
+      ],
+      "source": "Validates kernel SO_PEERCRED, bounded SCM_RIGHTS payload, expected generation,",
+      "author_syntax_disposition": "MODULE_DOCSTRING",
+      "reason": "SCM_RIGHTS occurs in a module docstring; not executable at this site.",
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 72,
+      "apis": [
+        "SCM_RIGHTS"
+      ],
+      "source": "if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:",
+      "author_syntax_disposition": "AUTHORITY_CONSTANT_COMPARISON",
+      "reason": "socket.SCM_RIGHTS comparison is an active ancillary descriptor-transfer branch; retain in authority review.",
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 4,
+      "apis": [
+        "kill"
+      ],
+      "source": "with one end-to-end absolute monotonic deadline and terminal kill/reap.",
+      "author_syntax_disposition": "MODULE_DOCSTRING",
+      "reason": "kill appears in module documentation, not a call at this site.",
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exclusive_birth_handoff.py",
+      "line": 41,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "if (value[\"unit\"] != UNIT or value[\"method\"] != \"StartTransientUnit\"",
+      "author_syntax_disposition": "PROTOCOL_VALUE_COMPARISON",
+      "reason": "StartTransientUnit is a string receipt-method equality check, not a bus call at this site.",
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 24,
+      "apis": [
+        "Subscribe"
+      ],
+      "source": "\"\"\"Subscribe, listen, and remove listener under a short bounded GLib loop.",
+      "author_syntax_disposition": "FUNCTION_DOCSTRING",
+      "reason": "Subscribe appears in observer documentation, not a call at this site.",
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 31,
+      "apis": [
+        "Subscribe"
+      ],
+      "source": "bus/Subscribe may extend wall-clock duration. Never use for authority.",
+      "author_syntax_disposition": "FUNCTION_DOCSTRING",
+      "reason": "Subscribe appears in observer documentation, not a call at this site.",
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 58,
+      "apis": [
+        "_mount"
+      ],
+      "source": "def _mount(raw):",
+      "author_syntax_disposition": "FUNCTION_DECLARATION",
+      "reason": "_mount is a Python function declaration; calls elsewhere remain separately inventoried.",
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 87,
+      "apis": [
+        "mount"
+      ],
+      "source": "\"\"\"Observe real pidfd/procfs/mount/cgroup, compare to original binding.",
+      "author_syntax_disposition": "FUNCTION_DOCSTRING",
+      "reason": "mount occurs in a function docstring, not a call at this site.",
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    }
+  ]
+}

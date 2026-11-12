@@ -8,6 +8,7 @@ import os
 import re
 import stat
 import sys
+from unprivileged_observer import require_unprivileged
 from types import MappingProxyType
 
 WORK_COMPONENTS = ("run", "ge04-view-qualification")
@@ -87,6 +88,7 @@ def corroborate_existing_approval(original):
     Current files do not independently prove they existed before unit birth.
     The original dictionary and runtime's source are not authenticated here.
     """
+    require_unprivileged()
     if sys.platform != "linux" or type(original) is not dict:
         raise ValueError("Linux original approval request required")
     invocation = original.get("invocation")

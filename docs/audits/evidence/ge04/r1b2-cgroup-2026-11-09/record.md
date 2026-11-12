@@ -1,3 +1,5 @@
+> **HISTORICAL EVIDENCE ONLY — superseded for current worker source (2026-11-11).** This packet applies to worker source SHA-256 `5362bdb0b08586f51151f0b53519a48ababb557f9c31758283f3aab2ec06d757` and controller SHA-256 `5f65166afc7a66c8d56370b40df32a55f16c82b4adb9fddfaa4eab05985d4174`. HIGH-1/HIGH-2 hardening changes the `crash-leaf` sweep result from success-by-name-adoption to 77/QUARANTINE; the old 24 live passes do not qualify the revised implementation. No privileged rerun or release is authorized.
+
 # Fixed cgroup synthetic qualification — 2026-11-09
 
 GE-04 SECURITY HOLD ACTIVE. Refs #1054 and #1055; neither issue is completed by this fixture.
