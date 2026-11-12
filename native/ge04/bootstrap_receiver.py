@@ -65,7 +65,8 @@ def receive_bootstrap_descriptor(sock, expected_peer, expected_inode,
         if not ready:
             raise TimeoutError("Bootstrap receive deadline")
         payload, ancillary, flags, _ = sock.recvmsg(
-            2, socket.CMSG_SPACE(4 * 16), socket.MSG_CMSG_CLOEXEC)
+            2, socket.CMSG_SPACE(4 * 16),
+            socket.MSG_CMSG_CLOEXEC | socket.MSG_DONTWAIT)
         # Always first extract *all* kernel-delivered descriptors for closure,
         # including rejected extra or truncated ancillary records.
         for level, kind, data in ancillary:

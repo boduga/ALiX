@@ -11,6 +11,7 @@ from pathlib import Path
 import socket
 import sys
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2] / "native/ge04"
 SUPPORTED = (sys.platform == "linux" and fcntl is not None
@@ -104,6 +105,21 @@ class BootstrapPeerReceiverTests(unittest.TestCase):
                     left, (os.getpid(), os.getuid(), os.getgid(), generation()[1]),
                     (1, 1), "not-a-valid-nonce", 1,
                     inspect_generation=lambda pid: generation())
+            self.assertEqual(left.fileno(), -1)
+        finally:
+            right.close()
+
+    def test_readiness_race_never_blocks_on_recvmsg(self):
+        # Simulate readiness consumed by another actor before recvmsg.
+        # A blocking recvmsg would hang indefinitely despite the deadline.
+        left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        try:
+            with patch.object(receiver.select, "select", return_value=([left], [], [])):
+                with self.assertRaises(BlockingIOError):
+                    receiver.receive_bootstrap_descriptor(
+                        left, (os.getpid(), os.getuid(), os.getgid(), generation()[1]),
+                        (1, 1), "b" * 64, 1,
+                        inspect_generation=lambda pid: generation())
             self.assertEqual(left.fileno(), -1)
         finally:
             right.close()
