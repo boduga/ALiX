@@ -2,6 +2,8 @@
 """Ordered A03-02 work-package gate evaluation; refuses unproven semantic closure."""
 import json,sys,collections
 from pathlib import Path
+if not __debug__:
+    raise SystemExit("GE-04 evidence check refuses optimized Python: assertions are required")
 D=Path(__file__).resolve().parents[1]/'docs/security'
 def read(n):return json.loads((D/(n+'.json')).read_text())
 h=read('ge04-a03-02-historical-current-map');q=read('ge04-a03-02-gimple-reconciliation');non=read('ge04-a03-02-noncall-authority');c=read('ge04-a03-02-authority-completeness');wr=read('ge04-a03-02-c-unresolved-symbols');py=read('ge04-a03-02-python-receiver-dispatch');im=read('ge04-a03-02-python-imported-wrappers');fin=read('ge04-a03-02-final-reconciliation')

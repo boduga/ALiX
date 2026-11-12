@@ -4,6 +4,8 @@ Reconciles every draft gap with compiler/AST provenance and previous triage.
 """
 import collections,hashlib,json,subprocess,sys
 from pathlib import Path
+if not __debug__:
+    raise SystemExit("GE-04 evidence check refuses optimized Python: assertions are required")
 R=Path(__file__).resolve().parents[1];B=R/'native/ge04';D=R/'docs/security';REV='f748ea2e3030bec9d1e3fa375374663721e7496a'
 def load(name):return json.loads((D/('ge04-a03-02-'+name+'.json')).read_text())
 gaps=load('api-vocabulary-gap');c=load('authority-priority');p=load('python-effect-triage');cs=load('c-unresolved-symbols');pi=load('python-imported-wrappers');pr=load('python-receiver-dispatch')

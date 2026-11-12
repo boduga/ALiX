@@ -2,6 +2,8 @@
 """Evidence-only historical 63 to current source candidates; no semantic approval."""
 import ast,difflib,hashlib,json,subprocess,sys,collections
 from pathlib import Path
+if not __debug__:
+    raise SystemExit("GE-04 evidence check refuses optimized Python: assertions are required")
 R=Path(__file__).resolve().parents[1];B=R/'native/ge04';D=R/'docs/security';REV='f748ea2e3030bec9d1e3fa375374663721e7496a'
 old=json.loads((D/'ge04-a03-original-63-identities.json').read_text());queue=json.loads((D/'ge04-a03-02-gimple-reconciliation.json').read_text());ledger=json.loads((D/'ge04-a03-02-operation-ledger.json').read_text())
 queue_idx={(x['file'],x['line']):x for x in queue['authority_crosswalk']};ledger_idx={x['file']:x for x in ledger['entries']}

@@ -2,6 +2,8 @@
 """Source-pinned, per-site effect dossiers with explicit verification boundaries."""
 import json,hashlib,subprocess,sys,collections
 from pathlib import Path
+if not __debug__:
+    raise SystemExit("GE-04 evidence check refuses optimized Python: assertions are required")
 R=Path(__file__).resolve().parents[1];D=R/'docs/security';B=R/'native/ge04';REV='f748ea2e3030bec9d1e3fa375374663721e7496a'
 def load(s):return json.loads((D/('ge04-a03-02-'+s+'.json')).read_text())
 h=load('historical-current-map');g=load('six-stage-gates');a=load('authority-completeness');nc=load('noncall-authority')

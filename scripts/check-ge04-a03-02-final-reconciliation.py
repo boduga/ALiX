@@ -4,6 +4,8 @@ No authority disposition or operational release is inferred from a crosswalk.
 """
 import ast,collections,hashlib,json,subprocess,sys
 from pathlib import Path
+if not __debug__:
+    raise SystemExit("GE-04 evidence check refuses optimized Python: assertions are required")
 R=Path(__file__).resolve().parents[1];B=R/'native/ge04';D=R/'docs/security';REV='f748ea2e3030bec9d1e3fa375374663721e7496a'
 def load(name):return json.loads((D/(name+'.json')).read_text())
 ledger=load('ge04-a03-02-operation-ledger');old=load('ge04-a03-original-63-identities');queue=load('ge04-a03-02-gimple-reconciliation');noncall=load('ge04-a03-02-noncall-authority');gaps=load('ge04-a03-02-authority-completeness');cs=load('ge04-a03-02-c-unresolved-symbols');py=load('ge04-a03-02-python-receiver-dispatch');imports=load('ge04-a03-02-python-imported-wrappers');local=load('ge04-a03-02-local-wrapper-effects')
