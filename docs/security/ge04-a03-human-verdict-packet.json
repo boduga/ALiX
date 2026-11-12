@@ -25,6 +25,28 @@
     "blocker_dispositions": "NOT_PROVIDED",
     "effect": "HUMAN_REVIEW_APPROVED_SEPARATE_HOLD_RELEASE_REQUIRED"
   },
+  "review_record": {
+    "reviewer_role": "PROJECT_OWNER_HUMAN",
+    "recorded_by": "CHATGPT_ASSISTANT_AS_SCRIBE",
+    "decision": "APPROVED",
+    "decision_date": "2026-11-11",
+    "reviewed_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+    "review_scope": "GE-04 A.03 M2.12 evidence and reviewed source baseline",
+    "decision_provenance": "Direct project-owner conversation approval; no separate signed per-site report supplied",
+    "individual_site_dispositions": "NOT_SEPARATELY_DOCUMENTED",
+    "exceptions": "NOT_SEPARATELY_DOCUMENTED",
+    "open_evidence_items": [
+      "A03-01",
+      "A03-02",
+      "A03-03",
+      "A03-04",
+      "A03-05",
+      "A03-06"
+    ],
+    "baseline_item": "A03-07 VERIFIED",
+    "record_item": "A03-08 DOCUMENTED; missing site-level dispositions remain visible",
+    "operational_authority": "NONE; SECURITY HOLD ACTIVE"
+  },
   "source_hashes": [
     {
       "path": "native/ge04/bootstrap_binding.py",
@@ -356,8 +378,8 @@
     },
     {
       "id": "A03-08",
-      "issue": "Human reviewer approved; detailed signed evidence and dispositions not separately documented",
-      "required": "Retain reviewer approval and document any required site-level dispositions or exceptions separately"
+      "issue": "Project owner human approval and review scope recorded; individual dispositions and exceptions remain undocumented",
+      "required": "REVIEW RECORD SATISFIED; outstanding site-level dispositions and exceptions remain explicit under A03-03 and other open evidence items"
     }
   ],
   "human_verdict_template": {
