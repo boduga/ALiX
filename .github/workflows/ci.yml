@@ -150,7 +150,7 @@ jobs:
           0545085ec74c939d74e8739c0ac213612afa75e7b043dbe694072025c79e2f12  scripts/check-evidence-integrity.mjs
           6288fba9b4734e14b38262aff9c9553904fd3cd0b59568ca0db9076445bdf530  scripts/check-dox-claims.mjs
           4e070c37815eeb36cabd7c48e49093247282d3f924dad4598c13b3178296550a  scripts/check-staleness.mjs
-          e6a316bccbdbc026d00acbc251e1805a939230beffc0791407cada6c0caf0fc3  scripts/check-pr-scope.mjs
+          40653f0b76f9c0684dbab0a4878fa9b2d84c1b16628326baaf903415700f59a6  scripts/check-pr-scope.mjs
           192cef723f66c9d6a8727007248e3c8a860ae57ec93aed6c737840691afbc96f  scripts/check-review-evidence.mjs
           36313e8127f0f640d0adc2654f7b79aa60ec8c3a8688e42c51ca5599d93ad81e  scripts/preflight.mjs
           cc75448b1135983034c296e48bc97650933ba6c3303b8751ded1b01ab05c6c62  .githooks/pre-push

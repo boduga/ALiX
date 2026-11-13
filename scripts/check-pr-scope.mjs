@@ -36,6 +36,17 @@
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+/**
+ * The area list is the repository's real top-level shape, not a memory of it.
+ *
+ * It previously named `src/config` and `src/utils` (neither exists) while
+ * omitting `src/context`, `src/models`, `src/session`, the four root `src/*.ts`
+ * modules, and every non-`src` top-level directory. A legitimate PR touching
+ * any of those failed as `unclassified` — the check rejected the repository's
+ * own tree. `tests/scripts/check-pr-scope.test.mjs` now derives the expected
+ * set from `git ls-files`, so adding a top-level directory without classifying
+ * it fails a test instead of failing an author.
+ */
 export const AREAS = [
   "src/governance",
   "src/coordination",
@@ -46,26 +57,143 @@ export const AREAS = [
   "src/interfaces",
   "src/operations",
   "src/planning",
-  "src/config",
-  "src/utils",
+  "src/context",
+  "src/models",
+  "src/session",
+  "src/entry",
   "tests",
   "scripts",
   "docs",
   "native",
+  "packages",
+  "benchmark",
+  "bench",
+  "examples",
+  "experiments",
+  "fixtures",
+  "prompts",
+  "skills",
+  "stories",
+  "security",
+  "alix-saas-site",
+  "bin",
   ".github",
+  ".agents",
+  ".superpowers",
+  ".opensrc",
+  ".tmp",
 ];
 
-/** Files that any single area is allowed to touch as supporting metadata. */
-export const SHARED_PATHS = ["package.json", "pnpm-lock.yaml", ".gitignore", "CONTRIBUTING.md", "AGENTS.md", "README.md", ".nvmrc", "tsconfig.json"];
+/**
+ * Root files that any single area is allowed to touch as supporting metadata.
+ *
+ * Kept explicit rather than "everything at the root": a root file is either
+ * shared metadata every area may touch, or a path that belongs to an area and
+ * must be named. `/^[^/]+$/` would silently exempt any new root file from
+ * review scope, which is the blind spot this list exists to prevent.
+ */
+export const SHARED_PATHS = [
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "skills-lock.json",
+  ".gitignore",
+  ".gitattributes",
+  ".npmrc",
+  ".nvmrc",
+  "CONTRIBUTING.md",
+  "AGENTS.md",
+  "README.md",
+  "CHANGELOG.md",
+  "CONTEXT.md",
+  "WORKSPACE_MAP.md",
+  "TASK_SPECIFICATION.md",
+  "LICENSE",
+  "tsconfig.json",
+  "tsconfig.tests.json",
+  "tsconfig.tui.json",
+  "tsconfig.tui-only.json",
+  "tsconfig.unused.json",
+  "vitest.config.mts",
+  "vitest.config.skills.mts",
+];
+
+/**
+ * Root files that carry an area's own content and must be declared as it.
+ *
+ * `src/*.ts` at the root of `src` is the process entry surface (`cli`, `run`,
+ * `index`) plus the shared task taxonomy. It is one area and it is not
+ * supporting metadata: a change there is a change to the executable entry.
+ *
+ * The area is `src/entry`, not `src`: a bare `src` area would make
+ * `Scope: src` a blanket declaration over all fourteen subsystems, which is
+ * exactly the coarsening the declaration check refuses.
+ */
+export const ROOT_FILES = {
+  "src/cli.ts": "src/entry",
+  "src/index.ts": "src/entry",
+  "src/run.ts": "src/entry",
+  "src/task-classifier.ts": "src/entry",
+  "src/README.md": "src/entry",
+  // Root-level operator tooling; `bin/` is already its own area, so only the
+  // loose root scripts need an explicit home here.
+  ".work-tiers.mjs": "scripts",
+  // The workbench parity reference image. It is cited from `docs/superpowers/`
+  // designs, so it travels with the documentation that describes it.
+  "ALiX Workbench Terminal Preview.png": "docs",
+};
 
 /** Paths that belong to an existing area but are not named after it. */
 export const AREA_ALIASES = {
   ".githooks": "scripts",
 };
 
+/**
+ * Undo git's C-style path quoting.
+ *
+ * `git diff --name-only` wraps any path containing a non-ASCII byte in double
+ * quotes and escapes the bytes (`"docs/superseded/.../if\303\241-mas-...md"`).
+ * Reading the opening quote as part of the first path segment classified the
+ * file `unclassified`, so a PR touching one non-ASCII filename failed for a
+ * reason that had nothing to do with its content. Only the quoted form is
+ * decoded; anything else is returned unchanged so a real leading quote is
+ * still treated as a path segment.
+ */
+export function unquoteGitPath(path) {
+  const value = String(path ?? "");
+  if (value.length < 2 || !value.startsWith('"') || !value.endsWith('"')) return value;
+  const body = value.slice(1, -1);
+  // Escapes denote BYTES, and a non-ASCII path arrives as one octal escape per
+  // UTF-8 byte. Mapping each escape to a JS character would produce mojibake;
+  // collecting bytes and decoding once produces the path git actually holds.
+  const bytes = [];
+  const simple = { "\\": 0x5c, '"': 0x22, a: 0x07, b: 0x08, f: 0x0c, n: 0x0a, r: 0x0d, t: 0x09, v: 0x0b };
+  for (let i = 0; i < body.length; i++) {
+    const char = body[i];
+    if (char !== "\\") {
+      bytes.push(...Buffer.from(char, "utf8"));
+      continue;
+    }
+    const next = body[i + 1];
+    if (next && /[0-7]/.test(next)) {
+      bytes.push(parseInt(body.slice(i + 1, i + 4), 8));
+      i += 3;
+      continue;
+    }
+    if (next && Object.hasOwn(simple, next)) {
+      bytes.push(simple[next]);
+      i += 1;
+      continue;
+    }
+    bytes.push(0x5c);
+  }
+  return Buffer.from(bytes).toString("utf8");
+}
+
 export function areaFor(path) {
-  const normalized = path.replace(/\\/g, "/").replace(/^\.\//, "");
+  const normalized = unquoteGitPath(path).replace(/\\/g, "/").replace(/^\.\//, "");
   if (SHARED_PATHS.includes(normalized)) return "shared";
+  if (Object.hasOwn(ROOT_FILES, normalized)) return ROOT_FILES[normalized];
   for (const [prefix, area] of Object.entries(AREA_ALIASES)) {
     if (normalized === prefix || normalized.startsWith(`${prefix}/`)) return area;
   }

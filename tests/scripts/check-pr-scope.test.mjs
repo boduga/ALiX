@@ -4,7 +4,18 @@ import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { areaFor, baseBranchOf, declaredAreas, scopeRationale, validatePrScope } from "../../scripts/check-pr-scope.mjs";
+import { AREAS, SHARED_PATHS, areaFor, baseBranchOf, declaredAreas, scopeRationale, validatePrScope } from "../../scripts/check-pr-scope.mjs";
+
+/** Tracked paths from git, or `[]` when the checkout has no repository metadata. */
+function trackedPaths() {
+  const result = spawnSync("git", ["-c", "core.quotePath=false", "ls-files"], {
+    cwd: new URL("../..", import.meta.url),
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  if (result.status !== 0) return [];
+  return result.stdout.split("\n").map((line) => line.trim()).filter(Boolean);
+}
 
 test("classifies known areas and shared metadata", () => {
   assert.equal(areaFor("src/governance/security/x.ts"), "src/governance");
@@ -212,6 +223,80 @@ test("explicit --declare values behave like a body declaration", () => {
 
 test("a traversal-only diff still has to be classified", () => {
   assert.ok(validatePrScope({ files: ["../escape.json"] }).some((e) => /unclassified/.test(e)));
+});
+
+test("the process entry surface is its own area", () => {
+  // These were `unclassified` before: the area list had `src/config` and
+  // `src/utils` (neither exists) and no entry for the four root `src/*.ts`
+  // modules, so a change to `src/cli.ts` failed the check outright.
+  for (const file of ["src/cli.ts", "src/index.ts", "src/run.ts", "src/task-classifier.ts", "src/README.md"]) {
+    assert.equal(areaFor(file), "src/entry", `${file} is the entry surface`);
+  }
+  assert.equal(areaFor("bin/alix.js"), "bin");
+});
+
+test("a bare `src` is still not a usable declaration", () => {
+  // Introducing a `src/entry` area must not hand back a blanket `Scope: src`
+  // that covers all fourteen subsystems.
+  const errors = validatePrScope({ files: ["src/cli.ts"], body: "Scope: src" });
+  assert.ok(errors.some((e) => /`src` is not a declared area/.test(e)), errors.join("\n"));
+});
+
+test("git-quoted non-ASCII paths are classified, not rejected", () => {
+  // `git diff --name-only` quotes any path with a non-ASCII byte
+  // (`"docs/superseded/.../if\303\241-mas-master-prd.md"`). Reading the leading
+  // quote as part of the first path segment made that file `unclassified`, so
+  // any PR touching it failed for a reason unrelated to its content.
+  assert.equal(areaFor('"docs/superseded/archive/superpowers/specs/2026-06-11-m42-if\\303\\241-mas-master-prd.md"'), "docs");
+});
+
+test("every tracked path classifies — derived from the tree, not a list", () => {
+  // The former area list was a memory of the tree and had drifted: whole
+  // directories (packages/, benchmark/, security/, skills/, bin/) and three
+  // src subsystems were missing, so legitimate PRs failed as `unclassified`.
+  // A hand-written spot check does not catch that drift; asking git does.
+  const tracked = trackedPaths();
+  if (!tracked.length) return; // no repository metadata in this checkout
+  assert.ok(tracked.length > 1000, `expected a real tree, saw ${tracked.length} file(s)`);
+
+  const unclassified = [...new Set(tracked.filter((file) => areaFor(file) === "unclassified"))];
+  assert.deepEqual(
+    unclassified.slice(0, 20),
+    [],
+    `${unclassified.length} tracked path(s) are unclassified; add their top-level area to AREAS`,
+  );
+});
+
+test("every root file is either shared metadata or a named area", () => {
+  const rootFiles = trackedPaths().filter((file) => !file.includes("/"));
+  if (!rootFiles.length) return; // no repository metadata in this checkout
+  assert.ok(rootFiles.length > 10, `expected root files, saw ${rootFiles.length}`);
+
+  // A new root file is either shared metadata every area may touch, or an
+  // area's own content. Leaving it `unclassified` is the honest verdict, but
+  // treating *every* root file as shared would exempt arbitrary new root
+  // content from review scope.
+  for (const file of rootFiles) {
+    assert.notEqual(areaFor(file), "unclassified", `${file} is neither in SHARED_PATHS nor assigned to an area`);
+  }
+});
+
+test("area list entries name real content", () => {
+  const tracked = trackedPaths();
+  if (!tracked.length) return; // no repository metadata in this checkout
+  // `src/config` and `src/utils` sat in AREAS without existing. A stale entry
+  // makes the check look like it covers something no PR can touch, and invites
+  // declarations that resolve to nothing.
+  for (const area of AREAS) {
+    if (area === "src/entry") continue;
+    assert.ok(
+      tracked.some((file) => file === area || file.startsWith(`${area}/`)),
+      `AREAS entry \`${area}\` matches no tracked path`,
+    );
+  }
+  for (const file of SHARED_PATHS) {
+    assert.ok(tracked.includes(file), `SHARED_PATHS entry \`${file}\` is not tracked`);
+  }
 });
 
 test("the CLI entrypoint runs from a path that needs percent-encoding", () => {
