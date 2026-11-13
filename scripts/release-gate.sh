@@ -107,17 +107,30 @@ if [ -n "$TARBALL" ] && [ -f "$PROJECT_ROOT/$TARBALL" ]; then
   echo "▸ Pack-once smoke test (install tarball in clean temp dir)..."
   TMP_DIR="$(mktemp -d)"
 
-  if pnpm install --config.dangerously-allow-all-builds=true --prefix "$TMP_DIR" "$PROJECT_ROOT/$TARBALL" > /dev/null 2>&1; then
-    if (cd "$TMP_DIR" && ./node_modules/.bin/alix init > /dev/null 2>&1 && \
-        ./node_modules/.bin/alix doctor > /dev/null 2>&1 && \
-        ./node_modules/.bin/alix models doctor --json > /dev/null 2>&1); then
+  # Install with npm, not pnpm: this gate must exercise the published,
+  # user-facing resolution path (`npm install -g alix`). pnpm's `install`
+  # accepts neither `--prefix` nor a positional package, so the previous form
+  # could never have installed anything, and
+  # `--config.dangerously-allow-all-builds=true` would have bypassed the
+  # reviewed allowBuilds policy in pnpm-workspace.yaml. Each phase is bounded
+  # so a stall reports which step stopped.
+  if timeout 600 npm install --prefix "$TMP_DIR" --no-audit --no-fund "$PROJECT_ROOT/$TARBALL"; then
+    SMOKE_FAILED=0
+    for cmd in init doctor "models doctor --json"; do
+      # shellcheck disable=SC2086  # deliberate word splitting for the arg list
+      if ! (cd "$TMP_DIR" && timeout 180 ./node_modules/.bin/alix $cmd); then
+        echo "  ❌ 'alix $cmd' failed" >&2
+        SMOKE_FAILED=1
+      fi
+    done
+    if [ "$SMOKE_FAILED" -eq 0 ]; then
       echo "  ✅ Pack-once smoke test — alix init, doctor, models doctor all pass"
     else
       echo "  ❌ Pack-once smoke test — alix commands failed"
       GATE_PASSED=false
     fi
   else
-    echo "  ❌ Pack-once smoke test — tarball install failed"
+    echo "  ❌ Pack-once smoke test — tarball install failed or exceeded 600s"
     GATE_PASSED=false
   fi
 else
