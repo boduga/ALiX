@@ -67,8 +67,10 @@ export function evidencePathFor(pr) {
  * cannot compute "the same" digest from different diffs. Command-line flags
  * cover rename detection and textconv, but git configuration still changes the
  * bytes: `diff.noprefix`, `diff.interHunkContext`, and `diff.suppressBlankEmpty`
- * each produced a different digest for the identical change. The `-c` pins are
- * placed before `diff`, so they win over a user's or CI runner's config.
+ * each produced a different digest for the identical change, and
+ * `diff.orderFile` reorders the file sections outright. The `-c` pins are
+ * placed before `diff`, so they win over a user's or CI runner's config,
+ * including `GIT_CONFIG_*` environment entries.
  */
 export function canonicalDiffArgs(base, head) {
   return [
@@ -82,6 +84,7 @@ export function canonicalDiffArgs(base, head) {
     "-c", "diff.suppressBlankEmpty=false",
     "-c", "diff.relative=false",
     "-c", "diff.wsErrorHighlight=context",
+    "-c", "diff.orderFile=/dev/null",
     "diff",
     "--no-color",
     "--no-ext-diff",
@@ -150,7 +153,30 @@ export function resolveCommit(ref) {
   return git(["rev-parse", "--verify", `${ref}^{commit}`]).trim();
 }
 
+/**
+ * Read a path as it exists in a commit.
+ *
+ * Three outcomes must stay distinguishable, because two of them are not review
+ * verdicts at all:
+ *   - the blob exists                     → its contents
+ *   - the path is absent from the commit  → `null` (real "no evidence" verdict)
+ *   - git cannot answer (bad object, I/O) → throw (invocation error, exit 2)
+ *
+ * `git show` alone collapses the middle and last cases into a non-zero exit
+ * with a message nobody parses, which turns an unreadable repository into an
+ * ordinary "missing review evidence" result.
+ */
 export function readCommittedFile(head, path) {
+  const listed = spawnSync("git", ["ls-tree", "-z", "--name-only", head, "--", path], {
+    cwd: ROOT,
+    encoding: "utf8",
+    maxBuffer: 1 << 28,
+  });
+  if (listed.error) throw listed.error;
+  if (listed.status !== 0) {
+    throw new Error(`git ls-tree ${head} -- ${path} failed (status ${listed.status}): ${listed.stderr.trim()}`);
+  }
+  if (!listed.stdout.split("\0").filter(Boolean).includes(path)) return null;
   return git(["show", `${head}:${path}`]);
 }
 
@@ -370,7 +396,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   let evidenceText;
   try {
     evidenceText = readCommittedFile(headSha, evidencePath);
-  } catch {
+  } catch (error) {
+    fail(`could not read ${evidencePath} at ${headSha.slice(0, 12)}…: ${error.message}`);
+  }
+  if (evidenceText === null) {
     console.error(`::error::missing review evidence at ${evidencePath}`);
     console.error(
       `::error::commit the review evidence at ${headSha.slice(0, 12)}…; a working-tree copy is not evidence. ` +

@@ -84,6 +84,29 @@ export function resolveBase(requested) {
 }
 
 /**
+ * Whether HEAD has ancestors, i.e. whether there is committed branch work a
+ * base-less run would not see. A root-only repository has no such work: its
+ * uncommitted set really is the whole change set.
+ */
+export function hasHistoryBeyondRoot(gitRun = git) {
+  return Number(gitRun(["rev-list", "--count", "HEAD"]).trim()) > 1;
+}
+
+/**
+ * The change set for a resolved `base`, or `null` when no honest change set
+ * exists. `changed === null` means "not checked", never "empty".
+ *
+ * A base-less run over a repository with ancestors has only the uncommitted
+ * fragment, and reporting that fragment as the change set would let preflight
+ * pass over committed branch work it never inspected. `gitRun` is injectable so
+ * both the refusal and the root-only fallback are testable without a repository.
+ */
+export function resolveChangeSet(base, gitRun = git) {
+  if (!base && hasHistoryBeyondRoot(gitRun)) return null;
+  return changedFiles(base, gitRun);
+}
+
+/**
  * The change set, or a thrown error. `gitRun` is injectable so the fail-closed
  * path can be tested without spawning git: every diff here is required input,
  * and a swallowed failure would shrink the set — possibly to nothing — and let
@@ -334,7 +357,18 @@ function main() {
   }
   let changed;
   try {
-    changed = changedFiles(base);
+    // No `--base` and no default base ref is only tolerable in a repository
+    // whose HEAD has no ancestors. Otherwise the uncommitted set is a fragment
+    // of the branch, and treating it as the change set would report PASS over
+    // committed work that was never inspected.
+    changed = resolveChangeSet(base);
+    if (changed === null) {
+      record(
+        "changed files",
+        "not_checked",
+        "no base ref resolved (origin/main or main); committed branch work was not inspected — pass --base <ref>",
+      );
+    }
   } catch (error) {
     // The change set is the input to every selection decision below. Unknown
     // is not empty: record the gap and keep the run non-green.

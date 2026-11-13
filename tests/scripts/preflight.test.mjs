@@ -8,6 +8,8 @@ import {
   changedFiles,
   classifyEvidence,
   distReadiness,
+  hasHistoryBeyondRoot,
+  resolveChangeSet,
   selectAffectedTests,
   tailLines,
   verdictOf,
@@ -175,6 +177,44 @@ test("a git failure while computing the change set is not swallowed", () => {
       }),
     /git diff failed/,
   );
+});
+
+test("a base-less run over committed history refuses to call its fragment the change set", () => {
+  // Without --base, preflight falls back to `origin/main` or `main`. In a
+  // repository that has neither, it used to inspect only uncommitted files and
+  // still record `changed files` as PASS — so a branch with committed work and
+  // a docs-only working tree could exit 0 having typechecked nothing.
+  const history = (count) => () => String(count);
+  assert.equal(hasHistoryBeyondRoot(history(1)), false, "a root-only repository has no committed branch work");
+  assert.equal(hasHistoryBeyondRoot(history(2)), true, "any ancestor means committed work exists");
+  assert.equal(hasHistoryBeyondRoot(history(37)), true);
+  // git's output is whitespace-padded; the count is parsed, not compared.
+  assert.equal(hasHistoryBeyondRoot(history(" 3\n")), true);
+  // A root-only repository reports 1, which must not be read as "has history".
+  assert.equal(hasHistoryBeyondRoot(history(" 1\n")), false);
+});
+
+test("the resolved change set exceeds uncommitted files exactly when git can see committed work", () => {
+  // This is the wiring, not the helper: a bare `hasHistoryBeyondRoot` test
+  // proves the predicate and says nothing about whether a base-less run acts on
+  // it. Here one stub answers both the ancestry probe and the diffs, so a
+  // regression that skips the refusal shows up as a non-null fragment.
+  const stub = (count) => (argv) => {
+    if (argv[0] === "rev-list") return ` ${count}\n`;
+    if (argv[0] === "diff") return "src/uncommitted.ts\n";
+    return "";
+  };
+
+  assert.deepEqual(resolveChangeSet(null, stub(1)), ["src/uncommitted.ts"], "a truly root-only repo may use its uncommitted files");
+  assert.equal(resolveChangeSet(null, stub(2)), null, "committed branch work must refuse, not shrink to a fragment");
+
+  // A resolved base stays a normal diff and never consults ancestry.
+  const withBase = (argv) => {
+    assert.notEqual(argv[0], "rev-list", "a resolved base must not need the ancestry probe");
+    if (argv[0] === "diff") return argv.includes("origin/main...HEAD") ? "src/committed.ts\n" : "";
+    return "";
+  };
+  assert.deepEqual(resolveChangeSet("origin/main", withBase), ["src/committed.ts"]);
 });
 
 test("changed files are the union of committed, working, staged, and untracked", () => {

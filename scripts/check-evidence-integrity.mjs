@@ -93,9 +93,11 @@
  * zero exit would let CI report success for work it did not perform. CI
  * acknowledges exactly that bounded absence with `--allow-declared-skips`, which
  * is accepted only together with `--max-recompute-skipped` and only when every
- * unchecked reason is a declared skip. Any other `not_checked` reason still
- * fails, so the acknowledgement cannot widen to uncommitted evidence, an empty
- * manifest, or an unreadable tree.
+ * unchecked reason is a declared skip AND the run recorded no blocking finding.
+ * That second condition is the load-bearing one: an acknowledgement cannot
+ * launder a real finding, because a verdict that already failed is never
+ * upgraded. Any other `not_checked` reason still fails, so the acknowledgement
+ * cannot widen to uncommitted evidence, an empty manifest, or an unreadable tree.
  *
  * `--pending-commit-tolerant` downgrades an uncommitted artifact or generator
  * from a finding to an explicit NOT CHECKED result. It exists for the pre-commit
@@ -987,11 +989,15 @@ if (maxRecomputeSkipped !== null) {
 }
 
 // A bounded declared-skip set is the one absence the caller may acknowledge —
-// and only that one. The run then reports `pass_with_declared_skips` rather
-// than `pass`, so the acknowledgement stays visible in the JSON and in the log
-// instead of collapsing into an unqualified success. Every other unchecked
-// reason (uncommitted order, an empty manifest) remains a non-zero exit.
+// and only that one, and only in place of `not_checked`. The run then reports
+// `pass_with_declared_skips` rather than `pass`, so the acknowledgement stays
+// visible in the JSON and in the log instead of collapsing into an unqualified
+// success. Every other unchecked reason (uncommitted order, an empty manifest)
+// remains a non-zero exit, and a real finding is never acknowledged away: the
+// `verdict === "not_checked"` guard is what keeps this from overwriting `fail`.
 const onlyDeclaredSkips =
+  verdict === "not_checked" &&
+  blockingFindings.length === 0 &&
   notCheckedReasons.length > 0 &&
   notCheckedReasons.every((reason) => reason.startsWith(declaredSkipReasonPrefix));
 if (allowDeclaredSkips && onlyDeclaredSkips) verdict = "pass_with_declared_skips";

@@ -109,7 +109,9 @@ describes is qualified or released.
   bounds that set shrink-only, so declaring one more generator non-reproducible
   fails until the pin is deliberately raised. `--allow-declared-skips` (only with
   that pin) acknowledges exactly that bounded absence and reports
-  `pass_with_declared_skips`; any other unchecked reason still fails.
+  `pass_with_declared_skips`; it applies only when every unchecked reason is a
+  declared skip and the run recorded zero blocking findings, so passing the flag
+  never upgrades a failing verdict. Any other unchecked reason still fails.
   `--pending-commit-tolerant` downgrades uncommitted evidence to `not_checked`
   for pre-commit use and never reports a pass.
 - GE-04 Python checks under `scripts/ge04-*.py` and their tests under

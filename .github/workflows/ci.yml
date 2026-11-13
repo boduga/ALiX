@@ -147,12 +147,12 @@ jobs:
         run: |
           set -eu
           sha256sum --check --strict <<'PINS'
-          331c105dca050d8328fb486e5e0125618e46d94aa5740174461f1c951e6d0440  scripts/check-evidence-integrity.mjs
+          32bc75d5e105c172a166e75505f4d5e309452ea519fab956e69284aec2e0a4d7  scripts/check-evidence-integrity.mjs
           1c4fc7df2755ba6dff8570043700bded21d7bd5ea744b429c48f0b04b3582c2b  scripts/check-dox-claims.mjs
           4e070c37815eeb36cabd7c48e49093247282d3f924dad4598c13b3178296550a  scripts/check-staleness.mjs
           40653f0b76f9c0684dbab0a4878fa9b2d84c1b16628326baaf903415700f59a6  scripts/check-pr-scope.mjs
-          2c475744db07bf2483616fb097783c768818f78676b30e8b400ab5c334b2c5aa  scripts/check-review-evidence.mjs
-          61955b1f7b6f0dca73b6293240a042f50f5392d51ba3da66aa551404fda4469f  scripts/preflight.mjs
+          0f275052da81f607fb7f917a0bd78cbc18673a40f20eee78360cc10a6ddbe3c2  scripts/check-review-evidence.mjs
+          05a72536ee398f380264e739c9ad2ca0fcbe8384ea926de4d2015d85ee28a921  scripts/preflight.mjs
           cc75448b1135983034c296e48bc97650933ba6c3303b8751ded1b01ab05c6c62  .githooks/pre-push
           PINS
       #
@@ -172,8 +172,11 @@ jobs:
       # `not_checked` exits 1 on its own. `--max-recompute-skipped 4` bounds the
       # exemption set shrink-only, and `--allow-declared-skips` is the explicit
       # acknowledgement of exactly that bounded set: it turns the run into
-      # `pass_with_declared_skips`, never an unqualified `pass`. Any other
-      # unchecked reason — pending commits, an empty manifest — still fails.
+      # `pass_with_declared_skips`, never an unqualified `pass`. The flag is
+      # narrower than an acknowledgement of the run: it applies only when every
+      # unchecked reason is a declared skip AND the run recorded zero blocking
+      # findings, so it can never upgrade a verdict that already failed. Any
+      # other unchecked reason — pending commits, an empty manifest — still fails.
       # When a generator becomes reproducible, this step starts reproducing it
       # and the pin must drop.
       - name: Evidence recompute (4 acknowledged declared-non-reproducible generators)

@@ -874,6 +874,24 @@ describe("check-evidence-integrity: recompute", () => {
     }
   });
 
+  it("does not acknowledge away a real finding alongside a declared skip", () => {
+    // The acknowledgement exists for a bounded absence, never for a defect.
+    // Before the verdict guard, a content-hash drift plus the one declared skip
+    // was rewritten from `fail` to `pass_with_declared_skips`: the flag meant to
+    // tighten the gate disabled it.
+    const dir = healthyRepo();
+    try {
+      writeFileSync(join(dir, ARTIFACT), JSON.stringify({ a: 2 }));
+      const r = run(dir, ["--recompute", "--max-recompute-skipped", "1", "--allow-declared-skips"]);
+      assert.equal(r.status, 1, r.stdout);
+      assert.equal(r.parsed?.verdict, "fail");
+      assert.equal(r.parsed?.ok, false);
+      assert.ok(checks(r).length > 0, "the finding must still be reported");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("does not acknowledge a not_checked reason that is not a declared skip", () => {
     // An empty manifest is a different absence from a generator declaring
     // itself non-reproducible. The acknowledgement must not absorb it: the pin

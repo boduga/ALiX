@@ -377,6 +377,9 @@ test("the digest is stable under hostile diff configuration", () => {
   const { root, base } = fixture();
   try {
     writeFile(root, "src/change.txt", "content line one\ncontent line two\n");
+    // Ordering needs more than one changed file to be observable.
+    writeFile(root, "src/aaa.txt", "a\n");
+    writeFile(root, "src/zzz.txt", "z\n");
     const head = commit(root, "content");
     const plain = digestFor(root, base, head);
 
@@ -386,8 +389,35 @@ test("the digest is stable under hostile diff configuration", () => {
     runGit(root, ["config", "diff.suppressBlankEmpty", "true"]);
     runGit(root, ["config", "diff.algorithm", "patience"]);
     runGit(root, ["config", "diff.context", "9"]);
+    // orderFile reorders the per-file sections outright, so it changes the
+    // hashed bytes even when every other knob is pinned.
+    writeFile(root, "orderfile.txt", "src/zzz.txt\nsrc/change.txt\nsrc/aaa.txt\n");
+    runGit(root, ["config", "diff.orderFile", join(root, "orderfile.txt")]);
 
     assert.equal(digestFor(root, base, head), plain);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("an absent evidence path is a verdict but an unreadable commit is an invocation error", () => {
+  // "No evidence committed" (exit 1) and "git could not answer" (exit 2) are
+  // different facts. A catch around `git show` collapsed them, so an unreadable
+  // object read as an ordinary missing-evidence verdict.
+  const { root, base } = fixture();
+  try {
+    writeFile(root, "src/change.txt", "content\n");
+    const head = commit(root, "code");
+
+    // Absent path in a readable commit stays a review verdict.
+    const absent = checker(root, ["--pr", "1111", "--base", base, "--head", head]);
+    assert.equal(absent.status, 1, absent.stdout + absent.stderr);
+    assert.match(absent.stderr, /missing review evidence/);
+
+    // A head git cannot resolve never reaches the evidence read: exit 2.
+    const unreadable = checker(root, ["--pr", "1111", "--base", base, "--head", "0".repeat(40)]);
+    assert.equal(unreadable.status, 2, unreadable.stdout + unreadable.stderr);
+    assert.match(unreadable.stderr, /could not resolve/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
