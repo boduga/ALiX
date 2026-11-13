@@ -170,7 +170,39 @@ test("the evidence checker's fail verdict stays a failure even if the exit code 
   assert.equal(classifyEvidence(JSON.stringify({ verdict: "error", error: "bad manifest" }), 2).status, "fail");
 });
 
-test("unstructured evidence-checker output falls back to the exit code", () => {
-  assert.equal(classifyEvidence("not json", 0).status, "pass");
+test("unstructured evidence-checker output is unknown, never a pass", () => {
+  // The checker is invoked with --json. Output that cannot be read as a verdict
+  // means the verdict is unknown; inferring PASS from exit 0 is precisely the
+  // "silence read as coverage" failure this whole script exists to prevent.
+  const zero = classifyEvidence("not json", 0);
+  assert.equal(zero.status, "not_checked");
+  assert.match(zero.detail, /no JSON verdict/);
   assert.equal(classifyEvidence("not json", 1).status, "fail");
+  assert.equal(classifyEvidence("", 0).status, "not_checked");
+});
+
+test("structured JSON without a verdict is a failure, not an implicit pass", () => {
+  assert.equal(classifyEvidence(JSON.stringify({ ok: true }), 0).status, "fail");
+  assert.equal(classifyEvidence(JSON.stringify(null), 0).status, "fail");
+  assert.equal(classifyEvidence(JSON.stringify({ verdict: "greenish" }), 0).status, "fail");
+});
+
+test("same-named tests in different directories are never dropped", () => {
+  // Over-selection is the safe direction here (the heuristic already admits it
+  // selects candidates, not proofs). The defect to prevent is the opposite: a
+  // single-value map keyed by path let one entry replace another, so a test
+  // silently vanished from the candidate set.
+  const tests = [fixture("a/x.test.ts"), fixture("b/x.test.ts")];
+  for (const source of ["src/a/x.ts", "src/b/x.ts"]) {
+    const { selected, unmapped } = selectAffectedTests([source], tests);
+    assert.deepEqual(unmapped, []);
+    assert.ok(selected.includes(`tests/${source.replace(/^src\//, "").replace(/\.ts$/, ".test.ts")}`), `${source} keeps its own test`);
+  }
+});
+
+test("the mirrored-path lookup keeps every test registered at one key", () => {
+  // Both fixtures strip to `security/lock`; neither may be dropped from the map.
+  const tests = [fixture("security/lock.test.ts"), fixture("security/lock.vitest.ts")];
+  const { selected } = selectAffectedTests(["src/security/lock.ts"], tests);
+  assert.deepEqual(selected, ["tests/security/lock.test.ts", "tests/security/lock.vitest.ts"]);
 });

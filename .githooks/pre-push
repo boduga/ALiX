@@ -26,20 +26,38 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     refs/heads/*) ;;
     *) continue ;;   # tags and other refs carry no branch diff
   esac
-  if ! git rev-parse --verify --quiet "${remote_sha}^{commit}" >/dev/null 2>&1; then
-    continue
-  fi
-  if [ "${local_sha}" = "${remote_sha}" ]; then
-    continue
+  # A new branch has no remote commit. Falling back to `continue` here skipped
+  # the gate on exactly the push that matters most: the first push of a branch,
+  # where every commit is unreviewed. Diff against the merge base with main
+  # instead. An *existing* remote commit that cannot be resolved is a broken
+  # local state, not a new branch, and must fail rather than be skipped.
+  if [ "${remote_sha}" = "0000000000000000000000000000000000000000" ] \
+     || ! git rev-parse --verify --quiet "${remote_sha}^{commit}" >/dev/null 2>&1; then
+    if [ "${remote_sha}" != "0000000000000000000000000000000000000000" ]; then
+      echo "pre-push: cannot resolve remote commit ${remote_sha} for ${remote_ref}."
+      echo "          Fetch it, or push with --no-verify if you are certain CI will pass."
+      exit 1
+    fi
+    base_sha="$(git merge-base origin/main "${local_sha}" 2>/dev/null || true)"
+    if [ -z "${base_sha}" ]; then
+      echo "pre-push: new branch ${remote_ref} and no merge base with origin/main."
+      echo "          Fetch origin, or push with --no-verify if you are certain CI will pass."
+      exit 1
+    fi
+  else
+    if [ "${local_sha}" = "${remote_sha}" ]; then
+      continue
+    fi
+    base_sha="${remote_sha}"
   fi
 
-  range="${remote_sha}..${local_sha}"
+  range="${base_sha}..${local_sha}"
   # Any change runs preflight, not only code: a docs-only push still has DOX
   # claims and staleness references that can be wrong. Preflight itself skips
   # the type checks and tests for a documentation-only diff.
   if ! git diff --quiet "${range}"; then
     echo "pre-push: running pnpm preflight for ${range}"
-    if ! pnpm preflight --base "${remote_sha}"; then
+    if ! pnpm preflight --base "${base_sha}"; then
       echo ""
       echo "pre-push: preflight failed. Fix the findings above, or push with --no-verify"
       echo "          if you are certain CI will pass."

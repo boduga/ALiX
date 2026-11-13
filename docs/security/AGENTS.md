@@ -62,6 +62,14 @@ describes is qualified or released.
   artifact records about itself. Editing a generator and its artifact in one
   commit makes every content comparison self-consistent; this is the check that
   notices the file pair moved together.
+- **The manifest must postdate every artifact it indexes.** An artifact and its
+  `evidence-manifest.json` entry in the same commit is a finding. The manifest
+  records a hash of whatever it is committed with, so that pair agrees by
+  construction and cannot disagree; the same self-consistency the generator rule
+  refuses, one level up. A new or changed artifact therefore takes one commit
+  for the artifact and a later commit for its index entry. The manifest must also
+  descend from the artifact's last commit, so an artifact that moved without
+  being re-indexed fails.
 - **Historic order defects are a shrink-only ledger, never a waiver.** An
   exception must pin the full 40-character artifact commit and the exact subject
   commit or marker value it covers, and CI pins `--max-accepted`. An exception
@@ -94,9 +102,11 @@ describes is qualified or released.
 - `pnpm check:dox` audits contract claims added to this file against branch
   content.
 - `pnpm check:evidence` verifies coverage, content hashes, order, self-recorded
-  markers, and checker/manifest reflexivity. `--recompute` re-runs generators
-  that declare themselves reproducible; generators declaring themselves not
-  recomputable are reported as NOT CHECKED rather than counted as passes.
+  markers, index ordering, and checker/manifest reflexivity. `--recompute`
+  re-runs generators that declare themselves reproducible; generators declaring
+  themselves not recomputable are reported as NOT CHECKED rather than counted as
+  passes. `--max-recompute-skipped <n>` bounds that set shrink-only, so declaring
+  one more generator non-reproducible fails until the pin is deliberately raised.
   `--pending-commit-tolerant` downgrades uncommitted evidence to `not_checked`
   for pre-commit use and never reports a pass.
 - GE-04 Python checks under `scripts/ge04-*.py` and their tests under

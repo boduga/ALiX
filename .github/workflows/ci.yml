@@ -137,6 +137,24 @@ jobs:
       # this catches is edit-generator-edit-artifact-commit-both, which makes
       # every content comparison agree with itself.
       #
+      # Pins first. Every gate below is only as trustworthy as the script that
+      # computes it, and a script can be edited to pass in the same commit as the
+      # thing it judges. These hashes make that edit a visible workflow change
+      # instead of a one-line tweak hidden inside a diff. The limit is stated
+      # plainly: a commit author can edit the script and this pin together, so
+      # this is a cost and a review signal, not cryptographic independence.
+      - name: Checker script pins (sha256)
+        run: |
+          set -eu
+          sha256sum --check --strict <<'PINS'
+          0545085ec74c939d74e8739c0ac213612afa75e7b043dbe694072025c79e2f12  scripts/check-evidence-integrity.mjs
+          6288fba9b4734e14b38262aff9c9553904fd3cd0b59568ca0db9076445bdf530  scripts/check-dox-claims.mjs
+          4e070c37815eeb36cabd7c48e49093247282d3f924dad4598c13b3178296550a  scripts/check-staleness.mjs
+          e6a316bccbdbc026d00acbc251e1805a939230beffc0791407cada6c0caf0fc3  scripts/check-pr-scope.mjs
+          36313e8127f0f640d0adc2654f7b79aa60ec8c3a8688e42c51ca5599d93ad81e  scripts/preflight.mjs
+          cc75448b1135983034c296e48bc97650933ba6c3303b8751ded1b01ab05c6c62  .githooks/pre-push
+          PINS
+      #
       # Two steps on purpose. The strict run reaches a real verdict
       # (`pass_with_accepted`), so a green check means something. Every current
       # generator declares itself not recomputable — re-running them would
@@ -145,11 +163,20 @@ jobs:
       # a signal that stops being read.
       - name: Evidence provenance (order, markers, coverage)
         run: node scripts/check-evidence-integrity.mjs --max-accepted 2
-      # Separate and still gating: the moment a generator is reproducible it is
-      # re-run and drift fails the build. Nothing is reproducible today, and the
-      # step says so instead of claiming a pass it did not perform.
-      - name: Evidence recompute (skips declared-non-reproducible generators)
-        run: node scripts/check-evidence-integrity.mjs --max-accepted 2 --recompute
+      # Gating on what it can actually prove. A generator that declares itself
+      # reproducible is re-run and drift fails the build. The four current
+      # generators declare `recompute: false` (each records a machine state or a
+      # paid model run that no longer exists), so this step reports NOT CHECKED
+      # for their artifacts and exits 0 on that basis alone — it does not claim
+      # regeneration happened.
+      #
+      # `--max-recompute-skipped 4` is what keeps that honest over time: the set
+      # of generators exempt from regeneration is shrink-only, so declaring one
+      # more non-reproducible generator fails here until the pin is raised in a
+      # visible workflow change. When a generator becomes reproducible, this
+      # step starts reproducing it and the pin must drop.
+      - name: Evidence recompute (not-checked for 4 declared-non-reproducible generators)
+        run: node scripts/check-evidence-integrity.mjs --max-accepted 2 --recompute --max-recompute-skipped 4
 
   # ─── Lane 1c: preflight regression tests ─────────────────────────────────
   # `pnpm preflight` is what the pre-push hook runs, so its own verdicts need
@@ -165,7 +192,7 @@ jobs:
         with:
           node-version: "26.11.0"
       - name: Verify preflight selection and scope verdicts
-        run: node --test tests/scripts/preflight.test.mjs tests/scripts/check-pr-scope.test.mjs
+        run: node --test tests/scripts/preflight.test.mjs tests/scripts/check-pr-scope.test.mjs tests/scripts/pre-push.test.mjs
 
   # ─── Lane 2: Unit tests (vitest) ──────────────────────────────────────────
   unit:

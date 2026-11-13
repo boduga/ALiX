@@ -17,7 +17,7 @@ do not switch branches or overwrite a worktree owned by another agent.
 2. Fetch `origin/main`; create one scoped branch for one issue or independently mergeable change.
 3. Use `feat/`, `fix/`, `docs/`, `chore/`, `test/`, `refactor/`, `security/`, `ci/`, `build/`, or `hotfix/`. Include the issue number when available.
 4. Before committing, inspect `git diff`, `git diff --cached`, and `git status`; run applicable DOX/GitNexus and tests.
-5. Run `pnpm preflight`. It must end with `Preflight OK`. A `UNKNOWN`/`not_checked` step is an incomplete run and exits non-zero; `SKIP` is reserved for an intentional, documented case such as a docs-only change.
+5. Run `pnpm preflight`. It must end with `Preflight OK`. A `UNKNOWN`/`not_checked` step is an incomplete run and exits non-zero; `SKIP` is reserved for an intentional, documented case such as a docs-only change. Affected-test selection is a heuristic that maps changed files to mirrored paths, matching basenames, and importing tests; it reports what it could not map. `pnpm preflight --full` runs both whole suites and is the authoritative run when the subset is not enough.
 6. Open one primary PR; use Conventional Commits PR titles. Link the issue with `Refs #N` for partial work; use `Closes #N` only when all acceptance criteria are met.
 7. Have a separate agent session review the complete diff and a verifier check test evidence. Their reports do not count as independent human security qualification.
 8. Merge only after required GitHub checks and applicable human authorization; prefer squash merge. Do not push to `main` directly, bypass checks, or rewrite others' branches.
@@ -29,7 +29,7 @@ The PR metadata check enforces naming, not security or merge authorization.
 ## Pull Requests
 
 - Keep changes focused — one feature or fix per PR
-- Fill the PR template's `**Scope:**` line with the top-level areas the diff touches (for example `scripts, tests, .github`). `check-pr-scope` fails when a touched area is undeclared.
+- **Scope is mandatory.** Fill the PR template's `**Scope:**` line with the top-level areas the diff touches (for example `scripts, tests, .github`). `check-pr-scope` fails when a touched area is undeclared; a diff with no `Scope:` line cannot pass.
 - A diff spanning more than three areas must state why it is one change in a `**Broad-scope:**` line. The reason is reviewed, not scored: "it is a contract sweep across N subsystems" is fine, silence is not.
 - Write tests for new code (we use `node:test`)
 - Timing-sensitive tests must declare an explicit `timeout` with a workload-rationale comment (see `tests/soak/store-load.test.ts`), so slow runners don't turn them into flakes

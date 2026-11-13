@@ -60,6 +60,7 @@ interface FindResult {
     accepted: { check: string; path: string }[];
     notChecked: string[];
     notCovered: string[];
+    recomputeSkipped: number;
     recompute: { generator: string; ok: boolean; skipped?: boolean; reason?: string; detail?: string }[];
   } | null;
   stdout: string;
@@ -157,7 +158,12 @@ function manifestFor(
 const GEN = "docs/security/gen.mjs";
 const ARTIFACT = "docs/security/artifact.json";
 
-/** Generator committed first, then the artifact and manifest. Healthy order. */
+/**
+ * Healthy order is three commits, not two: generator, then artifact, then its
+ * manifest entry. The manifest records a hash of whatever it is committed with,
+ * so an artifact and its index in one commit cannot disagree by construction —
+ * that pair is exactly what the index rule refuses.
+ */
 function healthyRepo(extra: Record<string, FileContents> = {}, stepOverrides: Partial<Step> = {}): string {
   const files: Record<string, FileContents> = {
     [GEN]: "console.log('census');\n",
@@ -165,14 +171,12 @@ function healthyRepo(extra: Record<string, FileContents> = {}, stepOverrides: Pa
   };
   return repo([
     { message: "generator", files: { [GEN]: files[GEN] } },
+    { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT], ...extra }, ...stepOverrides },
     {
-      message: "artifact",
+      message: "manifest entry",
       files: {
-        [ARTIFACT]: files[ARTIFACT],
         [MANIFEST]: manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] }),
-        ...extra,
       },
-      ...stepOverrides,
     },
   ]);
 }
@@ -311,10 +315,12 @@ describe("check-evidence-integrity: coverage", () => {
       [
         { message: "generator", files: { [GEN]: files[GEN] } },
         {
+          message: "artifact and the excluded file",
+          files: { [ARTIFACT]: files[ARTIFACT], "docs/security/skip.json": { s: 1 } },
+        },
+        {
           message: "manifest with a justified exclusion",
           files: {
-            [ARTIFACT]: files[ARTIFACT],
-            "docs/security/skip.json": { s: 1 },
             [MANIFEST]: manifestFor(files, {
               artifacts: [{ path: ARTIFACT, producedBy: GEN }],
               notCovered: [
@@ -548,6 +554,8 @@ describe("check-evidence-integrity: self-recorded markers", () => {
         const ancestor = spawnSync("git", ["rev-parse", "HEAD~1"], { cwd: dir, encoding: "utf8" }).stdout.trim();
         const artifact = { sourceCommit: ancestor };
         writeFileSync(join(dir, ARTIFACT), JSON.stringify(artifact, null, 2));
+        git(dir, ["add", "-A"]);
+        git(dir, ["commit", "-q", "-m", "artifact naming an ancestor"]);
         writeFileSync(
           join(dir, MANIFEST),
           JSON.stringify(
@@ -560,11 +568,59 @@ describe("check-evidence-integrity: self-recorded markers", () => {
           ),
         );
         git(dir, ["add", "-A"]);
-        git(dir, ["commit", "-q", "-m", "artifact naming an ancestor"]);
+        git(dir, ["commit", "-q", "-m", "manifest entry"]);
         const r = run(dir);
         assert.equal(r.status, 0, r.stdout);
       },
     );
+  });
+});
+
+describe("check-evidence-integrity: index ordering", () => {
+  it("fails when an artifact and its manifest entry share a commit", () => {
+    // The manifest's sha256 is computed from whatever is on disk when it is
+    // written, so this pair agrees by construction. That is the same
+    // self-consistency the generator rule refuses, one level up.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    withRepo(
+      [
+        { message: "generator", files: { [GEN]: files[GEN] } },
+        {
+          message: "artifact and its index together",
+          files: {
+            [ARTIFACT]: files[ARTIFACT],
+            [MANIFEST]: manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] }),
+          },
+        },
+      ],
+      (dir) => {
+        const r = run(dir);
+        assert.equal(r.status, 1, r.stdout);
+        assert.ok(checks(r).includes("index"));
+        assert.match(r.stdout, /indexed in the same commit/);
+      },
+    );
+  });
+
+  it("fails when the artifact moved in a commit the manifest does not descend from", () => {
+    // The honest case this rule exists for: a healthy three-commit history,
+    // then the artifact is edited again and the manifest is NOT updated. The
+    // manifest now indexes a state that is not an ancestor of its own commit,
+    // so it is describing a past this history never had. A side branch would
+    // also trip coverage, so the fixture keeps a linear history and lets the
+    // ancestor comparison alone produce the finding.
+    const dir = healthyRepo();
+    try {
+      writeFileSync(join(dir, ARTIFACT), JSON.stringify({ count: 12 }, null, 2));
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "artifact changed without reindexing"]);
+      const r = run(dir);
+      assert.equal(r.status, 1, r.stdout);
+      assert.ok(checks(r).includes("index"), r.stdout);
+      assert.match(r.stdout, /not an ancestor/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -770,10 +826,60 @@ describe("check-evidence-integrity: recompute", () => {
       const r = run(dir, ["--recompute"]);
       assert.equal(r.status, 0, r.stdout);
       assert.equal(r.parsed?.verdict, "not_checked");
+      assert.equal(r.parsed?.recomputeSkipped, 1);
       const recompute = r.parsed!.recompute;
       assert.equal(recompute.length, 1);
       assert.equal(recompute[0].reason, "declared-not-recomputable");
       assert.ok(r.parsed!.notChecked.some((reason) => /declared not recomputable/.test(reason)));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the honest not_checked verdict when the skip count matches its pin", () => {
+    const dir = healthyRepo();
+    try {
+      const r = run(dir, ["--recompute", "--max-recompute-skipped", "1"]);
+      assert.equal(r.status, 0, r.stdout);
+      assert.equal(r.parsed?.verdict, "not_checked");
+      assert.equal(r.parsed?.recomputeSkipped, 1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails when more generators are declared not recomputable than the pin allows", () => {
+    // The invisible edit this prevents: mark a reproducible generator
+    // `recompute: false` and the recompute step quietly stops checking it.
+    const dir = healthyRepo();
+    try {
+      const r = run(dir, ["--recompute", "--max-recompute-skipped", "0"]);
+      assert.equal(r.status, 1, r.stdout);
+      assert.ok(checks(r).includes("recompute"));
+      assert.match(r.stdout, /skip set is shrink-only/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails when the skip count drops below its pin so the ratchet tightens", () => {
+    const dir = healthyRepo();
+    try {
+      const r = run(dir, ["--recompute", "--max-recompute-skipped", "2"]);
+      assert.equal(r.status, 1, r.stdout);
+      assert.ok(checks(r).includes("recompute"));
+      assert.match(r.stdout, /lower --max-recompute-skipped/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses the skip pin without --recompute", () => {
+    const dir = healthyRepo();
+    try {
+      const r = run(dir, ["--max-recompute-skipped", "1"]);
+      assert.equal(r.status, 2, r.stdout + r.stderr);
+      assert.match(r.stderr, /requires --recompute/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -34,6 +34,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 export const AREAS = [
   "src/governance",
@@ -151,6 +152,12 @@ export function validatePrScope({ base = "main", files = [], body = "", declared
   }
 
   const declaredSet = new Set([...declaredAreas(body), ...declared].map((d) => d.replace(/\/$/, "")));
+  if (maxAreas !== undefined && !(Number.isInteger(maxAreas) && maxAreas > 0)) {
+    // `scoped.length > NaN` is always false, so an unparseable limit silently
+    // disabled both the cap and the rationale requirement. Refuse it instead.
+    errors.push(`--max-areas must be a positive integer, got \`${maxAreas}\``);
+    return errors;
+  }
   const limit = maxAreas ?? 3;
 
   const touched = new Map();
@@ -174,12 +181,35 @@ export function validatePrScope({ base = "main", files = [], body = "", declared
     );
   }
 
-  if (declaredSet.size) {
+  if (!declaredSet.size) {
+    // Silence must not be a way through. An absent declaration used to skip the
+    // whole coverage loop, so any diff of three areas or fewer passed with no
+    // statement of scope at all — the exact habit this check exists to replace.
+    errors.push(
+      `no declared scope — add a \`**Scope:**\` line naming the top-level areas this PR touches` +
+        ` (${[...touched.keys()].join(", ")})`,
+    );
+  } else {
     for (const area of touched.keys()) {
       if (area === "unclassified") continue;
       const covered = [...declaredSet].some((d) => area === d || area.startsWith(`${d}/`) || d.startsWith(`${area}/`));
       if (!covered) {
         errors.push(`touched \`${area}\` but the PR declares only ${[...declaredSet].map((d) => `\`${d}\``).join(", ")} — declare it or split the PR`);
+      }
+    }
+    // A declaration may not be coarser than the areas it is judged against:
+    // `Scope: src` would otherwise cover eleven distinct subsystems, turning one
+    // honest-looking word into a blanket exemption from the broad-scope gate.
+    for (const d of declaredSet) {
+      const resolved = areaFor(d);
+      if (resolved === "unclassified") {
+        const suggestion = AREAS.filter((area) => area.startsWith(`${d}/`));
+        errors.push(
+          `\`${d}\` is not a declared area — ` +
+            (suggestion.length
+              ? `declare the specific area(s): ${suggestion.map((area) => `\`${area}\``).join(", ")}`
+              : `use one of the top-level areas in AREAS`),
+        );
       }
     }
   }
@@ -195,7 +225,7 @@ export function validatePrScope({ base = "main", files = [], body = "", declared
   return errors;
 }
 
-if (process.argv[1] && import.meta.url === new URL("file://" + process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const args = process.argv.slice(2);
   const getArg = (name) => {
     const i = args.indexOf(name);
@@ -223,6 +253,10 @@ if (process.argv[1] && import.meta.url === new URL("file://" + process.argv[1]).
   }
 
   const maxAreas = getArg("--max-areas");
+  if (maxAreas !== null && !(Number.isInteger(Number(maxAreas)) && Number(maxAreas) > 0)) {
+    console.error(`::error::--max-areas expects a positive integer, got \`${maxAreas}\``);
+    process.exit(2);
+  }
   const errors = validatePrScope({
     base,
     files,

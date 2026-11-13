@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { areaFor, baseBranchOf, declaredAreas, scopeRationale, validatePrScope } from "../../scripts/check-pr-scope.mjs";
 
 test("classifies known areas and shared metadata", () => {
@@ -20,8 +24,20 @@ test("checked-in hooks are tooling, not an unclassified path", () => {
 
 test("shared metadata never counts as an area", () => {
   assert.deepEqual(
-    validatePrScope({ files: ["package.json", "pnpm-lock.yaml", ".nvmrc", "scripts/preflight.mjs"] }),
+    validatePrScope({
+      files: ["package.json", "pnpm-lock.yaml", ".nvmrc", "scripts/preflight.mjs"],
+      body: "Scope: scripts",
+    }),
     [],
+  );
+});
+
+test("shared metadata alone still needs a declaration", () => {
+  // Metadata does not add an area, but it does not supply the declaration either.
+  // Pure metadata is not "an undeclared area" — it is not reviewable content at
+  // all, and the empty-diff verdict says so rather than inventing a scope demand.
+  assert.ok(
+    validatePrScope({ files: ["package.json", "pnpm-lock.yaml"] }).some((e) => /no scoped files/.test(e)),
   );
 });
 
@@ -46,18 +62,47 @@ test("a remote-qualified main base is main, not a different branch", () => {
   assert.equal(baseBranchOf("origin/main"), "main");
   assert.equal(baseBranchOf("upstream/main"), "main");
   assert.equal(baseBranchOf("main"), "main");
-  assert.deepEqual(validatePrScope({ base: "origin/main", files: ["scripts/a.mjs"] }), []);
-});
-
-test("one focused area passes without a declared scope", () => {
-  assert.deepEqual(validatePrScope({ files: ["src/governance/a.ts", "src/governance/b.ts", "package.json"] }), []);
-});
-
-test("up to three areas need no explanation", () => {
-  assert.deepEqual(validatePrScope({ files: ["scripts/a.mjs", "docs/x.md"] }), []);
   assert.deepEqual(
-    validatePrScope({ files: ["scripts/a.mjs", "docs/x.md", "tests/y.test.ts"] }),
+    validatePrScope({ base: "origin/main", files: ["scripts/a.mjs"], body: "Scope: scripts" }),
     [],
+  );
+});
+
+test("an undeclared diff is not a pass, however focused", () => {
+  // Silence used to skip the coverage loop entirely, so any diff of three areas
+  // or fewer passed with no statement of scope. CONTRIBUTING says the check
+  // "fails when a touched area is undeclared"; with no declaration every area
+  // is undeclared, so the only honest verdict is a failure.
+  const errors = validatePrScope({ files: ["src/governance/a.ts", "src/governance/b.ts", "package.json"] });
+  assert.ok(errors.some((e) => /no declared scope/.test(e) && /src\/governance/.test(e)));
+});
+
+test("one focused area passes when declared", () => {
+  assert.deepEqual(
+    validatePrScope({
+      files: ["src/governance/a.ts", "src/governance/b.ts", "package.json"],
+      body: "Scope: src/governance",
+    }),
+    [],
+  );
+});
+
+test("up to three declared areas need no explanation", () => {
+  assert.deepEqual(validatePrScope({ files: ["scripts/a.mjs", "docs/x.md"], body: "Scope: scripts, docs" }), []);
+  assert.deepEqual(
+    validatePrScope({
+      files: ["scripts/a.mjs", "docs/x.md", "tests/y.test.ts"],
+      body: "Scope: scripts, docs, tests",
+    }),
+    [],
+  );
+});
+
+test("the undisclosed third area still fails at three areas", () => {
+  assert.ok(
+    validatePrScope({ files: ["scripts/a.mjs", "docs/x.md"], body: "Scope: scripts" }).some((e) =>
+      /touched `docs`/.test(e),
+    ),
   );
 });
 
@@ -82,11 +127,12 @@ test("the calibrated cap accepts repository history that legitimately spans many
     "src/runtime-state/i.ts", "docs/x.md", "tests/y.test.ts",
   ];
   assert.ok(
-    validatePrScope({ files }).some((e) => /spans 11 areas/.test(e)),
+    validatePrScope({ files, declared: ["src/agents", "src/capabilities", "src/coordination", "src/execution", "src/governance", "src/interfaces", "src/operations", "src/planning", "src/runtime-state", "docs", "tests"] }).some((e) => /spans 11 areas/.test(e)),
     "an unexplained sweep still fails",
   );
+  const declarations = files.map((f) => areaFor(f)).filter((a) => a !== "shared");
   assert.deepEqual(
-    validatePrScope({ files, body: "Broad-scope: subsystem contract rollout" }),
+    validatePrScope({ files, declared: declarations, body: "Broad-scope: subsystem contract rollout" }),
     [],
   );
 });
@@ -166,4 +212,26 @@ test("explicit --declare values behave like a body declaration", () => {
 
 test("a traversal-only diff still has to be classified", () => {
   assert.ok(validatePrScope({ files: ["../escape.json"] }).some((e) => /unclassified/.test(e)));
+});
+
+test("the CLI entrypoint runs from a path that needs percent-encoding", () => {
+  // `new URL("file://" + process.argv[1])` throws on a `%` in the path, so the
+  // guard never matched and the script silently did nothing while exiting 0.
+  // That is the worst shape for a check: a green run that performed no check.
+  const dir = mkdtempSync(join(tmpdir(), "alix scope 100% "));
+  try {
+    const script = join(dir, "check-pr-scope.mjs");
+    copyFileSync(new URL("../../scripts/check-pr-scope.mjs", import.meta.url), script);
+    const diff = join(dir, "changed.txt");
+    writeFileSync(diff, "scripts/a.mjs\n");
+    const result = spawnSync(process.execPath, [script, "--diff-file", diff], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, PR_BODY: "Scope: scripts" },
+    });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /PR scope OK/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -33,6 +33,13 @@
  *                 same commit. Otherwise the way to disable a finding is to edit
  *                 the rule and the data together, which is failure #1 one level
  *                 up.
+ *   6. INDEX      the manifest must postdate every artifact it indexes. The
+ *                 manifest's sha256 is not a security control on its own: it is
+ *                 written by whoever writes the artifact, so editing both in one
+ *                 commit produces a pair that agrees with itself. Requiring the
+ *                 index to move in a later commit breaks that single-commit
+ *                 shape; the artifact change and the claim that it is unchanged
+ *                 can no longer be the same event.
  *
  * ORDER uses ancestry (`git merge-base --is-ancestor`), not commit timestamps.
  * Timestamps are rewritten by rebase and cherry-pick, so a rebased artifact could
@@ -69,7 +76,16 @@
  *
  * Usage:
  *   node scripts/check-evidence-integrity.mjs [--root <dir>] [--manifest <path>]
- *        [--json] [--recompute] [--pending-commit-tolerant]
+ *        [--json] [--recompute] [--max-recompute-skipped <n>]
+ *        [--pending-commit-tolerant]
+ *
+ * `--max-recompute-skipped <n>` is the shrink-only counterpart of
+ * `--max-accepted` for generators that declare `recompute: false`. Such a
+ * generator is never re-run, so a `--recompute` run that includes it cannot pass
+ * *for that artifact* — the verdict stays `not_checked`. This flag turns that
+ * honest absence into a reviewed number instead of an invisible one: growing the
+ * set of generators exempt from regeneration fails the build, and shrinking it
+ * requires the pin to be lowered on purpose. Requires `--recompute`.
  *
  * `--pending-commit-tolerant` downgrades an uncommitted artifact or generator
  * from a finding to an explicit NOT CHECKED result. It exists for the pre-commit
@@ -100,6 +116,8 @@ const recompute = argv.includes("--recompute");
 const pendingCommitTolerant = argv.includes("--pending-commit-tolerant");
 const maxAcceptedArg = getArg("--max-accepted");
 const maxAccepted = maxAcceptedArg === null ? null : Number(maxAcceptedArg);
+const maxRecomputeSkippedArg = getArg("--max-recompute-skipped");
+const maxRecomputeSkipped = maxRecomputeSkippedArg === null ? null : Number(maxRecomputeSkippedArg);
 
 const root = resolve(getArg("--root") ?? process.cwd());
 const manifestPath = resolve(root, getArg("--manifest") ?? "docs/security/evidence-manifest.json");
@@ -112,6 +130,10 @@ function usage(message) {
   if (jsonMode) console.error(JSON.stringify(payload, null, 2));
   else console.error(`ERROR: ${message}`);
   process.exit(2);
+}
+
+if (maxRecomputeSkippedArg !== null && !recompute) {
+  usage("--max-recompute-skipped requires --recompute; without it there is no skip set to bound");
 }
 
 // ---------------------------------------------------------------------------
@@ -542,6 +564,55 @@ for (const artifact of artifacts) {
   }
 }
 
+// -- 4b. Index ordering ----------------------------------------------------
+
+/**
+ * The manifest records a sha256 per artifact. That hash proves nothing about
+ * intent by itself: it is computed from whatever is on disk when it is written.
+ * Changing an artifact and its recorded hash in one commit makes every content
+ * comparison self-consistent — the same failure the generator rule catches, one
+ * level up. So the index must be a later event than the thing it indexes.
+ *
+ * The cost is stated plainly: a new or changed artifact takes one commit for the
+ * artifact and another for its manifest entry. That is the friction this check
+ * buys, and it is visible in history as two linked commits rather than one.
+ */
+{
+  const manifestCommit = manifestRepoPath ? lastCommit(manifestRepoPath) : null;
+  if (!manifestCommit) {
+    pendingCommit.push({ path: manifestRepoPath, relation: "the artifacts it indexes", other: "all listed artifacts" });
+  } else {
+    for (const artifact of artifacts) {
+      if (!artifact || typeof artifact.path !== "string") continue;
+      const artifactCommit = lastCommit(artifact.path);
+      if (!artifactCommit) {
+        pendingCommit.push({ path: artifact.path, relation: "its manifest entry", other: manifestRepoPath });
+        continue;
+      }
+      if (artifactCommit === manifestCommit) {
+        add(
+          "index",
+          artifact.path,
+          `was indexed in the same commit that last changed it (${short(manifestCommit)}) — ` +
+            "the manifest records a hash of whatever it is committed with, so this pair cannot disagree; " +
+            "commit the artifact first, then its manifest entry",
+          { relation: "manifest", subject: manifestRepoPath, artifactCommit, subjectCommit: manifestCommit, markerValue: null },
+        );
+        continue;
+      }
+      if (!isAncestor(artifactCommit, manifestCommit)) {
+        add(
+          "index",
+          artifact.path,
+          `is not an ancestor of the manifest that indexes it (artifact ${short(artifactCommit)}, manifest ${short(manifestCommit)}) — ` +
+            "the index records a state that is not in its history",
+          { relation: "manifest", subject: manifestRepoPath, artifactCommit, subjectCommit: manifestCommit, markerValue: null },
+        );
+      }
+    }
+  }
+}
+
 // -- 5. Reflexivity --------------------------------------------------------
 
 const selfCommit = lastCommit("scripts/check-evidence-integrity.mjs");
@@ -847,19 +918,55 @@ if (maxAccepted !== null) {
     usage(`--max-accepted expects a non-negative integer, got \`${maxAcceptedArg}\``);
   }
   if (acceptedFindings.length > maxAccepted) {
-    blockingFindings.push({
+    const finding = {
       check: "exceptions",
       path: manifestRepoPath,
       detail:
         `accepted defects grew from the pinned ${maxAccepted} to ${acceptedFindings.length}; ` +
         "the ledger is shrink-only — fix the defect or get the pin raised deliberately",
-    });
+    };
+    findings.push(finding);
+    blockingFindings.push(finding);
     verdict = "fail";
   } else if (acceptedFindings.length < maxAccepted) {
     notCheckedReasons.push(
       `accepted defects dropped to ${acceptedFindings.length} but the run pinned ${maxAccepted}; ` +
         "lower --max-accepted so the ratchet tightens",
     );
+    verdict = "fail";
+  }
+}
+
+// The recompute equivalent. `--recompute` cannot pass for a generator that
+// declares itself non-reproducible, so the honest outcome is `not_checked`.
+// Without a pinned count that state is indistinguishable from someone quietly
+// declaring one more generator non-reproducible; with it, that edit fails.
+if (maxRecomputeSkipped !== null) {
+  if (!Number.isInteger(maxRecomputeSkipped) || maxRecomputeSkipped < 0) {
+    usage(`--max-recompute-skipped expects a non-negative integer, got \`${maxRecomputeSkippedArg}\``);
+  }
+  if (declaredNotRecomputable.length > maxRecomputeSkipped) {
+    const finding = {
+      check: "recompute",
+      path: manifestRepoPath,
+      detail:
+        `generators declared not recomputable grew from the pinned ${maxRecomputeSkipped} to ` +
+        `${declaredNotRecomputable.length}; the skip set is shrink-only — make the generator ` +
+        "reproducible or get the pin raised deliberately",
+    };
+    findings.push(finding);
+    blockingFindings.push(finding);
+    verdict = "fail";
+  } else if (declaredNotRecomputable.length < maxRecomputeSkipped) {
+    const finding = {
+      check: "recompute",
+      path: manifestRepoPath,
+      detail:
+        `${declaredNotRecomputable.length} generator(s) are declared not recomputable but the run ` +
+        `pinned ${maxRecomputeSkipped}; lower --max-recompute-skipped so the ratchet tightens`,
+    };
+    findings.push(finding);
+    blockingFindings.push(finding);
     verdict = "fail";
   }
 }
@@ -875,6 +982,7 @@ const payload = {
   generatorsPinned: generatorSet.size,
   contentVerified: checked,
   orderChecked,
+  recomputeSkipped: declaredNotRecomputable.length,
   notChecked: notCheckedReasons,
   pendingCommit: pending,
   accepted: acceptedFindings.map((f) => ({
@@ -910,7 +1018,8 @@ if (jsonMode) {
     console.log(`ACCEPTED [${finding.check}] ${finding.path} — ${finding.acceptedBy}: ${finding.acceptanceReason}`);
   }
   console.log(
-    `artifacts ${listedArtifactPaths.size} · generators ${generatorSet.size} · content verified ${checked} · order ${orderChecked ? "verified" : "not verified"}`,
+    `artifacts ${listedArtifactPaths.size} · generators ${generatorSet.size} · content verified ${checked} · order ${orderChecked ? "verified" : "not verified"}` +
+      (maxRecomputeSkipped === null ? "" : ` · recompute skipped ${declaredNotRecomputable.length} (pinned ${maxRecomputeSkipped})`),
   );
   for (const reason of notCheckedReasons) console.log(`NOT CHECKED: ${reason}`);
   for (const entry of notCovered) {

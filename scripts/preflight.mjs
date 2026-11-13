@@ -48,6 +48,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve, sep, extname, basename } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const args = process.argv.slice(2);
@@ -136,9 +137,15 @@ export function selectAffectedTests(changed, allTests) {
   if (!sources.length) return { selected: [...selected].sort(), unmapped: [] };
 
   const byBasename = new Map();
+  // Mirrored-path lookup must key on the directory as well as the stem, and it
+  // must hold every test at a key. Keyed on the bare stem, `tests/a/x.test.ts`
+  // and `tests/b/x.test.ts` collided and the second silently replaced the
+  // first, so a change to `src/b/x.ts` selected nothing at all.
   const byPath = new Map();
   for (const test of allTests) {
-    byPath.set(test.repoPath.replace(/^tests\//, "").replace(/\.(test|vitest)\.(ts|mjs|js)$/, ""), test);
+    const key = test.repoPath.replace(/^tests\//, "").replace(/\.(test|vitest)\.(ts|mjs|js)$/, "");
+    if (!byPath.has(key)) byPath.set(key, []);
+    byPath.get(key).push(test);
     const stem = basename(test.repoPath).replace(/\.(test|vitest)\.(ts|mjs|js)$/, "");
     if (!byBasename.has(stem)) byBasename.set(stem, []);
     byBasename.get(stem).push(test);
@@ -149,8 +156,8 @@ export function selectAffectedTests(changed, allTests) {
     const stripped = source.replace(/\.ts$/, "");
     const stem = basename(stripped);
     const hits = new Set();
-    for (const test of [byPath.get(stripped.replace(/^src\//, "")), byPath.get(stripped)].filter(Boolean)) {
-      hits.add(test.repoPath);
+    for (const key of [stripped.replace(/^src\//, ""), stripped]) {
+      for (const test of byPath.get(key) ?? []) hits.add(test.repoPath);
     }
     for (const test of byBasename.get(stem) ?? []) hits.add(test.repoPath);
     // Import-based: a test that names the module by path, relative or aliased.
@@ -274,21 +281,36 @@ export function verdictOf(stepsToJudge) {
  * inherit that as a PASS: read the structured verdict, not just the status.
  */
 export function classifyEvidence(stdout, exitCode) {
+  // Only a structured verdict can establish a pass. The checker is asked for
+  // --json precisely so preflight can read its answer instead of inferring one
+  // from an exit code: it exits 0 for `not_checked`. Unparseable output means
+  // the verdict is unknown, and an unknown that happens to exit 0 is the exact
+  // shape of a check that never ran reading as a pass.
+  let payload;
   try {
-    const payload = JSON.parse(stdout);
-    if (payload.verdict === "fail" || payload.verdict === "error") {
-      return { status: "fail", detail: payload.error ?? `verdict ${payload.verdict}` };
-    }
-    if (payload.verdict === "not_checked") {
-      return {
-        status: "not_checked",
-        detail: (payload.notChecked ?? []).join("; ") || "evidence contract was not fully verified",
-      };
-    }
-    return { status: "pass", detail: payload.verdict };
+    payload = JSON.parse(stdout);
   } catch {
-    return { status: exitCode === 0 ? "pass" : "fail" };
+    return {
+      status: exitCode === 0 ? "not_checked" : "fail",
+      detail: `evidence checker produced no JSON verdict (exit ${exitCode}); its output was not readable as a verdict`,
+    };
   }
+  if (!payload || typeof payload !== "object" || typeof payload.verdict !== "string") {
+    return { status: "fail", detail: "evidence checker returned JSON without a string `verdict`" };
+  }
+  if (payload.verdict === "fail" || payload.verdict === "error") {
+    return { status: "fail", detail: payload.error ?? `verdict ${payload.verdict}` };
+  }
+  if (payload.verdict === "not_checked") {
+    return {
+      status: "not_checked",
+      detail: (payload.notChecked ?? []).join("; ") || "evidence contract was not fully verified",
+    };
+  }
+  if (payload.verdict !== "pass" && payload.verdict !== "pass_with_accepted") {
+    return { status: "fail", detail: `evidence checker returned an unrecognized verdict \`${payload.verdict}\`` };
+  }
+  return { status: "pass", detail: payload.verdict };
 }
 
 function main() {
@@ -418,4 +440,7 @@ function main() {
   process.exitCode = ok ? 0 : 1;
 }
 
-if (process.argv[1] && import.meta.url === new URL("file://" + process.argv[1]).href) main();
+// `new URL("file://" + path)` breaks on Windows drive letters and on any path
+// needing percent-encoding. pathToFileURL does the conversion the comparison
+// actually needs.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
