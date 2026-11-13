@@ -132,6 +132,22 @@ export function canonicalDiffArgs(base, head) {
 }
 
 /**
+ * The `--raw` metadata grammar: `:<mode> <mode> <sha> <sha> <status>`, or the
+ * combined form `::<mode> <mode> <mode> <sha> <sha> <sha> <status>` that git
+ * emits with `--cc` for an unmerged path. Modes are six octal digits; object
+ * ids are hex and at least 40 characters (a sha256 repository uses 64); the
+ * status is one to three uppercase letters with an optional similarity score.
+ *
+ * The grammar exists because a path can look like metadata. A first-byte check
+ * for ":" was defeated by two renames -- one colon-prefixed target and one
+ * colon-prefixed source -- which put a path in an even position; real
+ * `git diff --raw -z -M` output for that change was accepted and mis-paired.
+ * Matching the whole shape the field must have is what makes the check
+ * falsifiable.
+ */
+const RAW_META_RE = /^::?[0-7]{6}(?: [0-7]{6}){1,2}(?: [0-9a-f]{40,}){2,3} [A-Z]{1,3}[0-9]{0,3}$/;
+
+/**
  * Canonicalize raw-diff output into a stable byte string.
  *
  * `--raw -z` emits, per changed path, two NUL-terminated fields:
@@ -169,18 +185,31 @@ export function canonicalizeRawDiff(buffer) {
     throw new Error(`raw diff output had ${fields.length} NUL-delimited fields, but --raw -z emits metadata/path pairs`);
   }
   const records = [];
-  const colon = 0x3a;
   for (let i = 0; i < fields.length; i += 2) {
-    // Every `--raw` metadata field begins with ":" and holds no NUL. Checking
-    // that is what makes the pair assumption falsifiable rather than assumed:
-    // rename/copy records (`-M`/`-C`) carry a second path, so an even number of
-    // them would otherwise pair a path with the next record’s metadata and
-    // hash two different trees identically. The shipped invocation pins
-    // `--no-renames`, and this rejects the shape anyway instead of trusting it.
-    if (fields[i][0] !== colon) {
+    // Pairing is only sound when every metadata field is really metadata and
+    // every record carries exactly one path. Checking the first byte for ":" is
+    // not enough to establish that: a *path* may begin with ":" too, so two
+    // renames -- one whose target and one whose source start with ":" -- place a
+    // path in the even position and pass a first-byte test, silently binding a
+    // path to the wrong record. Measured with real `git diff --raw -z -M`
+    // output, that stream was accepted.
+    //
+    // So the field is parsed as the grammar it claims to be. `--raw` emits
+    // `<modes> <blobs> <status>`, and a combined (unmerged) record starts with
+    // "::" and carries three of each. Anything that does not parse is not a
+    // record boundary we can trust, and a rename/copy status -- which appends a
+    // second path -- is rejected outright rather than paired.
+    const meta = fields[i].toString("latin1");
+    if (!RAW_META_RE.test(meta)) {
       throw new Error(
-        "raw diff metadata field did not begin with a colon \u2014 the stream does not pair as (metadata, path); " +
-          "rename/copy records need --no-renames",
+        `raw diff metadata field ${JSON.stringify(meta.slice(0, 80))} is not \u003cmode sha status\u003e, so the ` +
+          "stream does not pair as (metadata, path); rename/copy records need --no-renames",
+      );
+    }
+    const status = meta.slice(meta.lastIndexOf(" ") + 1);
+    if (status.startsWith("R") || status.startsWith("C")) {
+      throw new Error(
+        `raw diff emitted a ${status} record, which carries a second path; rename/copy records need --no-renames`,
       );
     }
     records.push(Buffer.concat([fields[i], nul, fields[i + 1], nul]));

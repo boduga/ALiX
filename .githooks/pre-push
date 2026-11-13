@@ -38,7 +38,12 @@ while read -r local_ref local_sha remote_ref remote_sha; do
       echo "          Fetch it, or push with --no-verify if you are certain CI will pass."
       exit 1
     fi
-    base_sha="$(git merge-base origin/main "${local_sha}" 2>/dev/null || true)"
+    # GIT_NO_REPLACE_OBJECTS=1 for the same reason the emptiness test below
+    # uses it: a replacement ref can make `origin/main` resolve through a commit
+    # nobody pushed, and base selection is part of deciding what changed. An
+    # unguarded merge-base returned a rewritten ancestor, so the range described
+    # a different history than the one being pushed.
+    base_sha="$(GIT_NO_REPLACE_OBJECTS=1 git merge-base origin/main "${local_sha}" 2>/dev/null || true)"
     if [ -z "${base_sha}" ]; then
       echo "pre-push: new branch ${remote_ref} and no merge base with origin/main."
       echo "          Fetch origin, or push with --no-verify if you are certain CI will pass."

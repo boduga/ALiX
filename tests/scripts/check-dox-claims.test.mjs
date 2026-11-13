@@ -108,3 +108,66 @@ test("still rejects an identifier that no source file defines", () => {
   assert.equal(r.status, 1, r.stdout + r.stderr);
   assert.match(r.stdout + r.stderr, /no code/);
 });
+
+
+
+test("a replacement ref cannot hide an added contract claim", () => {
+  // The DOX audit's scope is "lines the branch ADDS relative to base". A
+  // replacement ref rewrites the base's tree, so the range diff can drop the
+  // AGENTS.md hunk while another file still differs -- `anyChangedFiles` is then
+  // non-empty and the run reports CLEAN for a claim it never read. That is a
+  // false pass, so the diff must not be substitutable.
+  const dir = mkdtempSync(join(tmpdir(), "alix-dox-replace-"));
+  const env = { ...GIT_ENV };
+  const run = (...args) => {
+    const r = spawnSync("git", args, { cwd: dir, encoding: "utf8", env });
+    if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+    return r.stdout.trim();
+  };
+  try {
+    run("init", "--quiet", "--initial-branch=main");
+    write(dir, "README.md", "# fixture\n");
+    write(dir, "src/thing.ts", "export const other = 1;\n");
+    run("add", "-A");
+    run("commit", "--quiet", "-m", "base");
+    const base = run("rev-parse", "HEAD");
+
+    write(dir, "AGENTS.md", "# Fixture\n\n- The contract names `bogusSymbolNotInCode`.\n");
+    write(dir, "src/thing.ts", "export const changed = 2;\n");
+    run("add", "-A");
+    run("commit", "--quiet", "-m", "head");
+    const head = run("rev-parse", "HEAD");
+
+    // Synthetic base = base tree + the AGENTS.md claim, so the substituted range
+    // diff carries only the src change and the claim is invisible to the scan.
+    const indexFile = join(dir, ".git", "synthetic-index");
+    const idxEnv = { ...env, GIT_INDEX_FILE: indexFile };
+    const idx = (...args) => {
+      const r = spawnSync("git", args, { cwd: dir, encoding: "utf8", env: idxEnv });
+      if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+      return r.stdout.trim();
+    };
+    idx("read-tree", base);
+    const agentsBlob = run("rev-parse", `${head}:AGENTS.md`);
+    idx("update-index", "--add", "--cacheinfo", `100644,${agentsBlob},AGENTS.md`);
+    const synthetic = run("commit-tree", idx("write-tree"), "-m", "rewritten base");
+
+    const honest = spawnSync("git", ["diff", "--name-only", `${base}...${head}`], { cwd: dir, encoding: "utf8", env });
+    assert.match(honest.stdout, /AGENTS\.md/);
+
+    run("replace", base, synthetic);
+    const replaced = spawnSync("git", ["diff", "--name-only", `${base}...${head}`], { cwd: dir, encoding: "utf8", env });
+    assert.doesNotMatch(replaced.stdout, /AGENTS\.md/, "fixture must hide the contract change");
+    assert.match(replaced.stdout, /src\/thing\.ts/, "fixture must still show a change, else the verdict is VACUOUS, not green");
+
+    const result = spawnSync(process.execPath, [SCRIPT, "--base", base, "--head", head], {
+      cwd: dir,
+      encoding: "utf8",
+      env,
+    });
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stdout + result.stderr, /no code/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

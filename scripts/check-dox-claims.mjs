@@ -43,7 +43,15 @@ const head = getArg("--head") ?? "HEAD";
 const asJson = args.includes("--json");
 const writeBaseline = args.includes("--write-baseline");
 
-const sh = (cmd) => execSync(cmd, { encoding: "utf8", maxBuffer: 1 << 28 });
+// GIT_NO_REPLACE_OBJECTS=1 because every call below is a git read that decides
+// WHAT CHANGED. A local replacement ref (`git replace <base> <other>`) makes
+// those reads describe a history nobody pushed: the base's tree becomes the
+// substituted commit's tree, so a contract line the branch really added can
+// disappear from the range diff while an unrelated file still shows a change --
+// enough for anyChangedFiles to be non-empty and the run to report CLEAN. That
+// is a false pass, not a missing check, so the flag belongs on the reads and not
+// on some later guard.
+const sh = (cmd) => execSync(cmd, { encoding: "utf8", maxBuffer: 1 << 28, env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" } });
 const fails = (code, msg) => {
   console.error(asJson ? JSON.stringify({ error: msg, exitCode: code }) : `ERROR: ${msg}`);
   process.exit(code);

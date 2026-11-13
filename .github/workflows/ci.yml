@@ -148,12 +148,12 @@ jobs:
           set -eu
           sha256sum --check --strict <<'PINS'
           32bc75d5e105c172a166e75505f4d5e309452ea519fab956e69284aec2e0a4d7  scripts/check-evidence-integrity.mjs
-          1c4fc7df2755ba6dff8570043700bded21d7bd5ea744b429c48f0b04b3582c2b  scripts/check-dox-claims.mjs
+          e2c918145e42713efdf2fc43eba34a1ba021908fc46969cbc1037ba896f7b472  scripts/check-dox-claims.mjs
           4e070c37815eeb36cabd7c48e49093247282d3f924dad4598c13b3178296550a  scripts/check-staleness.mjs
-          40653f0b76f9c0684dbab0a4878fa9b2d84c1b16628326baaf903415700f59a6  scripts/check-pr-scope.mjs
-          45c6dd6da75603e5c376638fe3ee5d03e2747fc34f71b8dc11dae2352343c6ce  scripts/check-review-evidence.mjs
+          ad9b3e549c92a15b4da7a0daa553de7de75402e87b44fbd2f568f4fa16bce343  scripts/check-pr-scope.mjs
+          8f04f0b1a6728522d2615d8b60181fa9acea2ffbbb8b8ec3cc6c1401cdab02d5  scripts/check-review-evidence.mjs
           04bd54790fa7682ce8b17e9b29c9dd60880faafd56c62613d5d994ec62a5a9d5  scripts/preflight.mjs
-          bebed18395249c5922c6d28dd7b355e5b10d4abf8dbfa52e40250e5bfee2ce83  .githooks/pre-push
+          5c2b1716da58138c06d64c230f661f03506681d181500e365290171be325ab74  .githooks/pre-push
           PINS
       #
       # Two steps on purpose. The strict run reaches a real verdict

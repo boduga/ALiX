@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -330,6 +330,91 @@ test("the CLI entrypoint runs from a path that needs percent-encoding", () => {
     });
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /PR scope OK/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+
+
+test("a replacement ref cannot hide a touched area from the change set", () => {
+  // The change set is this check's entire input. `git replace <base> <synthetic>`
+  // rewrites the base's tree, so the range diff can omit the file that really
+  // changed while still listing one that happens to differ -- the declared scope
+  // then covers what the diff shows and the check passes a diff it never saw.
+  const dir = mkdtempSync(join(tmpdir(), "alix-scope-replace-"));
+  const env = {
+    ...process.env,
+    GIT_AUTHOR_NAME: "scope-test",
+    GIT_AUTHOR_EMAIL: "scope-test@example.invalid",
+    GIT_COMMITTER_NAME: "scope-test",
+    GIT_COMMITTER_EMAIL: "scope-test@example.invalid",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+  };
+  const run = (...args) => {
+    const r = spawnSync("git", args, { cwd: dir, encoding: "utf8", env });
+    if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+    return r.stdout.trim();
+  };
+  try {
+    run("init", "--quiet", "--initial-branch=main");
+    writeFileSync(join(dir, "README.md"), "base\n");
+    run("add", "-A");
+    run("commit", "--quiet", "-m", "base");
+    const base = run("rev-parse", "HEAD");
+
+    run("switch", "--quiet", "-c", "feature");
+    mkdirSync(join(dir, "docs"), { recursive: true });
+    mkdirSync(join(dir, "src"), { recursive: true });
+    writeFileSync(join(dir, "docs", "plan.md"), "declared area\n");
+    writeFileSync(join(dir, "src", "app.ts"), "export const app = 1;\n");
+    run("add", "-A");
+    run("commit", "--quiet", "-m", "feature");
+    const head = run("rev-parse", "HEAD");
+
+    // Synthetic base = base tree + the src change, so the substituted range diff
+    // hides the undeclared src area and shows only the declared docs file.
+    const srcBlob = run("rev-parse", `${head}:src/app.ts`);
+    const indexFile = join(dir, ".git", "synthetic-index");
+    const idxEnv = { ...env, GIT_INDEX_FILE: indexFile };
+    const idx = (...args) => {
+      const r = spawnSync("git", args, { cwd: dir, encoding: "utf8", env: idxEnv });
+      if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+      return r.stdout.trim();
+    };
+    idx("read-tree", base);
+    idx("update-index", "--add", "--cacheinfo", `100644,${srcBlob},src/app.ts`);
+    const syntheticTree = idx("write-tree");
+    const synthetic = run("commit-tree", syntheticTree, "-m", "rewritten base");
+
+    const script = join(dir, "check-pr-scope.mjs");
+    copyFileSync(new URL("../../scripts/check-pr-scope.mjs", import.meta.url), script);
+    const runCheck = () =>
+      spawnSync(process.execPath, [script, "--base", base], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { ...env, PR_BODY: "Scope: docs" },
+      });
+
+    // Fixture check: without the replacement both areas are visible and the
+    // declared scope is too narrow.
+    const honest = spawnSync("git", ["diff", "--name-only", `${base}...${head}`], { cwd: dir, encoding: "utf8", env });
+    assert.match(honest.stdout, /docs\/plan\.md/);
+    assert.match(honest.stdout, /src\/app\.ts/);
+    const honestCheck = runCheck();
+    assert.equal(honestCheck.status, 1, honestCheck.stdout + honestCheck.stderr);
+
+    run("replace", base, synthetic);
+    // The replacement really does hide the src change, so a green result below
+    // can only come from the guard, not from an ineffective trap.
+    const replaced = spawnSync("git", ["diff", "--name-only", `${base}...${head}`], { cwd: dir, encoding: "utf8", env });
+    assert.match(replaced.stdout, /docs\/plan\.md/);
+    assert.doesNotMatch(replaced.stdout, /src\/app\.ts/, "fixture must hide the src change");
+
+    const result = runCheck();
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stdout + result.stderr, /src/, "the real change must be classified, not the substituted one");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

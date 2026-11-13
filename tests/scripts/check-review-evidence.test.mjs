@@ -459,6 +459,39 @@ test("a rename record is rejected, not silently mis-paired", () => {
   assert.equal(canonicalizeRawDiff(ok).equals(canonicalizeRawDiff(ok)), true);
 });
 
+test("a colon in a path cannot impersonate metadata", () => {
+  // Checking only the first byte for ":" is not falsifiable: a path may begin
+  // with ":" too. Two renames -- one whose target and one whose source start
+  // with ":" -- place a path in an even position, pass a first-byte test, and
+  // bind paths to the wrong records. Measured with real `git diff --raw -z -M`
+  // output in a throwaway repo, that stream was accepted before the metadata
+  // grammar was parsed.
+  const metadata = (status, blob) => `:100644 100644 ${blob} ${blob} ${status}`;
+  const nul = Buffer.from([0]);
+  const encode = (fields) => Buffer.concat(fields.flatMap((f) => [Buffer.from(f), nul]));
+
+  // Even-indexed fields here are meta, ":new-a.txt", and ":old-b.txt".
+  const colonPaths = encode([
+    metadata("R100", "1".repeat(40)), "old-a.txt", ":new-a.txt",
+    metadata("R100", "2".repeat(40)), ":old-b.txt", "new-b.txt",
+  ]);
+  assert.throws(
+    () => canonicalizeRawDiff(colonPaths),
+    /rename\/copy records need --no-renames|is not <mode sha status>/,
+  );
+
+  // A path that begins with ":" in an ODD position is still a legitimate path,
+  // so the parser must reject the impersonation without rejecting real names
+  // that start with a colon.
+  const legitimate = encode([metadata("A", "5".repeat(40)), ":colon-named.txt"]);
+  assert.equal(canonicalizeRawDiff(legitimate).toString("utf8").includes(":colon-named.txt"), true);
+
+  // Combined (`--cc`, unmerged) records carry three modes and three ids and a
+  // multi-character status. They are legitimate two-field records.
+  const combined = encode([`::100644 100644 100644 ${"6".repeat(40)} ${"7".repeat(40)} ${"8".repeat(40)} M`, "conflict.txt"]);
+  assert.equal(canonicalizeRawDiff(combined).toString("utf8").includes("conflict.txt"), true);
+});
+
 test("the digest distinguishes two trees that swap content between files", () => {
   // `--raw -z` emits two NUL-terminated fields per changed path: metadata, then
   // path. Splitting the stream on NUL and sorting the bare fields separates a

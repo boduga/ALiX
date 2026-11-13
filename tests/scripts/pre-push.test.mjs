@@ -83,6 +83,15 @@ function runHook(dir, binDir, stdin, env = {}) {
   };
 }
 
+/** Drop replacement refs before removing the fixture directory. */
+function gitReplacementCleanup(dir) {
+  const list = spawnSync("git", ["replace", "-l"], { cwd: dir, encoding: "utf8" });
+  if (list.status !== 0) return;
+  for (const ref of list.stdout.split("\n").map((line) => line.trim()).filter(Boolean)) {
+    spawnSync("git", ["replace", "-d", ref], { cwd: dir });
+  }
+}
+
 const ZERO = "0".repeat(40);
 
 test("a new branch is diffed against its merge base with main, not skipped", () => {
@@ -172,6 +181,38 @@ test("a push whose only change is a submodule pointer still runs preflight", () 
   } finally {
     rmSync(dir, { recursive: true, force: true });
     rmSync(sub, { recursive: true, force: true });
+  }
+});
+
+test("a replacement ref cannot hand preflight a rewritten base", () => {
+  // `git replace <local> <other>` makes merge-base walk substituted history.
+  // Measured on this git: the unguarded call returned a commit object that
+  // exists only as a replacement synthesis, so the hook passed preflight a base
+  // describing a history nobody pushed. The guarded call returns the real merge
+  // base. Base selection is part of deciding what changed.
+  const { dir, binDir } = fixture();
+  try {
+    const local = git(dir, ["rev-parse", "HEAD"]);
+    const base = git(dir, ["rev-parse", "origin/main"]);
+    git(dir, ["replace", local, base]);
+
+    const realBase = spawnSync("git", ["merge-base", "origin/main", local], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" },
+    }).stdout.trim();
+    assert.equal(realBase, base);
+    // The fixture must reproduce the substitution, else the assertion below
+    // would pass for the wrong reason.
+    const substituted = spawnSync("git", ["merge-base", "origin/main", local], { cwd: dir, encoding: "utf8" }).stdout.trim();
+    assert.notEqual(substituted, realBase, "fixture must make the unguarded call return a rewritten commit");
+
+    const result = runHook(dir, binDir, `refs/heads/feature ${local} refs/heads/feature ${ZERO}\n`);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(result.pnpmArgs, `preflight --base ${realBase}`);
+  } finally {
+    gitReplacementCleanup(dir);
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 

@@ -370,7 +370,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   } else {
     try {
       const { execFileSync } = await import("node:child_process");
-      files = execFileSync("git", ["diff", "--name-only", `${base}...HEAD`], { encoding: "utf8" })
+      // GIT_NO_REPLACE_OBJECTS=1: a replacement ref rewrites the base's tree, so
+      // this diff can describe a history nobody pushed. That hides a touched
+      // area while still showing one that happens to differ -- the run then
+      // passes a declaration that does not cover the real change. The change set
+      // is the whole input to this check, so it must not be substitutable.
+      files = execFileSync("git", ["diff", "--name-only", `${base}...HEAD`], {
+        encoding: "utf8",
+        env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" },
+      })
         .split("\n")
         .map((line) => line.trim())
         .filter(Boolean);
