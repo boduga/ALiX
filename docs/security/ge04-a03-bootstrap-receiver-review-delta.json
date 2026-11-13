@@ -11,8 +11,56 @@
       "new_sha256": "1d5936222ea9d0cdf16d4641ae90af89c620b8aba77659e389c703ec064b907c"
     }
   ],
-  "unchanged_evidence_artifacts_verified": 12,
+  "unchanged_evidence_artifacts_verified": 11,
   "regenerated_evidence_artifacts": [
+    {
+      "path": "docs/security/ge04-b1a-descriptor-transfer-review.json",
+      "old_sha256": "330cc058a71a7af5076538d3e450e822be584e9b654cae4b09b642754c532fd6",
+      "new_sha256": "d9c9ebadf837f6c7c92722d030c6e5f9e722c5d3abc30260791831087566c02e",
+      "reason": "Source-anchor line lists embed reviewed-source line numbers; regenerated from the fixed candidate source.",
+      "relocated_line_only": [
+        {
+          "pointer": "/source_paths[1]/source_anchors[1]/lines[1]",
+          "old": 90,
+          "new": 91
+        },
+        {
+          "pointer": "/source_paths[1]/source_anchors[2]/lines[0]",
+          "old": 68,
+          "new": 69
+        },
+        {
+          "pointer": "/source_paths[1]/source_anchors[3]/lines[0]",
+          "old": 72,
+          "new": 73
+        },
+        {
+          "pointer": "/source_paths[1]/source_anchors[4]/lines[0]",
+          "old": 77,
+          "new": 78
+        },
+        {
+          "pointer": "/source_paths[1]/source_anchors[5]/lines[0]",
+          "old": 78,
+          "new": 79
+        },
+        {
+          "pointer": "/source_paths[1]/source_anchors[6]/lines[0]",
+          "old": 78,
+          "new": 79
+        },
+        {
+          "pointer": "/source_paths[1]/source_anchors[7]/lines[0]",
+          "old": 81,
+          "new": 82
+        },
+        {
+          "pointer": "/source_paths[1]/source_anchors[8]/lines[0]",
+          "old": 100,
+          "new": 101
+        }
+      ]
+    },
     {
       "path": "docs/security/ge04-b1a-tu-api-allowlists.json",
       "old_sha256": "10f65f702e267977cc4ffcfe8f57930d1f5132332d405333b19c392788dbce94",

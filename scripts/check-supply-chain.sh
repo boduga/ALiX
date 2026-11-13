@@ -29,20 +29,22 @@ echo ""
 # ── Sf.2: Audit exceptions check ────────────────────────────────────────
 
 echo "▸ Sf.2 — Audit exceptions check..."
-if node "$PROJECT_ROOT/dist/src/cli.js" security supply-chain exceptions check 2>/dev/null; then
+if node "$PROJECT_ROOT/bin/alix.js" security supply-chain exceptions check 2>/dev/null; then
   echo "  ✅ Audit exceptions — all advisories excepted or below threshold"
 else
-  # alix may not be built; fall back to an independent audit. The fallback
-  # cannot evaluate the exceptions file, so it must fail closed (#691) on
-  # either a finding OR an unusable audit result.
+  # The primary check can fail for an expired exception or an unusable audit.
+  # Fall back to an independent audit, which cannot evaluate the exceptions
+  # file, so it must fail closed (#691) on either a finding OR an unusable
+  # audit result.
   #
-  # Never report a clean graph when the audit command itself errored. This is a pnpm repository with no
-  # package-lock.json, so `pnpm audit` always fails and always produced
+  # Previously this branch reported a pass whenever the parsed count was 0 —
+  # including when `npm audit` itself errored. This is a pnpm repository with no
+  # package-lock.json, so `npm audit` always fails and always produced
   # `{"error": ...}`, which parsed to 0 advisories. The result was an
-  # unconditional "✅ No pnpm audit advisories" that also masked a failing
+  # unconditional "✅ No npm audit advisories" that also masked a failing
   # primary check: an expired-exception failure was swallowed here.
   echo "  ⚠  Primary exceptions check did not pass; running fail-closed fallback..."
-  AUDIT_JSON="$(pnpm audit --json 2>/dev/null || true)"
+  AUDIT_JSON="$(npm audit --json 2>/dev/null || true)"
   AUDIT_COUNT="$(
     printf '%s' "$AUDIT_JSON" |
       node -e "
@@ -51,9 +53,7 @@ else
           try {
             const a = JSON.parse(d);
             if (!a || typeof a !== 'object' || a.error) return console.log('ERR');
-            const findings = a.advisories ?? a.vulnerabilities;
-            if (!findings || typeof findings !== 'object') return console.log('ERR');
-            console.log(String(Object.keys(findings).length));
+            console.log(String(Object.keys(a.vulnerabilities || {}).length));
           } catch {
             console.log('ERR');
           }
@@ -67,13 +67,13 @@ else
 
   if [ "$AUDIT_COUNT" = "ERR" ]; then
     # An audit that could not run is not evidence of a clean graph.
-    echo "  ❌ pnpm audit could not produce a usable report — failing closed (run 'alix security supply-chain exceptions check' for exception-aware analysis)"
+    echo "  ❌ npm audit could not produce a usable report — failing closed (run 'alix security supply-chain exceptions check' for exception-aware analysis)"
     PASSED=false
   elif [ "$AUDIT_COUNT" -gt 0 ]; then
-    echo "  ❌ $AUDIT_COUNT pnpm audit advisories found — failing closed (run 'alix security supply-chain exceptions check' for exception-aware analysis)"
+    echo "  ❌ $AUDIT_COUNT npm audit advisories found — failing closed (run 'alix security supply-chain exceptions check' for exception-aware analysis)"
     PASSED=false
   else
-    echo "  ✅ No pnpm audit advisories (fallback evaluated a usable report)"
+    echo "  ✅ No npm audit advisories (fallback evaluated a usable report)"
   fi
 fi
 echo ""
@@ -109,7 +109,7 @@ echo ""
 echo "▸ Sf.5 — Tarball content verification..."
 TARBALL="$(ls "$PROJECT_ROOT"/alix-*.tgz 2>/dev/null | head -1 || echo "")"
 if [ -n "$TARBALL" ] && [ -f "$TARBALL" ]; then
-  if node "$PROJECT_ROOT/dist/src/cli.js" security supply-chain verify-tarball "$TARBALL" 2>/dev/null; then
+  if node "$PROJECT_ROOT/bin/alix.js" security supply-chain verify-tarball "$TARBALL" 2>/dev/null; then
     echo "  ✅ Tarball — content verified"
   else
     # Fail closed (#691): a present-but-unverifiable tarball fails the gate.

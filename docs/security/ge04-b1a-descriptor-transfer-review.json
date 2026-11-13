@@ -113,49 +113,49 @@
           "fragment": "inspect_generation(pid)",
           "lines": [
             58,
-            90
+            91
           ]
         },
         {
           "fragment": "socket.MSG_CMSG_CLOEXEC",
           "lines": [
-            68
+            69
           ]
         },
         {
           "fragment": "socket.SCM_RIGHTS",
           "lines": [
-            72
+            73
           ]
         },
         {
           "fragment": "socket.MSG_CTRUNC | socket.MSG_TRUNC",
           "lines": [
-            77
+            78
           ]
         },
         {
           "fragment": "len(ancillary) != 1",
           "lines": [
-            78
+            79
           ]
         },
         {
           "fragment": "len(received) != 1",
           "lines": [
-            78
+            79
           ]
         },
         {
           "fragment": "read_sealed_bootstrap_binding(",
           "lines": [
-            81
+            82
           ]
         },
         {
           "fragment": "os.close(fd)",
           "lines": [
-            100
+            101
           ]
         }
       ],

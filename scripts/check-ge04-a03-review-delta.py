@@ -8,8 +8,17 @@ new='7b1d727f';target='native/ge04/bootstrap_receiver.py'
 # Derived evidence that embeds reviewed-source line numbers must be regenerated
 # after any edit above those lines. Only these paths may differ from the reviewed
 # baseline, and only in line-number leaves; every other evidence byte stays pinned.
-regenerated_paths=['docs/security/ge04-b1a-tu-api-allowlists.json']
+regenerated_reasons={
+ 'docs/security/ge04-b1a-tu-api-allowlists.json':
+  'Derived per-TU allowlist embeds reviewed-source line numbers; regenerated from the fixed candidate source.',
+ 'docs/security/ge04-b1a-descriptor-transfer-review.json':
+  'Source-anchor line lists embed reviewed-source line numbers; regenerated from the fixed candidate source.',
+}
+regenerated_paths=sorted(regenerated_reasons)
 def show(rev,path):return subprocess.run(['git','show',f'{rev}:{path}'],cwd=root,check=True,capture_output=True).stdout
+def is_line_leaf(ptr):
+ # Scalars keyed `line`, and entries of a `lines` array, carry only a location.
+ return ptr.endswith('/line') or (ptr.endswith(']') and ptr.rsplit('[',1)[0].endswith('/lines'))
 def leaves(a,b,ptr=''):
  out=[]
  if type(a)!=type(b):return [(ptr,a,b)]
@@ -43,8 +52,8 @@ for path in regenerated_paths:
  assert after!=before,f'{path} is declared regenerated but is identical to the baseline'
  moved=leaves(json.loads(before),json.loads(after))
  # Regeneration may relocate line numbers and nothing else.
- assert moved and all(ptr.endswith('/line') for ptr,_,_ in moved),f'Non-line evidence drift: {path}: {moved[:4]}'
- regenerated.append({'path':path,'old_sha256':pinned[path],'new_sha256':hashlib.sha256(after).hexdigest(),'reason':'Derived per-TU allowlist embeds reviewed-source line numbers; regenerated from the fixed candidate source.','relocated_line_only':[{'pointer':ptr,'old':was,'new':now} for ptr,was,now in moved]})
+ assert moved and all(is_line_leaf(ptr) for ptr,_,_ in moved),f'Non-line evidence drift: {path}: {moved[:4]}'
+ regenerated.append({'path':path,'old_sha256':pinned[path],'new_sha256':hashlib.sha256(after).hexdigest(),'reason':regenerated_reasons[path],'relocated_line_only':[{'pointer':ptr,'old':was,'new':now} for ptr,was,now in moved]})
 for path,digest in pinned.items():
  if path in regenerated_paths:continue
  p=root/path

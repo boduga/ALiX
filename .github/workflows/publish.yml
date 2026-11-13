@@ -76,32 +76,43 @@ jobs:
             exit 1
           fi
 
-      # Sf.7 step 5-6: Install tarball in clean temp dir and run smoke tests
+      # Sf.7 step 5-6: Install tarball in clean temp dir and run smoke tests.
+      # Installs via npm because that is the published, user-facing path
+      # (`npm install -g alix`). Phase output is kept: a release blocker that
+      # prints nothing cannot be diagnosed from the run log. Each phase is
+      # bounded so a stall reports which step stopped.
       - name: Smoke test tarball (Sf.7 steps 5-6)
         run: |
+          set -euo pipefail
           TARBALL="${{ steps.pack.outputs.tarball }}"
           TMP_DIR="$(mktemp -d)"
           echo "Installing tarball into $TMP_DIR"
-          cp pnpm-workspace.yaml "$TMP_DIR/pnpm-workspace.yaml"
-          if pnpm --dir "$TMP_DIR" add "$PWD/$TARBALL"; then
-            if (cd "$TMP_DIR" && ./node_modules/.bin/alix init > /dev/null 2>&1 && \
-                ./node_modules/.bin/alix doctor > /dev/null 2>&1 && \
-                ./node_modules/.bin/alix models doctor --json > /dev/null 2>&1); then
-              echo "Smoke test passed"
-            else
-              echo "ERROR: Smoke test failed"
-              exit 1
-            fi
-          else
-            echo "ERROR: Tarball install failed"
+          echo "::group::install $TARBALL"
+          if ! timeout 600 npm install --prefix "$TMP_DIR" --no-audit --no-fund "$PWD/$TARBALL"; then
+            echo "::endgroup::"
+            echo "ERROR: Tarball install failed or exceeded 600s" >&2
             exit 1
           fi
-          rm -rf "$TMP_DIR"
+          echo "::endgroup::"
+          set +e
+          SMOKE_FAIL=0
+          for cmd in init doctor "models doctor --json"; do
+            echo "::group::alix $cmd"
+            # shellcheck disable=SC2086  # deliberate word splitting for the arg list
+            (cd "$TMP_DIR" && timeout 180 ./node_modules/.bin/alix $cmd)
+            rc=$?
+            echo "::endgroup::"
+            if [ "$rc" -ne 0 ]; then
+              echo "ERROR: 'alix $cmd' failed (exit $rc)" >&2
+              SMOKE_FAIL=1
+            fi
+          done
+          exit "$SMOKE_FAIL"
 
       # Sf.7 step 7: Generate SBOM
       - name: Generate SBOM (Sf.7 step 7)
         run: |
-          pnpm sbom --sbom-format cyclonedx > "${{ steps.pack.outputs.tarball }}.sbom.json" 2>/dev/null || echo "{}" > "${{ steps.pack.outputs.tarball }}.sbom.json"
+          npm sbom -- --json > "${{ steps.pack.outputs.tarball }}.sbom.json" 2>/dev/null || echo "{}" > "${{ steps.pack.outputs.tarball }}.sbom.json"
           echo "SBOM generated: ${{ steps.pack.outputs.tarball }}.sbom.json"
 
       # Sf.7 step 8: Compute checksum
@@ -161,7 +172,7 @@ jobs:
 
       # Sf.7 step 10: Publish from artifact (exact tarball, with provenance)
       - name: Publish to npm (Sf.7 step 10)
-        run: pnpm publish "$TARBALL" --provenance --access public
+        run: npm publish "$TARBALL" --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

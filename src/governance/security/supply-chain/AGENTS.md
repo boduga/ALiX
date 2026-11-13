@@ -44,6 +44,11 @@ cross-checks `pnpm-workspace.yaml` approvals against the allowlist.
   `pnpm audit --json` parse to zero findings, so a correct policy check fed by
   it would still pass on any graph. Both shapes are parsed, and malformed input
   returns a parse error rather than an empty clean report.
+- **Gates invoke the local built CLI, never a package launcher.** The
+  supply-chain script calls `node "$PROJECT_ROOT/bin/alix.js"` for exception and
+  tarball checks. `npx`/`pnpm exec` can resolve a package outside the lockfile or
+  a different installed copy; CI and the release gate build the workspace first,
+  so the gate must exercise that exact tree.
 - **A broken audit invocation is not a clean report.** If the audit cannot run,
   the result is `ok: false` with `SC_AUDIT_FAILED`. pnpm exits non-zero *when
   advisories exist* while still writing the report to stdout, so the runner

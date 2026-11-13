@@ -282,9 +282,10 @@ control plane or treat a VM/remote host as already qualified.
   mandatory, not optional. When a derived artifact embeds reviewed-source line
   numbers, record it under `regenerated_evidence_artifacts` in
   `docs/security/ge04-a03-bootstrap-receiver-review-delta.json` with its old and
-  new SHA-256 and the relocated `line` leaves; the reviewed packet hash stays
-  immutable and everything still records `PENDING`. A renumber is a relabel of
-  the same unreviewed site, never a review, an approval or a released hold.
+  new SHA-256 and the relocated line leaves — a scalar `line` or an entry of a
+  `lines` array; the reviewed packet hash stays immutable and everything still
+  records `PENDING`. A renumber is a relabel of the same unreviewed site, never
+  a review, an approval or a released hold.
 
 ## Work Guidance
 
