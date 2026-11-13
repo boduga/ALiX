@@ -57,6 +57,7 @@ subtrees below.
 | `docs/prd/archive/` | Self-declared superseded PRD drafts. Historical source only; never cite as active requirements. |
 | `docs/prd/evidence/` | Dated qualification packets backing `docs/prd/` claims, currently all under `lean-01/` (environment and startup capture, D9 phase-F slices with their review records and raw logs, approval-remediation and route-parity matrices). Evidence, not conclusions. |
 | `docs/security/` | Threat model, risk register, security architecture and operations, Inspector auth model, and the GE-04 privileged-worker qualification set (designs, boundary contracts, the G1–G9 authorization gate register, and the per-requirement acceptance ledger). Design and evidence, not acceptance: the GE-04 security hold is active. |
+| `docs/reviews/` | Per-PR fresh-context agent review records verified by `scripts/check-review-evidence.mjs`. A verdict about a diff, not human security acceptance; the GE-04 hold stays active. |
 | `docs/superseded/` | Relocated superseded material, subtree-intact |
 | `docs/jev/` | Jev / System One integration docs |
 | `docs/superpowers/` | Implementation specs and plans |
@@ -84,6 +85,7 @@ Docs-only; no typecheck or test applies. Run `pnpm check:dox` when `AGENTS.md` c
 | Path | Scope |
 |------|-------|
 | `docs/security/AGENTS.md` | Security evidence, GE-04 gate register and acceptance ledger, hold semantics |
+| `docs/reviews/AGENTS.md` | Review evidence record shape, freshness and ancestry rules, digest binding, non-claims |
 | `superpowers/AGENTS.md` | Implementation specs and plans |
 | `jev/AGENTS.md` | Jev / System One integration docs |
 

@@ -36,3 +36,15 @@ jobs:
         run: node scripts/check-pr-scope.mjs --base "origin/$PR_BASE_REF"
       - name: Verify scope validator regression tests
         run: node --test tests/scripts/check-pr-scope.test.mjs
+      # Review as a verdict, not a PR-body checkbox. The evidence file is read
+      # from the head commit (a working-tree copy is not evidence), must record
+      # a reviewed ancestor, and may only be followed by evidence-only commits.
+      # It cannot claim human security acceptance; that remains a human gate.
+      - name: Validate review evidence
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/check-review-evidence.mjs
+      - name: Verify review evidence regression tests
+        run: node --test tests/scripts/check-review-evidence.test.mjs

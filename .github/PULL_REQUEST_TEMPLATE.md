@@ -13,7 +13,7 @@ Refs #
 ## Review and authorization
 
 - [ ] Complete diff against current main inspected
-- [ ] Independent agent review recorded (or reason N/A)
+- [ ] Fresh-context agent review recorded in `docs/reviews/PR-<n>.json`; `check:review` passes at the PR head
 - [ ] CI evidence linked and applicable checks pass
 - [ ] Human authorization recorded if security/release sensitive
 - [ ] Existing security holds unchanged (or explicit release evidence attached)
