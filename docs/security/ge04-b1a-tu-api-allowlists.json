@@ -87,7 +87,7 @@
           "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
         },
         {
-          "line": 72,
+          "line": 73,
           "apis": [
             "SCM_RIGHTS"
           ],
@@ -99,7 +99,7 @@
       "python_ast_call_count": 52,
       "python_direct_import_calls": [
         {
-          "line": 81,
+          "line": 82,
           "callee": "read_sealed_bootstrap_binding",
           "target": "bootstrap_binding.py:read_sealed_bootstrap_binding"
         }

@@ -277,6 +277,15 @@ control plane or treat a VM/remote host as already qualified.
   preflight/leaf-ownership probes have weaker or absent gates and remain open
   security-review follow-ups. Do not infer authorization from their checks.
 
+- Reviewed evidence in `docs/security/ge04-b1a-*.json` is line-keyed. Any source
+  edit above a recorded line silently retargets a verdict, so regeneration is
+  mandatory, not optional. When a derived artifact embeds reviewed-source line
+  numbers, record it under `regenerated_evidence_artifacts` in
+  `docs/security/ge04-a03-bootstrap-receiver-review-delta.json` with its old and
+  new SHA-256 and the relocated `line` leaves; the reviewed packet hash stays
+  immutable and everything still records `PENDING`. A renumber is a relabel of
+  the same unreviewed site, never a review, an approval or a released hold.
+
 ## Work Guidance
 
 Read `docs/security/ge04-native-stream-transport.md` before changing stream
@@ -294,6 +303,11 @@ The verifier accepts only exact built-in dictionaries, never arbitrary mapping
 proxies/subclasses; a trusted caller may copy the builder's known private proxy.
 
 Run `python3 -m unittest discover -s tests/agents -p test_ge04_native_stream.py -v`.
+Run `python3 scripts/check-ge04-sensitive-ci-gate.py` and
+`python3 scripts/check-ge04-a03-review-delta.py` before committing evidence or
+source edits. The delta checker accepts only line-number relocation in a
+declared regenerated artifact and fails closed on any verdict, count or hash it
+was not given; it never reports independent approval.
 For the incomplete runtime-view fixture, read
 `docs/security/ge04-runtime-view-qualification.md`; run only the unprivileged
 `python3 -B -m unittest discover -s tests/agents -p test_ge04_runtime_view.py -v`.

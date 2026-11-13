@@ -9,7 +9,7 @@ OUTPUT = ROOT / 'docs/security/ge04-b1a-python-noncall-disposition.json'
 # Explicit decisions about syntax only; none is a human security verdict.
 DECISIONS = {
     ('bootstrap_receiver.py', 3): ('MODULE_DOCSTRING', 'SCM_RIGHTS occurs in a module docstring; not executable at this site.'),
-    ('bootstrap_receiver.py', 72): ('AUTHORITY_CONSTANT_COMPARISON', 'socket.SCM_RIGHTS comparison is an active ancillary descriptor-transfer branch; retain in authority review.'),
+    ('bootstrap_receiver.py', 73): ('AUTHORITY_CONSTANT_COMPARISON', 'socket.SCM_RIGHTS comparison is an active ancillary descriptor-transfer branch; retain in authority review.'),
     ('bounded_phase_observer.py', 4): ('MODULE_DOCSTRING', 'kill appears in module documentation, not a call at this site.'),
     ('exclusive_birth_handoff.py', 41): ('PROTOCOL_VALUE_COMPARISON', 'StartTransientUnit is a string receipt-method equality check, not a bus call at this site.'),
     ('systemd_job_signal_observer.py', 24): ('FUNCTION_DOCSTRING', 'Subscribe appears in observer documentation, not a call at this site.'),

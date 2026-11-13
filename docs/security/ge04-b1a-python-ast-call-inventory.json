@@ -1117,126 +1117,126 @@
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 73,
+      "line": 74,
       "column": 24,
       "callee": "len",
       "shape": "Name"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 73,
+      "line": 74,
       "column": 37,
       "callee": "len",
       "shape": "Name"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 73,
+      "line": 74,
       "column": 49,
       "callee": "array.array",
       "shape": "Attribute"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 74,
+      "line": 75,
       "column": 24,
       "callee": "array.array",
       "shape": "Attribute"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 75,
+      "line": 76,
       "column": 16,
       "callee": "chunk.frombytes",
       "shape": "Attribute"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 76,
+      "line": 77,
       "column": 16,
       "callee": "received.extend",
       "shape": "Attribute"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 78,
+      "line": 79,
       "column": 37,
       "callee": "len",
       "shape": "Name"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 78,
+      "line": 79,
       "column": 60,
       "callee": "len",
       "shape": "Name"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 79,
+      "line": 80,
       "column": 19,
       "callee": "time.monotonic",
       "shape": "Attribute"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 80,
+      "line": 81,
       "column": 18,
       "callee": "ValueError",
       "shape": "Name"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 81,
+      "line": 82,
       "column": 22,
       "callee": "read_sealed_bootstrap_binding",
       "shape": "Name"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 89,
+      "line": 90,
       "column": 18,
       "callee": "ValueError",
       "shape": "Name"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 90,
+      "line": 91,
       "column": 11,
       "callee": "inspect_generation",
       "shape": "Name"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 91,
+      "line": 92,
       "column": 18,
       "callee": "ValueError",
       "shape": "Name"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 92,
+      "line": 93,
       "column": 15,
       "callee": "MappingProxyType",
       "shape": "Name"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 100,
+      "line": 101,
       "column": 16,
       "callee": "os.close",
       "shape": "Attribute"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 103,
+      "line": 104,
       "column": 11,
       "callee": "isinstance",
       "shape": "Name"
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 104,
+      "line": 105,
       "column": 12,
       "callee": "sock.close",
       "shape": "Attribute"

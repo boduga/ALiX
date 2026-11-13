@@ -36,7 +36,7 @@ The independent review reported **63 omitted non-comment sensitive lines across 
 | `systemd_job_signal_observer.py` | `add_signal_receiver` | 100 | Candidate captured; unreviewed |
 | `systemd_job_signal_observer.py` | `Subscribe` | 24, 31, 106 | Candidate captured; unreviewed |
 | `systemd_job_signal_observer.py` | `Unsubscribe` | 137 | Candidate captured; unreviewed |
-| `bootstrap_receiver.py` | `SCM_RIGHTS` | 3, 72 | Candidate captured; unreviewed |
+| `bootstrap_receiver.py` | `SCM_RIGHTS` | 3, 73 | Candidate captured; unreviewed |
 | `bootstrap_publisher.py` | `memfd_create` | 108, 123 | Candidate captured; unreviewed |
 | `bootstrap_binding.py` | `pread` | 113 | Candidate captured; unreviewed |
 | `isolated-worker-launcher.c` | `setgroups` | 116 | Candidate captured; unreviewed |

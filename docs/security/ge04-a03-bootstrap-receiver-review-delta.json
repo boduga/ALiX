@@ -11,7 +11,27 @@
       "new_sha256": "1d5936222ea9d0cdf16d4641ae90af89c620b8aba77659e389c703ec064b907c"
     }
   ],
-  "unchanged_evidence_artifacts_verified": 13,
+  "unchanged_evidence_artifacts_verified": 12,
+  "regenerated_evidence_artifacts": [
+    {
+      "path": "docs/security/ge04-b1a-tu-api-allowlists.json",
+      "old_sha256": "10f65f702e267977cc4ffcfe8f57930d1f5132332d405333b19c392788dbce94",
+      "new_sha256": "6ccb4f54199f906d523de345949d6ebcedf3c938a8fff74aa5ef69281550abc5",
+      "reason": "Derived per-TU allowlist embeds reviewed-source line numbers; regenerated from the fixed candidate source.",
+      "relocated_line_only": [
+        {
+          "pointer": "/entries[2]/candidate_sites[2]/line",
+          "old": 72,
+          "new": 73
+        },
+        {
+          "pointer": "/entries[2]/python_direct_import_calls[0]/line",
+          "old": 81,
+          "new": 82
+        }
+      ]
+    }
+  ],
   "source_patch": "diff --git a/native/ge04/bootstrap_receiver.py b/native/ge04/bootstrap_receiver.py\nindex e971abbf..33bdfa85 100644\n--- a/native/ge04/bootstrap_receiver.py\n+++ b/native/ge04/bootstrap_receiver.py\n@@ -63,11 +63,12 @@ def receive_bootstrap_descriptor(sock, expected_peer, expected_inode,\n             raise TimeoutError(\"Bootstrap receive budget exceeded\")\n         ready, _, _ = select.select([sock], [], [], remaining)\n         if not ready:\n             raise TimeoutError(\"Bootstrap receive deadline\")\n         payload, ancillary, flags, _ = sock.recvmsg(\n-            2, socket.CMSG_SPACE(4 * 16), socket.MSG_CMSG_CLOEXEC)\n+            2, socket.CMSG_SPACE(4 * 16),\n+            socket.MSG_CMSG_CLOEXEC | socket.MSG_DONTWAIT)\n         # Always first extract *all* kernel-delivered descriptors for closure,\n         # including rejected extra or truncated ancillary records.\n         for level, kind, data in ancillary:\n             if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:\n                 valid = len(data) - (len(data) % array.array(\"i\").itemsize)\n",
   "targeted_tests": "tests/agents/test_ge04_bootstrap_receiver.py",
   "independent_reviewer_verdict": "PENDING",
@@ -22,6 +42,7 @@
   "limitations": [
     "Source delta and local tests do not replace independent human review",
     "No operational root execution, worker admission, ACK or merge authorized",
+    "Renumbered line references reflect the MSG_DONTWAIT edit only and are not a review of either site",
     "Old immutable baseline checker must continue rejecting changed source until renewed review"
   ]
 }

@@ -83,7 +83,7 @@
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 72,
+      "line": 73,
       "apis": [
         "SCM_RIGHTS"
       ],

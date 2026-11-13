@@ -10,7 +10,7 @@
     },
     {
       "source": "bootstrap_receiver.py",
-      "line": 81,
+      "line": 82,
       "callee": "read_sealed_bootstrap_binding",
       "target": "bootstrap_binding.py:read_sealed_bootstrap_binding",
       "target_declared": true

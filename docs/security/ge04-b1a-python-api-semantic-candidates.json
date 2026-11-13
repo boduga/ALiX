@@ -74,7 +74,7 @@
     },
     {
       "file": "bootstrap_receiver.py",
-      "line": 72,
+      "line": 73,
       "source": "if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:",
       "matches": [
         {
