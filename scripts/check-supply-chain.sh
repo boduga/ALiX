@@ -29,12 +29,13 @@ echo ""
 # ── Sf.2: Audit exceptions check ────────────────────────────────────────
 
 echo "▸ Sf.2 — Audit exceptions check..."
-if npx --prefix "$PROJECT_ROOT" alix security supply-chain exceptions check 2>/dev/null; then
+if node "$PROJECT_ROOT/bin/alix.js" security supply-chain exceptions check 2>/dev/null; then
   echo "  ✅ Audit exceptions — all advisories excepted or below threshold"
 else
-  # alix may not be built; fall back to an independent audit. The fallback
-  # cannot evaluate the exceptions file, so it must fail closed (#691) on
-  # either a finding OR an unusable audit result.
+  # The primary check can fail for an expired exception or an unusable audit.
+  # Fall back to an independent audit, which cannot evaluate the exceptions
+  # file, so it must fail closed (#691) on either a finding OR an unusable
+  # audit result.
   #
   # Previously this branch reported a pass whenever the parsed count was 0 —
   # including when `npm audit` itself errored. This is a pnpm repository with no
@@ -108,7 +109,7 @@ echo ""
 echo "▸ Sf.5 — Tarball content verification..."
 TARBALL="$(ls "$PROJECT_ROOT"/alix-*.tgz 2>/dev/null | head -1 || echo "")"
 if [ -n "$TARBALL" ] && [ -f "$TARBALL" ]; then
-  if npx --prefix "$PROJECT_ROOT" alix security supply-chain verify-tarball "$TARBALL" 2>/dev/null; then
+  if node "$PROJECT_ROOT/bin/alix.js" security supply-chain verify-tarball "$TARBALL" 2>/dev/null; then
     echo "  ✅ Tarball — content verified"
   else
     # Fail closed (#691): a present-but-unverifiable tarball fails the gate.
