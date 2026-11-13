@@ -64,6 +64,7 @@
     "check:supervisor-naming": "node scripts/check-supervisor-naming.mjs",
     "check:dox": "node scripts/check-dox-claims.mjs",
     "check:staleness": "node scripts/check-staleness.mjs",
+    "check:evidence": "node scripts/check-evidence-integrity.mjs",
     "selection:sample": "node scripts/tool-selection-sample.mjs",
     "check:package-manager": "bash scripts/check-package-manager.sh",
     "fresh": "pnpm build && node dist/src/cli.js doctor"

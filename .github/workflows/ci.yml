@@ -132,6 +132,24 @@ jobs:
       # supply-chain gate, not here.
       - name: Staleness audit (references still resolve)
         run: node scripts/check-staleness.mjs
+      # Evidence provenance: an artifact must postdate the thing it describes,
+      # and must not move in the same commit as its own generator. The failure
+      # this catches is edit-generator-edit-artifact-commit-both, which makes
+      # every content comparison agree with itself.
+      #
+      # Two steps on purpose. The strict run reaches a real verdict
+      # (`pass_with_accepted`), so a green check means something. Every current
+      # generator declares itself not recomputable — re-running them would
+      # record a new observation rather than reproduce the old one — and a
+      # combined run would therefore report NOT CHECKED on every build, which is
+      # a signal that stops being read.
+      - name: Evidence provenance (order, markers, coverage)
+        run: node scripts/check-evidence-integrity.mjs --max-accepted 2
+      # Separate and still gating: the moment a generator is reproducible it is
+      # re-run and drift fails the build. Nothing is reproducible today, and the
+      # step says so instead of claiming a pass it did not perform.
+      - name: Evidence recompute (skips declared-non-reproducible generators)
+        run: node scripts/check-evidence-integrity.mjs --max-accepted 2 --recompute
 
   # ─── Lane 2: Unit tests (vitest) ──────────────────────────────────────────
   unit:
