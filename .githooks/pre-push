@@ -1,0 +1,50 @@
+#!/bin/sh
+# Pre-push evidence gate.
+#
+# Blocks a push whose branch would not survive CI: typecheck, the unused-code
+# gate, the tests that this branch's changes actually reach, DOX claims,
+# staleness, and evidence provenance.
+#
+# This is a convenience, not a control. It runs locally and can be skipped with
+# `git push --no-verify`; CI is the authority. Its value is that a red push is
+# caught in seconds instead of after a round trip.
+#
+# Install with `pnpm hooks:install`.
+set -eu
+
+if [ "${ALIX_SKIP_PREFLIGHT:-}" = "1" ]; then
+  echo "pre-push: skipped (ALIX_SKIP_PREFLIGHT=1)"
+  exit 0
+fi
+
+# Pushing tags or deleting remote branches has no diff to check.
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+    continue
+  fi
+  case "${remote_ref}" in
+    refs/heads/*) ;;
+    *) continue ;;   # tags and other refs carry no branch diff
+  esac
+  if ! git rev-parse --verify --quiet "${remote_sha}^{commit}" >/dev/null 2>&1; then
+    continue
+  fi
+  if [ "${local_sha}" = "${remote_sha}" ]; then
+    continue
+  fi
+
+  range="${remote_sha}..${local_sha}"
+  # Any change runs preflight, not only code: a docs-only push still has DOX
+  # claims and staleness references that can be wrong. Preflight itself skips
+  # the type checks and tests for a documentation-only diff.
+  if ! git diff --quiet "${range}"; then
+    echo "pre-push: running pnpm preflight for ${range}"
+    if ! pnpm preflight --base "${remote_sha}"; then
+      echo ""
+      echo "pre-push: preflight failed. Fix the findings above, or push with --no-verify"
+      echo "          if you are certain CI will pass."
+      exit 1
+    fi
+  fi
+done
+exit 0

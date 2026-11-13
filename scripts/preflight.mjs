@@ -1,0 +1,421 @@
+#!/usr/bin/env node
+/**
+ * preflight.mjs — one command that answers "did the basics actually run?"
+ *
+ * The dev loop's real failure is not a red check; it is a review that assumes
+ * the checks ran. This runs them, in one place, and reports three outcomes:
+ *
+ *   pass         the check ran and succeeded
+ *   fail         the check ran and found a problem  (exit 1)
+ *   not_checked  the check could NOT be performed, with the reason
+ *
+ * `not_checked` is never a pass. A green summary means every required check
+ * really executed. A step that could not run is printed with the reason and
+ * the run is still reported as incomplete, so silence never reads as coverage.
+ *
+ * Steps
+ *   1. typecheck        tsc -p tsconfig.json --noEmit
+ *   2. typecheck:unused tsc -p tsconfig.unused.json --noEmit
+ *   3. affected tests   tests selected from the changed files (see below)
+ *   4. check:dox        claims added by this branch resolve in this branch
+ *   5. check:staleness  references still describe the tree
+ *   6. check:evidence   provenance/order, pending-commit tolerant
+ *
+ * Affected-test selection is a HEURISTIC, and says so. It selects:
+ *   - a test that lives at the mirrored path of a changed source file
+ *   - a test whose basename matches a changed source file's basename
+ *   - a test that imports the changed module (static or dynamic import)
+ * Anything it cannot map is reported as an unselected-change count, so the
+ * operator knows what the subset did not cover. `--full` runs both whole
+ * suites instead, which is what CI does.
+ *
+ * Documentation-only changes (.md/.txt/.adoc/.rst/.log/.markdown) skip the
+ * type checks and select no tests, per the repository's automatic-verification
+ * contract. That is recorded as `skipped`, with the reason, not as a pass.
+ *
+ * Usage:
+ *   node scripts/preflight.mjs [--base <ref>] [--full] [--json] [--verbose]
+ *
+ * `not_checked` is fail-closed: it exits non-zero because the run did not
+ * establish the property it reports on. Only an explicit `skipped` (for an
+ * intentional, documented case such as a docs-only change) is a non-failing
+ * absence of work.
+ *
+ * Exit codes: 0 every check ran and passed, 1 a check failed or could not be
+ * performed, 2 invocation error.
+ */
+
+import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative, resolve, sep, extname, basename } from "node:path";
+
+const ROOT = resolve(import.meta.dirname, "..");
+const args = process.argv.slice(2);
+const has = (flag) => args.includes(flag);
+const getArg = (name) => {
+  const i = args.indexOf(name);
+  return i !== -1 && args[i + 1] && !args[i + 1].startsWith("-") ? args[i + 1] : null;
+};
+const asJson = has("--json");
+const verbose = has("--verbose");
+const full = has("--full");
+
+export const DOC_EXTENSIONS = new Set([".md", ".markdown", ".txt", ".adoc", ".rst", ".log"]);
+
+function git(argv) {
+  return execFileSync("git", argv, { cwd: ROOT, encoding: "utf8", maxBuffer: 1 << 28 }).trim();
+}
+
+function tryGit(argv) {
+  try {
+    return git(argv);
+  } catch {
+    return null;
+  }
+}
+
+export function resolveBase(requested) {
+  const candidates = requested ? [requested] : ["origin/main", "main"];
+  for (const candidate of candidates) {
+    if (tryGit(["rev-parse", "--verify", "--quiet", `${candidate}^{commit}`])) return candidate;
+  }
+  return null;
+}
+
+export function changedFiles(base) {
+  // Committed branch work plus anything still in the index or working tree.
+  const files = new Set();
+  if (base) {
+    const committed = tryGit(["diff", "--name-only", "--diff-filter=ACDMRTUXB", `${base}...HEAD`]);
+    for (const line of (committed ?? "").split("\n")) if (line.trim()) files.add(line.trim());
+  }
+  const working = tryGit(["diff", "--name-only", "--diff-filter=ACDMRTUXB", "HEAD"]);
+  for (const line of (working ?? "").split("\n")) if (line.trim()) files.add(line.trim());
+  const staged = tryGit(["diff", "--name-only", "--cached", "--diff-filter=ACDMRTUXB"]);
+  for (const line of (staged ?? "").split("\n")) if (line.trim()) files.add(line.trim());
+  const untracked = tryGit(["ls-files", "--others", "--exclude-standard"]);
+  for (const line of (untracked ?? "").split("\n")) if (line.trim()) files.add(line.trim());
+  return [...files].sort();
+}
+
+// -- Test selection --------------------------------------------------------
+
+export function walk(dir, out = []) {
+  if (!existsSync(dir)) return out;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === "node_modules") continue;
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) walk(fullPath, out);
+    else if (entry.isFile() && /\.(test|vitest)\.(ts|mjs|js)$/.test(entry.name)) out.push(fullPath);
+  }
+  return out;
+}
+
+const IMPORT_RE = /(?:from\s*|import\s*\(\s*)["']([^"']+)["']/g;
+
+export function testSources(files) {
+  return files.map((file) => {
+    const text = readFileSync(file, "utf8");
+    const specifiers = new Set();
+    for (const match of text.matchAll(IMPORT_RE)) specifiers.add(match[1]);
+    return { file, repoPath: relative(ROOT, file).split(sep).join("/"), specifiers };
+  });
+}
+
+/**
+ * Select tests for the changed files. Returns { selected, unmapped } where
+ * `unmapped` lists changed source files that no test could be tied to. The
+ * caller reports unmapped as a coverage gap; it must not be read as "no test
+ * needed".
+ */
+export function selectAffectedTests(changed, allTests) {
+  const sources = changed.filter((f) => f.startsWith("src/") && f.endsWith(".ts"));
+  const changedTests = changed.filter((f) => /^tests\/.*\.(test|vitest)\.(ts|mjs|js)$/.test(f));
+  const selected = new Set(changedTests);
+
+  if (!sources.length) return { selected: [...selected].sort(), unmapped: [] };
+
+  const byBasename = new Map();
+  const byPath = new Map();
+  for (const test of allTests) {
+    byPath.set(test.repoPath.replace(/^tests\//, "").replace(/\.(test|vitest)\.(ts|mjs|js)$/, ""), test);
+    const stem = basename(test.repoPath).replace(/\.(test|vitest)\.(ts|mjs|js)$/, "");
+    if (!byBasename.has(stem)) byBasename.set(stem, []);
+    byBasename.get(stem).push(test);
+  }
+
+  const unmapped = [];
+  for (const source of sources) {
+    const stripped = source.replace(/\.ts$/, "");
+    const stem = basename(stripped);
+    const hits = new Set();
+    for (const test of [byPath.get(stripped.replace(/^src\//, "")), byPath.get(stripped)].filter(Boolean)) {
+      hits.add(test.repoPath);
+    }
+    for (const test of byBasename.get(stem) ?? []) hits.add(test.repoPath);
+    // Import-based: a test that names the module by path, relative or aliased.
+    for (const test of allTests) {
+      for (const specifier of test.specifiers) {
+        const normalized = specifier.replace(/\.(js|ts)$/, "");
+        if (normalized === stripped || normalized.endsWith(`/${stripped}`) || normalized.endsWith(`/${stem}`)) {
+          hits.add(test.repoPath);
+          break;
+        }
+        if (normalized.startsWith(".") && test.repoPath.startsWith("tests/")) {
+          const resolved = resolve(ROOT, "tests", normalized.replace(/^\.\//, ""));
+          if (relative(ROOT, resolved).split(sep).join("/") === stripped) {
+            hits.add(test.repoPath);
+            break;
+          }
+        }
+      }
+    }
+    if (!hits.size) unmapped.push(source);
+    for (const hit of hits) selected.add(hit);
+  }
+  return { selected: [...selected].sort(), unmapped };
+}
+
+/** dist holds compiled node tests; a missing or stale entry is not runnable. */
+export function distReadiness(selected, changed, root = ROOT) {
+  const missing = [];
+  const stale = [];
+  for (const test of selected) {
+    // Only TypeScript node tests compile into dist. A .test.mjs file runs
+    // straight from tests/ and is never a "missing build artifact".
+    if (!test.endsWith(".test.ts")) continue;
+    const dist = join(root, "dist", test.replace(/\.ts$/, ".js"));
+    if (!existsSync(dist)) {
+      missing.push(test);
+      continue;
+    }
+    const testMtime = statSync(join(root, test)).mtimeMs;
+    if (statSync(dist).mtimeMs < testMtime) stale.push(test);
+  }
+  for (const source of changed.filter((f) => f.startsWith("src/") && f.endsWith(".ts"))) {
+    const dist = join(root, "dist", source.replace(/\.ts$/, ".js"));
+    if (existsSync(dist) && statSync(dist).mtimeMs < statSync(join(root, source)).mtimeMs) {
+      stale.push(source);
+    }
+  }
+  return { missing, stale };
+}
+
+// -- Step runner -----------------------------------------------------------
+
+const steps = [];
+
+function runStep(name, command, commandArgs, options = {}) {
+  const started = Date.now();
+  const result = spawnSync(command, commandArgs, {
+    cwd: ROOT,
+    encoding: "utf8",
+    stdio: "pipe",
+    env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" },
+    maxBuffer: 1 << 28,
+  });
+  const durationMs = Date.now() - started;
+  const stdout = result.stdout ?? "";
+  const output = `${stdout}${result.stderr ?? ""}`.trim();
+  // Always capture so a structured verdict can be read; --verbose only decides
+  // whether the captured output is echoed as the step runs.
+  if (verbose) process.stdout.write(`${stdout}${result.stderr ?? ""}`);
+  const judged = options.classify ? options.classify(stdout, result.status ?? -1) : null;
+  const step = {
+    name,
+    status: judged?.status ?? (result.status === 0 ? "pass" : "fail"),
+    exitCode: result.status ?? -1,
+    durationMs,
+    output: output.split("\n").slice(-40).join("\n"),
+    ...options,
+    ...(judged?.detail ? { detail: judged.detail } : {}),
+  };
+  delete step.classify;
+  steps.push(step);
+  return step;
+}
+
+function record(name, status, detail) {
+  steps.push({ name, status, detail, durationMs: 0 });
+}
+
+function pnpm(script) {
+  const executable = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+  return [executable, [script]];
+}
+
+/** Resolve a dev binary from node_modules/.bin so preflight never needs npx. */
+function bin(name) {
+  const suffix = process.platform === "win32" ? ".cmd" : "";
+  const local = join(ROOT, "node_modules", ".bin", name + suffix);
+  return existsSync(local) ? local : name;
+}
+
+// -- Report ----------------------------------------------------------------
+
+/** The last `limit` lines, so a failure excerpt shows the error, not the setup. */
+export function tailLines(text, limit = 12) {
+  return String(text ?? "").split("\n").slice(-limit);
+}
+
+/**
+ * A run is clean only when every check ran and passed. `not_checked` is an
+ * unknown, not a quiet pass; it must fail closed.
+ */
+export function verdictOf(stepsToJudge) {
+  const failures = stepsToJudge.filter((step) => step.status === "fail");
+  const notChecked = stepsToJudge.filter((step) => step.status === "not_checked");
+  return { failures, notChecked, ok: failures.length === 0 && notChecked.length === 0 };
+}
+
+/**
+ * The evidence checker's `not_checked` verdict exits 0 by design (its own
+ * contract says "never reports a pass" rather than "fails"). Preflight must not
+ * inherit that as a PASS: read the structured verdict, not just the status.
+ */
+export function classifyEvidence(stdout, exitCode) {
+  try {
+    const payload = JSON.parse(stdout);
+    if (payload.verdict === "fail" || payload.verdict === "error") {
+      return { status: "fail", detail: payload.error ?? `verdict ${payload.verdict}` };
+    }
+    if (payload.verdict === "not_checked") {
+      return {
+        status: "not_checked",
+        detail: (payload.notChecked ?? []).join("; ") || "evidence contract was not fully verified",
+      };
+    }
+    return { status: "pass", detail: payload.verdict };
+  } catch {
+    return { status: exitCode === 0 ? "pass" : "fail" };
+  }
+}
+
+function main() {
+  const requestedBase = getArg("--base");
+  const base = resolveBase(requestedBase);
+  if (requestedBase && !base) {
+    console.error(`preflight: --base '${requestedBase}' does not resolve to a commit.`);
+    console.error("Refusing to fall back to an uncommitted-only diff: that would silently shrink the checks.");
+    process.exit(2);
+  }
+  const changed = changedFiles(base);
+  const onlyDocs = changed.length > 0 && changed.every((f) => DOC_EXTENSIONS.has(extname(f).toLowerCase()));
+
+  record(
+    "changed files",
+    "pass",
+    base ? `${changed.length} file(s) vs ${base}` : `${changed.length} uncommitted file(s); no base ref resolved`,
+  );
+
+  if (!onlyDocs) {
+    const [tcCmd, tcArgs] = pnpm("typecheck");
+    runStep("typecheck", tcCmd, tcArgs);
+    const [unCmd, unArgs] = pnpm("typecheck:unused");
+    runStep("typecheck:unused", unCmd, unArgs);
+  } else {
+    record("typecheck", "skipped", "documentation-only change (.md/.txt/.adoc/.rst/.log/.markdown)");
+    record("typecheck:unused", "skipped", "documentation-only change");
+  }
+
+  if (onlyDocs) {
+    record("affected tests", "skipped", "documentation-only change selects no code tests");
+  } else if (full) {
+    const [nodeCmd, nodeArgs] = pnpm("test:node:ci");
+    runStep("tests (node, full)", nodeCmd, nodeArgs);
+    runStep("tests (vitest, full)", bin("vitest"), ["run", "--config", "vitest.config.mts"]);
+  } else {
+    const allTests = testSources(walk(join(ROOT, "tests")));
+    const { selected, unmapped } = selectAffectedTests(changed, allTests);
+    if (!selected.length) {
+      record(
+        "affected tests",
+        "not_checked",
+        unmapped.length
+          ? `no test maps to ${unmapped.length} changed source file(s): ${unmapped.slice(0, 8).join(", ")}${unmapped.length > 8 ? ", …" : ""}`
+          : "no changed source or test files",
+      );
+    } else {
+      const { missing, stale } = distReadiness(selected, changed);
+      if (missing.length || stale.length) {
+        record(
+          "affected tests",
+          "not_checked",
+          [
+            missing.length ? `${missing.length} compiled test(s) missing from dist` : null,
+            stale.length ? `${stale.length} file(s) newer than dist (build is stale)` : null,
+            "run `pnpm build` first",
+          ]
+            .filter(Boolean)
+            .join("; "),
+        );
+      } else {
+        const compiledTests = selected
+          .filter((f) => f.endsWith(".test.ts"))
+          .map((f) => join(ROOT, "dist", f.replace(/\.ts$/, ".js")));
+        const sourceTests = selected
+          .filter((f) => f.endsWith(".test.mjs") || f.endsWith(".test.js"))
+          .map((f) => join(ROOT, f));
+        const nodeTests = [...compiledTests, ...sourceTests];
+        const vitestTests = selected.filter((f) => f.endsWith(".vitest.ts"));
+        if (nodeTests.length) {
+          runStep("tests (node, affected)", process.execPath, ["--test", ...nodeTests], {
+            detail: `${nodeTests.length} file(s)`,
+          });
+        }
+        if (vitestTests.length) {
+          runStep("tests (vitest, affected)", bin("vitest"), ["run", "--config", "vitest.config.mts", ...vitestTests], {
+            detail: `${vitestTests.length} file(s)`,
+          });
+        }
+      }
+      if (unmapped.length) {
+        record(
+          "affected tests coverage",
+          "not_checked",
+          `${unmapped.length} changed source file(s) matched by no test: ${unmapped.slice(0, 8).join(", ")}${unmapped.length > 8 ? ", …" : ""}`,
+        );
+      }
+    }
+  }
+
+  runStep("check:dox", process.execPath, ["scripts/check-dox-claims.mjs", ...(base ? ["--base", base] : [])]);
+  runStep("check:staleness", process.execPath, ["scripts/check-staleness.mjs"]);
+  runStep(
+    "check:evidence",
+    process.execPath,
+    ["scripts/check-evidence-integrity.mjs", "--json", "--pending-commit-tolerant"],
+    { classify: classifyEvidence },
+  );
+
+  const { failures, notChecked, ok } = verdictOf(steps);
+  if (asJson) {
+    console.log(JSON.stringify({ ok, base, changed, steps }, null, 2));
+  } else {
+    const icon = { pass: "PASS", fail: "FAIL", skipped: "SKIP", not_checked: "UNKNOWN" };
+    console.log("");
+    for (const step of steps) {
+      const detail = step.detail ? ` — ${step.detail}` : "";
+      const seconds = step.durationMs ? ` (${(step.durationMs / 1000).toFixed(1)}s)` : "";
+      console.log(`  ${icon[step.status] ?? step.status.padEnd(7)}  ${step.name}${seconds}${detail}`);
+      if (step.status === "fail" && step.output) {
+        for (const line of tailLines(step.output)) console.log(`          ${line}`);
+      }
+    }
+    console.log("");
+    if (failures.length) {
+      console.log(`Preflight FAILED: ${failures.length} check(s) red.`);
+      for (const step of failures) console.log(`  - ${step.name}`);
+    }
+    if (notChecked.length) {
+      console.log(`Preflight INCOMPLETE: ${notChecked.length} check(s) could not be performed:`);
+      for (const step of notChecked) console.log(`  - ${step.name}: ${step.detail}`);
+      console.log("This is not a clean preflight. Resolve each item above before treating the branch as verified.");
+    }
+    if (ok) console.log("Preflight OK — every check ran and passed.");
+    console.log("");
+  }
+  process.exitCode = ok ? 0 : 1;
+}
+
+if (process.argv[1] && import.meta.url === new URL("file://" + process.argv[1]).href) main();

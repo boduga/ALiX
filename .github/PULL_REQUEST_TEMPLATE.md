@@ -3,8 +3,9 @@
 <!-- Refs #123 for partial work. Closes #123 only when all acceptance criteria are satisfied. -->
 Refs #
 
-**Change scope:** <!-- exact affected subsystem/files -->
+**Scope:** <!-- comma-separated top-level areas: e.g. scripts, tests, .github -->
 **Risk:** <!-- low / medium / high / critical; justify -->
+**Areas:** <!-- optional detail: exact affected subsystem/files -->
 **Agent/worktree:** <!-- agent/session and isolated worktree or N/A -->
 **Dependencies:** <!-- other PRs, or none -->
 

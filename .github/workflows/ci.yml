@@ -151,6 +151,22 @@ jobs:
       - name: Evidence recompute (skips declared-non-reproducible generators)
         run: node scripts/check-evidence-integrity.mjs --max-accepted 2 --recompute
 
+  # ─── Lane 1c: preflight regression tests ─────────────────────────────────
+  # `pnpm preflight` is what the pre-push hook runs, so its own verdicts need
+  # parity coverage. The suite is plain node:test with no install, and it
+  # builds throwaway fixtures instead of asserting on this checkout.
+  preflight-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: "26.11.0"
+      - name: Verify preflight selection and scope verdicts
+        run: node --test tests/scripts/preflight.test.mjs tests/scripts/check-pr-scope.test.mjs
+
   # ─── Lane 2: Unit tests (vitest) ──────────────────────────────────────────
   unit:
     runs-on: ubuntu-latest
