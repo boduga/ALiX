@@ -10,23 +10,25 @@
  *                stays inside the declared set. "Declared" means either the PR
  *                body names its areas in a `Scope:` block, or the caller passes
  *                `--declare <area>` for each one.
- *   3. ONE-THING the changed paths must not span more than `--max-areas`
- *                top-level areas (default 3). A declaration does not raise the
- *                limit; it makes every touched area explicit. Tests and
- *                tooling that belong to one change may legitimately span
- *                `scripts`, `tests`, and `.github`; a change that also reaches
- *                into product subsystems must declare and justify each one.
+ *   3. ONE-THING a diff spanning more than `--max-areas` top-level areas
+ *                (default 3) must carry a `Broad-scope:` line stating why it is
+ *                one change. The cap is a prompt for a stated decision, not a
+ *                prohibition: recent merged work legitimately spans 5 and 11
+ *                areas when it sweeps a contract across subsystems, so a hard
+ *                ceiling here would reject the repository's own history and
+ *                teach authors to work around the check.
  *
  * The point is not to make large PRs fail. It is to make a diff that touches
  * governance, evidence, TUI, and CI in one change say so out loud, instead of
- * arriving as "small cleanup".
+ * arriving as "small cleanup". A declaration alone is not a reason: it says
+ * where the diff goes, not why it belongs together.
  *
  * Usage (CI):
  *   PR_BASE_REF=main PR_BODY="$(cat body.md)" \
  *     node scripts/check-pr-scope.mjs --diff-file changed.txt
  *
  * Usage (local):
- *   node scripts/check-pr-scope.mjs --base main --scope src/governance
+ *   node scripts/check-pr-scope.mjs --base main --declare src/governance
  *
  * Exit codes: 0 in scope, 1 out of scope, 2 invocation error.
  */
@@ -70,22 +72,43 @@ export function areaFor(path) {
   return match ?? "unclassified";
 }
 
+/**
+ * Reduce a PR-body line to `label: value` form before matching.
+ *
+ * Matching a bare `\bscope\b` anywhere in a line read `scripts/check-pr-scope.mjs`
+ * (a hyphen is a word boundary) as a `Scope:` declaration, so every PR that
+ * named the checker declared a bogus area and failed coverage. Matching a label
+ * and a colon is the honest rule: prose mentions, headings, the unfilled
+ * template comment, and the `Areas:` line are not declarations.
+ *
+ * Emphasis is stripped here rather than in the patterns, because `**Scope:**`
+ * puts the colon *inside* the bold, and `**Change scope:**` too.
+ */
+function labeled(line) {
+  const flat = line
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/^\s*[-*+]\s+/, "")
+    .replace(/[*_`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return flat;
+}
+
+/** A declaration label. `Broad-scope:` is deliberately not one of these. */
+const DECL_LABEL = /^(?:(?:change|diff|pr|pull request)\s+)?scope\s*:\s*(.*)$/i;
+
+/** The label that carries a stated reason for a broad diff. */
+const RATIONALE_LABEL = /^(?:broad[- ]scope|scope[- ]rationale)\s*:\s*(.*)$/i;
+
 /** Parse `Scope: a, b` (or a `## Scope` list) out of a PR body. */
 export function declaredAreas(body) {
   if (!body) return [];
   const areas = new Set();
-  // Template placeholders live in HTML comments. Stripping them first keeps
-  // `**Scope:** <!-- exact files -->` from declaring a literal `<!-- exact...`.
-  const withoutComments = body.replace(/<!--[\s\S]*?-->/g, "");
-  const lines = withoutComments.match(/^[^\n]*?\bscope\b[^\n]*$/gim) ?? [];
-  for (const rawLine of lines) {
-    const afterColon = rawLine.includes(":") ? rawLine.slice(rawLine.indexOf(":") + 1) : "";
-    if (!afterColon.trim()) continue;
-    // Drop Markdown emphasis and list markers before splitting on separators,
-    // so `**Scope:** a, b` and `- Scope: a, b` parse the same way.
-    const cleanedLine = afterColon.replace(/[*`_]/g, "").replace(/^[\s-]+/, "");
-    for (const piece of cleanedLine.split(/[,;]/)) {
-      const cleaned = piece.trim().replace(/^[\s-]+/, "").replace(/\/+$/, "").trim();
+  for (const rawLine of String(body).split("\n")) {
+    const label = DECL_LABEL.exec(labeled(rawLine));
+    if (!label) continue;
+    for (const piece of label[1].split(/[,;]/)) {
+      const cleaned = piece.trim().replace(/\/+$/, "").trim();
       if (cleaned) areas.add(cleaned);
     }
   }
@@ -93,12 +116,39 @@ export function declaredAreas(body) {
 }
 
 /**
- * @param {{base: string, baseRef?: string, files: string[], body?: string, declared?: string[], maxAreas?: number}} input
+ * A broad diff must volunteer a reason rather than slope through under a
+ * declared list. Presence is verifiable; quality is the reviewer's judgement.
+ */
+export function scopeRationale(body) {
+  if (!body) return "";
+  for (const rawLine of String(body).split("\n")) {
+    const label = RATIONALE_LABEL.exec(labeled(rawLine));
+    if (!label) continue;
+    const text = label[1].trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+/**
+ * Reduce a git ref to the branch name the verdict is about. CI diffs against
+ * `origin/main`; comparing that raw string to `main` failed every PR the moment
+ * the check stopped being run by hand.
+ */
+export function baseBranchOf(ref) {
+  return String(ref ?? "").replace(/^(?:origin|upstream)\//, "");
+}
+
+/**
+ * @param {{base: string, files: string[], body?: string, declared?: string[], maxAreas?: number}} input
  * @returns {string[]} errors
  */
 export function validatePrScope({ base = "main", files = [], body = "", declared = [], maxAreas }) {
   const errors = [];
-  if (base !== "main") errors.push("PR base must be main (approved dependency stacks require a separate exception)");
+  const branch = baseBranchOf(base);
+  if (branch !== "main") {
+    errors.push(`PR base must be main, not \`${branch}\` (approved dependency stacks require a separate exception)`);
+  }
 
   const declaredSet = new Set([...declaredAreas(body), ...declared].map((d) => d.replace(/\/$/, "")));
   const limit = maxAreas ?? 3;
@@ -135,12 +185,10 @@ export function validatePrScope({ base = "main", files = [], body = "", declared
   }
 
   const scoped = [...touched.keys()].filter((a) => a !== "unclassified");
-  if (scoped.length > limit) {
+  if (scoped.length > limit && !scopeRationale(body)) {
     errors.push(
-      `the diff spans ${scoped.length} areas (${scoped.join(", ")}); the limit is ${limit}` +
-        (declaredSet.size
-          ? " — split the PR or raise `--max-areas` with a stated reason"
-          : " when no scope is declared — add a `Scope:` line to the PR body"),
+      `the diff spans ${scoped.length} areas (${scoped.join(", ")}) and states no reason` +
+        ` — add a \`Broad-scope:\` line saying why this is one change, or split it`,
     );
   }
 

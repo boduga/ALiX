@@ -5,6 +5,7 @@ Refs #
 
 **Scope:** <!-- comma-separated top-level areas: e.g. scripts, tests, .github -->
 **Risk:** <!-- low / medium / high / critical; justify -->
+**Broad-scope:** <!-- required only when the diff spans more than three areas: why this is one change -->
 **Areas:** <!-- optional detail: exact affected subsystem/files -->
 **Agent/worktree:** <!-- agent/session and isolated worktree or N/A -->
 **Dependencies:** <!-- other PRs, or none -->

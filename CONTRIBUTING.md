@@ -29,7 +29,8 @@ The PR metadata check enforces naming, not security or merge authorization.
 ## Pull Requests
 
 - Keep changes focused — one feature or fix per PR
-- Fill the PR template's `**Scope:**` line with the top-level areas the diff touches (for example `scripts, tests, .github`). `check-pr-scope` fails when a touched area is undeclared or the diff spans more than three areas.
+- Fill the PR template's `**Scope:**` line with the top-level areas the diff touches (for example `scripts, tests, .github`). `check-pr-scope` fails when a touched area is undeclared.
+- A diff spanning more than three areas must state why it is one change in a `**Broad-scope:**` line. The reason is reviewed, not scored: "it is a contract sweep across N subsystems" is fine, silence is not.
 - Write tests for new code (we use `node:test`)
 - Timing-sensitive tests must declare an explicit `timeout` with a workload-rationale comment (see `tests/soak/store-load.test.ts`), so slow runners don't turn them into flakes
 - Ensure relevant `pnpm` tests and required CI checks pass before merging
