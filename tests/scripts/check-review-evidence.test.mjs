@@ -366,3 +366,48 @@ test("rebased or non-ancestor reviewed head fails", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("the digest is stable under hostile diff configuration", () => {
+  // The review digest binds a reviewed head to the exact bytes a reviewer saw.
+  // `diff.noprefix`, `diff.interHunkContext`, and `diff.suppressBlankEmpty`
+  // each changed that digest on an identical change, so a reviewer with a
+  // personal config and CI would disagree about the same PR. canonicalDiffArgs
+  // pins them; this test proves the pins win over repository/user config
+  // rather than only describing them.
+  const { root, base } = fixture();
+  try {
+    writeFile(root, "src/change.txt", "content line one\ncontent line two\n");
+    const head = commit(root, "content");
+    const plain = digestFor(root, base, head);
+
+    runGit(root, ["config", "diff.noprefix", "true"]);
+    runGit(root, ["config", "diff.mnemonicPrefix", "true"]);
+    runGit(root, ["config", "diff.interHunkContext", "7"]);
+    runGit(root, ["config", "diff.suppressBlankEmpty", "true"]);
+    runGit(root, ["config", "diff.algorithm", "patience"]);
+    runGit(root, ["config", "diff.context", "9"]);
+
+    assert.equal(digestFor(root, base, head), plain);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a reviewed head git cannot resolve is an invocation error, not a stale review", () => {
+  // `merge-base --is-ancestor` exits 1 for "no" and 128 for "I cannot answer".
+  // A catch-all `false` turned an unreadable repository into a review verdict
+  // (exit 1) instead of an invocation error (exit 2).
+  const { root, base } = fixture();
+  try {
+    writeFile(root, "src/change.txt", "content\n");
+    const head = commit(root, "code");
+    writeFile(root, "docs/reviews/PR-1111.json", evidenceFor(1111, "f".repeat(40), "d".repeat(64)));
+    commit(root, "evidence naming an unknown commit");
+
+    const result = checker(root, ["--pr", "1111", "--base", base, "--head", "HEAD"]);
+    assert.equal(result.status, 2, result.stdout + result.stderr);
+    assert.match(result.stderr, /could not verify the reviewed head/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

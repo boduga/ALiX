@@ -472,8 +472,10 @@ describe("check-evidence-integrity: order", () => {
       assert.equal(strict.status, 1, strict.stdout);
       assert.match(strict.stdout, /is not committed/);
 
+      // A downgraded verdict is still not a verified one: `not_checked` now
+      // exits 1 so a caller cannot read "we skipped the order check" as green.
       const tolerant = run(dir, ["--pending-commit-tolerant"]);
-      assert.equal(tolerant.status, 0, tolerant.stdout);
+      assert.equal(tolerant.status, 1, tolerant.stdout);
       assert.equal(tolerant.parsed?.verdict, "not_checked");
       assert.ok(tolerant.parsed!.notChecked.some((reason) => /uncommitted/.test(reason)));
     } finally {
@@ -824,7 +826,7 @@ describe("check-evidence-integrity: recompute", () => {
     const dir = healthyRepo();
     try {
       const r = run(dir, ["--recompute"]);
-      assert.equal(r.status, 0, r.stdout);
+      assert.equal(r.status, 1, r.stdout);
       assert.equal(r.parsed?.verdict, "not_checked");
       assert.equal(r.parsed?.recomputeSkipped, 1);
       const recompute = r.parsed!.recompute;
@@ -840,12 +842,52 @@ describe("check-evidence-integrity: recompute", () => {
     const dir = healthyRepo();
     try {
       const r = run(dir, ["--recompute", "--max-recompute-skipped", "1"]);
-      assert.equal(r.status, 0, r.stdout);
+      assert.equal(r.status, 1, r.stdout);
       assert.equal(r.parsed?.verdict, "not_checked");
       assert.equal(r.parsed?.recomputeSkipped, 1);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("acknowledges a bounded declared-skip set as a distinct verdict", () => {
+    const dir = healthyRepo();
+    try {
+      const r = run(dir, ["--recompute", "--max-recompute-skipped", "1", "--allow-declared-skips"]);
+      assert.equal(r.status, 0, r.stdout);
+      assert.equal(r.parsed?.verdict, "pass_with_declared_skips");
+      assert.equal(r.parsed?.ok, true);
+      assert.equal(r.parsed?.recomputeSkipped, 1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses --allow-declared-skips without a bounded skip set", () => {
+    const dir = healthyRepo();
+    try {
+      const r = run(dir, ["--recompute", "--allow-declared-skips"]);
+      assert.equal(r.status, 2, r.stdout + r.stderr);
+      assert.match(r.stderr, /requires --max-recompute-skipped/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not acknowledge a not_checked reason that is not a declared skip", () => {
+    // An empty manifest is a different absence from a generator declaring
+    // itself non-reproducible. The acknowledgement must not absorb it: the pin
+    // matches (zero skipped), but the vacuous-order reason still fails closed.
+    withRepo(
+      [{ message: "manifest with no artifacts", files: { [MANIFEST]: { schemaVersion: 1, coverage: [], artifacts: [] } } }],
+      (dir) => {
+        const r = run(dir, ["--recompute", "--max-recompute-skipped", "0", "--allow-declared-skips"]);
+        assert.equal(r.parsed?.verdict, "not_checked", r.stdout);
+        assert.equal(r.status, 1, r.stdout);
+        assert.equal(r.parsed?.ok, false);
+        assert.match(r.stdout, /order vacuous/);
+      },
+    );
   });
 
   it("fails when more generators are declared not recomputable than the pin allows", () => {
@@ -892,7 +934,7 @@ describe("check-evidence-integrity: empty manifest", () => {
       [{ message: "manifest with no artifacts", files: { [MANIFEST]: { schemaVersion: 1, coverage: [], artifacts: [] } } }],
       (dir) => {
         const r = run(dir);
-        assert.equal(r.status, 0, r.stdout);
+        assert.equal(r.status, 1, r.stdout);
         assert.equal(r.parsed?.verdict, "not_checked");
         assert.match(r.stdout, /order vacuous/);
       },

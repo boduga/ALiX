@@ -105,8 +105,11 @@ describes is qualified or released.
   markers, index ordering, and checker/manifest reflexivity. `--recompute`
   re-runs generators that declare themselves reproducible; generators declaring
   themselves not recomputable are reported as NOT CHECKED rather than counted as
-  passes. `--max-recompute-skipped <n>` bounds that set shrink-only, so declaring
-  one more generator non-reproducible fails until the pin is deliberately raised.
+  passes, and a `not_checked` verdict exits 1. `--max-recompute-skipped <n>`
+  bounds that set shrink-only, so declaring one more generator non-reproducible
+  fails until the pin is deliberately raised. `--allow-declared-skips` (only with
+  that pin) acknowledges exactly that bounded absence and reports
+  `pass_with_declared_skips`; any other unchecked reason still fails.
   `--pending-commit-tolerant` downgrades uncommitted evidence to `not_checked`
   for pre-commit use and never reports a pass.
 - GE-04 Python checks under `scripts/ge04-*.py` and their tests under

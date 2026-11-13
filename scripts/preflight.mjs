@@ -83,19 +83,24 @@ export function resolveBase(requested) {
   return null;
 }
 
-export function changedFiles(base) {
-  // Committed branch work plus anything still in the index or working tree.
+/**
+ * The change set, or a thrown error. `gitRun` is injectable so the fail-closed
+ * path can be tested without spawning git: every diff here is required input,
+ * and a swallowed failure would shrink the set — possibly to nothing — and let
+ * preflight pass over work it never inspected.
+ */
+export function changedFiles(base, gitRun = git) {
   const files = new Set();
   if (base) {
-    const committed = tryGit(["diff", "--name-only", "--diff-filter=ACDMRTUXB", `${base}...HEAD`]);
-    for (const line of (committed ?? "").split("\n")) if (line.trim()) files.add(line.trim());
+    const committed = gitRun(["diff", "--name-only", "--diff-filter=ACDMRTUXB", `${base}...HEAD`]);
+    for (const line of committed.split("\n")) if (line.trim()) files.add(line.trim());
   }
-  const working = tryGit(["diff", "--name-only", "--diff-filter=ACDMRTUXB", "HEAD"]);
-  for (const line of (working ?? "").split("\n")) if (line.trim()) files.add(line.trim());
-  const staged = tryGit(["diff", "--name-only", "--cached", "--diff-filter=ACDMRTUXB"]);
-  for (const line of (staged ?? "").split("\n")) if (line.trim()) files.add(line.trim());
-  const untracked = tryGit(["ls-files", "--others", "--exclude-standard"]);
-  for (const line of (untracked ?? "").split("\n")) if (line.trim()) files.add(line.trim());
+  const working = gitRun(["diff", "--name-only", "--diff-filter=ACDMRTUXB", "HEAD"]);
+  for (const line of working.split("\n")) if (line.trim()) files.add(line.trim());
+  const staged = gitRun(["diff", "--name-only", "--cached", "--diff-filter=ACDMRTUXB"]);
+  for (const line of staged.split("\n")) if (line.trim()) files.add(line.trim());
+  const untracked = gitRun(["ls-files", "--others", "--exclude-standard"]);
+  for (const line of untracked.split("\n")) if (line.trim()) files.add(line.trim());
   return [...files].sort();
 }
 
@@ -276,16 +281,18 @@ export function verdictOf(stepsToJudge) {
 }
 
 /**
- * The evidence checker's `not_checked` verdict exits 0 by design (its own
- * contract says "never reports a pass" rather than "fails"). Preflight must not
- * inherit that as a PASS: read the structured verdict, not just the status.
+ * Read the evidence checker's structured verdict, not just its exit status.
+ * `not_checked` now exits 1, so status alone would be *nearly* right — but the
+ * verdict is still the authority: it distinguishes a bounded, acknowledged
+ * declared-skip set from an unverified contract, and that distinction is not
+ * encoded in an exit code.
  */
 export function classifyEvidence(stdout, exitCode) {
   // Only a structured verdict can establish a pass. The checker is asked for
   // --json precisely so preflight can read its answer instead of inferring one
-  // from an exit code: it exits 0 for `not_checked`. Unparseable output means
-  // the verdict is unknown, and an unknown that happens to exit 0 is the exact
-  // shape of a check that never ran reading as a pass.
+  // from an exit code. Unparseable output means the verdict is unknown, and an
+  // unknown that happens to exit 0 is the exact shape of a check that never ran
+  // reading as a pass.
   let payload;
   try {
     payload = JSON.parse(stdout);
@@ -307,7 +314,11 @@ export function classifyEvidence(stdout, exitCode) {
       detail: (payload.notChecked ?? []).join("; ") || "evidence contract was not fully verified",
     };
   }
-  if (payload.verdict !== "pass" && payload.verdict !== "pass_with_accepted") {
+  if (
+    payload.verdict !== "pass" &&
+    payload.verdict !== "pass_with_accepted" &&
+    payload.verdict !== "pass_with_declared_skips"
+  ) {
     return { status: "fail", detail: `evidence checker returned an unrecognized verdict \`${payload.verdict}\`` };
   }
   return { status: "pass", detail: payload.verdict };
@@ -321,16 +332,30 @@ function main() {
     console.error("Refusing to fall back to an uncommitted-only diff: that would silently shrink the checks.");
     process.exit(2);
   }
-  const changed = changedFiles(base);
-  const onlyDocs = changed.length > 0 && changed.every((f) => DOC_EXTENSIONS.has(extname(f).toLowerCase()));
+  let changed;
+  try {
+    changed = changedFiles(base);
+  } catch (error) {
+    // The change set is the input to every selection decision below. Unknown
+    // is not empty: record the gap and keep the run non-green.
+    changed = null;
+    record("changed files", "not_checked", `could not read the change set: ${error.message}`);
+  }
+  const onlyDocs = changed !== null && changed.length > 0 && changed.every((f) => DOC_EXTENSIONS.has(extname(f).toLowerCase()));
 
-  record(
-    "changed files",
-    "pass",
-    base ? `${changed.length} file(s) vs ${base}` : `${changed.length} uncommitted file(s); no base ref resolved`,
-  );
+  if (changed !== null) {
+    record(
+      "changed files",
+      "pass",
+      base ? `${changed.length} file(s) vs ${base}` : `${changed.length} uncommitted file(s); no base ref resolved`,
+    );
+  }
 
-  if (!onlyDocs) {
+  if (changed === null) {
+    record("typecheck", "not_checked", "change set unknown");
+    record("typecheck:unused", "not_checked", "change set unknown");
+    record("affected tests", "not_checked", "change set unknown");
+  } else if (!onlyDocs) {
     const [tcCmd, tcArgs] = pnpm("typecheck");
     runStep("typecheck", tcCmd, tcArgs);
     const [unCmd, unArgs] = pnpm("typecheck:unused");
@@ -340,7 +365,9 @@ function main() {
     record("typecheck:unused", "skipped", "documentation-only change");
   }
 
-  if (onlyDocs) {
+  if (changed === null) {
+    // "affected tests" was already recorded as not_checked above.
+  } else if (onlyDocs) {
     record("affected tests", "skipped", "documentation-only change selects no code tests");
   } else if (full) {
     const [nodeCmd, nodeArgs] = pnpm("test:node:ci");

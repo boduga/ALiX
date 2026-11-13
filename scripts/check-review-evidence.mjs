@@ -41,7 +41,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -64,12 +64,24 @@ export function evidencePathFor(pr) {
 
 /**
  * The exact git invocation whose stdout is hashed. Pinned so a reviewer and CI
- * cannot compute "the same" digest from different diffs: rename detection and
- * textconv both vary by configuration and would silently change the digest.
+ * cannot compute "the same" digest from different diffs. Command-line flags
+ * cover rename detection and textconv, but git configuration still changes the
+ * bytes: `diff.noprefix`, `diff.interHunkContext`, and `diff.suppressBlankEmpty`
+ * each produced a different digest for the identical change. The `-c` pins are
+ * placed before `diff`, so they win over a user's or CI runner's config.
  */
 export function canonicalDiffArgs(base, head) {
   return [
     "-c", "core.quotepath=false",
+    "-c", "diff.noprefix=false",
+    "-c", "diff.mnemonicPrefix=false",
+    "-c", "diff.algorithm=myers",
+    "-c", "diff.interHunkContext=0",
+    "-c", "diff.context=3",
+    "-c", "diff.indentHeuristic=true",
+    "-c", "diff.suppressBlankEmpty=false",
+    "-c", "diff.relative=false",
+    "-c", "diff.wsErrorHighlight=context",
     "diff",
     "--no-color",
     "--no-ext-diff",
@@ -96,13 +108,24 @@ export function computeDiffDigest(base, head) {
   return diffDigest(git(canonicalDiffArgs(base, head), "buffer"));
 }
 
+/**
+ * `git merge-base --is-ancestor` uses exit status as its answer: 0 is yes and 1
+ * is no. Any other status is git failing to answer, which must not be read as
+ * "not an ancestor" — that would turn an unreadable repository into a stale
+ * review verdict (exit 1) instead of an invocation error (exit 2).
+ */
 export function isAncestor(ancestor, descendant) {
-  try {
-    git(["merge-base", "--is-ancestor", ancestor, descendant]);
-    return true;
-  } catch {
-    return false;
-  }
+  const result = spawnSync("git", ["merge-base", "--is-ancestor", ancestor, descendant], {
+    cwd: ROOT,
+    encoding: "utf8",
+    maxBuffer: 1 << 28,
+  });
+  if (result.error) throw result.error;
+  if (result.status === 0) return true;
+  if (result.status === 1) return false;
+  throw new Error(
+    `git merge-base --is-ancestor ${ancestor} ${descendant} failed (status ${result.status}): ${result.stderr.trim()}`,
+  );
 }
 
 export function changedPathsBetween(from, to) {
@@ -365,13 +388,23 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   }
 
   const reviewed = evidence?.reviewedHeadSha;
-  const reviewIsAncestor = SHA1.test(String(reviewed)) ? isAncestor(reviewed, headSha) : undefined;
-  const changedSinceReview = reviewIsAncestor ? changedPathsBetween(reviewed, headSha) : [];
-  const evidenceCommits = reviewIsAncestor
-    ? commitsBetween(reviewed, headSha)
+  let reviewIsAncestor;
+  let changedSinceReview = [];
+  let evidenceCommits = [];
+  try {
+    reviewIsAncestor = SHA1.test(String(reviewed)) ? isAncestor(reviewed, headSha) : undefined;
+    if (reviewIsAncestor) {
+      changedSinceReview = changedPathsBetween(reviewed, headSha);
+      evidenceCommits = commitsBetween(reviewed, headSha)
         .map((sha) => ({ sha, paths: changedPathsInCommit(sha) }))
-        .filter(({ paths }) => paths.includes(evidencePath))
-    : [];
+        .filter(({ paths }) => paths.includes(evidencePath));
+    }
+  } catch (error) {
+    // A git failure is not evidence about the review. Report it as an
+    // invocation error so a transient repository problem cannot be recorded as
+    // a stale or valid review verdict.
+    fail(`could not verify the reviewed head ${String(reviewed).slice(0, 12)}…: ${error.message}`);
+  }
   const errors = validateReviewEvidence({
     evidence,
     expectedPr: args.pr,

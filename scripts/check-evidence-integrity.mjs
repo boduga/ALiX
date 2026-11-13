@@ -77,6 +77,7 @@
  * Usage:
  *   node scripts/check-evidence-integrity.mjs [--root <dir>] [--manifest <path>]
  *        [--json] [--recompute] [--max-recompute-skipped <n>]
+ *        [--allow-declared-skips]
  *        [--pending-commit-tolerant]
  *
  * `--max-recompute-skipped <n>` is the shrink-only counterpart of
@@ -87,13 +88,22 @@
  * set of generators exempt from regeneration fails the build, and shrinking it
  * requires the pin to be lowered on purpose. Requires `--recompute`.
  *
+ * A `not_checked` verdict exits 1. That includes a recompute run whose declared
+ * skip set matches its pin: the run proved nothing about those artifacts, and a
+ * zero exit would let CI report success for work it did not perform. CI
+ * acknowledges exactly that bounded absence with `--allow-declared-skips`, which
+ * is accepted only together with `--max-recompute-skipped` and only when every
+ * unchecked reason is a declared skip. Any other `not_checked` reason still
+ * fails, so the acknowledgement cannot widen to uncommitted evidence, an empty
+ * manifest, or an unreadable tree.
+ *
  * `--pending-commit-tolerant` downgrades an uncommitted artifact or generator
  * from a finding to an explicit NOT CHECKED result. It exists for the pre-commit
  * preflight and the pre-push hook, where evidence is expected to be dirty. It
  * never reports a pass: the verdict becomes `not_checked` and says so. CI runs
  * strict.
  *
- * Exit codes: 0 pass, 1 findings, 2 invocation/environment error.
+ * Exit codes: 0 pass, 1 findings or not-checked, 2 invocation/environment error.
  */
 
 import { readFileSync, existsSync, readdirSync } from "node:fs";
@@ -118,6 +128,7 @@ const maxAcceptedArg = getArg("--max-accepted");
 const maxAccepted = maxAcceptedArg === null ? null : Number(maxAcceptedArg);
 const maxRecomputeSkippedArg = getArg("--max-recompute-skipped");
 const maxRecomputeSkipped = maxRecomputeSkippedArg === null ? null : Number(maxRecomputeSkippedArg);
+const allowDeclaredSkips = argv.includes("--allow-declared-skips");
 
 const root = resolve(getArg("--root") ?? process.cwd());
 const manifestPath = resolve(root, getArg("--manifest") ?? "docs/security/evidence-manifest.json");
@@ -134,6 +145,9 @@ function usage(message) {
 
 if (maxRecomputeSkippedArg !== null && !recompute) {
   usage("--max-recompute-skipped requires --recompute; without it there is no skip set to bound");
+}
+if (allowDeclaredSkips && maxRecomputeSkippedArg === null) {
+  usage("--allow-declared-skips requires --max-recompute-skipped; an acknowledgement without a bounded skip set is unbounded");
 }
 
 // ---------------------------------------------------------------------------
@@ -740,6 +754,7 @@ if (pending.length && !pendingCommitTolerant) {
 }
 
 const notCheckedReasons = [];
+const declaredSkipReasonPrefix = "recompute NOT CHECKED for ";
 if (pending.length && pendingCommitTolerant) {
   notCheckedReasons.push(
     `order NOT CHECKED for ${pending.length} uncommitted path(s): ${pending
@@ -751,7 +766,7 @@ if (pending.length && pendingCommitTolerant) {
 
 if (recompute && declaredNotRecomputable.length) {
   notCheckedReasons.push(
-    `recompute NOT CHECKED for ${declaredNotRecomputable.length} generator(s) declared not recomputable: ${declaredNotRecomputable
+    `${declaredSkipReasonPrefix}${declaredNotRecomputable.length} generator(s) declared not recomputable: ${declaredNotRecomputable
       .slice(0, 5)
       .join(", ")}${declaredNotRecomputable.length > 5 ? ", …" : ""}. Their artifacts are hash-pinned and order-checked, not reproduced.`,
   );
@@ -971,8 +986,18 @@ if (maxRecomputeSkipped !== null) {
   }
 }
 
+// A bounded declared-skip set is the one absence the caller may acknowledge —
+// and only that one. The run then reports `pass_with_declared_skips` rather
+// than `pass`, so the acknowledgement stays visible in the JSON and in the log
+// instead of collapsing into an unqualified success. Every other unchecked
+// reason (uncommitted order, an empty manifest) remains a non-zero exit.
+const onlyDeclaredSkips =
+  notCheckedReasons.length > 0 &&
+  notCheckedReasons.every((reason) => reason.startsWith(declaredSkipReasonPrefix));
+if (allowDeclaredSkips && onlyDeclaredSkips) verdict = "pass_with_declared_skips";
+
 const payload = {
-  ok: verdict === "pass" || verdict === "pass_with_accepted",
+  ok: verdict === "pass" || verdict === "pass_with_accepted" || verdict === "pass_with_declared_skips",
   verdict,
   root,
   manifest: manifestRepoPath,
@@ -1011,6 +1036,11 @@ if (jsonMode) {
     console.log("Evidence integrity OK");
   } else if (verdict === "pass_with_accepted") {
     console.log(`Evidence integrity OK (${acceptedFindings.length} accepted historical defect(s), listed below)`);
+  } else if (verdict === "pass_with_declared_skips") {
+    console.log(
+      `Evidence integrity OK (${declaredNotRecomputable.length} generator(s) declared not recomputable; ` +
+        "their artifacts were hash-pinned and order-checked, not reproduced)",
+    );
   } else {
     console.log("Evidence integrity: NOT CHECKED (no findings, but part of the contract was not verified)");
   }
@@ -1044,4 +1074,4 @@ if (jsonMode) {
   }
 }
 
-process.exit(verdict === "fail" ? 1 : 0);
+process.exit(payload.ok ? 0 : 1);

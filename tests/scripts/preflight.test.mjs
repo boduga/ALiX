@@ -3,7 +3,15 @@ import { test } from "node:test";
 import { mkdtempSync, mkdirSync, writeFileSync, utimesSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { DOC_EXTENSIONS, classifyEvidence, distReadiness, selectAffectedTests, tailLines, verdictOf } from "../../scripts/preflight.mjs";
+import {
+  DOC_EXTENSIONS,
+  changedFiles,
+  classifyEvidence,
+  distReadiness,
+  selectAffectedTests,
+  tailLines,
+  verdictOf,
+} from "../../scripts/preflight.mjs";
 
 const fixture = (name, specifiers = []) => ({
   file: `/repo/tests/${name}`,
@@ -155,6 +163,34 @@ test("failure output keeps the tail, where the error is", () => {
   assert.deepEqual(tailLines("", 4), [""]);
 });
 
+test("a git failure while computing the change set is not swallowed", () => {
+  // The defect this pins: `tryGit` returned null on a failed diff, so the
+  // change set could shrink to nothing and a docs-only shortcut or an empty
+  // affected-test selection would read as clean. A required read that fails is
+  // an error, not an empty result.
+  assert.throws(
+    () =>
+      changedFiles("origin/main", () => {
+        throw new Error("git diff failed");
+      }),
+    /git diff failed/,
+  );
+});
+
+test("changed files are the union of committed, working, staged, and untracked", () => {
+  const calls = [];
+  const fakeGit = (argv) => {
+    calls.push(argv.join(" "));
+    if (argv[0] === "ls-files") return "new-file.ts\n";
+    if (argv.includes("--cached")) return "staged.ts\n";
+    if (argv.includes("HEAD")) return "working.ts\n";
+    // `staged.ts` also appears here: the union must de-duplicate.
+    return "committed.ts\nstaged.ts\n";
+  };
+  assert.deepEqual(changedFiles("origin/main", fakeGit), ["committed.ts", "new-file.ts", "staged.ts", "working.ts"]);
+  assert.equal(calls.length, 4);
+});
+
 test("the evidence checker's not_checked exit 0 becomes UNKNOWN, not PASS", () => {
   const stdout = JSON.stringify({ verdict: "not_checked", notChecked: ["artifact is uncommitted"] });
   assert.deepEqual(classifyEvidence(stdout, 0), { status: "not_checked", detail: "artifact is uncommitted" });
@@ -163,6 +199,14 @@ test("the evidence checker's not_checked exit 0 becomes UNKNOWN, not PASS", () =
 test("the evidence checker's pass and pass_with_accepted verdicts pass", () => {
   assert.equal(classifyEvidence(JSON.stringify({ verdict: "pass" }), 0).status, "pass");
   assert.equal(classifyEvidence(JSON.stringify({ verdict: "pass_with_accepted" }), 0).status, "pass");
+});
+
+test("a bounded declared-skip acknowledgement is a pass that names itself", () => {
+  // `--allow-declared-skips` exists so CI can acknowledge a pinned set of
+  // non-reproducible generators. It is still a pass, but the detail keeps the
+  // acknowledgement visible instead of collapsing into a bare "pass".
+  const stdout = JSON.stringify({ verdict: "pass_with_declared_skips", notChecked: ["recompute NOT CHECKED for 4"] });
+  assert.deepEqual(classifyEvidence(stdout, 0), { status: "pass", detail: "pass_with_declared_skips" });
 });
 
 test("the evidence checker's fail verdict stays a failure even if the exit code is ignored", () => {

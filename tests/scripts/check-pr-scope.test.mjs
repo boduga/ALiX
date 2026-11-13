@@ -17,6 +17,20 @@ function trackedPaths() {
   return result.stdout.split("\n").map((line) => line.trim()).filter(Boolean);
 }
 
+/**
+ * The tree-parity tests below are only meaningful with repository metadata.
+ * Returning early made them pass vacuously in a checkout without it — the
+ * exact silence these tests exist to catch. Skip visibly locally; fail in CI,
+ * where the metadata is always present and its absence is a real defect.
+ */
+function requireTrackedTree(t, count) {
+  if (count > 0) return true;
+  const message = "git ls-files returned no paths; tree-parity was not checked";
+  if (process.env.CI) assert.fail(message);
+  t.skip(message);
+  return false;
+}
+
 test("classifies known areas and shared metadata", () => {
   assert.equal(areaFor("src/governance/security/x.ts"), "src/governance");
   assert.equal(areaFor("src/governance"), "src/governance");
@@ -250,13 +264,13 @@ test("git-quoted non-ASCII paths are classified, not rejected", () => {
   assert.equal(areaFor('"docs/superseded/archive/superpowers/specs/2026-06-11-m42-if\\303\\241-mas-master-prd.md"'), "docs");
 });
 
-test("every tracked path classifies — derived from the tree, not a list", () => {
+test("every tracked path classifies — derived from the tree, not a list", (t) => {
   // The former area list was a memory of the tree and had drifted: whole
   // directories (packages/, benchmark/, security/, skills/, bin/) and three
   // src subsystems were missing, so legitimate PRs failed as `unclassified`.
   // A hand-written spot check does not catch that drift; asking git does.
   const tracked = trackedPaths();
-  if (!tracked.length) return; // no repository metadata in this checkout
+  if (!requireTrackedTree(t, tracked.length)) return;
   assert.ok(tracked.length > 1000, `expected a real tree, saw ${tracked.length} file(s)`);
 
   const unclassified = [...new Set(tracked.filter((file) => areaFor(file) === "unclassified"))];
@@ -267,9 +281,9 @@ test("every tracked path classifies — derived from the tree, not a list", () =
   );
 });
 
-test("every root file is either shared metadata or a named area", () => {
+test("every root file is either shared metadata or a named area", (t) => {
   const rootFiles = trackedPaths().filter((file) => !file.includes("/"));
-  if (!rootFiles.length) return; // no repository metadata in this checkout
+  if (!requireTrackedTree(t, rootFiles.length)) return;
   assert.ok(rootFiles.length > 10, `expected root files, saw ${rootFiles.length}`);
 
   // A new root file is either shared metadata every area may touch, or an
@@ -281,9 +295,9 @@ test("every root file is either shared metadata or a named area", () => {
   }
 });
 
-test("area list entries name real content", () => {
+test("area list entries name real content", (t) => {
   const tracked = trackedPaths();
-  if (!tracked.length) return; // no repository metadata in this checkout
+  if (!requireTrackedTree(t, tracked.length)) return;
   // `src/config` and `src/utils` sat in AREAS without existing. A stale entry
   // makes the check look like it covers something no PR can touch, and invites
   // declarations that resolve to nothing.

@@ -147,37 +147,37 @@ jobs:
         run: |
           set -eu
           sha256sum --check --strict <<'PINS'
-          0545085ec74c939d74e8739c0ac213612afa75e7b043dbe694072025c79e2f12  scripts/check-evidence-integrity.mjs
+          331c105dca050d8328fb486e5e0125618e46d94aa5740174461f1c951e6d0440  scripts/check-evidence-integrity.mjs
           1c4fc7df2755ba6dff8570043700bded21d7bd5ea744b429c48f0b04b3582c2b  scripts/check-dox-claims.mjs
           4e070c37815eeb36cabd7c48e49093247282d3f924dad4598c13b3178296550a  scripts/check-staleness.mjs
           40653f0b76f9c0684dbab0a4878fa9b2d84c1b16628326baaf903415700f59a6  scripts/check-pr-scope.mjs
-          192cef723f66c9d6a8727007248e3c8a860ae57ec93aed6c737840691afbc96f  scripts/check-review-evidence.mjs
-          36313e8127f0f640d0adc2654f7b79aa60ec8c3a8688e42c51ca5599d93ad81e  scripts/preflight.mjs
+          2c475744db07bf2483616fb097783c768818f78676b30e8b400ab5c334b2c5aa  scripts/check-review-evidence.mjs
+          61955b1f7b6f0dca73b6293240a042f50f5392d51ba3da66aa551404fda4469f  scripts/preflight.mjs
           cc75448b1135983034c296e48bc97650933ba6c3303b8751ded1b01ab05c6c62  .githooks/pre-push
           PINS
       #
       # Two steps on purpose. The strict run reaches a real verdict
-      # (`pass_with_accepted`), so a green check means something. Every current
-      # generator declares itself not recomputable — re-running them would
-      # record a new observation rather than reproduce the old one — and a
-      # combined run would therefore report NOT CHECKED on every build, which is
-      # a signal that stops being read.
+      # (`pass_with_accepted`), so a green check means something. The second
+      # step reports `pass_with_declared_skips` rather than an unqualified pass,
+      # so the declared-non-reproducible set stays visible in the run's verdict
+      # instead of being absorbed into "OK".
       - name: Evidence provenance (order, markers, coverage)
         run: node scripts/check-evidence-integrity.mjs --max-accepted 2
       # Gating on what it can actually prove. A generator that declares itself
       # reproducible is re-run and drift fails the build. The four current
       # generators declare `recompute: false` (each records a machine state or a
-      # paid model run that no longer exists), so this step reports NOT CHECKED
-      # for their artifacts and exits 0 on that basis alone — it does not claim
-      # regeneration happened.
+      # paid model run that no longer exists), so their artifacts are hash-pinned
+      # and order-checked but not regenerated.
       #
-      # `--max-recompute-skipped 4` is what keeps that honest over time: the set
-      # of generators exempt from regeneration is shrink-only, so declaring one
-      # more non-reproducible generator fails here until the pin is raised in a
-      # visible workflow change. When a generator becomes reproducible, this
-      # step starts reproducing it and the pin must drop.
-      - name: Evidence recompute (not-checked for 4 declared-non-reproducible generators)
-        run: node scripts/check-evidence-integrity.mjs --max-accepted 2 --recompute --max-recompute-skipped 4
+      # `not_checked` exits 1 on its own. `--max-recompute-skipped 4` bounds the
+      # exemption set shrink-only, and `--allow-declared-skips` is the explicit
+      # acknowledgement of exactly that bounded set: it turns the run into
+      # `pass_with_declared_skips`, never an unqualified `pass`. Any other
+      # unchecked reason — pending commits, an empty manifest — still fails.
+      # When a generator becomes reproducible, this step starts reproducing it
+      # and the pin must drop.
+      - name: Evidence recompute (4 acknowledged declared-non-reproducible generators)
+        run: node scripts/check-evidence-integrity.mjs --max-accepted 2 --recompute --max-recompute-skipped 4 --allow-declared-skips
 
   # ─── Lane 1c: preflight regression tests ─────────────────────────────────
   # `pnpm preflight` is what the pre-push hook runs, so its own verdicts need
