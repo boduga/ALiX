@@ -20,6 +20,7 @@ describes is qualified or released.
 | `ge04-production-authorization-gate-register.md` | The nine required acceptance gates (G1–G9) and their current disposition |
 | `ge04-acceptance-ledger-2026-11-08.md` | Per-requirement acceptance ledger across the 13 open GE-04 issues |
 | `2026-10-31-*.md` | Dated investigations: dependency remediation, ONNX/embedding qualification, audit-exception gate defect |
+| `evidence-manifest.json` | Provenance index over `benchmark/evidence/*.json` and this directory's JSON records: content hashes, generator edges, recorded-commit markers, and a shrink-only ledger of historic order defects |
 
 ## Local Contracts
 
@@ -50,6 +51,27 @@ describes is qualified or released.
   boundary and the record explains how it was reached.
 - **Superseded analysis is deleted, not archived here.** This directory is not a
   history tree; durable superseded material belongs under `docs/superseded/`.
+- **Evidence carries provenance, not just a filename.** Every file matched by
+  `evidence-manifest.json`'s `coverage` globs is listed with a sha256, a class
+  (`generator` with `producedBy`, or `attested` with a `provenance` statement),
+  and the sources it `describes`. An unlisted artifact is unreviewed evidence,
+  which reads exactly like evidence that does not exist.
+- **An artifact must postdate what it records and may not share a commit with
+  its own generator.** `pnpm check:evidence` verifies ancestry in the commit
+  graph — not timestamps, which a rebase rewrites — plus any commit SHA the
+  artifact records about itself. Editing a generator and its artifact in one
+  commit makes every content comparison self-consistent; this is the check that
+  notices the file pair moved together.
+- **Historic order defects are a shrink-only ledger, never a waiver.** An
+  exception must pin the full 40-character artifact commit and the exact subject
+  commit or marker value it covers, and CI pins `--max-accepted`. An exception
+  that matches nothing, or a count that drifts from the pin, fails the build.
+  Coverage, content, reflexivity, and recompute are current-tree properties and
+  cannot be excepted at all.
+- **Order is a social control.** It removes the cheap one-commit edit and leaves
+  a three-commit edit visible as a pattern in history. It says nothing about
+  whether an artifact's numbers are right, and it is not independent
+  acceptance; `--recompute` is the strongest content check available offline.
 
 ## Work Guidance
 
@@ -71,6 +93,12 @@ describes is qualified or released.
   fails on a reference that no longer describes it. Run it after any path move.
 - `pnpm check:dox` audits contract claims added to this file against branch
   content.
+- `pnpm check:evidence` verifies coverage, content hashes, order, self-recorded
+  markers, and checker/manifest reflexivity. `--recompute` re-runs generators
+  that declare themselves reproducible; generators declaring themselves not
+  recomputable are reported as NOT CHECKED rather than counted as passes.
+  `--pending-commit-tolerant` downgrades uncommitted evidence to `not_checked`
+  for pre-commit use and never reports a pass.
 - GE-04 Python checks under `scripts/ge04-*.py` and their tests under
   `tests/agents/test_ge04_*.py` verify behaviour, not acceptance. A green run is
   a statement about the fixture, never about the gate.

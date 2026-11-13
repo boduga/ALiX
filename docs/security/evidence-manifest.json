@@ -1,0 +1,166 @@
+{
+  "$comment": "Evidence provenance index. See scripts/check-evidence-integrity.mjs and docs/security/AGENTS.md. Order is a social control and is not independent acceptance.",
+  "schemaVersion": 1,
+  "coverage": [
+    "benchmark/evidence/*.json",
+    "docs/security/*.json"
+  ],
+  "generators": [
+    {
+      "path": "benchmark/evidence/config-consumer-inventory.mjs",
+      "recompute": false,
+      "reason": "prints the census to stdout and embeds the checked-out HEAD as sourceCommit; re-running it today would record a different source commit and a different tree than the artifact it is meant to reproduce"
+    },
+    {
+      "path": "benchmark/evidence/pre-r024-arm-isolation-check.mjs",
+      "recompute": false,
+      "reason": "spawns real shells and writes only to an explicit --output path; a blind re-run would produce a new observation rather than reproduce the recorded one"
+    },
+    {
+      "path": "benchmark/evidence/pre-r024-shell-boundary-probe.mjs",
+      "recompute": false,
+      "reason": "probes the live host filesystem boundary; the recorded result is an observation of a machine state that no longer exists"
+    },
+    {
+      "path": "benchmark/evidence/pre-r031-agent-review-benchmark.mjs",
+      "recompute": false,
+      "reason": "requires --output and consumes a model population; re-running would run paid inference, not reproduce the recorded benchmark"
+    }
+  ],
+  "generatorSha256": {
+    "benchmark/evidence/config-consumer-inventory.mjs": "65ea14dc085fa9128e117936da5f347cf1d6c9735bdb3237bfa9d80a3c5a8c71",
+    "benchmark/evidence/pre-r024-arm-isolation-check.mjs": "1cd3dc091e45f394b612b2731aca0c4fce0b3721178aa42cd5a69b464631e1f5",
+    "benchmark/evidence/pre-r024-shell-boundary-probe.mjs": "11cfa49a389c48cec7855709af9661a1be5dc47a4ca16dd1c63f1aa2004b3117",
+    "benchmark/evidence/pre-r031-agent-review-benchmark.mjs": "8e5c563f4f08a8540269bfa43a661a4bba77dac20486168f265319337d592d99"
+  },
+  "artifacts": [
+    {
+      "path": "benchmark/evidence/config-consumer-inventory-2026-10-28.json",
+      "sha256": "738d1e44c3c59b068081a51ccd4537213ddec4dcaa2ed0098b66d713c3c7900e",
+      "class": "generator",
+      "producedBy": "benchmark/evidence/config-consumer-inventory.mjs",
+      "describes": []
+    },
+    {
+      "path": "benchmark/evidence/config-consumer-inventory.json",
+      "sha256": "52c0561710db54fd676f900296433be88b2a773309c65b6fba9f83250a5dbde3",
+      "class": "generator",
+      "producedBy": "benchmark/evidence/config-consumer-inventory.mjs",
+      "describes": []
+    },
+    {
+      "path": "benchmark/evidence/config-consumer-triage-2026-10-28.json",
+      "sha256": "0d7da4e20c94b18ecf7f21b6d4fe7c22b3401271b32d5088070532a7bbf67a97",
+      "class": "attested",
+      "provenance": "Authored by the PRE-R002/PRE-R010 triage agent from the 2026-10-28 compiler census, classifying each unresolved named reference against retained local source context; recorded by docs/audits/2026-10-28-pre-r002-r010-consumer-triage.md. No generator emits it, so the per-entry classifications are not machine-reproducible.",
+      "describes": [
+        "benchmark/evidence/config-consumer-inventory-2026-10-28.json"
+      ]
+    },
+    {
+      "path": "benchmark/evidence/harness-closeout-manifest-2026-10-28.json",
+      "sha256": "bc85d2b1fc48c14862e7de1abc4ecf231433e891c9d0b79b8a17eea1f0f4ddef",
+      "class": "attested",
+      "provenance": "Captured by hand at the closeout of branch fix/d9-phase-f-remediation-v2 (source.head 7aa2e7c2, dirty:false). It is a snapshot of that branch state, not a run of a checked-in generator; the recorded status/output are claims about a tree that is described by the file itself.",
+      "describes": []
+    },
+    {
+      "path": "benchmark/evidence/harness2-reproduction.json",
+      "sha256": "96449d3c988fa6bd805f3c349d204abeb4ef6fa18b2d515496222917bbb4a96f",
+      "class": "attested",
+      "provenance": "Transcript of an external reproduction of google-research/harness2 at commit 1cfe254e, run in /tmp/opencode/harness2-probe with no model calls and no network. The upstream repository is not in this tree, so only the recorded transcript exists.",
+      "describes": []
+    },
+    {
+      "path": "benchmark/evidence/pre-r005-scripted-contract-requalification-2026-10-28.json",
+      "sha256": "e1dd1492e2d805fb79ee7e51a8c8770ed77af3efe5c5df07f9c881bb3f34747d",
+      "class": "attested",
+      "provenance": "Output of the scripted-provider runtime-contract sweep recorded by hand at source.head d2d41adb. Scripted expectations only; no real-model capability is claimed.",
+      "describes": []
+    },
+    {
+      "path": "benchmark/evidence/pre-r006-baseline-reconciliation-2026-10-28.json",
+      "sha256": "9cb836bfdeecf066fdd232037e4958fb9626beb858e162cecc66f6c3e1528fe4",
+      "class": "attested",
+      "provenance": "Reconciliation of already-committed benchmark collections; no new model run. Each listed artifact is named by path so its own history can be checked, and this file only restates their recorded numbers.",
+      "describes": [
+        "benchmark/evidence/eval-runs/collection-2026-10-24-final/block-replacement.json",
+        "benchmark/evidence/eval-runs/collection-2026-10-24-final/code-navigation.json",
+        "benchmark/evidence/eval-runs/collection-2026-10-24-final/forbidden-path-write.json",
+        "benchmark/evidence/eval-runs/collection-2026-10-24-final/multi-file-fix.json",
+        "benchmark/evidence/eval-runs/collection-2026-10-24-final/patch-application.json",
+        "benchmark/evidence/eval-runs/collection-2026-10-24-final/read-only.json",
+        "benchmark/evidence/eval-runs/collection-2026-10-24-final/tool-failure-recovery.json",
+        "benchmark/evidence/eval-runs/collection-2026-10-24-final/verification-repair.json",
+        "benchmark/evidence/eval-runs/collection-2026-10-24-final/write-file.json",
+        "benchmark/evidence/coordination/collection-2026-10-24/stratum6-4worker-r1.json",
+        "benchmark/evidence/coordination/collection-2026-10-24/stratum6-4worker-r2.json",
+        "benchmark/evidence/coordination/collection-2026-10-24/stratum6-4worker-r3.json",
+        "benchmark/evidence/coordination/collection-2026-10-24/stratum8-r1.json",
+        "benchmark/evidence/coordination/collection-2026-10-24/stratum8-r2.json",
+        "benchmark/evidence/coordination/collection-2026-10-24/stratum8-r3.json",
+        "benchmark/evidence/eval-runs/stratum9-attempts/granite3-moe-r1.json",
+        "benchmark/evidence/eval-runs/stratum9-attempts/granite3-moe-r2.json",
+        "benchmark/evidence/eval-runs/stratum9-attempts/granite3-moe-r3.json"
+      ]
+    },
+    {
+      "path": "benchmark/evidence/pre-r024-arm-isolation-check-2026-10-28.json",
+      "sha256": "663f7bc8006342961200121a1f4ff25172bf4bcb2ec1ffa74479dabd8e360862",
+      "class": "generator",
+      "producedBy": "benchmark/evidence/pre-r024-arm-isolation-check.mjs",
+      "describes": []
+    },
+    {
+      "path": "benchmark/evidence/pre-r024-shell-boundary-probe-2026-10-28.json",
+      "sha256": "492ef9ba6ebabbeede9a30a681fa0b5cb65beae0d673cd1212b456880ac97d33",
+      "class": "generator",
+      "producedBy": "benchmark/evidence/pre-r024-shell-boundary-probe.mjs",
+      "describes": []
+    },
+    {
+      "path": "benchmark/evidence/pre-r031-agent-review-benchmark-2026-10-28.json",
+      "sha256": "cc76a406c192d300c6c0dda41bb18ec4e0e966e5ca3287f65ad3712d84f1e849",
+      "class": "generator",
+      "producedBy": "benchmark/evidence/pre-r031-agent-review-benchmark.mjs",
+      "describes": []
+    },
+    {
+      "path": "benchmark/evidence/review-agent-pilot-2026-10-28.json",
+      "sha256": "d62af6a76bb9705f484866d290dc59331e4f5edaa31e18e41862dfac0cfaaeea",
+      "class": "attested",
+      "provenance": "Pilot observations on the public scope-claim-v1 fixture (holdout:false) at sourceCommit 847732c9. The fixture is a public mechanics fixture, so this is not holdout qualification.",
+      "describes": []
+    }
+  ],
+  "exceptions": [
+    {
+      "artifact": "benchmark/evidence/config-consumer-inventory.json",
+      "check": "order",
+      "relation": "its generator",
+      "subject": "benchmark/evidence/config-consumer-inventory.mjs",
+      "artifactCommit": "34379c561a899754fc54eedd546a80ceace7da43",
+      "subjectCommit": "34379c561a899754fc54eedd546a80ceace7da43",
+      "reason": "Historic: the first census and its generator landed in one commit on 2026-10-23, before this contract existed. Its successor benchmark/evidence/config-consumer-inventory-2026-10-28.json postdates the generator properly, so the defect is confined to this one record and this exception cannot cover a later commit of the file."
+    },
+    {
+      "artifact": "benchmark/evidence/config-consumer-triage-2026-10-28.json",
+      "check": "order",
+      "relation": "a recorded source",
+      "subject": "benchmark/evidence/config-consumer-inventory-2026-10-28.json",
+      "artifactCommit": "3638376c72e59a3a7253462c953d946547f093be",
+      "subjectCommit": "3638376c72e59a3a7253462c953d946547f093be",
+      "reason": "Historic: the triage was authored and committed alongside the census it triages, in the same 2026-10-28 commit. The per-entry classifications are not machine-reproducible, so rewriting the commit would not make the relationship independently verifiable; it would only hide it."
+    }
+  ],
+  "notCovered": [
+    {
+      "path": "docs/dox-executor-id-baseline.txt",
+      "reason": "Generated ratchet baseline for scripts/check-dox-claims.mjs, now empty; it is maintained by `pnpm check:dox --write-baseline`, not an evidence record of a tree state, and its history predates its generator so it cannot satisfy an order check without a rewrite."
+    },
+    {
+      "path": "docs/audits/evidence/ge04/r2r-qualification-witness-pin.json",
+      "reason": "Authored operator pin with trustStatus `unverified-operator-pin` and authorization:false, committed together with the three r2r readers it is used by. It makes no authorization claim and is deliberately outside this contract until the GE-04 disposition lands."
+    }
+  ]
+}
