@@ -1,0 +1,103 @@
+{
+  "scope": "A03-02 historical C function declaration/definition body linkage",
+  "reviewed_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+  "entries": [
+    {
+      "file": "protected-cgroup-custody.c",
+      "line": 84,
+      "symbol": "fixed_root_open",
+      "kind": "FORWARD_DECLARATION_NO_EFFECT",
+      "definition_end_line": null,
+      "direct_call_name_candidates": [],
+      "expected_effect_relevant_callees": [],
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "semantic_status": "DECLARATION_ONLY",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "line": 111,
+      "symbol": "fixed_root_open",
+      "kind": "FUNCTION_DEFINITION",
+      "definition_end_line": 124,
+      "direct_call_name_candidates": [
+        "close",
+        "fixed_root_open",
+        "if",
+        "open",
+        "openat"
+      ],
+      "expected_effect_relevant_callees": [
+        "close",
+        "open",
+        "openat"
+      ],
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "semantic_status": "SOURCE_FUNCTION_BODY_LINKED_NOT_TRANSITIVE_VERIFIED",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 221,
+      "symbol": "ge04_stream_read",
+      "kind": "FUNCTION_DEFINITION",
+      "definition_end_line": 235,
+      "direct_call_name_candidates": [
+        "check",
+        "deadline",
+        "fail",
+        "ge04_stream_read",
+        "if",
+        "memcmp",
+        "memcpy",
+        "memset",
+        "ntohl",
+        "receive_exact",
+        "sizeof"
+      ],
+      "expected_effect_relevant_callees": [
+        "check",
+        "deadline",
+        "fail",
+        "receive_exact"
+      ],
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "semantic_status": "SOURCE_FUNCTION_BODY_LINKED_NOT_TRANSITIVE_VERIFIED",
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 248,
+      "symbol": "ge04_stream_write",
+      "kind": "FUNCTION_DEFINITION",
+      "definition_end_line": 256,
+      "direct_call_name_candidates": [
+        "deadline",
+        "fail",
+        "ge04_stream_write",
+        "htonl",
+        "if",
+        "memcpy",
+        "send_exact",
+        "sizeof"
+      ],
+      "expected_effect_relevant_callees": [
+        "deadline",
+        "fail",
+        "send_exact"
+      ],
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "semantic_status": "SOURCE_FUNCTION_BODY_LINKED_NOT_TRANSITIVE_VERIFIED",
+      "security_verdict": "PENDING"
+    }
+  ],
+  "function_definitions_linked": 3,
+  "forward_declarations_identified": 1,
+  "security_approvals": 0,
+  "limitations": [
+    "Lexical call names are not resolved symbols or a complete transitive call graph",
+    "Function-body source links do not prove authorization, descriptor lifetime, or failure behavior",
+    "Forward declaration itself performs no call but its function implementation requires separate review"
+  ],
+  "security_hold": "ACTIVE"
+}

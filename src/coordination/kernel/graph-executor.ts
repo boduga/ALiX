@@ -3,7 +3,9 @@
  *
  * Loads a planned graph from .alix/graphs/, validates it, sorts nodes
  * topologically, normalizes missing fields, and executes each node
- * sequentially through runTask(). Stops on first failure.
+ * sequentially, stopping on first failure. Node execution is refused while
+ * the canonical task supervisor is unavailable; historical runTask sites
+ * remain behind fixed refusal until consumer migration.
  */
 
 import { readFile } from "node:fs/promises";
@@ -15,6 +17,8 @@ import type { RunResult } from "../../run.js";
 import { CardRegistry } from "../../capabilities/registry/card-registry.js";
 import { resolveCapabilities, type CapabilityResolution } from "../../capabilities/registry/capability-resolver.js";
 import { runTask } from "../../run.js";
+import { requireTaskWorkerSupervisor } from "../../agents/worker-task-supervisor.js";
+import { WorkerSupervisorUnavailableError } from "../../agents/worker-supervisor.js";
 import { evaluateRuntimeGate } from "../../governance/policy/runtime-gate.js";
 import type { PolicyGate } from "../../governance/policy/policy-gate.js";
 import type { AlixConfig } from "../../operations/config/schema.js";
@@ -145,6 +149,7 @@ export class GraphExecutor {
       let status: TaskNodeStatus = "done";
       let summary = "";
       let reason: string | undefined;
+      let supervisorUnavailable = false;
 
       let capabilityResolution: CapabilityPreflightResult | undefined;
       let coverage: CapabilityResolution | undefined;
@@ -253,6 +258,7 @@ export class GraphExecutor {
       //   - nodes with no requiredCapabilities (capabilityResolution is undefined)
       if (!this.enforceCapabilities || !capabilityResolution || capabilityResolution.status === "ready") {
         try {
+          requireTaskWorkerSupervisor(undefined);
           const result: RunResult = await runTask(this.cwd, node.goal + researchPrefix, {
             planMode: false,
             skipContext: isResearch ? true : undefined,
@@ -267,11 +273,12 @@ export class GraphExecutor {
         } catch (err) {
           status = "failed";
           reason = err instanceof Error ? err.message : String(err);
+          supervisorUnavailable = err instanceof WorkerSupervisorUnavailableError;
           failed = true;
         }
       }
 
-      if (status === "failed" && node.timeoutMs && Date.now() - startTime >= node.timeoutMs) {
+      if (status === "failed" && !supervisorUnavailable && node.timeoutMs && Date.now() - startTime >= node.timeoutMs) {
         reason = `Timeout after ${node.timeoutMs}ms`;
       }
 
@@ -354,6 +361,7 @@ export class GraphExecutor {
       } else if (node.id === "write_artifacts") {
         researchPrefix = "\n\nIMPORTANT: You may ONLY use: alix_file_create, alix_file_exists, and alix_done. Write artifacts ONLY under .alix/reports/. Do NOT read project source files.";
       }
+      requireTaskWorkerSupervisor(undefined);
       const result: RunResult = await runTask(this.cwd, node.goal + researchPrefix, {
         planMode: false,
         skipContext: isResearch ? true : undefined,

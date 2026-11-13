@@ -1,0 +1,3409 @@
+{
+  "basis": "Historical matrix at d6e22669 and historical native source at d6e22669; independent broad-token candidate scan; not original reviewer scanner",
+  "terms": [
+    "open",
+    "openat",
+    "openat2",
+    "close",
+    "close_range",
+    "read",
+    "write",
+    "pread",
+    "pwrite",
+    "unlink",
+    "unlinkat",
+    "rmdir",
+    "mkdir",
+    "mkdirat",
+    "rename",
+    "renameat",
+    "renameat2",
+    "chmod",
+    "fchmod",
+    "fchown",
+    "chown",
+    "stat",
+    "fstat",
+    "fstatat",
+    "statx",
+    "fstatfs",
+    "fsync",
+    "fdatasync",
+    "flock",
+    "fcntl",
+    "syscall",
+    "fork",
+    "clone",
+    "clone3",
+    "SYS_clone3",
+    "CLONE_INTO_CGROUP",
+    "execve",
+    "execveat",
+    "setuid",
+    "setgid",
+    "setgroups",
+    "setresuid",
+    "setresgid",
+    "setreuid",
+    "setregid",
+    "prctl",
+    "kill",
+    "waitpid",
+    "waitid",
+    "pidfd_open",
+    "pidfd_send_signal",
+    "socket",
+    "socketpair",
+    "bind",
+    "listen",
+    "accept",
+    "accept4",
+    "connect",
+    "sendmsg",
+    "recvmsg",
+    "SCM_RIGHTS",
+    "SO_PEERCRED",
+    "memfd_create",
+    "Subscribe",
+    "Unsubscribe",
+    "add_signal_receiver",
+    "StartTransientUnit",
+    "send_message",
+    "send_with_reply",
+    "mount",
+    "umount",
+    "umount2",
+    "_mount",
+    "cgroup.procs",
+    "cgroup.events"
+  ],
+  "baseline_candidates_not_in_matrix": [
+    {
+      "file": "bootstrap_binding.py",
+      "line": 8,
+      "apis": [
+        "fcntl"
+      ],
+      "source": "import fcntl",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_binding.py",
+      "line": 10,
+      "apis": [
+        "fcntl"
+      ],
+      "source": "fcntl = None",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_binding.py",
+      "line": 14,
+      "apis": [
+        "stat"
+      ],
+      "source": "import stat",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_binding.py",
+      "line": 20,
+      "apis": [
+        "fcntl"
+      ],
+      "source": "SUPPORTED = (sys.platform == \"linux\" and fcntl is not None",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_binding.py",
+      "line": 21,
+      "apis": [
+        "fcntl"
+      ],
+      "source": "and all(hasattr(fcntl, name) for name in _SEAL_NAMES))",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_binding.py",
+      "line": 22,
+      "apis": [
+        "fcntl"
+      ],
+      "source": "SEALS = (sum(getattr(fcntl, name) for name in _SEAL_NAMES[:-1])",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_binding.py",
+      "line": 105,
+      "apis": [
+        "stat"
+      ],
+      "source": "if (not stat.S_ISREG(before.st_mode) or before.st_uid != expected_uid",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_binding.py",
+      "line": 113,
+      "apis": [
+        "pread"
+      ],
+      "source": "raw = os.pread(fd, before.st_size + 1, 0)",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_binding.py",
+      "line": 121,
+      "apis": [
+        "read"
+      ],
+      "source": "raise ValueError(\"Bootstrap descriptor changed during read\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "line": 10,
+      "apis": [
+        "fcntl"
+      ],
+      "source": "import fcntl",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "line": 12,
+      "apis": [
+        "fcntl"
+      ],
+      "source": "fcntl = None",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "line": 108,
+      "apis": [
+        "memfd_create"
+      ],
+      "source": "if not SUPPORTED or not hasattr(os, \"memfd_create\"):",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "line": 123,
+      "apis": [
+        "memfd_create"
+      ],
+      "source": "fd = os.memfd_create(\"ge04-unqualified-bootstrap\",",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "line": 128,
+      "apis": [
+        "write"
+      ],
+      "source": "raise OSError(\"Short bootstrap fixture write\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 1,
+      "apis": [
+        "read"
+      ],
+      "source": "\"\"\"GE-04 read-only bootstrap FD receive boundary (qualification-only).",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 3,
+      "apis": [
+        "SCM_RIGHTS",
+        "SO_PEERCRED"
+      ],
+      "source": "Validates kernel SO_PEERCRED, bounded SCM_RIGHTS payload, expected generation,",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 11,
+      "apis": [
+        "socket"
+      ],
+      "source": "import socket",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 25,
+      "apis": [
+        "socket"
+      ],
+      "source": "\"\"\"One bounded receive, poison-on-error by closing this *owned* socket.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 28,
+      "apis": [
+        "read"
+      ],
+      "source": "inspect_generation must be a separately supplied read-only observer:",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 34,
+      "apis": [
+        "socket"
+      ],
+      "source": "if (type(sock) is not socket.socket",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 49,
+      "apis": [
+        "socket"
+      ],
+      "source": "if sock.family != socket.AF_UNIX or sock.type & 0xf != socket.SOCK_SEQPACKET:",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 50,
+      "apis": [
+        "socket"
+      ],
+      "source": "raise ValueError(\"Handoff must use connected UNIX seqpacket socket\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 51,
+      "apis": [
+        "SO_PEERCRED",
+        "socket"
+      ],
+      "source": "peer_raw = sock.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED,",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 68,
+      "apis": [
+        "socket"
+      ],
+      "source": "2, socket.CMSG_SPACE(4 * 16), socket.MSG_CMSG_CLOEXEC)",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 72,
+      "apis": [
+        "SCM_RIGHTS",
+        "socket"
+      ],
+      "source": "if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 77,
+      "apis": [
+        "socket"
+      ],
+      "source": "if (flags & (socket.MSG_CTRUNC | socket.MSG_TRUNC)",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "line": 103,
+      "apis": [
+        "socket"
+      ],
+      "source": "if isinstance(sock, socket.socket):",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 1,
+      "apis": [
+        "read"
+      ],
+      "source": "\"\"\"GE-04 bounded read-only observation subprocess, never ACK authority.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 3,
+      "apis": [
+        "read"
+      ],
+      "source": "A fresh isolated Python subprocess owns its read-only kernel/manager reads,",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 4,
+      "apis": [
+        "kill"
+      ],
+      "source": "with one end-to-end absolute monotonic deadline and terminal kill/reap.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 58,
+      "apis": [
+        "read"
+      ],
+      "source": "raise TimeoutError(\"GE-04 read-only observer deadline\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 61,
+      "apis": [
+        "read"
+      ],
+      "source": "raise TimeoutError(\"GE-04 read-only observer deadline\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 69,
+      "apis": [
+        "write"
+      ],
+      "source": "raise ValueError(\"Short isolated observation write\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 85,
+      "apis": [
+        "read"
+      ],
+      "source": "raise TimeoutError(\"GE-04 read-only observer deadline\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "line": 89,
+      "apis": [
+        "read"
+      ],
+      "source": "raise TimeoutError(\"GE-04 read-only observer deadline\") from exc",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "line": 16,
+      "apis": [
+        "socket"
+      ],
+      "source": "if (argc == 5 && strcmp(argv[4], \"--test-public-socket\") != 0) return 64;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "line": 31,
+      "apis": [
+        "accept4"
+      ],
+      "source": "int client = accept4(listener, NULL, NULL, SOCK_CLOEXEC);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "line": 35,
+      "apis": [
+        "SO_PEERCRED"
+      ],
+      "source": "if (getsockopt(client, SOL_SOCKET, SO_PEERCRED, &cred, &len) == 0 && len == sizeof(cred) && cred.pid > 0) {",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 29,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(procs<0||events<0||kill<0){",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 35,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat a,b,c;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "line": 55,
+      "apis": [
+        "open"
+      ],
+      "source": "if(root<0)return fail(\"root open denied\",-1);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "line": 56,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat rs,ls;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "line": 60,
+      "apis": [
+        "fstatfs"
+      ],
+      "source": "if(fstatfs(root,&fs)||fs.f_type!=CGROUP2_SUPER_MAGIC||rs.st_uid!=0||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "line": 65,
+      "apis": [
+        "open"
+      ],
+      "source": "if(leaf<0)return fail(\"leaf open denied\",-1);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "line": 69,
+      "apis": [
+        "fstatfs"
+      ],
+      "source": "if(fstatfs(leaf,&fs)||fs.f_type!=CGROUP2_SUPER_MAGIC||ls.st_uid!=0||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "line": 77,
+      "apis": [
+        "cgroup.events",
+        "cgroup.procs",
+        "kill"
+      ],
+      "source": "const char *name=i==0?\"cgroup.procs\":i==1?\"cgroup.events\":\"cgroup.kill\";",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "line": 79,
+      "apis": [
+        "open"
+      ],
+      "source": "if(fd<0)return fail(\"control open denied\",leaf);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "line": 80,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat st;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "line": 46,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat root_stat;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "line": 52,
+      "apis": [
+        "fstatfs"
+      ],
+      "source": "if(fstatfs(parent,&fs)||fs.f_type!=CGROUP2_SUPER_MAGIC||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "line": 58,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "if(mkdirat(parent,argv[2],0700)){",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "line": 64,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat st;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "line": 67,
+      "apis": [
+        "fstatfs"
+      ],
+      "source": "(st.st_mode&0077)||(strict&&(fstatfs(leaf,&leaf_fs)||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "line": 73,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat named;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "line": 74,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "if(fstatat(parent,argv[2],&named,AT_SYMLINK_NOFOLLOW)||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 46,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat work_stat,lock_stat,parent_stat,outer_stat,inner_stat[2],ns_stat[2];",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 54,
+      "apis": [
+        "stat"
+      ],
+      "source": "static int inner_custody(struct context *c,const char *name,int fd,const struct stat *saved);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 72,
+      "apis": [
+        "stat"
+      ],
+      "source": "static int same_inode(const struct stat *a,const struct stat *b) {",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 76,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat s;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 95,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat s;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 136,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat s;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 180,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat a,b;struct statfs fs;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 182,
+      "apis": [
+        "fstatfs"
+      ],
+      "source": "S_ISREG(b.st_mode)&&!b.st_uid&&!b.st_gid&&!(b.st_mode&0022)&&!fstatfs(fd,&fs)&&fs.f_type==CGROUP2_SUPER_MAGIC;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 198,
+      "apis": [
+        "cgroup.procs"
+      ],
+      "source": "char text[4097];int fd=control(dir,\"cgroup.procs\",O_RDONLY);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 210,
+      "apis": [
+        "cgroup.events"
+      ],
+      "source": "pid_t ids[128];char text[4097];int fd=control(dir,\"cgroup.events\",O_RDONLY);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 217,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat s;struct record approved={0},recorded={0};",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 221,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "fstatat(work,\".lock\",&s,AT_SYMLINK_NOFOLLOW)||!same_inode(&s,&c->lock_stat)||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 226,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "if(!root_directory(c->outer,1)||fstatat(parent,c->record.name,&s,AT_SYMLINK_NOFOLLOW)||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 228,
+      "apis": [
+        "cgroup.procs"
+      ],
+      "source": "!control_custody(c->outer,\"cgroup.procs\",c->procs)||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 229,
+      "apis": [
+        "cgroup.events"
+      ],
+      "source": "!control_custody(c->outer,\"cgroup.events\",c->events)||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 230,
+      "apis": [
+        "kill"
+      ],
+      "source": "!control_custody(c->outer,\"cgroup.kill\",c->killfd))goto out;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 309,
+      "apis": [
+        "stat"
+      ],
+      "source": "char path[80],text[16385];snprintf(path,sizeof(path),\"/proc/%ld/stat\",(long)pid);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 311,
+      "apis": [
+        "fstatfs"
+      ],
+      "source": "struct statfs fs;int ok=!fstatfs(fd,&fs)&&fs.f_type==PROC_SUPER_MAGIC&&read_fd(fd,text,sizeof(text));",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 320,
+      "apis": [
+        "fstatfs"
+      ],
+      "source": "ok=!fstatfs(fd,&fs)&&fs.f_type==PROC_SUPER_MAGIC&&read_fd(fd,text,sizeof(text));",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 346,
+      "apis": [
+        "stat"
+      ],
+      "source": "static int namespace_stat(pid_t pid,const char *kind,struct stat *s) {",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 348,
+      "apis": [
+        "stat"
+      ],
+      "source": "return budget_ok()&&stat(path,s)==0&&budget_ok();",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 354,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child[slot],&status,WNOHANG|WUNTRACED);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 361,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat mnt,cg;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 363,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat own_mnt,own_cg;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 388,
+      "apis": [
+        "prctl"
+      ],
+      "source": "if(prctl(PR_SET_PDEATHSIG,SIGKILL,0,0,0)||getppid()!=parent)_exit(119);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 389,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat s;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 406,
+      "apis": [
+        "mount"
+      ],
+      "source": "if(!strcmp(mode,\"fail-mount\"))_exit(122);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 431,
+      "apis": [
+        "cgroup.procs"
+      ],
+      "source": "int source=slot==0?control(c->launcher,\"cgroup.procs\",O_WRONLY):c->ns[0];",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 443,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 500,
+      "apis": [
+        "stat"
+      ],
+      "source": "static int open_inner(struct context *c,const char *name,int *fd,struct stat *saved) {",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 504,
+      "apis": [
+        "fstatfs"
+      ],
+      "source": "!fstatfs(*fd,&fs)&&fs.f_type==CGROUP2_SUPER_MAGIC&&text_is(*fd,\"cgroup.type\",\"domain\\n\");",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 514,
+      "apis": [
+        "fstatat",
+        "stat"
+      ],
+      "source": "struct stat s;if(fstatat(dir,e->d_name,&s,AT_SYMLINK_NOFOLLOW)){ok=0;break;}",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 523,
+      "apis": [
+        "stat"
+      ],
+      "source": "static int inner_custody(struct context *c,const char *name,int fd,const struct stat *saved) {",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 524,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat s;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 525,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "return root_directory(fd,1)&&!fstatat(c->outer,name,&s,AT_SYMLINK_NOFOLLOW)&&same_inode(&s,saved)&&",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 528,
+      "apis": [
+        "stat"
+      ],
+      "source": "static int empty_inner_remove(struct context *c,const char *name,int fd,const struct stat *saved) {",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 531,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "bindings(c)&&budget_ok()&&unlinkat(c->outer,name,AT_REMOVEDIR)==0;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 535,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat s;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 536,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "if(fstatat(c->work,name,&s,AT_SYMLINK_NOFOLLOW))return errno==ENOENT;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 538,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "return intent(c->work,name,&r)&&records_equal(&r,&c->record)&&budget_ok()&&unlinkat(c->work,name,0)==0;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 568,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "while((got=waitpid(-1,&status,WNOHANG))>0){}",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 585,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 601,
+      "apis": [
+        "flock"
+      ],
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 609,
+      "apis": [
+        "cgroup.procs"
+      ],
+      "source": "!text_is(c->parent,\"cgroup.type\",\"domain\\n\")||!text_is(c->parent,\"cgroup.procs\",\"\"))return 0;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 619,
+      "apis": [
+        "cgroup.procs"
+      ],
+      "source": "c->procs=control(c->outer,\"cgroup.procs\",O_RDONLY);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 620,
+      "apis": [
+        "cgroup.events"
+      ],
+      "source": "c->events=control(c->outer,\"cgroup.events\",O_RDONLY);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 621,
+      "apis": [
+        "kill"
+      ],
+      "source": "c->killfd=control(c->outer,\"cgroup.kill\",O_WRONLY);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 631,
+      "apis": [
+        "stat"
+      ],
+      "source": "static int parent_single_outer(struct context *c,char *name,size_t cap,struct stat *saved) {",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 638,
+      "apis": [
+        "fstatat",
+        "stat"
+      ],
+      "source": "struct stat s;if(fstatat(c->parent,e->d_name,&s,AT_SYMLINK_NOFOLLOW)){count=-1;break;}",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 653,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat s;struct record pending={0};int has_temp=0;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 654,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "if(fstatat(c->work,\"intent.v1\",&s,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT)return 0;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 655,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "if(fstatat(c->work,\"intent.tmp\",&s,AT_SYMLINK_NOFOLLOW)==0){",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 673,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "if(fstatat(c->parent,pending.name,&s,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT)return 0;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 675,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "!bindings(c)||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 683,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child[0],&status,WNOHANG);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 690,
+      "apis": [
+        "mount"
+      ],
+      "source": "const char *modes[]={\"run\",\"crash-pre-namespace\",\"crash-pinned\",\"crash-ready\",\"fail-mount\",\"fail-enable\",\"recover\",\"sweep-empty\"};",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 717,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat s;char existing[24];struct stat unused;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 718,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "if(fstatat(c.work,\"intent.v1\",&s,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 719,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "fstatat(c.work,\"intent.tmp\",&s,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 721,
+      "apis": [
+        "prctl"
+      ],
+      "source": "if(prctl(PR_SET_CHILD_SUBREAPER,1,0,0,0))goto finished;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 724,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "if(!budget_ok()||mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 730,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "!budget_ok()||mkdirat(c.outer,\"launcher\",0700)||!budget_ok()||mkdirat(c.outer,\"payload\",0700)||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 743,
+      "apis": [
+        "mount"
+      ],
+      "source": "if(!strcmp(c.mode,\"fail-mount\")){",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 752,
+      "apis": [
+        "cgroup.procs"
+      ],
+      "source": "if(!bindings(&c)||!text_is(c.outer,\"cgroup.procs\",\"\")||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 40,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat work_stat, parent_stat, leaf_stat;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 51,
+      "apis": [
+        "stat"
+      ],
+      "source": "static int same_inode(const struct stat *a,const struct stat *b) {",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 55,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat s;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 72,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat s;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 89,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat st;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 131,
+      "apis": [
+        "cgroup.procs"
+      ],
+      "source": "c->procs=control(c->leaf,\"cgroup.procs\",O_RDWR);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 132,
+      "apis": [
+        "cgroup.events"
+      ],
+      "source": "c->events=control(c->leaf,\"cgroup.events\",O_RDONLY);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 133,
+      "apis": [
+        "kill"
+      ],
+      "source": "c->killfd=control(c->leaf,\"cgroup.kill\",O_WRONLY);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 137,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat pinned,named;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 143,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat s;struct record a={0};int fd=pin_directory(WORK);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 148,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "if(!ok||!root_directory(c->leaf)||fstatat(c->parent,c->record.name,&s,AT_SYMLINK_NOFOLLOW)||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 150,
+      "apis": [
+        "cgroup.procs"
+      ],
+      "source": "if(!control_custody(c->leaf,\"cgroup.procs\",c->procs,c->leaf_stat.st_dev)||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 151,
+      "apis": [
+        "cgroup.events"
+      ],
+      "source": "!control_custody(c->leaf,\"cgroup.events\",c->events,c->leaf_stat.st_dev)||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 152,
+      "apis": [
+        "kill"
+      ],
+      "source": "!control_custody(c->leaf,\"cgroup.kill\",c->killfd,c->leaf_stat.st_dev))return 0;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 262,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child,&status,WNOHANG|WUNTRACED);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 283,
+      "apis": [
+        "prctl",
+        "setgroups"
+      ],
+      "source": "if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 284,
+      "apis": [
+        "setresgid",
+        "setresuid"
+      ],
+      "source": "setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 302,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat s;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 303,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "if(fstatat(c->work,name,&s,AT_SYMLINK_NOFOLLOW))return errno==ENOENT;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 305,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "return unlinkat(c->work,name,0)==0;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 319,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "while((n=waitpid(-1,&status,WNOHANG))>0){}",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 326,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "if(!bindings(c)||!empty(c)||unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 336,
+      "apis": [
+        "fstatat",
+        "stat"
+      ],
+      "source": "struct stat s;if(fstatat(c->parent,e->d_name,&s,AT_SYMLINK_NOFOLLOW)||S_ISDIR(s.st_mode)){ok=0;break;}",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 345,
+      "apis": [
+        "flock"
+      ],
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 367,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat st;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 368,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "if(fstatat(c->work,\"intent.v1\",&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT)return 0;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 370,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "if(fstatat(c->work,\"intent.tmp\",&st,AT_SYMLINK_NOFOLLOW)==0){",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 373,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "if(fstatat(c->parent,pending.name,&st,AT_SYMLINK_NOFOLLOW)==0){",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 382,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "if(fstatat(c->parent,e->d_name,&st,AT_SYMLINK_NOFOLLOW)){ok=0;break;}",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 386,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 393,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "if(fstatat(c->work,\"intent.tmp\",&st,AT_SYMLINK_NOFOLLOW)==0){",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 396,
+      "apis": [
+        "fstatat",
+        "unlinkat"
+      ],
+      "source": "fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 401,
+      "apis": [
+        "clone"
+      ],
+      "source": "const char *modes[]={\"run\",\"fail-before-clone\",\"fail-attach\",\"fail-verify\",\"fail-resume\",\"fail-publish\",",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 418,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat st;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 419,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "if(fstatat(c.work,\"intent.v1\",&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 420,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "fstatat(c.work,\"intent.tmp\",&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||!no_worker_directories(&c)){",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 425,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "if(mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 434,
+      "apis": [
+        "clone"
+      ],
+      "source": "if(!strcmp(c.mode,\"fail-before-clone\")){reason=\"BEFORE_CLONE\";goto rollback;}",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 435,
+      "apis": [
+        "prctl"
+      ],
+      "source": "if(!bindings(&c)||!empty(&c)||prctl(PR_SET_CHILD_SUBREAPER,1,0,0,0))goto rollback;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 438,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup2-fixed-preflight.c",
+      "line": 17,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat st,ps,es;struct statfs fs;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup2-fixed-preflight.c",
+      "line": 49,
+      "apis": [
+        "read"
+      ],
+      "source": "puts(\"fixed read-only GE-04 cgroup2 preflight: PASS\");return 0;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup2-mount-preflight.c",
+      "line": 32,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat st;struct statfs fs;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup2-mount-preflight.c",
+      "line": 46,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat ps,es;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cgroup2-mount-preflight.c",
+      "line": 53,
+      "apis": [
+        "read"
+      ],
+      "source": "puts(\"read-only cgroup2 preflight: PASS\");return 0;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "line": 17,
+      "apis": [
+        "mount"
+      ],
+      "source": "_EXPECTED_KERNEL = frozenset((\"status\", \"pid\", \"startticks\", \"mount\", \"cgroup\"))",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "line": 74,
+      "apis": [
+        "bind"
+      ],
+      "source": "raise ValueError(\"Job event does not bind original attempt\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "line": 84,
+      "apis": [
+        "mount"
+      ],
+      "source": "or tuple(kernel[\"mount\"]) !=",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "line": 87,
+      "apis": [
+        "mount"
+      ],
+      "source": "raise ValueError(\"Kernel generation and mount inconsistent\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "line": 141,
+      "apis": [
+        "accept"
+      ],
+      "source": "def accept(self, **packet):",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "exclusive_birth_handoff.py",
+      "line": 41,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "if (value[\"unit\"] != UNIT or value[\"method\"] != \"StartTransientUnit\"",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "exclusive_birth_handoff.py",
+      "line": 61,
+      "apis": [
+        "read"
+      ],
+      "source": "the existing read-only bus observers reserves a unit or authenticates a",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "line": 14,
+      "apis": [
+        "execveat"
+      ],
+      "source": "execveat(3, \"\", argv + 1, (char *const[]){\"PATH=/usr/bin:/bin\", NULL}, AT_EMPTY_PATH);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "line": 15,
+      "apis": [
+        "execveat"
+      ],
+      "source": "fprintf(stderr, \"execveat pinned probe failed: %s\\n\", strerror(errno));",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "exec-pinned.c",
+      "line": 13,
+      "apis": [
+        "execveat"
+      ],
+      "source": "execveat(4, \"\", argv, environ, AT_EMPTY_PATH);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "exec-pinned.c",
+      "line": 14,
+      "apis": [
+        "execveat"
+      ],
+      "source": "fprintf(stderr, \"execveat pinned helper failed: %s\\n\", strerror(errno));",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 32,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat st;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 66,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat st;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 78,
+      "apis": [
+        "openat2"
+      ],
+      "source": "(void)path;die(\"openat2 unavailable\");",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 85,
+      "apis": [
+        "close"
+      ],
+      "source": "die(\"cannot close lower inherited descriptors\");",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 89,
+      "apis": [
+        "close"
+      ],
+      "source": "die(\"cannot close inherited file descriptors\");",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 104,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat ws;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 115,
+      "apis": [
+        "prctl"
+      ],
+      "source": "if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0))die(\"no_new_privs failed\");",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 116,
+      "apis": [
+        "setgroups",
+        "setresgid"
+      ],
+      "source": "if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 117,
+      "apis": [
+        "setresuid"
+      ],
+      "source": "setresuid(target,target,target))die(\"identity isolation failed\");",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 128,
+      "apis": [
+        "execveat"
+      ],
+      "source": "die(\"execveat unavailable\");",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "isolated_job_signal_worker.py",
+      "line": 1,
+      "apis": [
+        "read"
+      ],
+      "source": "\"\"\"GE-04 isolated read-only JobRemoved worker; never a privileged controller.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "isolated_job_signal_worker.py",
+      "line": 3,
+      "apis": [
+        "socket"
+      ],
+      "source": "Input and output each use one canonical small JSON line. No file/socket",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "isolated_phase_observer_worker.py",
+      "line": 1,
+      "apis": [
+        "read"
+      ],
+      "source": "\"\"\"GE-04 isolated read-only worker, diagnostic-only; no ACK or root mutation.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "peercred.c",
+      "line": 11,
+      "apis": [
+        "SO_PEERCRED"
+      ],
+      "source": "if (getsockopt(3, SOL_SOCKET, SO_PEERCRED, &cred, &size) != 0 || size != sizeof(cred) || cred.pid <= 0) {",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "peercred.c",
+      "line": 12,
+      "apis": [
+        "SO_PEERCRED"
+      ],
+      "source": "fprintf(stderr, \"SO_PEERCRED failed: %s\\n\", strerror(errno));",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "phase_controller.py",
+      "line": 1,
+      "apis": [
+        "read"
+      ],
+      "source": "\"\"\"GE-04 read-only phase controller prototype; never emits an ACK.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "phase_controller.py",
+      "line": 4,
+      "apis": [
+        "read"
+      ],
+      "source": "read-only manager/kernel witness per event. It cannot authenticate pre-birth",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "phase_controller.py",
+      "line": 97,
+      "apis": [
+        "accept"
+      ],
+      "source": "def accept(self, raw, deadline):",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 30,
+      "apis": [
+        "open"
+      ],
+      "source": "int fail_open=argc==2 && !strcmp(argv[1],\"--fail-pidfd-open\");",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 36,
+      "apis": [
+        "fork"
+      ],
+      "source": "if(child<0){perror(\"fork\");return 70;}",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 42,
+      "apis": [
+        "pidfd_open"
+      ],
+      "source": "if(fd<0){if(!fail_open)perror(\"pidfd_open\");result=71;goto cleanup;}",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 45,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "if(waitpid(child,&status,WUNTRACED)!=child||!WIFSTOPPED(status)||WSTOPSIG(status)!=SIGSTOP){result=74;goto cleanup;}",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 49,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(send_pinned(fd,SIGKILL)<0){perror(\"kill\");result=77;goto cleanup;}",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 50,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "line": 24,
+      "apis": [
+        "kill"
+      ],
+      "source": "strcmp(argv[1],\"resume\")&&strcmp(argv[1],\"kill\")))return 64;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "line": 28,
+      "apis": [
+        "pidfd_open"
+      ],
+      "source": "if(fd<0){perror(\"pidfd_open\");return 70;}",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "line": 35,
+      "apis": [
+        "kill"
+      ],
+      "source": "else if(!strcmp(argv[1],\"kill\"))sig=SIGKILL;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "prebirth_fixture_journal.py",
+      "line": 9,
+      "apis": [
+        "stat"
+      ],
+      "source": "import stat",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "prebirth_fixture_journal.py",
+      "line": 22,
+      "apis": [
+        "stat"
+      ],
+      "source": "or not stat.S_ISDIR(info.st_mode)",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "prebirth_fixture_journal.py",
+      "line": 34,
+      "apis": [
+        "stat"
+      ],
+      "source": "if (not stat.S_ISREG(first.st_mode) or first.st_nlink != 1",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "prebirth_fixture_journal.py",
+      "line": 46,
+      "apis": [
+        "stat"
+      ],
+      "source": "path_now = os.stat(FILENAME, dir_fd=directory, follow_symlinks=False)",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "prebirth_fixture_journal.py",
+      "line": 92,
+      "apis": [
+        "stat"
+      ],
+      "source": "os.stat(FILENAME, dir_fd=directory, follow_symlinks=False)",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "prebirth_fixture_journal.py",
+      "line": 105,
+      "apis": [
+        "write"
+      ],
+      "source": "raise OSError(\"Short prebirth intent write\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "prebirth_fixture_journal.py",
+      "line": 107,
+      "apis": [
+        "write"
+      ],
+      "source": "fault(\"after-write\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "prebirth_fixture_journal.py",
+      "line": 110,
+      "apis": [
+        "fsync"
+      ],
+      "source": "fault(\"after-file-fsync\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "prebirth_fixture_journal.py",
+      "line": 119,
+      "apis": [
+        "fsync"
+      ],
+      "source": "fault(\"after-directory-fsync\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "prebirth_fixture_journal.py",
+      "line": 137,
+      "apis": [
+        "read"
+      ],
+      "source": "\"\"\"Use genuine read-only systemd absence checks for a user-only fixture.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "prebirth_issuance_contract.py",
+      "line": 80,
+      "apis": [
+        "mount"
+      ],
+      "source": "raise ValueError(\"Invalid original mount and cgroup ancestry\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 104,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat dir, fd, named;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 112,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "fstatat(held->directory_fd, GE04_ATTEMPT_FILE,",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 122,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t n = pread(held->fence_fd, observed + offset,",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 129,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(held->fence_fd, &trailer, 1, (off_t)size) != 0 ||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 177,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat statbuf;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "line": 51,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat st;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "line": 53,
+      "apis": [
+        "statx"
+      ],
+      "source": "struct statx sx;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "line": 78,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat st, target;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "line": 79,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "if (fstatat(parent, name, &st, AT_SYMLINK_NOFOLLOW) < 0 ||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "line": 181,
+      "apis": [
+        "mount"
+      ],
+      "source": "return 0; /* Not proof of original cgroup birth or trusted mount owner. */",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 84,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat dir, descriptor, named;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 95,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "fstatat(held->directory_fd, GE04_DISPATCH_INTENT_FILE,",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 104,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t got = pread(held->intent_fd, observed + count,",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 111,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(held->intent_fd, &excess, 1, (off_t)length) != 0 ||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 130,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "member && strcmp(member, \"StartTransientUnit\") == 0 &&",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 164,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat info;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "line": 46,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "member && strcmp(member, \"StartTransientUnit\") == 0 &&",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "line": 67,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "\"StartTransientUnit\");",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "line": 49,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat st;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "line": 111,
+      "apis": [
+        "stat"
+      ],
+      "source": "if (read_proc(pid, \"stat\", statbuf, sizeof(statbuf), &len) < 0 ||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "line": 144,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat st;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "line": 187,
+      "apis": [
+        "mount"
+      ],
+      "source": "return 0; /* UNQUALIFIED: matching current mount namespace only. */",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 61,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat s;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 70,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat s;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 78,
+      "apis": [
+        "stat"
+      ],
+      "source": "static int original_file(int fd, struct stat *result) {",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 144,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t read_bytes = pread(fd, bytes + offset, expected - offset,",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 151,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(fd, &trailer, 1, (off_t)expected) != 0) return refuse(EIO);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 164,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat pinned, named;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 167,
+      "apis": [
+        "fstatat"
+      ],
+      "source": "fstatat(custody->directory_fd, GE04_PREBIRTH_FILE, &named,",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 217,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat s;",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 83,
+      "apis": [
+        "Unsubscribe"
+      ],
+      "source": "GE04_MANAGER_IFACE, \"Unsubscribe\",",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 283,
+      "apis": [
+        "Subscribe"
+      ],
+      "source": "GE04_MANAGER_IFACE, \"Subscribe\",",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected_approval_observer.py",
+      "line": 1,
+      "apis": [
+        "read"
+      ],
+      "source": "\"\"\"GE-04 fixed root-owned approval corroboration, read-only and unqualified.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected_approval_observer.py",
+      "line": 9,
+      "apis": [
+        "stat"
+      ],
+      "source": "import stat",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected_approval_observer.py",
+      "line": 22,
+      "apis": [
+        "stat"
+      ],
+      "source": "if (not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_gid != 0",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected_approval_observer.py",
+      "line": 58,
+      "apis": [
+        "stat"
+      ],
+      "source": "if (not stat.S_ISREG(first.st_mode)",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected_approval_observer.py",
+      "line": 71,
+      "apis": [
+        "stat"
+      ],
+      "source": "entry = os.stat(name, dir_fd=directory, follow_symlinks=False)",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected_approval_observer.py",
+      "line": 78,
+      "apis": [
+        "read"
+      ],
+      "source": "raise ValueError(\"Original approval changed during read\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "protected_owner_review_boundary.py",
+      "line": 25,
+      "apis": [
+        "mount"
+      ],
+      "source": "\"KERNEL_RESOURCE_CUSTODY\": \"Pinned original keeper, mount namespace and cgroup FDs\",",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "systemd_absence_observer.py",
+      "line": 1,
+      "apis": [
+        "read"
+      ],
+      "source": "\"\"\"GE-04 read-only fixed-unit absence probe over systemd's system D-Bus.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "systemd_job_event_contract.py",
+      "line": 1,
+      "apis": [
+        "read"
+      ],
+      "source": "\"\"\"GE-04 systemd JobRemoved event correlation, read-only and UNQUALIFIED.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "systemd_job_event_contract.py",
+      "line": 76,
+      "apis": [
+        "accept"
+      ],
+      "source": "def accept(self, event):",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 1,
+      "apis": [
+        "read"
+      ],
+      "source": "\"\"\"GE-04 bounded read-only systemd JobRemoved signal observer.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 24,
+      "apis": [
+        "Subscribe",
+        "listen"
+      ],
+      "source": "\"\"\"Subscribe, listen, and remove listener under a short bounded GLib loop.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 31,
+      "apis": [
+        "Subscribe"
+      ],
+      "source": "bus/Subscribe may extend wall-clock duration. Never use for authority.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 36,
+      "apis": [
+        "read"
+      ],
+      "source": "raise ValueError(\"Unsupported read-only job observation window\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 82,
+      "apis": [
+        "accept"
+      ],
+      "source": "recorded = window.accept(event)",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 100,
+      "apis": [
+        "add_signal_receiver"
+      ],
+      "source": "match = bus.add_signal_receiver(",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 106,
+      "apis": [
+        "Subscribe"
+      ],
+      "source": "manager.Subscribe(timeout=1)",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "line": 137,
+      "apis": [
+        "Unsubscribe"
+      ],
+      "source": "manager.Unsubscribe(timeout=1)",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "systemd_unit_observer.py",
+      "line": 62,
+      "apis": [
+        "read"
+      ],
+      "source": "\"\"\"Actual system D-Bus read: diagnostic only, fail closed on absence.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "transaction_consumption_fixture.py",
+      "line": 5,
+      "apis": [
+        "write"
+      ],
+      "source": "partial write is quarantine: never resume or reissue. Root is refused.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "transaction_consumption_fixture.py",
+      "line": 14,
+      "apis": [
+        "stat"
+      ],
+      "source": "import stat",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "transaction_consumption_fixture.py",
+      "line": 32,
+      "apis": [
+        "stat"
+      ],
+      "source": "if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "transaction_consumption_fixture.py",
+      "line": 38,
+      "apis": [
+        "stat"
+      ],
+      "source": "path = os.stat(NAME, dir_fd=directory, follow_symlinks=False)",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "transaction_consumption_fixture.py",
+      "line": 76,
+      "apis": [
+        "fsync"
+      ],
+      "source": "\"\"\"Claim once, fsync before any reconciliation; failures never roll back.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "transaction_consumption_fixture.py",
+      "line": 109,
+      "apis": [
+        "write"
+      ],
+      "source": "fault(\"after-write\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "transaction_consumption_fixture.py",
+      "line": 112,
+      "apis": [
+        "fsync"
+      ],
+      "source": "fault(\"after-file-fsync\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "transaction_consumption_fixture.py",
+      "line": 115,
+      "apis": [
+        "fsync"
+      ],
+      "source": "fault(\"after-directory-fsync\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "transaction_consumption_fixture.py",
+      "line": 118,
+      "apis": [
+        "stat"
+      ],
+      "source": "path_info = os.stat(NAME, dir_fd=directory, follow_symlinks=False)",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "transaction_consumption_fixture.py",
+      "line": 137,
+      "apis": [
+        "stat"
+      ],
+      "source": "final = os.stat(NAME, dir_fd=directory, follow_symlinks=False)",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 1,
+      "apis": [
+        "read"
+      ],
+      "source": "\"\"\"GE-04 read-only kernel corroboration for a pre-existing fixed systemd unit.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 10,
+      "apis": [
+        "stat"
+      ],
+      "source": "import stat",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 42,
+      "apis": [
+        "stat"
+      ],
+      "source": "raise ValueError(\"Invalid keeper proc stat\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 45,
+      "apis": [
+        "stat"
+      ],
+      "source": "raise ValueError(\"Malformed kernel proc stat\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 57,
+      "apis": [
+        "_mount"
+      ],
+      "source": "def _mount(raw):",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 73,
+      "apis": [
+        "mount"
+      ],
+      "source": "raise ValueError(\"Unexpected cgroup mount scope\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 76,
+      "apis": [
+        "mount"
+      ],
+      "source": "raise ValueError(\"Missing or ambiguous keeper cgroup2 mount\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 86,
+      "apis": [
+        "mount"
+      ],
+      "source": "\"\"\"Observe real pidfd/procfs/mount/cgroup, compare to original binding.",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 91,
+      "apis": [
+        "pidfd_open"
+      ],
+      "source": "if sys.platform != \"linux\" or not hasattr(os, \"pidfd_open\"):",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 107,
+      "apis": [
+        "stat"
+      ],
+      "source": "state, current = _stat_generation(_read_fixed(f\"/proc/{pid}/stat\", 16384), pid)",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 121,
+      "apis": [
+        "_mount",
+        "mount"
+      ],
+      "source": "mount = _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576))",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 122,
+      "apis": [
+        "mount"
+      ],
+      "source": "if mount != (original.get(\"mountId\"), original.get(\"mountDevice\")):",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 123,
+      "apis": [
+        "mount"
+      ],
+      "source": "raise ValueError(\"Keeper cgroup mount replaced\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 137,
+      "apis": [
+        "stat"
+      ],
+      "source": "or not stat.S_ISDIR(info.st_mode)):",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 165,
+      "apis": [
+        "_mount",
+        "mount"
+      ],
+      "source": "or _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576)) != mount",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 167,
+      "apis": [
+        "read"
+      ],
+      "source": "raise ValueError(\"Original/kernel generation changed during read\")",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 170,
+      "apis": [
+        "mount"
+      ],
+      "source": "\"pid\": pid, \"startticks\": ticks, \"mount\": mount,",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "line": 178,
+      "apis": [
+        "read"
+      ],
+      "source": "\"\"\"Composite read-only observer; absence is fail-closed, no ACK.\"\"\"",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 64,
+      "apis": [
+        "stat"
+      ],
+      "source": "snprintf(path,sizeof(path),\"/proc/%ld/stat\",(long)pid);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 143,
+      "apis": [
+        "stat"
+      ],
+      "source": "struct stat st;int type,accepting,passcred;socklen_t n=sizeof(int);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 170,
+      "apis": [
+        "accept4"
+      ],
+      "source": "s->fd=accept4(listener,NULL,NULL,SOCK_CLOEXEC|SOCK_NONBLOCK);",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 175,
+      "apis": [
+        "SO_PEERCRED"
+      ],
+      "source": "if(getsockopt(s->fd,SOL_SOCKET,SO_PEERCRED,&cred,&n)||n!=sizeof(cred)||",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 189,
+      "apis": [
+        "SCM_RIGHTS"
+      ],
+      "source": "if(c->cmsg_level==SOL_SOCKET&&(c->cmsg_type==SCM_RIGHTS",
+      "status": "CANDIDATE_NOT_ADJUDICATED"
+    }
+  ],
+  "per_file_stats": [
+    {
+      "file": "bootstrap_binding.py",
+      "revision": "baseline",
+      "candidate_count": 9,
+      "historical_matrix_sites": 4
+    },
+    {
+      "file": "bootstrap_binding.py",
+      "revision": "current",
+      "candidate_count": 13,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "revision": "baseline",
+      "candidate_count": 5,
+      "historical_matrix_sites": 4
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "revision": "current",
+      "candidate_count": 9,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "revision": "baseline",
+      "candidate_count": 13,
+      "historical_matrix_sites": 3
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "revision": "current",
+      "candidate_count": 16,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "bounded_dispatch_evidence.py",
+      "revision": "baseline",
+      "candidate_count": 0,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "bounded_dispatch_evidence.py",
+      "revision": "current",
+      "candidate_count": 0,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "bounded_job_signal_observer.py",
+      "revision": "baseline",
+      "candidate_count": 0,
+      "historical_matrix_sites": 8
+    },
+    {
+      "file": "bounded_job_signal_observer.py",
+      "revision": "current",
+      "candidate_count": 8,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "revision": "baseline",
+      "candidate_count": 8,
+      "historical_matrix_sites": 8
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "revision": "current",
+      "candidate_count": 16,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "revision": "baseline",
+      "candidate_count": 3,
+      "historical_matrix_sites": 6
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "revision": "current",
+      "candidate_count": 9,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "revision": "baseline",
+      "candidate_count": 2,
+      "historical_matrix_sites": 19
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "revision": "current",
+      "candidate_count": 21,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "revision": "baseline",
+      "candidate_count": 8,
+      "historical_matrix_sites": 14
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "revision": "current",
+      "candidate_count": 22,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "revision": "baseline",
+      "candidate_count": 7,
+      "historical_matrix_sites": 14
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "revision": "current",
+      "candidate_count": 21,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "revision": "baseline",
+      "candidate_count": 64,
+      "historical_matrix_sites": 99
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "revision": "current",
+      "candidate_count": 152,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "revision": "baseline",
+      "candidate_count": 40,
+      "historical_matrix_sites": 57
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "revision": "current",
+      "candidate_count": 100,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "cgroup2-fixed-preflight.c",
+      "revision": "baseline",
+      "candidate_count": 2,
+      "historical_matrix_sites": 16
+    },
+    {
+      "file": "cgroup2-fixed-preflight.c",
+      "revision": "current",
+      "candidate_count": 18,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "cgroup2-mount-preflight.c",
+      "revision": "baseline",
+      "candidate_count": 3,
+      "historical_matrix_sites": 14
+    },
+    {
+      "file": "cgroup2-mount-preflight.c",
+      "revision": "current",
+      "candidate_count": 17,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "revision": "baseline",
+      "candidate_count": 5,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "revision": "current",
+      "candidate_count": 5,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "diagnostic-deadline.c",
+      "revision": "baseline",
+      "candidate_count": 0,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "diagnostic-deadline.c",
+      "revision": "current",
+      "candidate_count": 0,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "diagnostic-fd-wait.c",
+      "revision": "baseline",
+      "candidate_count": 0,
+      "historical_matrix_sites": 5
+    },
+    {
+      "file": "diagnostic-fd-wait.c",
+      "revision": "current",
+      "candidate_count": 2,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "exclusive_birth_handoff.py",
+      "revision": "baseline",
+      "candidate_count": 2,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "exclusive_birth_handoff.py",
+      "revision": "current",
+      "candidate_count": 2,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "revision": "baseline",
+      "candidate_count": 2,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "revision": "current",
+      "candidate_count": 2,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "exec-pinned.c",
+      "revision": "baseline",
+      "candidate_count": 2,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "exec-pinned.c",
+      "revision": "current",
+      "candidate_count": 2,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "revision": "baseline",
+      "candidate_count": 10,
+      "historical_matrix_sites": 10
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "revision": "current",
+      "candidate_count": 20,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "isolated_job_signal_worker.py",
+      "revision": "baseline",
+      "candidate_count": 2,
+      "historical_matrix_sites": 2
+    },
+    {
+      "file": "isolated_job_signal_worker.py",
+      "revision": "current",
+      "candidate_count": 4,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "isolated_phase_observer_worker.py",
+      "revision": "baseline",
+      "candidate_count": 1,
+      "historical_matrix_sites": 2
+    },
+    {
+      "file": "isolated_phase_observer_worker.py",
+      "revision": "current",
+      "candidate_count": 3,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "nonexecuting-sender-contract.c",
+      "revision": "baseline",
+      "candidate_count": 0,
+      "historical_matrix_sites": 1
+    },
+    {
+      "file": "nonexecuting-sender-contract.c",
+      "revision": "current",
+      "candidate_count": 0,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "oci_qualification_image.py",
+      "revision": "baseline",
+      "candidate_count": 0,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "oci_qualification_image.py",
+      "revision": "current",
+      "candidate_count": 0,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "original_provenance_diagnostic.py",
+      "revision": "baseline",
+      "candidate_count": 0,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "original_provenance_diagnostic.py",
+      "revision": "current",
+      "candidate_count": 0,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "peercred.c",
+      "revision": "baseline",
+      "candidate_count": 2,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "peercred.c",
+      "revision": "current",
+      "candidate_count": 2,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "phase_controller.py",
+      "revision": "baseline",
+      "candidate_count": 3,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "phase_controller.py",
+      "revision": "current",
+      "candidate_count": 3,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "revision": "baseline",
+      "candidate_count": 6,
+      "historical_matrix_sites": 6
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "revision": "current",
+      "candidate_count": 12,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "revision": "baseline",
+      "candidate_count": 3,
+      "historical_matrix_sites": 5
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "revision": "current",
+      "candidate_count": 8,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "prebirth_fixture_journal.py",
+      "revision": "baseline",
+      "candidate_count": 10,
+      "historical_matrix_sites": 14
+    },
+    {
+      "file": "prebirth_fixture_journal.py",
+      "revision": "current",
+      "candidate_count": 24,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "prebirth_issuance_contract.py",
+      "revision": "baseline",
+      "candidate_count": 1,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "prebirth_issuance_contract.py",
+      "revision": "current",
+      "candidate_count": 1,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "revision": "baseline",
+      "candidate_count": 5,
+      "historical_matrix_sites": 23
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "revision": "current",
+      "candidate_count": 19,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "revision": "baseline",
+      "candidate_count": 5,
+      "historical_matrix_sites": 20
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "revision": "current",
+      "candidate_count": 24,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "revision": "baseline",
+      "candidate_count": 6,
+      "historical_matrix_sites": 25
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "revision": "current",
+      "candidate_count": 18,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "revision": "baseline",
+      "candidate_count": 2,
+      "historical_matrix_sites": 11
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "revision": "current",
+      "candidate_count": 2,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "revision": "baseline",
+      "candidate_count": 2,
+      "historical_matrix_sites": 10
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "revision": "current",
+      "candidate_count": 10,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "revision": "baseline",
+      "candidate_count": 2,
+      "historical_matrix_sites": 14
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "revision": "current",
+      "candidate_count": 14,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "revision": "baseline",
+      "candidate_count": 8,
+      "historical_matrix_sites": 34
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "revision": "current",
+      "candidate_count": 31,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "protected-root-controller.c",
+      "revision": "baseline",
+      "candidate_count": 0,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "protected-root-controller.c",
+      "revision": "current",
+      "candidate_count": 0,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "protected-systemd-birth-observer.c",
+      "revision": "baseline",
+      "candidate_count": 0,
+      "historical_matrix_sites": 13
+    },
+    {
+      "file": "protected-systemd-birth-observer.c",
+      "revision": "current",
+      "candidate_count": 0,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "protected-systemd-request.c",
+      "revision": "baseline",
+      "candidate_count": 0,
+      "historical_matrix_sites": 26
+    },
+    {
+      "file": "protected-systemd-request.c",
+      "revision": "current",
+      "candidate_count": 0,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "revision": "baseline",
+      "candidate_count": 2,
+      "historical_matrix_sites": 44
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "revision": "current",
+      "candidate_count": 3,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "protected-transaction-state.c",
+      "revision": "baseline",
+      "candidate_count": 0,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "protected-transaction-state.c",
+      "revision": "current",
+      "candidate_count": 0,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "protected_approval_observer.py",
+      "revision": "baseline",
+      "candidate_count": 6,
+      "historical_matrix_sites": 18
+    },
+    {
+      "file": "protected_approval_observer.py",
+      "revision": "current",
+      "candidate_count": 24,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "protected_owner_review_boundary.py",
+      "revision": "baseline",
+      "candidate_count": 1,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "protected_owner_review_boundary.py",
+      "revision": "current",
+      "candidate_count": 1,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "systemd_absence_observer.py",
+      "revision": "baseline",
+      "candidate_count": 1,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "systemd_absence_observer.py",
+      "revision": "current",
+      "candidate_count": 1,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "systemd_job_event_contract.py",
+      "revision": "baseline",
+      "candidate_count": 2,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "systemd_job_event_contract.py",
+      "revision": "current",
+      "candidate_count": 2,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "revision": "baseline",
+      "candidate_count": 8,
+      "historical_matrix_sites": 1
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "revision": "current",
+      "candidate_count": 9,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "systemd_unit_observer.py",
+      "revision": "baseline",
+      "candidate_count": 1,
+      "historical_matrix_sites": 0
+    },
+    {
+      "file": "systemd_unit_observer.py",
+      "revision": "current",
+      "candidate_count": 1,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "transaction_consumption_fixture.py",
+      "revision": "baseline",
+      "candidate_count": 10,
+      "historical_matrix_sites": 13
+    },
+    {
+      "file": "transaction_consumption_fixture.py",
+      "revision": "current",
+      "candidate_count": 22,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "revision": "baseline",
+      "candidate_count": 18,
+      "historical_matrix_sites": 14
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "revision": "current",
+      "candidate_count": 32,
+      "historical_matrix_sites": null
+    },
+    {
+      "file": "worker-stream.c",
+      "revision": "baseline",
+      "candidate_count": 5,
+      "historical_matrix_sites": 16
+    },
+    {
+      "file": "worker-stream.c",
+      "revision": "current",
+      "candidate_count": 17,
+      "historical_matrix_sites": null
+    }
+  ],
+  "limits": "Superset candidate scan, not an exact reconstruction of reviewer 63; includes non-executing references; may omit indirect or unknown APIs; worker current revision changed"
+}

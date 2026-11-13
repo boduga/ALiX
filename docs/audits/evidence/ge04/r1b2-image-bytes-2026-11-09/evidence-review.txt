@@ -1,0 +1,81 @@
+# OCI qualification image evidence verification
+
+Date: 2026-11-09. Independent fresh-context evidence verifier. Repository: `/tmp/alix-ge04-r1b1-mandatory`; base HEAD `6582e0c6a4ffa6bbf124a21688930bc9a8fc9ee6`. The three image files were untracked working-tree additions at verification, rather than content committed at that HEAD.
+
+Result: reproduced the unprivileged format/integrity evidence and independently reproduced both fixed fingerprints. No evidence blocker found within this task's narrow scope. This is neither human security review nor authorization to execute or admit a payload.
+
+## Inputs and scope
+
+Read repository root `AGENTS.md`, `CONTRIBUTING.md`, `native/ge04/AGENTS.md`, `docs/AGENTS.md`, the operator's `/home/babasola/Documents/ChatGPT/ALiX/oci-image-construction-design.md`, all three new image files, and their test helpers. Direct verification only: no competing workflow skill, source edits, commits, package installation, SSH, root operation, runtime/container invocation, extraction or other chat retrieval. Only this evidence report was written. No repository source or instruction file was changed by this verifier.
+
+Verified working-tree SHA-256:
+
+| File | SHA-256 |
+| --- | --- |
+| `native/ge04/oci_qualification_image.py` | `7f96b8a9a6f80c6538bd996a77ace82e150fdd4a7329f009bc5ca7bc8d14eabb` |
+| `tests/agents/test_ge04_oci_image.py` | `24a448d64ec1a0bda83a68274f06172aad0a75a3e5584dd201e81e55876e40aa` |
+| `docs/security/ge04-oci-qualification-image.md` | `f40edd9526b3b01787efd91c6151ae5e278e364d7b42d8de28f009deac8a0fcb` |
+
+## Reproduced test execution
+
+From that worktree, Python 3.12.3:
+
+```text
+python3 -B -m unittest discover -s tests/agents -p test_ge04_oci_image.py -v
+Ran 18 tests in 0.077s
+OK
+```
+
+18 means unittest test methods, not 18 independent security guarantees. The suite exercises additional loop cases: 90 verifier reject-helper invocations and seven invalid-builder-input cases. Frozen-output assertions additionally reject mutation of the map, receipt and image dataclass. The method count includes positive/integrity-only tests. It has no root or runtime cases and no skipped cases.
+
+Both 1-byte and 1-MiB positive inputs build and verify; the maximum layer is exactly 1,053,184 bytes. Tests independently read archive members with `tarfile`, inspect seven names, types, modes, UID/GID and mtime, read probe bytes in memory, traverse descriptors and recompute sizes, hashes and diff_id without module helpers. Reading a member using `extractfile` returns an in-memory file object; the tests perform no archive extraction to disk.
+
+## Independently derived golden bytes
+
+Ran a separate `python3 -B` stdin program importing only stdlib `tarfile`, `hashlib`, `json`, and `io`; it imported neither implementation nor test module and called no implementation helper. Starting from the design's inventory and inert payload `b"GE04 inert image fixture\n"`, it used `TarInfo.tobuf(USTAR_FORMAT)` headers, replaced the directory-name fields with the specified names without trailing slash, zeroed unused device fields, recomputed checksums with eight spaces and the specified six-octal/NUL/space representation, added payload block padding and exactly two end blocks. It then independently built compact sorted ASCII JSON config, manifest and index with the documented defaults/descriptors.
+
+| Object | Bytes | Independently derived SHA-256 digest |
+| --- | ---: | --- |
+| Probe | 25 | `sha256:8be521d158830d3c900bc33d600699ee9037f5d011805e1ffce13b868a5a37db` |
+| Layer | 5120 | `sha256:430b3cc95a6e1e50068b79a75b32a75ca84742cdddde9fc72081899170159ef9` |
+| Config | 364 | `sha256:21a4bb1f0d99201624a3671f5f46e31fe2f4312dbf5755c6049c6f1ca451b4fb` |
+| Manifest | 397 | `sha256:5c5bdbac2f073c900785aecfce6c52e48c1a15c374174c5e3a905e0521b651ab` |
+| Index | 289 | `sha256:765048b92e8479e5cbf766df5237b12e6d76f61584fd3cb67fb4519229533aac` |
+
+The independent layer and manifest exactly match the suite's two hardcoded goldens. `tarfile` independently decoded the resulting seven entries with the specified 0755 directory modes, 0555 probe and 01777 tmp.
+
+## Rehashed attack reach and denominators
+
+Inspected `repack`: config/layer changes replace the blob graph, recompute descriptor digests/sizes and manifest/index bytes, and layer changes update config diff_id. These cases therefore do not merely fail against stale outer hashes. Ran an additional in-memory instrumented execution of the same 18 tests (18 passed, 0.075s), wrapping the suite's rejection helper and implementation decoder/reconstruction functions to count reached stages. No source files were edited.
+
+| Test group | Reject helper calls | Layer decoder reached | Final expected-image reconstruction reached |
+| --- | ---: | ---: | ---: |
+| Rehashed unsafe archive names/types/metadata | 21 | 21 | 0 |
+| Rehashed checksum/padding/truncation/trailing data | 7 | 7 | 0 |
+| Rehashed fixed config changes | 6 | 6 | 6 |
+| Rehashed manifest/platform changes | 6 | 5 | 5 |
+| Self-consistent changed probe under original pin | 1 | 1 | 0 |
+| Noncanonical JSON/unknown metadata | 3 | 2 | 2 |
+| Descriptor types/sizes/media/paths | 12 | 0 | 0 |
+| Invalid metadata | 10 | 0 | 0 |
+| Invalid pins/file types | 11 | 0 | 0 |
+| Inventory/total bounds | 3 | 0 | 0 |
+| Mapping methods never invoked | 4 | 0 | 0 |
+| Raw corruption/missing reference | 6 | 0 | 0 |
+| Total | 90 | 42 | 13 |
+
+Zero decoder reach for malformed descriptor/input cases is expected early denial, not semantic archive evidence. The platform mismatch is the one rehashed manifest/platform case rejected before layer decoding. All six changed config cases reach reconstruction and are denied by exact-map comparison. The 21 archive cases include traversal, absolute and duplicate/moved entry names, hard/symbolic links, block/character devices, FIFO, PAX/global PAX, sparse/GNU longname flags, linkname, mode, UID, mtime, directory/probe sizes, base-256 size and magic. Seven further cases exercise checksum, payload padding, truncation, trailing byte/block and terminator changes. These finite cases are representative coverage, not an exhaustive parser proof.
+
+The fully changed payload is denied under the original pin and accepted under its correct changed pin. An inert non-ELF byte string is intentionally accepted. These observations establish the designed distinction between byte integrity and executable qualification.
+
+## Source boundary inspection
+
+Read the complete implementation and independently enumerated imports/call sites using Python AST. Imports are `dataclasses.dataclass`, `hashlib.sha256`, `json`, `re`, and `types.MappingProxyType`. No filesystem access, process launch/control, network access, extraction API, CLI/main entry point, runtime configuration, registration, production consumer or admission action occurs in this source. Its top-level actions are definitions, constants, regex compilation and frozen dataclass creation, with ordinary stdlib imports; there is no operational import-time work. The tests contain a unittest main entry point; the implementation does not.
+
+The verifier rejects non-exact dictionaries before any mapping methods, checks exact string/bytes entries, bounds the snapshot before decoding, follows exact bounded descriptors, verifies content hashes, decodes fixed headers, checks the caller pin and compares the entire expected byte map. Source inspection supports the documented bounded pure-byte interface. It does not establish isolation against hostile Python code executing in the same interpreter or all possible external consumers.
+
+## Remaining limits
+
+No TypeScript, staleness, DOX or GitNexus checks were run by this evidence verifier; those remain the coordinating task's required checks. No source edit or commit occurred here, so this report supplies no pre-edit impact or commit gate evidence. Existing modified docs/owner instructions and the untracked `node_modules` entry were observed and left untouched.
+
+This report does not claim payload executability, reviewed-source provenance, root/bundle custody, hostile containment, effective runtime policy, native launch/registration/recovery, B1/B2 clearance, C–F completion, independent human security qualification or release authorization. GE-04 SECURITY HOLD remains active.

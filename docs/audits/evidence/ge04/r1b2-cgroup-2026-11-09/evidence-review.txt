@@ -1,0 +1,67 @@
+# Closed cgroup fixture: independent evidence verification
+
+Reviewed 2026-11-09 in fresh delegated context. Target checkout: `/tmp/alix-ge04-r1b1-mandatory`, HEAD `90c0042f30db7a88203e1e1af4aab7e1abd1f914`, including the uncommitted fixture/evidence increment. This report does not qualify a production supervisor or grant security release. GE-04 SECURITY HOLD remains active.
+
+## Final findings after documentation reconciliation
+
+**No remaining blocker to accurately reporting the bounded synthetic results.** The following review corrections are now present in the final files; no C/Python source changed during this reconciliation, and tests were not repeated.
+
+1. **Resolved — mandatory original receipt in the operating command.** The qualification contract now includes `ALIX_GE04_STAGE_IDENTITIES="$ORIGINAL_BOOTSTRAP_RECEIPT_JSON"` inside the clean environment and explains that the receipt must come from the original bootstrap, never a later current inventory. This agrees with the actual transcript invocation and `stage_binary()` requirements.
+2. **Resolved — stale execution status.** The handoff now records 28 passed/1 skipped, 24/24 live, local 5 passed/24 skipped, unchanged witness and absent fixture state, while preserving GE-04 limits. It no longer says no unit/cgroup mutation occurred.
+3. **Resolved as a reproducibility gap — retained bootstrap/cleanup packets.** `reviewed-stage-and-run.txt` and `reviewed-verify-and-clean.txt` now preserve the exact claimed execution packets, explicitly labeled as consumed review artifacts. The former checks trusted tool ancestry, stages only frozen pinned source, compiles with `-Wall -Wextra -Werror -O2`, records a manifest, validates exact root-owned modes/allowlist, captures the original receipt and passes it into the isolated root suite. The latter verifies witness, inactive/not-found unit, absent work/parent, full stage inventory/custody, original identities and content hashes, then removes four fixed files and empty directories without recursive deletion or unit/cgroup writes. The record's packet hashes were independently recomputed and match.
+
+**Nit / evidence limit — attribution and historical attestation.** The packets explain the mechanism and match visible transcript outputs, but retained text by itself does not independently attest its historical execution or preceding source/root-scope review. Those preceding reviews were not among this review's supplied evidence. The standalone inode receipt has no mode/owner fields; successful staged-controller checks and packet assertions support those claims, rather than a full saved `stat` dump. The binary is no longer retained to rehash. Treat these as limits of controller-collected evidence, not contradictions or a reason to repeat privileged work merely for this report. `record.md` explicitly distinguishes observations from independent host attestation.
+
+## Hash and receipt reconciliation
+
+Read and independently hashed current C and Python inputs; both exactly match `STAGED_MANIFEST` in the transcript:
+
+| Input | SHA-256 |
+|---|---|
+| `native/ge04/cgroup-worker-qualification.c` | `5362bdb0b08586f51151f0b53519a48ababb557f9c31758283f3aab2ec06d757` |
+| `tests/agents/test_ge04_cgroup_worker.py` | `5f65166afc7a66c8d56370b40df32a55f16c82b4adb9fddfaa4eab05985d4174` |
+
+Recorded staged binary hash is `d888c1d998f595a0231bd856eabe02c0d3fdc00eca1e0f88a635963f499608c6`; not independently rehashed because the staged artifact is absent. Local compilation uses a different compiler and is not a binary reproduction claim. Parsed standalone receipt and transcript `STAGING_IDENTITIES` are structurally identical, schema 1, with all ten exact expected entries.
+
+Raw evidence hashes, under `docs/audits/evidence/ge04/r1b2-cgroup-2026-11-09/`:
+
+| File | SHA-256 |
+|---|---|
+| `host-before.txt` | `deaa3f74dc470837577bb8d9ee106470c171c41e08c785c447f21fff2ac2fda0` |
+| `transcript.txt` | `6de6dd265c2b017fe695a91951acb6c24581012786fad402b7a950a095a3d9bd` |
+| `staging-identities.json` | `8366b5d4b7ff195d59d81ea202bef832268d923b6f193990dd181898b08b3925` |
+| `host-after.txt` | `daf892506e5350265c958a03e6e86e6e5feb6539436b1928fc352d2ec2cb605c` |
+
+## Actual denominators and meaning
+
+Recorded root run: **29 discovered, 28 passed, 1 skipped**, suite exit 0, 8.047 seconds. Breakdown: **24/24 live cgroup methods passed**, one invalid-mode method passed, three staging-layout methods passed. The sole skip is `test_nonroot_refuses_before_writes`, with explicit reason `unprivileged refusal not established by a root run`. Calling this 29 passed would be false. Interleaved stdout/stderr shifts some phase lines relative to unittest labels; counting the named method declarations gives 2 build + 24 live + 3 layout methods.
+
+The live cases cover normal two-member restricted execution/setsid descendant cleanup; failure before clone; synthetic publication/attach/generation/resume faults; helper crashes at pre-intent leaf, temporary intent, published intent, stopped child and running phases; malformed/mismatched records; existing intent; concurrent writer; wrong expected unit identity; interruption at TEMP/CHILD/RUNNING; unknown private artifact; and changed root-group custody of leaf/control. Fault labels matter: EBADF and generation mismatch are deliberate injected paths, not observations of disk failure or real PID reuse. Interruption tests call the handler directly; they do not kill the whole controller.
+
+Source review confirms phase callbacks independently inspect kernel/files and acknowledgments gate helper progress. The controller checks root stopped membership/PID generation before release, restricted identities/capabilities/no-new-privileges and two members at RUNNING, empty membership/populated state and pinned member death at EMPTY. Cleanup relies on the exact protected intent/cgroup binding and current custody, with no arbitrary PID/path interface or whole-subtree timeout fallback. The transcript's compact OBSERVED entries retain leaf/member IDs; they do not dump every raw `/proc` field or record byte that its assertions inspect.
+
+## Before/after and cleanup claims
+
+`host-before.txt` at 15:03:57 UTC and `host-after.txt` at 15:08:14 UTC have exactly equal witness maps: active/running, MainPID 981, InvocationID `76b16df891ea439fb850303c99fdf0be`, ExecMainStartTimestampMonotonic 20927201. Both record synthetic process count 0 and the qualifier unit not-found/inactive. Before records all three fixture paths absent; after records work, parent and staging absent. These are labeled observations, not unlabeled general process counts.
+
+Transcript records newly created unit InvocationID `a542bb11d93f497393f1cb55e5e2361b`, keeper PID 8062, exact unit path, Delegate=yes, DelegateSubgroup=controller, KillMode=process and OOMPolicy=continue. Creation command includes TasksMax=32 and CPUQuota=50%; those two values are not present in the saved UNIT_CREATED property dump. Stop command returns 0 and UNIT_REMOVED follows. Current controller only prints UNIT_REMOVED after verifying parent disappearance, removing allowed work entries, unchanged witness and zero synthetic processes. The independent final host snapshot agrees with cleanup. No unexpected failure, quarantine residue, or failure count appears in this retained run.
+
+The before snapshot resolves explicit `/usr/bin` tools to some Rust/coreutils wrappers; the retained bootstrap packet shows it starts at each explicit `/usr/bin` path and checks both its ancestry and resolved target ancestry for root ownership and non-writable custody. The snapshot itself retains resolved names, rather than every custody field. The privilege flags, empty environment, fixed PATH/HOME/LANG, `python3 -I -S`, fixed staged controller path and original receipt are all visible in the actual transcript command. No repository-root Python invocation is recorded.
+
+## Reproduced local checks
+
+Executed as UID **1000**, without privilege flags, SSH, root execution, unit operations or cgroup mutation:
+
+- `python3 -m unittest discover -s tests/agents -p test_ge04_cgroup_worker.py -v`: **29 discovered, 5 passed, 24 skipped**, exit 0, 0.429 seconds, Python 3.12.3. All live cases explicitly skipped for missing disposable-root qualification. The nonroot-refusal method passes here; its source checks return 77 and empty stdout, with the native UID guard preceding `setup()` and its writes.
+- `cc -Wall -Wextra -Werror -fanalyzer -O2 -o /tmp/ge04-evidence-verifier-probe native/ge04/cgroup-worker-qualification.c`: exit 0, no diagnostics, GCC 13.3.0. This is compilation/static-analysis evidence only.
+- Direct GitNexus `context stage_binary --repo .` returned known callers, but its line range was stale relative to current source; exact current source was read for conclusions. No graph result was treated as proof of no consumers.
+
+Read installed `agents/codebase_details.md`, `docs/codex.md`, review skill, root/native/docs AGENTS contracts, full C/Python files, qualification contract, raw evidence and relevant handoff. No other chats or memory were retrieved. The delegated task explicitly requested compiler verification and this report, overriding the persona's general no-compilation/no-writing rule only for those bounded outputs. No source edits or commits were made; owning AGENTS files were left unchanged because this report changes no repository contract.
+
+## Remaining scope
+
+No privileged rerun was performed by this reviewer. Host observations are retained execution evidence rather than a fresh attestation of current remote state. No inference is made about whole-controller death, reboot/power loss durability, arbitrary hostile code, filesystem/network containment, production registration, TypeScript/native composition, model/provider authority, broker effects or independent production/security release. The contract itself leaves those open.
+
+## Final artifact reconciliation
+
+`reviewed-stage-and-run.txt` SHA-256: `ab61924d92bee4fe717680ffa440e86efe9771f603c7dbe78ca64b7030296603`; `reviewed-verify-and-clean.txt`: `89bf2970333a0c5e6083c7b63d14db58ff3fefb466be16d0a114e11035b1defb`. The final `record.md` describes the root/local denominators accurately and carries the unqualified production surfaces explicitly. Its additional `existing-vitest.txt` records 3 files/16 tests passed; this reviewer read that output but did not independently rerun those Vitest tests. Its `local-tests.txt` agrees with the independently reproduced 5 passed/24 skipped local result.

@@ -1,0 +1,113 @@
+{
+  "scope": "MEDIUM-2 M2.2 DESTRUCTIVE TOCTOU AND WRITER EXCLUSION",
+  "inputs": [
+    "ge04-b1a-destructive-site-review.json",
+    "ge04-b1a-writer-exclusion-review.json",
+    "ge04-b1a-journal-recovery-review.json"
+  ],
+  "reviewed_named_removal_sites": [
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 531,
+      "operation": "inner directory removal",
+      "source": "bindings(c)&&budget_ok()&&unlinkat(c->outer,name,AT_REMOVEDIR)==0;",
+      "hazard": "NAME_BASED_UNLINK_AFTER_SEPARATE_CHECK",
+      "precondition": "Independently establish exclusive write authority for every namespace/mount view of the parent until mutation; or redesign to avoid name-based identity race.",
+      "author_decision": "NO_ATOMIC_IDENTITY_GUARANTEE_FROM_FSTATAT_PLUS_UNLINKAT",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 538,
+      "operation": "journal removal",
+      "source": "return intent(c->work,name,&r)&&records_equal(&r,&c->record)&&budget_ok()&&unlinkat(c->work,name,0)==0;",
+      "hazard": "NAME_BASED_UNLINK_AFTER_SEPARATE_CHECK",
+      "precondition": "Independently establish exclusive write authority for every namespace/mount view of the parent until mutation; or redesign to avoid name-based identity race.",
+      "author_decision": "NO_ATOMIC_IDENTITY_GUARANTEE_FROM_FSTATAT_PLUS_UNLINKAT",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 585,
+      "operation": "outer directory removal",
+      "source": "unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "hazard": "NAME_BASED_UNLINK_AFTER_SEPARATE_CHECK",
+      "precondition": "Independently establish exclusive write authority for every namespace/mount view of the parent until mutation; or redesign to avoid name-based identity race.",
+      "author_decision": "NO_ATOMIC_IDENTITY_GUARANTEE_FROM_FSTATAT_PLUS_UNLINKAT",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 675,
+      "operation": "unpublished temp removal",
+      "source": "!bindings(c)||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "hazard": "NAME_BASED_UNLINK_AFTER_SEPARATE_CHECK",
+      "precondition": "Independently establish exclusive write authority for every namespace/mount view of the parent until mutation; or redesign to avoid name-based identity race.",
+      "author_decision": "NO_ATOMIC_IDENTITY_GUARANTEE_FROM_FSTATAT_PLUS_UNLINKAT",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 331,
+      "operation": "journal artifact removal",
+      "source": "return unlinkat(c->work,name,0)==0;",
+      "hazard": "NAME_BASED_UNLINK_AFTER_SEPARATE_CHECK",
+      "precondition": "Independently establish exclusive write authority for every namespace/mount view of the parent until mutation; or redesign to avoid name-based identity race.",
+      "author_decision": "NO_ATOMIC_IDENTITY_GUARANTEE_FROM_FSTATAT_PLUS_UNLINKAT",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 353,
+      "operation": "worker leaf removal",
+      "source": "if(!bindings(c)||!empty(c)||unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "hazard": "NAME_BASED_UNLINK_AFTER_SEPARATE_CHECK",
+      "precondition": "Independently establish exclusive write authority for every namespace/mount view of the parent until mutation; or redesign to avoid name-based identity race.",
+      "author_decision": "NO_ATOMIC_IDENTITY_GUARANTEE_FROM_FSTATAT_PLUS_UNLINKAT",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 428,
+      "operation": "sweep worker leaf removal",
+      "source": "if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}",
+      "hazard": "NAME_BASED_UNLINK_AFTER_SEPARATE_CHECK",
+      "precondition": "Independently establish exclusive write authority for every namespace/mount view of the parent until mutation; or redesign to avoid name-based identity race.",
+      "author_decision": "NO_ATOMIC_IDENTITY_GUARANTEE_FROM_FSTATAT_PLUS_UNLINKAT",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 438,
+      "operation": "unpublished temp removal",
+      "source": "fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "hazard": "NAME_BASED_UNLINK_AFTER_SEPARATE_CHECK",
+      "precondition": "Independently establish exclusive write authority for every namespace/mount view of the parent until mutation; or redesign to avoid name-based identity race.",
+      "author_decision": "NO_ATOMIC_IDENTITY_GUARANTEE_FROM_FSTATAT_PLUS_UNLINKAT",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    }
+  ],
+  "threats": [
+    "uncooperative privileged writer with directory write access",
+    "replacement via alternate mount or namespace path",
+    "record substitution between canonical read and unlink",
+    "cgroup name substitution between fd custody check and rmdir",
+    "crash after mutation before directory fsync"
+  ],
+  "confirmed_existing_controls": [
+    "pinned descriptors and directory ancestry checks",
+    "root-owned restrictive directories and regular files",
+    "cooperative exclusive flock",
+    "canonical intent and recorded inode comparisons",
+    "fail-closed quarantine on missing durable sweep intent"
+  ],
+  "unproven_assumptions": [
+    "no privileged uncooperative writer can mutate parent",
+    "no writable alternate mount of same underlying directory",
+    "journal content and directory entry stable through unlink",
+    "filesystem persistence guarantees for interrupted birth and cleanup"
+  ],
+  "safe_author_disposition": "DO_NOT_CLAIM_M2_2_CLOSED_OR_ADD_NONATOMIC_RECHECK_AS_A_RACE_FIX",
+  "required_followup": "Independent threat-model approval, privilege and mount-writer enumeration, controlled adversarial race/crash tests, then design-reviewed remediation.",
+  "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+}

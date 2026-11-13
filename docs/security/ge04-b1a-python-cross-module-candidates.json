@@ -1,0 +1,279 @@
+{
+  "method": "PYTHON_AST_DIRECT_IMPORT_CALL_CANDIDATES_NOT_RUNTIME_VERIFIED",
+  "entries": [
+    {
+      "source": "bootstrap_publisher.py",
+      "line": 94,
+      "callee": "parse_bootstrap_binding",
+      "target": "bootstrap_binding.py:parse_bootstrap_binding",
+      "target_declared": true
+    },
+    {
+      "source": "bootstrap_receiver.py",
+      "line": 82,
+      "callee": "read_sealed_bootstrap_binding",
+      "target": "bootstrap_binding.py:read_sealed_bootstrap_binding",
+      "target_declared": true
+    },
+    {
+      "source": "bounded_job_signal_observer.py",
+      "line": 29,
+      "callee": "JobEventWindow",
+      "target": "systemd_job_event_contract.py:JobEventWindow",
+      "target_declared": true
+    },
+    {
+      "source": "bounded_phase_observer.py",
+      "line": 25,
+      "callee": "require_unprivileged",
+      "target": "unprivileged_observer.py:require_unprivileged",
+      "target_declared": true
+    },
+    {
+      "source": "bounded_phase_observer.py",
+      "line": 37,
+      "callee": "parse_bootstrap_binding",
+      "target": "bootstrap_binding.py:parse_bootstrap_binding",
+      "target_declared": true
+    },
+    {
+      "source": "cross_source_birth_reconciliation.py",
+      "line": 30,
+      "callee": "parse_bootstrap_binding",
+      "target": "bootstrap_binding.py:parse_bootstrap_binding",
+      "target_declared": true
+    },
+    {
+      "source": "cross_source_birth_reconciliation.py",
+      "line": 43,
+      "callee": "canonical_prebirth",
+      "target": "prebirth_issuance_contract.py:canonical_prebirth",
+      "target_declared": true
+    },
+    {
+      "source": "cross_source_birth_reconciliation.py",
+      "line": 44,
+      "callee": "canonical_birth",
+      "target": "prebirth_issuance_contract.py:canonical_birth",
+      "target_declared": true
+    },
+    {
+      "source": "cross_source_birth_reconciliation.py",
+      "line": 53,
+      "callee": "ExclusiveUnitBirthHandoff",
+      "target": "exclusive_birth_handoff.py:ExclusiveUnitBirthHandoff",
+      "target_declared": true
+    },
+    {
+      "source": "cross_source_birth_reconciliation.py",
+      "line": 60,
+      "callee": "job_removed_diagnostic",
+      "target": "systemd_job_event_contract.py:job_removed_diagnostic",
+      "target_declared": true
+    },
+    {
+      "source": "exclusive_birth_handoff.py",
+      "line": 75,
+      "callee": "canonical_prebirth",
+      "target": "prebirth_issuance_contract.py:canonical_prebirth",
+      "target_declared": true
+    },
+    {
+      "source": "isolated_job_signal_worker.py",
+      "line": 44,
+      "callee": "JobEventWindow",
+      "target": "systemd_job_event_contract.py:JobEventWindow",
+      "target_declared": true
+    },
+    {
+      "source": "isolated_job_signal_worker.py",
+      "line": 48,
+      "callee": "observe_fixed_job_signal",
+      "target": "systemd_job_signal_observer.py:observe_fixed_job_signal",
+      "target_declared": true
+    },
+    {
+      "source": "isolated_phase_observer_worker.py",
+      "line": 23,
+      "callee": "require_unprivileged",
+      "target": "unprivileged_observer.py:require_unprivileged",
+      "target_declared": true
+    },
+    {
+      "source": "isolated_phase_observer_worker.py",
+      "line": 25,
+      "callee": "parse_bootstrap_binding",
+      "target": "bootstrap_binding.py:parse_bootstrap_binding",
+      "target_declared": true
+    },
+    {
+      "source": "isolated_phase_observer_worker.py",
+      "line": 26,
+      "callee": "corroborate_existing_approval",
+      "target": "protected_approval_observer.py:corroborate_existing_approval",
+      "target_declared": true
+    },
+    {
+      "source": "isolated_phase_observer_worker.py",
+      "line": 27,
+      "callee": "observe_manager_and_kernel",
+      "target": "unit_kernel_observer.py:observe_manager_and_kernel",
+      "target_declared": true
+    },
+    {
+      "source": "isolated_phase_observer_worker.py",
+      "line": 28,
+      "callee": "corroborate_existing_approval",
+      "target": "protected_approval_observer.py:corroborate_existing_approval",
+      "target_declared": true
+    },
+    {
+      "source": "phase_controller.py",
+      "line": 58,
+      "callee": "parse_bootstrap_binding",
+      "target": "bootstrap_binding.py:parse_bootstrap_binding",
+      "target_declared": true
+    },
+    {
+      "source": "phase_controller.py",
+      "line": 75,
+      "callee": "require_unprivileged",
+      "target": "unprivileged_observer.py:require_unprivileged",
+      "target_declared": true
+    },
+    {
+      "source": "phase_controller.py",
+      "line": 106,
+      "callee": "require_unprivileged",
+      "target": "unprivileged_observer.py:require_unprivileged",
+      "target_declared": true
+    },
+    {
+      "source": "prebirth_fixture_journal.py",
+      "line": 66,
+      "callee": "canonical_prebirth",
+      "target": "prebirth_issuance_contract.py:canonical_prebirth",
+      "target_declared": true
+    },
+    {
+      "source": "prebirth_fixture_journal.py",
+      "line": 86,
+      "callee": "canonical_prebirth",
+      "target": "prebirth_issuance_contract.py:canonical_prebirth",
+      "target_declared": true
+    },
+    {
+      "source": "prebirth_issuance_contract.py",
+      "line": 144,
+      "callee": "parse_bootstrap_binding",
+      "target": "bootstrap_binding.py:parse_bootstrap_binding",
+      "target_declared": true
+    },
+    {
+      "source": "protected_approval_observer.py",
+      "line": 91,
+      "callee": "require_unprivileged",
+      "target": "unprivileged_observer.py:require_unprivileged",
+      "target_declared": true
+    },
+    {
+      "source": "protected_owner_review_boundary.py",
+      "line": 40,
+      "callee": "canonical_prebirth",
+      "target": "prebirth_issuance_contract.py:canonical_prebirth",
+      "target_declared": true
+    },
+    {
+      "source": "systemd_job_signal_observer.py",
+      "line": 37,
+      "callee": "JobEventWindow",
+      "target": "systemd_job_event_contract.py:JobEventWindow",
+      "target_declared": true
+    },
+    {
+      "source": "transaction_consumption_fixture.py",
+      "line": 53,
+      "callee": "_fixture_directory",
+      "target": "prebirth_fixture_journal.py:_fixture_directory",
+      "target_declared": true
+    },
+    {
+      "source": "transaction_consumption_fixture.py",
+      "line": 83,
+      "callee": "_fixture_directory",
+      "target": "prebirth_fixture_journal.py:_fixture_directory",
+      "target_declared": true
+    },
+    {
+      "source": "transaction_consumption_fixture.py",
+      "line": 86,
+      "callee": "_read_exact_file",
+      "target": "prebirth_fixture_journal.py:_read_exact_file",
+      "target_declared": true
+    },
+    {
+      "source": "transaction_consumption_fixture.py",
+      "line": 87,
+      "callee": "canonical_prebirth",
+      "target": "prebirth_issuance_contract.py:canonical_prebirth",
+      "target_declared": true
+    },
+    {
+      "source": "transaction_consumption_fixture.py",
+      "line": 121,
+      "callee": "_read_exact_file",
+      "target": "prebirth_fixture_journal.py:_read_exact_file",
+      "target_declared": true
+    },
+    {
+      "source": "transaction_consumption_fixture.py",
+      "line": 125,
+      "callee": "reconcile_birth_packet",
+      "target": "cross_source_birth_reconciliation.py:reconcile_birth_packet",
+      "target_declared": true
+    },
+    {
+      "source": "transaction_consumption_fixture.py",
+      "line": 128,
+      "callee": "canonical_prebirth",
+      "target": "prebirth_issuance_contract.py:canonical_prebirth",
+      "target_declared": true
+    },
+    {
+      "source": "transaction_consumption_fixture.py",
+      "line": 134,
+      "callee": "_read_exact_file",
+      "target": "prebirth_fixture_journal.py:_read_exact_file",
+      "target_declared": true
+    },
+    {
+      "source": "unit_kernel_observer.py",
+      "line": 92,
+      "callee": "require_unprivileged",
+      "target": "unprivileged_observer.py:require_unprivileged",
+      "target_declared": true
+    },
+    {
+      "source": "unit_kernel_observer.py",
+      "line": 181,
+      "callee": "require_unprivileged",
+      "target": "unprivileged_observer.py:require_unprivileged",
+      "target_declared": true
+    },
+    {
+      "source": "unit_kernel_observer.py",
+      "line": 182,
+      "callee": "observe_fixed_systemd_unit",
+      "target": "systemd_unit_observer.py:observe_fixed_systemd_unit",
+      "target_declared": true
+    },
+    {
+      "source": "unit_kernel_observer.py",
+      "line": 186,
+      "callee": "observe_fixed_systemd_unit",
+      "target": "systemd_unit_observer.py:observe_fixed_systemd_unit",
+      "target_declared": true
+    }
+  ],
+  "limitations": "No dynamic imports, attribute alias propagation, indirect calls, class method resolution or runtime binding proof."
+}

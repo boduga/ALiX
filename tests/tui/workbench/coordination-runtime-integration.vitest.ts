@@ -1,3 +1,4 @@
+// Historical loop behavior only: production refusal is mocked in this suite.
 import { createWorkbenchRenderHarness } from '../../fixtures/tui/workbench-render-harness.js';
 import { TimelineBuilder } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -99,7 +100,7 @@ async function fixture(executorInput: CoordinationWorkerExecutor | ((store: Appr
   return { cwd, id, log, store, approvalStore, session, state, plan, config, executor, handlers };
 }
 
-describe('Phase9 public coordination port with real handlers and scheduler', () => {
+describe('historical coordination handlers and scheduler (production refusal mocked)', () => {
   // Covers dispatch approval, owned-write authorization, and independent review.
   it('resumes an approved worker through the configured provider and verifies its owned artifact', async () => {
     const consumeProbe = vi.spyOn(ApprovalStore.prototype, 'consumeApproved');
@@ -203,7 +204,7 @@ describe('Phase9 public coordination port with real handlers and scheduler', () 
     }
   }, 120_000);
 
-  it('qualifies an in-process owned write and reviewer read under explicit test policy', async () => {
+  it('exercises historical owned write and reviewer read with production refusal mocked', async () => {
     const f = await fixture(new DefaultWorkerExecutor(), 1);
     const policyGateSpy = vi.spyOn(PolicyGate.prototype, 'evaluateToolCall');
     f.config.permissions.default = 'ask';
@@ -431,3 +432,6 @@ describe('Phase9 public coordination port with real handlers and scheduler', () 
     } finally { await scheduler.shutdown(); }
   });
 });
+
+// Test-only module substitution; no runtime flag can enable this path.
+vi.mock("../../../src/agents/worker-task-supervisor.js", () => ({requireTaskWorkerSupervisor: vi.fn()}));

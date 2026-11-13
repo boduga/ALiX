@@ -1,0 +1,5467 @@
+{
+  "scope": "A03-02 compiler object symbol reconciliation for 365 C candidates without identified sensitive sinks",
+  "reviewed_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+  "files_compiled": 30,
+  "candidates": 365,
+  "category_counts": {
+    "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK": 86,
+    "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED": 20,
+    "OBJECT_LOCAL_DEFINITION_LEXICAL_MISS": 3,
+    "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED": 247,
+    "OBJECT_UNDEFINED_WITH_REPOSITORY_DEFINITION": 9
+  },
+  "entries": [
+    {
+      "file": "broker-peer-probe.c",
+      "symbol": "__errno_location",
+      "source_sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "symbol": "fflush",
+      "source_sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "symbol": "fprintf",
+      "source_sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "symbol": "memcpy",
+      "source_sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "symbol": "perror",
+      "source_sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "symbol": "printf",
+      "source_sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "symbol": "puts",
+      "source_sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "symbol": "signal",
+      "source_sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "symbol": "strcmp",
+      "source_sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "symbol": "strlen",
+      "source_sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "symbol": "strtoul",
+      "source_sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "symbol": "fstat",
+      "source_sha256": "c44a068849500e0c97b87673ab187c754831d2dc1d8ae4da725647618cbec041",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "symbol": "fstatfs",
+      "source_sha256": "c44a068849500e0c97b87673ab187c754831d2dc1d8ae4da725647618cbec041",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "symbol": "lseek",
+      "source_sha256": "c44a068849500e0c97b87673ab187c754831d2dc1d8ae4da725647618cbec041",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "symbol": "memcmp",
+      "source_sha256": "c44a068849500e0c97b87673ab187c754831d2dc1d8ae4da725647618cbec041",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "symbol": "puts",
+      "source_sha256": "c44a068849500e0c97b87673ab187c754831d2dc1d8ae4da725647618cbec041",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "symbol": "strchr",
+      "source_sha256": "c44a068849500e0c97b87673ab187c754831d2dc1d8ae4da725647618cbec041",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "symbol": "strcmp",
+      "source_sha256": "c44a068849500e0c97b87673ab187c754831d2dc1d8ae4da725647618cbec041",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "symbol": "strlen",
+      "source_sha256": "c44a068849500e0c97b87673ab187c754831d2dc1d8ae4da725647618cbec041",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "symbol": "fprintf",
+      "source_sha256": "6574105e67ebf5dab7cfb0c4c7e699f8628e7102b63872f7a37236011c483c81",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "symbol": "fstat",
+      "source_sha256": "6574105e67ebf5dab7cfb0c4c7e699f8628e7102b63872f7a37236011c483c81",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "symbol": "fstatfs",
+      "source_sha256": "6574105e67ebf5dab7cfb0c4c7e699f8628e7102b63872f7a37236011c483c81",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "symbol": "memcpy",
+      "source_sha256": "6574105e67ebf5dab7cfb0c4c7e699f8628e7102b63872f7a37236011c483c81",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "symbol": "puts",
+      "source_sha256": "6574105e67ebf5dab7cfb0c4c7e699f8628e7102b63872f7a37236011c483c81",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "symbol": "strchr",
+      "source_sha256": "6574105e67ebf5dab7cfb0c4c7e699f8628e7102b63872f7a37236011c483c81",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "symbol": "strcmp",
+      "source_sha256": "6574105e67ebf5dab7cfb0c4c7e699f8628e7102b63872f7a37236011c483c81",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "symbol": "strlen",
+      "source_sha256": "6574105e67ebf5dab7cfb0c4c7e699f8628e7102b63872f7a37236011c483c81",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "symbol": "__errno_location",
+      "source_sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "symbol": "fstat",
+      "source_sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "symbol": "fstatat",
+      "source_sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "symbol": "fstatfs",
+      "source_sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "symbol": "geteuid",
+      "source_sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "symbol": "memcpy",
+      "source_sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "symbol": "printf",
+      "source_sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "symbol": "strchr",
+      "source_sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "symbol": "strcmp",
+      "source_sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "symbol": "strlen",
+      "source_sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "symbol": "valid_name",
+      "source_sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+      "local_source_definition_line": 14,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-leaf-ownership-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "__errno_location",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "ack_exact",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": 247,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "ack_phase",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": 239,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "begin_operation",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": 63,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "budget_ok",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": 68,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "clock_gettime",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "clock_ms",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": 58,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "closedir",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "control_custody",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": 179,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "event",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": 280,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "event_until",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": 270,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "fdopendir",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "fflush",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "fstat",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "fstatat",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "fstatfs",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "getegid",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "geteuid",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "getgid",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "getpid",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "getppid",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "getrandom",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "getuid",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "gnu_dev_makedev",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "hex_string",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": 140,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "inner_custody",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": 523,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "intent_text",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": 152,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "lseek",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "namespace_stat",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": 346,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "pause",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "printf",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "raise",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "records_equal",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": 167,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "regular_root",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": 94,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "root_directory",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": 75,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "same_inode",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": 72,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "setrlimit",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "signal",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "snprintf",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "sscanf",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "stat",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "strchr",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "strcmp",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "strcpy",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "strlen",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "strncmp",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "strrchr",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "strspn",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "strstr",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "strtok_r",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "strtol",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "strtoull",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "symbol": "usleep",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "__errno_location",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "clock_gettime",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "clock_ms",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 46,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "closedir",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "control_custody",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 160,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "control_stat",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 145,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "empty",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 192,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "event",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 200,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "fdopendir",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "fflush",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "fstat",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "fstatat",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "fstatfs",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "getegid",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "geteuid",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "getgid",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "getgroups",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "getrandom",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "getresgid",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "getresuid",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "getuid",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "gnu_dev_makedev",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "hex_string",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 114,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "intent_text",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 126,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "lseek",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "members",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 181,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "pause",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "printf",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "raise",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "records_equal",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 141,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "regular_root",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 93,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "regular_root_stat",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 88,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "root_directory",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 71,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "root_directory_stat",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 68,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "root_identity",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 65,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-cgroup-custody.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-dispatch-intent.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-dispatch-preparation.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-keeper-custody.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-mount-namespace.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-systemd-transaction.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "root_identity_of",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 62,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "root_owned",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 56,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "same_inode",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 51,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-runtime-view-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "signal",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "snprintf",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "sscanf",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "strchr",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "strcmp",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "strcpy",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "strlen",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "strncmp",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "strrchr",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "strspn",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "strtok_r",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "strtol",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "strtoull",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "sweep_candidate_allowed",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": 398,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "symbol": "usleep",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup2-fixed-preflight.c",
+      "symbol": "__errno_location",
+      "source_sha256": "3f05def25625b16ef11429b593728d3db1f59196f44f66386a6daae497017c7e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup2-fixed-preflight.c",
+      "symbol": "fstat",
+      "source_sha256": "3f05def25625b16ef11429b593728d3db1f59196f44f66386a6daae497017c7e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup2-fixed-preflight.c",
+      "symbol": "fstatfs",
+      "source_sha256": "3f05def25625b16ef11429b593728d3db1f59196f44f66386a6daae497017c7e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup2-fixed-preflight.c",
+      "symbol": "geteuid",
+      "source_sha256": "3f05def25625b16ef11429b593728d3db1f59196f44f66386a6daae497017c7e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup2-fixed-preflight.c",
+      "symbol": "puts",
+      "source_sha256": "3f05def25625b16ef11429b593728d3db1f59196f44f66386a6daae497017c7e",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup2-mount-preflight.c",
+      "symbol": "__errno_location",
+      "source_sha256": "12e3e18fc3956fb2375c5eaa0f7916c572a91cc8948d5a60f732cc7856380c7c",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup2-mount-preflight.c",
+      "symbol": "fstat",
+      "source_sha256": "12e3e18fc3956fb2375c5eaa0f7916c572a91cc8948d5a60f732cc7856380c7c",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup2-mount-preflight.c",
+      "symbol": "fstatfs",
+      "source_sha256": "12e3e18fc3956fb2375c5eaa0f7916c572a91cc8948d5a60f732cc7856380c7c",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup2-mount-preflight.c",
+      "symbol": "memcpy",
+      "source_sha256": "12e3e18fc3956fb2375c5eaa0f7916c572a91cc8948d5a60f732cc7856380c7c",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup2-mount-preflight.c",
+      "symbol": "puts",
+      "source_sha256": "12e3e18fc3956fb2375c5eaa0f7916c572a91cc8948d5a60f732cc7856380c7c",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup2-mount-preflight.c",
+      "symbol": "strlen",
+      "source_sha256": "12e3e18fc3956fb2375c5eaa0f7916c572a91cc8948d5a60f732cc7856380c7c",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "diagnostic-deadline.c",
+      "symbol": "__errno_location",
+      "source_sha256": "aa876e75acd520a1085836d3d000fd0802cb3d2321f2687a128d10886ed1f6fd",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "diagnostic-deadline.c",
+      "symbol": "clock_gettime",
+      "source_sha256": "aa876e75acd520a1085836d3d000fd0802cb3d2321f2687a128d10886ed1f6fd",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "diagnostic-deadline.c",
+      "symbol": "ge04_deadline_remaining",
+      "source_sha256": "aa876e75acd520a1085836d3d000fd0802cb3d2321f2687a128d10886ed1f6fd",
+      "local_source_definition_line": 34,
+      "object_symbol_types": [
+        "T"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "diagnostic-deadline.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "diagnostic-deadline.c",
+      "symbol": "monotonic_ns",
+      "source_sha256": "aa876e75acd520a1085836d3d000fd0802cb3d2321f2687a128d10886ed1f6fd",
+      "local_source_definition_line": 13,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "diagnostic-deadline.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "diagnostic-fd-wait.c",
+      "symbol": "__errno_location",
+      "source_sha256": "6c947418f6cdb90431b5152b2300c3f709b5fa7b090a5cb9ff8d249af1a2f575",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "diagnostic-fd-wait.c",
+      "symbol": "ge04_deadline_check",
+      "source_sha256": "6c947418f6cdb90431b5152b2300c3f709b5fa7b090a5cb9ff8d249af1a2f575",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "diagnostic-deadline.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "OBJECT_UNDEFINED_WITH_REPOSITORY_DEFINITION",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "diagnostic-fd-wait.c",
+      "symbol": "ge04_deadline_quarantine",
+      "source_sha256": "6c947418f6cdb90431b5152b2300c3f709b5fa7b090a5cb9ff8d249af1a2f575",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "diagnostic-deadline.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "OBJECT_UNDEFINED_WITH_REPOSITORY_DEFINITION",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "diagnostic-fd-wait.c",
+      "symbol": "ge04_deadline_remaining",
+      "source_sha256": "6c947418f6cdb90431b5152b2300c3f709b5fa7b090a5cb9ff8d249af1a2f575",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "diagnostic-deadline.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "OBJECT_UNDEFINED_WITH_REPOSITORY_DEFINITION",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "symbol": "__errno_location",
+      "source_sha256": "269f48509a139586e52b49675ac148921176e6fc6cfd265243591b432044fc83",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "symbol": "fprintf",
+      "source_sha256": "269f48509a139586e52b49675ac148921176e6fc6cfd265243591b432044fc83",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "symbol": "strerror",
+      "source_sha256": "269f48509a139586e52b49675ac148921176e6fc6cfd265243591b432044fc83",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "exec-pinned.c",
+      "symbol": "__errno_location",
+      "source_sha256": "5e1363d9e07961f1403d9a3662f0f123c0991efa37025719148ab6f50253335f",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "exec-pinned.c",
+      "symbol": "fprintf",
+      "source_sha256": "5e1363d9e07961f1403d9a3662f0f123c0991efa37025719148ab6f50253335f",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "exec-pinned.c",
+      "symbol": "strerror",
+      "source_sha256": "5e1363d9e07961f1403d9a3662f0f123c0991efa37025719148ab6f50253335f",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "__errno_location",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "chdir",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "die",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": 21,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "isolated-worker-launcher.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "fprintf",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "fstat",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "getegid",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "geteuid",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "getgid",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "getgroups",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "getresgid",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "getresuid",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "getuid",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "lstat",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "memcpy",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "raise",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "strcmp",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "strlen",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "strtoul",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "trusted_directory",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": 31,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "isolated-worker-launcher.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "symbol": "uid_arg",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "isolated-worker-launcher.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "OBJECT_LOCAL_DEFINITION_LEXICAL_MISS",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "nonexecuting-sender-contract.c",
+      "symbol": "__errno_location",
+      "source_sha256": "224f05c939b1d0b73579a1efe781d85a0bbaf6e70224bee1610bfc9debcdcc8b",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "nonexecuting-sender-contract.c",
+      "symbol": "quarantine",
+      "source_sha256": "224f05c939b1d0b73579a1efe781d85a0bbaf6e70224bee1610bfc9debcdcc8b",
+      "local_source_definition_line": 5,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "nonexecuting-sender-contract.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "peercred.c",
+      "symbol": "__errno_location",
+      "source_sha256": "3048a51bc84b8ba8ee9871a27d07b91ec674ff52b46612d08dd429408f36d983",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "peercred.c",
+      "symbol": "fprintf",
+      "source_sha256": "3048a51bc84b8ba8ee9871a27d07b91ec674ff52b46612d08dd429408f36d983",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "peercred.c",
+      "symbol": "printf",
+      "source_sha256": "3048a51bc84b8ba8ee9871a27d07b91ec674ff52b46612d08dd429408f36d983",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "peercred.c",
+      "symbol": "strerror",
+      "source_sha256": "3048a51bc84b8ba8ee9871a27d07b91ec674ff52b46612d08dd429408f36d983",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "symbol": "__errno_location",
+      "source_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "symbol": "fprintf",
+      "source_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "symbol": "pause",
+      "source_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "symbol": "perror",
+      "source_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "symbol": "pinned_alive",
+      "source_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "local_source_definition_line": 23,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "pidfd-lifecycle-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "symbol": "puts",
+      "source_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "symbol": "strcmp",
+      "source_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "symbol": "__errno_location",
+      "source_sha256": "776ba0c0c885a52afb2d951279dc4a757c0c432b9bb09b015cfe77841142b695",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "symbol": "parse_pid",
+      "source_sha256": "776ba0c0c885a52afb2d951279dc4a757c0c432b9bb09b015cfe77841142b695",
+      "local_source_definition_line": 15,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "pidfd-qualification.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "symbol": "perror",
+      "source_sha256": "776ba0c0c885a52afb2d951279dc4a757c0c432b9bb09b015cfe77841142b695",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "symbol": "strcmp",
+      "source_sha256": "776ba0c0c885a52afb2d951279dc4a757c0c432b9bb09b015cfe77841142b695",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "symbol": "strtol",
+      "source_sha256": "776ba0c0c885a52afb2d951279dc4a757c0c432b9bb09b015cfe77841142b695",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "__errno_location",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "fstat",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "fstatat",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "ge04_attempt_custody_init",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": 46,
+      "object_symbol_types": [
+        "T"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-attempt-fence.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "ge04_attempt_fence_encode",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": 64,
+      "object_symbol_types": [
+        "T"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-attempt-fence.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "ge04_open_protected_directory",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-prebirth-journal.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "OBJECT_UNDEFINED_WITH_REPOSITORY_DEFINITION",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "ge04_prebirth_encode",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-prebirth-journal.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "OBJECT_UNDEFINED_WITH_REPOSITORY_DEFINITION",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "getegid",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "geteuid",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "getgid",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "getrandom",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "getuid",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "is_root",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": 15,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-attempt-fence.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "memcmp",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "memcpy",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "snprintf",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "strcmp",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "symbol": "strnlen",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "symbol": "__errno_location",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "symbol": "fstat",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "symbol": "fstatat",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "symbol": "fstatfs",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "symbol": "ge04_cgroup_custody_init",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "local_source_definition_line": 23,
+      "object_symbol_types": [
+        "T"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-cgroup-custody.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "symbol": "getegid",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "symbol": "geteuid",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "symbol": "getgid",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "symbol": "getuid",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "symbol": "memset",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "symbol": "name_binds",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "local_source_definition_line": 77,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-cgroup-custody.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "symbol": "root_identity",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "local_source_definition_line": 19,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-cgroup-custody.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-dispatch-intent.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-dispatch-preparation.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-keeper-custody.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-mount-namespace.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-systemd-transaction.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "symbol": "same",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "local_source_definition_line": 71,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-cgroup-custody.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "symbol": "snapshot",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "local_source_definition_line": 49,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-cgroup-custody.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "symbol": "statx",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "__errno_location",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "fstat",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "fstatat",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "ge04_dispatch_intent_encode",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": 35,
+      "object_symbol_types": [
+        "T"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-dispatch-intent.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "ge04_dispatch_intent_init",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": 57,
+      "object_symbol_types": [
+        "T"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-dispatch-intent.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "ge04_open_protected_directory",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-prebirth-journal.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "OBJECT_UNDEFINED_WITH_REPOSITORY_DEFINITION",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "ge04_prebirth_encode",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-prebirth-journal.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "OBJECT_UNDEFINED_WITH_REPOSITORY_DEFINITION",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "getegid",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "geteuid",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "getgid",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "getuid",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "manager_name",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": 25,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-dispatch-intent.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "matches_prepared",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": 116,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-dispatch-intent.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "memcmp",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "root_identity",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": 21,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-cgroup-custody.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-dispatch-intent.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-dispatch-preparation.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-keeper-custody.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-mount-namespace.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-systemd-transaction.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "snprintf",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "symbol": "strcmp",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "symbol": "__errno_location",
+      "source_sha256": "2035b4b5a6d560a69075f7cb7ca8d995734da822738f76df92a8d98805d3a2f3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "symbol": "expected_headers",
+      "source_sha256": "2035b4b5a6d560a69075f7cb7ca8d995734da822738f76df92a8d98805d3a2f3",
+      "local_source_definition_line": 36,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-dispatch-preparation.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "symbol": "ge04_append_fixed_transient_request",
+      "source_sha256": "2035b4b5a6d560a69075f7cb7ca8d995734da822738f76df92a8d98805d3a2f3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-systemd-request.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "OBJECT_UNDEFINED_WITH_REPOSITORY_DEFINITION",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "symbol": "ge04_prepared_dispatch_init",
+      "source_sha256": "2035b4b5a6d560a69075f7cb7ca8d995734da822738f76df92a8d98805d3a2f3",
+      "local_source_definition_line": 25,
+      "object_symbol_types": [
+        "T"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-dispatch-preparation.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "symbol": "getegid",
+      "source_sha256": "2035b4b5a6d560a69075f7cb7ca8d995734da822738f76df92a8d98805d3a2f3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "symbol": "geteuid",
+      "source_sha256": "2035b4b5a6d560a69075f7cb7ca8d995734da822738f76df92a8d98805d3a2f3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "symbol": "getgid",
+      "source_sha256": "2035b4b5a6d560a69075f7cb7ca8d995734da822738f76df92a8d98805d3a2f3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "symbol": "getuid",
+      "source_sha256": "2035b4b5a6d560a69075f7cb7ca8d995734da822738f76df92a8d98805d3a2f3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "symbol": "root_identity",
+      "source_sha256": "2035b4b5a6d560a69075f7cb7ca8d995734da822738f76df92a8d98805d3a2f3",
+      "local_source_definition_line": 21,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-cgroup-custody.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-dispatch-intent.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-dispatch-preparation.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-keeper-custody.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-mount-namespace.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-systemd-transaction.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "symbol": "strcmp",
+      "source_sha256": "2035b4b5a6d560a69075f7cb7ca8d995734da822738f76df92a8d98805d3a2f3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "symbol": "__errno_location",
+      "source_sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "symbol": "alive",
+      "source_sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "local_source_definition_line": 120,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-keeper-custody.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "symbol": "denied",
+      "source_sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "local_source_definition_line": 21,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-keeper-custody.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "symbol": "fstat",
+      "source_sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "symbol": "ge04_keeper_custody_init",
+      "source_sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "local_source_definition_line": 27,
+      "object_symbol_types": [
+        "T"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-keeper-custody.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "symbol": "ge04_observe_unqualified_postbirth",
+      "source_sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-systemd-birth-observer.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "OBJECT_UNDEFINED_WITH_REPOSITORY_DEFINITION",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "symbol": "getegid",
+      "source_sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "symbol": "geteuid",
+      "source_sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "symbol": "getgid",
+      "source_sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "symbol": "getuid",
+      "source_sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "symbol": "memcmp",
+      "source_sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "symbol": "memcpy",
+      "source_sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "symbol": "parse_startticks",
+      "source_sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "local_source_definition_line": 72,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-keeper-custody.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "symbol": "root_identity",
+      "source_sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "local_source_definition_line": 23,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-cgroup-custody.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-dispatch-intent.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-dispatch-preparation.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-keeper-custody.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-mount-namespace.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-systemd-transaction.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "symbol": "snprintf",
+      "source_sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "symbol": "strchr",
+      "source_sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "symbol": "__errno_location",
+      "source_sha256": "3ea5c5a1bb21c35d3a6936891d4bc90c0c75a1c556d596f16ee395243dd80506",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "symbol": "decimal_id",
+      "source_sha256": "3ea5c5a1bb21c35d3a6936891d4bc90c0c75a1c556d596f16ee395243dd80506",
+      "local_source_definition_line": 45,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-mount-namespace.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "symbol": "fstat",
+      "source_sha256": "3ea5c5a1bb21c35d3a6936891d4bc90c0c75a1c556d596f16ee395243dd80506",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "symbol": "ge04_mount_namespace_init",
+      "source_sha256": "3ea5c5a1bb21c35d3a6936891d4bc90c0c75a1c556d596f16ee395243dd80506",
+      "local_source_definition_line": 23,
+      "object_symbol_types": [
+        "T"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-mount-namespace.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "symbol": "getegid",
+      "source_sha256": "3ea5c5a1bb21c35d3a6936891d4bc90c0c75a1c556d596f16ee395243dd80506",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "symbol": "geteuid",
+      "source_sha256": "3ea5c5a1bb21c35d3a6936891d4bc90c0c75a1c556d596f16ee395243dd80506",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "symbol": "getgid",
+      "source_sha256": "3ea5c5a1bb21c35d3a6936891d4bc90c0c75a1c556d596f16ee395243dd80506",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "symbol": "getpid",
+      "source_sha256": "3ea5c5a1bb21c35d3a6936891d4bc90c0c75a1c556d596f16ee395243dd80506",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "symbol": "getuid",
+      "source_sha256": "3ea5c5a1bb21c35d3a6936891d4bc90c0c75a1c556d596f16ee395243dd80506",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "symbol": "memcmp",
+      "source_sha256": "3ea5c5a1bb21c35d3a6936891d4bc90c0c75a1c556d596f16ee395243dd80506",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "symbol": "namespace_id",
+      "source_sha256": "3ea5c5a1bb21c35d3a6936891d4bc90c0c75a1c556d596f16ee395243dd80506",
+      "local_source_definition_line": 143,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-mount-namespace.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "symbol": "parse_mountinfo",
+      "source_sha256": "3ea5c5a1bb21c35d3a6936891d4bc90c0c75a1c556d596f16ee395243dd80506",
+      "local_source_definition_line": 63,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-mount-namespace.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "symbol": "root_identity",
+      "source_sha256": "3ea5c5a1bb21c35d3a6936891d4bc90c0c75a1c556d596f16ee395243dd80506",
+      "local_source_definition_line": 19,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-cgroup-custody.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-dispatch-intent.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-dispatch-preparation.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-keeper-custody.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-mount-namespace.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-systemd-transaction.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "symbol": "snprintf",
+      "source_sha256": "3ea5c5a1bb21c35d3a6936891d4bc90c0c75a1c556d596f16ee395243dd80506",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "symbol": "__errno_location",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "symbol": "exact_hex",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "local_source_definition_line": 26,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-prebirth-journal.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "symbol": "fstat",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "symbol": "fstatat",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "symbol": "ge04_prebirth_encode",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "local_source_definition_line": 35,
+      "object_symbol_types": [
+        "T"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-prebirth-journal.c",
+          "symbol_type": "T"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "symbol": "getegid",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "symbol": "geteuid",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "symbol": "getgid",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "symbol": "getuid",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "symbol": "memcmp",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "symbol": "original_file",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "local_source_definition_line": 77,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-prebirth-journal.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "symbol": "reset_custody",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "local_source_definition_line": 87,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-prebirth-journal.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "symbol": "root_parent_dir",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "local_source_definition_line": 68,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-prebirth-journal.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "symbol": "root_private_dir",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "local_source_definition_line": 59,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-prebirth-journal.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "symbol": "snprintf",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "symbol": "strnlen",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-birth-observer.c",
+      "symbol": "__errno_location",
+      "source_sha256": "2c83bf395265e723f5d5ed2892edac6879ad4f77a21c316c3ce2f3c13b6f7d36",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-birth-observer.c",
+      "symbol": "free",
+      "source_sha256": "2c83bf395265e723f5d5ed2892edac6879ad4f77a21c316c3ce2f3c13b6f7d36",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-birth-observer.c",
+      "symbol": "get_exact_string",
+      "source_sha256": "2c83bf395265e723f5d5ed2892edac6879ad4f77a21c316c3ce2f3c13b6f7d36",
+      "local_source_definition_line": 26,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-systemd-birth-observer.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-birth-observer.c",
+      "symbol": "get_invocation",
+      "source_sha256": "2c83bf395265e723f5d5ed2892edac6879ad4f77a21c316c3ce2f3c13b6f7d36",
+      "local_source_definition_line": 37,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-systemd-birth-observer.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-birth-observer.c",
+      "symbol": "memset",
+      "source_sha256": "2c83bf395265e723f5d5ed2892edac6879ad4f77a21c316c3ce2f3c13b6f7d36",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-birth-observer.c",
+      "symbol": "strcmp",
+      "source_sha256": "2c83bf395265e723f5d5ed2892edac6879ad4f77a21c316c3ce2f3c13b6f7d36",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-request.c",
+      "symbol": "__errno_location",
+      "source_sha256": "25218a14f73523a71bd451a304ac497273f0edcd3f85c53110e386a7a4d7a9a0",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-request.c",
+      "symbol": "field",
+      "source_sha256": "25218a14f73523a71bd451a304ac497273f0edcd3f85c53110e386a7a4d7a9a0",
+      "local_source_definition_line": 8,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-systemd-request.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "__errno_location",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "apply_job_event",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": 113,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-systemd-transaction.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "canonical_job_path",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": 95,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-systemd-transaction.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "current_root_manager",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": 38,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-systemd-transaction.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "getegid",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "geteuid",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "getgid",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "getuid",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "memcpy",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "poison",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": 103,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-systemd-transaction.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "root_identity",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": 24,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "cgroup-worker-qualification.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-cgroup-custody.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-dispatch-intent.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-dispatch-preparation.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-keeper-custody.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-mount-namespace.c",
+          "symbol_type": "t"
+        },
+        {
+          "file": "protected-systemd-transaction.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "snprintf",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "strcmp",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "strlen",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "strncmp",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "strnlen",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "symbol": "unique_owner",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "local_source_definition_line": 28,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "protected-systemd-transaction.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "__cmsg_nxthdr",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "__errno_location",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "clock_gettime",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "deadline",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "worker-stream.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "OBJECT_LOCAL_DEFINITION_LEXICAL_MISS",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "decimal",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": 53,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "worker-stream.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "four_ids",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": 77,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "worker-stream.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "fstat",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "getegid",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "geteuid",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "getgid",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "getsockname",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "getuid",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "htonl",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "memcmp",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "memcpy",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "memset",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "now_ms",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "worker-stream.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "OBJECT_LOCAL_DEFINITION_LEXICAL_MISS",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "ntohl",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "snprintf",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "sscanf",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [],
+      "repository_object_definitions": [],
+      "category": "NO_OBJECT_SYMBOL_MATCH_MACRO_INLINE_OR_ELIDED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "strchr",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "strcmp",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "strlen",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "strncmp",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "strrchr",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "strtok_r",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": null,
+      "object_symbol_types": [
+        "U"
+      ],
+      "repository_object_definitions": [],
+      "category": "OBJECT_UNDEFINED_EXTERNAL_TARGET_UNRESOLVED",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "symbol": "zero_hex",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "local_source_definition_line": 82,
+      "object_symbol_types": [
+        "t"
+      ],
+      "repository_object_definitions": [
+        {
+          "file": "worker-stream.c",
+          "symbol_type": "t"
+        }
+      ],
+      "category": "LOCAL_SOURCE_DEFINITION_NO_IDENTIFIED_SINK",
+      "candidate_sensitive_sinks": [],
+      "security_verdict": "PENDING"
+    }
+  ],
+  "status": "C_OBJECT_SYMBOL_RECONCILIATION_SEMANTIC_COMPLETENESS_OPEN",
+  "limitations": [
+    "nm object evidence is not a linked call graph or runtime dispatch proof",
+    "No object symbol may mean macro, inline expansion, compiler lowering, or lexical mismatch",
+    "External undefined symbols are not automatically libc, safe, or effect-free",
+    "A source definition without recognized sensitive sinks is not harmless",
+    "All 365 site effects and A03-02 semantic completeness remain pending"
+  ],
+  "security_hold": "ACTIVE"
+}

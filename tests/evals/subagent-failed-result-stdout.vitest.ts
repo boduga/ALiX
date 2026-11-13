@@ -1,110 +1,43 @@
-/**
- * subagent-failed-result-stdout.vitest.ts — the delegate failure contract.
- *
- * SubagentManager.spawn() parses the child's final result from STDOUT ONLY. The
- * child's catch path used to write its structured failed result to stderr, so
- * the parent never saw it: it fell back to the raw exit code and rejected with
- * a bare error string, discarding the `status`, `findings` and `error` the
- * child had actually produced.
- *
- * This test runs the real child process through the real CLI entry point and
- * asserts the contract end to end: a structured failure must be parseable from
- * stdout. It does not touch the network — the provider is the scripted mock,
- * which raises deterministically.
- */
-
-import { describe, it, expect } from "vitest";
-import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import { installEvalConfig } from "../../src/operations/evals/evals-runner.js";
-
-const here = dirname(fileURLToPath(import.meta.url));
-const repoRoot = join(here, "..", "..");
-const cliEntry = join(repoRoot, "dist", "src", "agents", "subagent-cli.js");
-
-/** Parse the last JSON line of stdout, exactly as SubagentManager.spawn does. */
-function lastJsonLine(stdout: string): unknown | null {
-  const lines = stdout.trim().split("\n").filter(Boolean);
-  for (let i = lines.length - 1; i >= 0; i--) {
-    try {
-      return JSON.parse(lines[i]);
-    } catch {
-      /* skip non-JSON lines */
-    }
-  }
-  return null;
-}
-
-/**
- * Run the child the way the real parent does: stdin is a PIPE that stays OPEN
- * for the child's lifetime. The child installs a parent-liveness watchdog that
- * terminates when stdin reaches EOF, so closing stdin early would abort the run
- * before the result is emitted — that would be testing the watchdog, not the
- * result contract.
- */
-function runChildWithOpenStdin(args: string[], env: NodeJS.ProcessEnv, cwd: string): Promise<{
-  stdout: string;
-  stderr: string;
-  code: number | null;
-}> {
-  return new Promise(resolve => {
-    const child = spawn(process.execPath, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    child.stdout?.on("data", d => { stdout += d.toString(); });
-    child.stderr?.on("data", d => { stderr += d.toString(); });
-    const timer = setTimeout(() => child.kill("SIGKILL"), 120_000);
-    child.on("close", code => {
-      clearTimeout(timer);
-      resolve({ stdout, stderr, code });
-    });
-    // Deliberately do NOT end stdin.
+/** Compiled legacy worker entries must refuse; stdout is no longer a parent protocol. */
+import {describe, it, expect} from 'vitest';
+import {spawn} from 'node:child_process';
+import {existsSync, mkdtempSync, rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {dirname, join, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const entries = [
+  {label: 'standalone worker', file: 'agents/subagent-cli.js', args: ['--subagent', 'worker', '--prompt', 'must not execute']},
+  {label: 'agent command', file: 'cli.js', args: ['agent', 'worker', 'must not execute']},
+  {label: 'run worker', file: 'cli.js', args: ['run', '--subagent', 'worker', '--prompt', 'must not execute']},
+  {label: 'run equals flag', file: 'cli.js', args: ['run', '--subagent=worker', '--prompt', 'must not execute']},
+  {label: 'run trailing worker flag', file: 'cli.js', args: ['run', 'must not execute', '--subagent', 'worker']},
+];
+function run(file: string, args: string[], cwd: string): Promise<{code: number | null; stdout: string; stderr: string}> {
+  return new Promise((yes, no) => {
+    const child = spawn(process.execPath, [file, ...args], {cwd, stdio: ['ignore', 'pipe', 'pipe'],
+      env: {PATH: process.env.PATH ?? '', HOME: cwd, USERPROFILE: cwd, XDG_CONFIG_HOME: cwd,
+        ...(process.env.SystemRoot ? {SystemRoot: process.env.SystemRoot} : {}), ALIX_NO_BANNER: '1'}});
+    let stdout = '', stderr = '';
+    // A startup diagnostic bound, not an agent lifetime limit: no worker may start.
+    const timer = setTimeout(() => child.kill('SIGKILL'), 15000);
+    child.stdout.on('data', chunk => {stdout += String(chunk);});
+    child.stderr.on('data', chunk => {stderr += String(chunk);});
+    child.once('error', error => {clearTimeout(timer); no(error);});
+    child.once('close', code => {clearTimeout(timer); yes({code, stdout, stderr});});
   });
 }
-
-describe("subagent CLI — failed result reaches the parent on stdout", () => {
-  it("build output exists (skip if the suite was not built)", () => {
-    // A missing build is an environment problem, not a contract failure, but we
-    // do not silently pass: the assertion is explicit about which it is.
-    if (!existsSync(cliEntry)) {
-      throw new Error(`dist build missing at ${cliEntry} — run tsc before this suite`);
-    }
-    expect(existsSync(cliEntry)).toBe(true);
-  });
-
-  it("emits a parseable structured failed result on stdout in json mode", async () => {
-    // The scripted provider raises on the first step, forcing the catch path.
-    const scenario = JSON.stringify({
-      steps: [{ kind: "error", error: "malformed tool call: missing required argument 'path'" }],
-    });
-
-    // The child resolves its provider from `.alix/config.json` in its cwd, so
-    // run it in an isolated eval cwd with the scripted-mock config installed —
-    // exactly how the runner sets up a delegate case.
-    const cwd = mkdtempSync(join(tmpdir(), "eval-stdout-"));
-    installEvalConfig(cwd);
-
+describe('compiled legacy entries refuse without configuration or model execution', () => {
+  // The 20s per-case allowance covers cold module startup on supported CI hosts.
+  it.each(entries)('$label is held before execution', async ({file, args}) => {
+    const entry = join(root, 'dist', 'src', file);
+    expect(existsSync(entry), 'fresh compiled output is required').toBe(true);
+    const cwd = mkdtempSync(join(tmpdir(), 'alix-entry-hold-'));
     try {
-      const proc = await runChildWithOpenStdin(
-        [cliEntry, "--subagent", "worker", "--task-id", "regression-stdout", "--session-id", "regression-session", "--prompt", "do the thing", "--output", "json"],
-        { ...process.env, ALIX_EVAL_SCENARIO: scenario },
-        cwd,
-      );
-
-      const parsed = lastJsonLine(proc.stdout) as
-        | { status?: string; error?: string }
-        | null;
-
-      // The contract under test: the parent can parse the child's failure.
-      expect(parsed, `stdout was:\n${proc.stdout}\n\nstderr was:\n${proc.stderr}`).not.toBeNull();
-      expect(parsed?.status).toBe("failed");
-      expect(typeof parsed?.error).toBe("string");
-      expect(parsed?.error).toContain("malformed tool call");
-    } finally {
-      rmSync(cwd, { recursive: true, force: true });
-    }
-  }, 180_000);
+      const result = await run(entry, args, cwd);
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain('SECURITY HOLD');
+      expect(result.stdout).not.toContain('"status":"success"');
+    } finally {rmSync(cwd, {recursive: true, force: true});}
+  }, 20000);
 });

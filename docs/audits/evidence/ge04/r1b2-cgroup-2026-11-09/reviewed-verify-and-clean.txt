@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Review artifact; run only after a verified successful suite, never on quarantine.
+set -euo pipefail
+qual_review_complete=1
+[[ "$qual_review_complete" == 1 ]] || { echo 'Root-scope review gate pending.' >&2; exit 64; }
+qual_receipt=/tmp/alix-ge04-r1b1-mandatory/docs/audits/evidence/ge04/r1b2-cgroup-2026-11-09/staging-identities.json
+qual_receipt_b64=$(base64 -w 0 "$qual_receipt")
+ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10 ubuntu@10.1.1.13 \
+ "/usr/bin/sudo -n /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C ALIX_GE04_STAGE_IDS_B64='$qual_receipt_b64' /usr/bin/python3 -I -S -" <<'VERIFY'
+import base64,datetime,hashlib,json,os,pathlib,stat,subprocess
+base=pathlib.Path('/run/ge04-cgroup-code')
+work=pathlib.Path('/run/ge04-cgroup-qualification')
+parent=pathlib.Path('/sys/fs/cgroup/system.slice/ge04-r1b2-qualification.service')
+unit=subprocess.check_output(['/usr/bin/systemctl','show','ge04-r1b2-qualification.service','--property=LoadState','--property=ActiveState'],text=True)
+fields=['ActiveState','SubState','InvocationID','MainPID','ExecMainStartTimestampMonotonic']
+witness=dict(line.split('=',1) for line in subprocess.check_output(['/usr/bin/systemctl','show','ge04-r2q-witness.service',*[f'--property={f}' for f in fields]],text=True).splitlines())
+expected={'ActiveState':'active','SubState':'running','InvocationID':'76b16df891ea439fb850303c99fdf0be','MainPID':'981','ExecMainStartTimestampMonotonic':'20927201'}
+rows=subprocess.check_output(['/usr/bin/ps','-eo','uid=,gid='],text=True).splitlines()
+count=sum(1 for row in rows if 20002 in map(int,row.split()))
+assert witness==expected and count==0 and not os.path.lexists(work) and not os.path.lexists(parent)
+assert 'ActiveState=inactive\n' in unit and 'LoadState=not-found\n' in unit,unit
+files={'native/ge04/cgroup-worker-qualification.c':0o400,'tests/agents/test_ge04_cgroup_worker.py':0o400,'bin/probe':0o500,'manifest.json':0o400}
+directories=['bin','tests/agents','tests','native/ge04','native','']
+for name in directories:
+    m=(base/name).lstat();assert stat.S_ISDIR(m.st_mode) and m.st_uid==0 and stat.S_IMODE(m.st_mode)==0o700
+expected=set(files)|set(directories)
+observed={}
+for path in [base,*base.rglob('*')]:
+    name=str(path.relative_to(base)) if path!=base else ''
+    m=path.lstat()
+    assert (name in directories and stat.S_ISDIR(m.st_mode)) or (name in files and stat.S_ISREG(m.st_mode)),name
+    observed[name]=[m.st_dev,m.st_ino]
+assert set(observed)==expected,observed
+encoded=os.environ['ALIX_GE04_STAGE_IDS_B64'];assert len(encoded)<=16384
+receipt=json.loads(base64.b64decode(encoded,validate=True))
+assert set(receipt)=={'schemaVersion','entries'} and type(receipt['schemaVersion']) is int and receipt['schemaVersion']==1
+assert isinstance(receipt['entries'],dict) and set(receipt['entries'])==expected
+for name,pair in receipt['entries'].items():
+    assert isinstance(pair,list) and len(pair)==2 and all(type(n) is int and 0<=n<=2**64-1 for n in pair) and pair[1]>0
+    assert pair==observed[name],name
+for name,mode in files.items():
+    m=(base/name).lstat();assert stat.S_ISREG(m.st_mode) and m.st_uid==0 and m.st_nlink==1 and stat.S_IMODE(m.st_mode)==mode
+manifest=json.loads((base/'manifest.json').read_text())
+assert set(manifest)=={'schemaVersion','sourceSha256','controllerSha256','binarySha256'} and manifest['schemaVersion']==1
+assert manifest['sourceSha256']=='5362bdb0b08586f51151f0b53519a48ababb557f9c31758283f3aab2ec06d757' and manifest['controllerSha256']=='5f65166afc7a66c8d56370b40df32a55f16c82b4adb9fddfaa4eab05985d4174'
+for key,name in [('sourceSha256','native/ge04/cgroup-worker-qualification.c'),('controllerSha256','tests/agents/test_ge04_cgroup_worker.py'),('binarySha256','bin/probe')]:
+    assert hashlib.sha256((base/name).read_bytes()).hexdigest()==manifest[key]
+# Fixed files only; no recursive removal, no units stopped, no cgroup writes.
+for name in files:(base/name).unlink()
+for name in directories:(base/name).rmdir()
+print(json.dumps({'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'witness':witness,'synthetic_process_count':count,'unit':unit,'work_absent':not os.path.lexists(work),'parent_absent':not os.path.lexists(parent),'staging_absent':not os.path.lexists(base)},indent=2))
+VERIFY

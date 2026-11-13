@@ -1,0 +1,1923 @@
+{
+  "scope": "A03-02 evidence dossiers for 50 C authority sites and 63 historical omissions",
+  "reviewed_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+  "c_authority_dossiers": [
+    {
+      "file": "broker-peer-probe.c",
+      "line": 31,
+      "source": "int client = accept4(listener, NULL, NULL, SOCK_CLOEXEC);",
+      "source_sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+      "apis": [
+        "accept4"
+      ],
+      "compiler_targets": [
+        "accept4"
+      ],
+      "effect_line": 31,
+      "effect_source": "int client = accept4(listener, NULL, NULL, SOCK_CLOEXEC);",
+      "effect_hypothesis": "SOCKET_ACCEPT",
+      "required_review": "Review peer identity, socket permissions and accepted descriptor lifetime",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "line": 58,
+      "source": "if(mkdirat(parent,argv[2],0700)){",
+      "source_sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+      "apis": [
+        "mkdirat"
+      ],
+      "compiler_targets": [
+        "mkdirat"
+      ],
+      "effect_line": 58,
+      "effect_source": "if(mkdirat(parent,argv[2],0700)){",
+      "effect_hypothesis": "FILESYSTEM_CREATION",
+      "required_review": "Review parent directory identity, mode and cleanup",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 354,
+      "source": "int status;pid_t got=waitpid(c->child[slot],&status,WNOHANG|WUNTRACED);",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "apis": [
+        "waitpid"
+      ],
+      "compiler_targets": [
+        "waitpid",
+        "waitpid"
+      ],
+      "effect_line": 354,
+      "effect_source": "int status;pid_t got=waitpid(c->child[slot],&status,WNOHANG|WUNTRACED);",
+      "effect_hypothesis": "PROCESS_REAP",
+      "required_review": "Review child ownership, PID reuse and wait state",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 405,
+      "source": "if(mount(NULL,\"/\",NULL,MS_REC|MS_PRIVATE,NULL))_exit(121);",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "apis": [
+        "mount"
+      ],
+      "compiler_targets": [
+        "mount",
+        "mount",
+        "_exit"
+      ],
+      "effect_line": 405,
+      "effect_source": "if(mount(NULL,\"/\",NULL,MS_REC|MS_PRIVATE,NULL))_exit(121);",
+      "effect_hypothesis": "MOUNT_MUTATION",
+      "required_review": "Review namespace, mount target, propagation and privileges",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 407,
+      "source": "if(mount(\"none\",\"/sys/fs/cgroup\",\"cgroup2\",MS_NOSUID|MS_NODEV|MS_NOEXEC,NULL))_exit(123);",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "apis": [
+        "mount"
+      ],
+      "compiler_targets": [
+        "mount",
+        "mount",
+        "mount",
+        "mount",
+        "_exit"
+      ],
+      "effect_line": 407,
+      "effect_source": "if(mount(\"none\",\"/sys/fs/cgroup\",\"cgroup2\",MS_NOSUID|MS_NODEV|MS_NOEXEC,NULL))_exit(123);",
+      "effect_hypothesis": "MOUNT_MUTATION",
+      "required_review": "Review namespace, mount target, propagation and privileges",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 443,
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "compiler_targets": [],
+      "effect_line": 445,
+      "effect_source": "c->child[slot]=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+      "effect_hypothesis": "PROCESS_CGROUP_BIRTH",
+      "required_review": "Review cgroup binding and clone3 argument/child identity",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 445,
+      "source": "c->child[slot]=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "apis": [
+        "SYS_clone3"
+      ],
+      "compiler_targets": [
+        "syscall",
+        "syscall"
+      ],
+      "effect_line": 445,
+      "effect_source": "c->child[slot]=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+      "effect_hypothesis": "UNCLASSIFIED_AUTHORITY_CANDIDATE",
+      "required_review": "Resolve actual effect, permissions and failure paths",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 531,
+      "source": "bindings(c)&&budget_ok()&&unlinkat(c->outer,name,AT_REMOVEDIR)==0;",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "apis": [
+        "unlinkat"
+      ],
+      "compiler_targets": [
+        "bindings",
+        "budget_ok",
+        "unlinkat"
+      ],
+      "effect_line": 531,
+      "effect_source": "bindings(c)&&budget_ok()&&unlinkat(c->outer,name,AT_REMOVEDIR)==0;",
+      "effect_hypothesis": "FILESYSTEM_DELETION",
+      "required_review": "Review directory fd, inode identity, races and authorization",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 538,
+      "source": "return intent(c->work,name,&r)&&records_equal(&r,&c->record)&&budget_ok()&&unlinkat(c->work,name,0)==0;",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "apis": [
+        "unlinkat"
+      ],
+      "compiler_targets": [
+        "intent",
+        "intent",
+        "records_equal",
+        "records_equal",
+        "budget_ok",
+        "unlinkat"
+      ],
+      "effect_line": 538,
+      "effect_source": "return intent(c->work,name,&r)&&records_equal(&r,&c->record)&&budget_ok()&&unlinkat(c->work,name,0)==0;",
+      "effect_hypothesis": "FILESYSTEM_DELETION",
+      "required_review": "Review directory fd, inode identity, races and authorization",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 568,
+      "source": "while((got=waitpid(-1,&status,WNOHANG))>0){}",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "apis": [
+        "waitpid"
+      ],
+      "compiler_targets": [
+        "waitpid",
+        "waitpid"
+      ],
+      "effect_line": 568,
+      "effect_source": "while((got=waitpid(-1,&status,WNOHANG))>0){}",
+      "effect_hypothesis": "PROCESS_REAP",
+      "required_review": "Review child ownership, PID reuse and wait state",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 585,
+      "source": "unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "apis": [
+        "unlinkat"
+      ],
+      "compiler_targets": [
+        "unlinkat"
+      ],
+      "effect_line": 585,
+      "effect_source": "unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "effect_hypothesis": "FILESYSTEM_DELETION",
+      "required_review": "Review directory fd, inode identity, races and authorization",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 601,
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "apis": [
+        "flock"
+      ],
+      "compiler_targets": [
+        "flock"
+      ],
+      "effect_line": 601,
+      "effect_source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "effect_hypothesis": "LOCKING",
+      "required_review": "Review lock lifetime and writer exclusion",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 675,
+      "source": "!bindings(c)||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "apis": [
+        "unlinkat"
+      ],
+      "compiler_targets": [
+        "bindings",
+        "unlinkat",
+        "unlinkat"
+      ],
+      "effect_line": 675,
+      "effect_source": "!bindings(c)||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "effect_hypothesis": "FILESYSTEM_DELETION",
+      "required_review": "Review directory fd, inode identity, races and authorization",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 683,
+      "source": "int status;pid_t got=waitpid(c->child[0],&status,WNOHANG);",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "apis": [
+        "waitpid"
+      ],
+      "compiler_targets": [
+        "waitpid",
+        "waitpid"
+      ],
+      "effect_line": 683,
+      "effect_source": "int status;pid_t got=waitpid(c->child[0],&status,WNOHANG);",
+      "effect_hypothesis": "PROCESS_REAP",
+      "required_review": "Review child ownership, PID reuse and wait state",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 724,
+      "source": "if(!budget_ok()||mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "apis": [
+        "mkdirat"
+      ],
+      "compiler_targets": [
+        "budget_ok",
+        "mkdirat",
+        "mkdirat",
+        "mkdirat",
+        "mkdirat"
+      ],
+      "effect_line": 724,
+      "effect_source": "if(!budget_ok()||mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "effect_hypothesis": "FILESYSTEM_CREATION",
+      "required_review": "Review parent directory identity, mode and cleanup",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 730,
+      "source": "!budget_ok()||mkdirat(c.outer,\"launcher\",0700)||!budget_ok()||mkdirat(c.outer,\"payload\",0700)||",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "apis": [
+        "mkdirat"
+      ],
+      "compiler_targets": [
+        "budget_ok",
+        "mkdirat",
+        "mkdirat",
+        "budget_ok",
+        "mkdirat",
+        "mkdirat"
+      ],
+      "effect_line": 730,
+      "effect_source": "!budget_ok()||mkdirat(c.outer,\"launcher\",0700)||!budget_ok()||mkdirat(c.outer,\"payload\",0700)||",
+      "effect_hypothesis": "FILESYSTEM_CREATION",
+      "required_review": "Review parent directory identity, mode and cleanup",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 287,
+      "source": "int status;pid_t got=waitpid(c->child,&status,WNOHANG|WUNTRACED);",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "apis": [
+        "waitpid"
+      ],
+      "compiler_targets": [
+        "waitpid",
+        "waitpid"
+      ],
+      "effect_line": 287,
+      "effect_source": "int status;pid_t got=waitpid(c->child,&status,WNOHANG|WUNTRACED);",
+      "effect_hypothesis": "PROCESS_REAP",
+      "required_review": "Review child ownership, PID reuse and wait state",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 308,
+      "source": "if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "apis": [
+        "setgroups"
+      ],
+      "compiler_targets": [
+        "prctl",
+        "setgroups"
+      ],
+      "effect_line": 308,
+      "effect_source": "if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||",
+      "effect_hypothesis": "UNCLASSIFIED_AUTHORITY_CANDIDATE",
+      "required_review": "Resolve actual effect, permissions and failure paths",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 309,
+      "source": "setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "apis": [
+        "setresgid",
+        "setresuid"
+      ],
+      "compiler_targets": [
+        "setresgid",
+        "setresuid",
+        "_exit"
+      ],
+      "effect_line": 309,
+      "effect_source": "setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+      "effect_hypothesis": "IDENTITY_CHANGE",
+      "required_review": "Review permanent privilege drop and error handling",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 311,
+      "source": "pid_t descendant=fork();if(descendant<0)_exit(125);",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "apis": [
+        "fork"
+      ],
+      "compiler_targets": [
+        "fork",
+        "_exit"
+      ],
+      "effect_line": 311,
+      "effect_source": "pid_t descendant=fork();if(descendant<0)_exit(125);",
+      "effect_hypothesis": "UNCLASSIFIED_AUTHORITY_CANDIDATE",
+      "required_review": "Resolve actual effect, permissions and failure paths",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 331,
+      "source": "return unlinkat(c->work,name,0)==0;",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "apis": [
+        "unlinkat"
+      ],
+      "compiler_targets": [
+        "unlinkat"
+      ],
+      "effect_line": 331,
+      "effect_source": "return unlinkat(c->work,name,0)==0;",
+      "effect_hypothesis": "FILESYSTEM_DELETION",
+      "required_review": "Review directory fd, inode identity, races and authorization",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 346,
+      "source": "while((n=waitpid(-1,&status,WNOHANG))>0){}",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "apis": [
+        "waitpid"
+      ],
+      "compiler_targets": [
+        "waitpid",
+        "waitpid"
+      ],
+      "effect_line": 346,
+      "effect_source": "while((n=waitpid(-1,&status,WNOHANG))>0){}",
+      "effect_hypothesis": "PROCESS_REAP",
+      "required_review": "Review child ownership, PID reuse and wait state",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 353,
+      "source": "if(!bindings(c)||!empty(c)||unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "apis": [
+        "unlinkat"
+      ],
+      "compiler_targets": [
+        "bindings",
+        "empty",
+        "unlinkat"
+      ],
+      "effect_line": 353,
+      "effect_source": "if(!bindings(c)||!empty(c)||unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "effect_hypothesis": "FILESYSTEM_DELETION",
+      "required_review": "Review directory fd, inode identity, races and authorization",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 372,
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "apis": [
+        "flock"
+      ],
+      "compiler_targets": [
+        "flock"
+      ],
+      "effect_line": 372,
+      "effect_source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "effect_hypothesis": "LOCKING",
+      "required_review": "Review lock lifetime and writer exclusion",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 428,
+      "source": "if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "apis": [
+        "unlinkat"
+      ],
+      "compiler_targets": [
+        "open_recorded_leaf",
+        "empty",
+        "bindings",
+        "unlinkat"
+      ],
+      "effect_line": 428,
+      "effect_source": "if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}",
+      "effect_hypothesis": "FILESYSTEM_DELETION",
+      "required_review": "Review directory fd, inode identity, races and authorization",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 438,
+      "source": "fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "apis": [
+        "unlinkat"
+      ],
+      "compiler_targets": [
+        "fstatat",
+        "fstatat",
+        "fstatat",
+        "fstatat",
+        "__errno_location",
+        "unlinkat",
+        "unlinkat"
+      ],
+      "effect_line": 438,
+      "effect_source": "fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "effect_hypothesis": "FILESYSTEM_DELETION",
+      "required_review": "Review directory fd, inode identity, races and authorization",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 469,
+      "source": "if(mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "apis": [
+        "mkdirat"
+      ],
+      "compiler_targets": [
+        "mkdirat",
+        "mkdirat",
+        "mkdirat",
+        "mkdirat"
+      ],
+      "effect_line": 469,
+      "effect_source": "if(mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "effect_hypothesis": "FILESYSTEM_CREATION",
+      "required_review": "Review parent directory identity, mode and cleanup",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 482,
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "compiler_targets": [],
+      "effect_line": 484,
+      "effect_source": "c.child=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+      "effect_hypothesis": "PROCESS_CGROUP_BIRTH",
+      "required_review": "Review cgroup binding and clone3 argument/child identity",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 484,
+      "source": "c.child=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "apis": [
+        "SYS_clone3"
+      ],
+      "compiler_targets": [
+        "syscall",
+        "syscall"
+      ],
+      "effect_line": 484,
+      "effect_source": "c.child=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+      "effect_hypothesis": "UNCLASSIFIED_AUTHORITY_CANDIDATE",
+      "required_review": "Resolve actual effect, permissions and failure paths",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "line": 14,
+      "source": "execveat(3, \"\", argv + 1, (char *const[]){\"PATH=/usr/bin:/bin\", NULL}, AT_EMPTY_PATH);",
+      "source_sha256": "269f48509a139586e52b49675ac148921176e6fc6cfd265243591b432044fc83",
+      "apis": [
+        "execveat"
+      ],
+      "compiler_targets": [
+        "execveat",
+        "execveat",
+        "execveat"
+      ],
+      "effect_line": 14,
+      "effect_source": "execveat(3, \"\", argv + 1, (char *const[]){\"PATH=/usr/bin:/bin\", NULL}, AT_EMPTY_PATH);",
+      "effect_hypothesis": "PROCESS_EXECUTION",
+      "required_review": "Review executable descriptor, environment and inherited descriptors",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "exec-pinned.c",
+      "line": 13,
+      "source": "execveat(4, \"\", argv, environ, AT_EMPTY_PATH);",
+      "source_sha256": "5e1363d9e07961f1403d9a3662f0f123c0991efa37025719148ab6f50253335f",
+      "apis": [
+        "execveat"
+      ],
+      "compiler_targets": [
+        "execveat",
+        "execveat",
+        "execveat"
+      ],
+      "effect_line": 13,
+      "effect_source": "execveat(4, \"\", argv, environ, AT_EMPTY_PATH);",
+      "effect_hypothesis": "PROCESS_EXECUTION",
+      "required_review": "Review executable descriptor, environment and inherited descriptors",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 116,
+      "source": "if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "apis": [
+        "setgroups",
+        "setresgid"
+      ],
+      "compiler_targets": [
+        "setgroups",
+        "setresgid"
+      ],
+      "effect_line": 116,
+      "effect_source": "if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||",
+      "effect_hypothesis": "IDENTITY_CHANGE",
+      "required_review": "Review permanent privilege drop and error handling",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 117,
+      "source": "setresuid(target,target,target))die(\"identity isolation failed\");",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "apis": [
+        "setresuid"
+      ],
+      "compiler_targets": [
+        "setresuid",
+        "die",
+        "die"
+      ],
+      "effect_line": 117,
+      "effect_source": "setresuid(target,target,target))die(\"identity isolation failed\");",
+      "effect_hypothesis": "IDENTITY_CHANGE",
+      "required_review": "Review permanent privilege drop and error handling",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 35,
+      "source": "pid_t child=fork();",
+      "source_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "apis": [
+        "fork"
+      ],
+      "compiler_targets": [
+        "fork"
+      ],
+      "effect_line": 35,
+      "effect_source": "pid_t child=fork();",
+      "effect_hypothesis": "UNCLASSIFIED_AUTHORITY_CANDIDATE",
+      "required_review": "Resolve actual effect, permissions and failure paths",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 45,
+      "source": "if(waitpid(child,&status,WUNTRACED)!=child||!WIFSTOPPED(status)||WSTOPSIG(status)!=SIGSTOP){result=74;goto cleanup;}",
+      "source_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "apis": [
+        "waitpid"
+      ],
+      "compiler_targets": [
+        "waitpid",
+        "waitpid"
+      ],
+      "effect_line": 45,
+      "effect_source": "if(waitpid(child,&status,WUNTRACED)!=child||!WIFSTOPPED(status)||WSTOPSIG(status)!=SIGSTOP){result=74;goto cleanup;}",
+      "effect_hypothesis": "PROCESS_REAP",
+      "required_review": "Review child ownership, PID reuse and wait state",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 50,
+      "source": "if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}",
+      "source_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "apis": [
+        "waitpid"
+      ],
+      "compiler_targets": [
+        "waitpid",
+        "waitpid"
+      ],
+      "effect_line": 50,
+      "effect_source": "if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}",
+      "effect_hypothesis": "PROCESS_REAP",
+      "required_review": "Review child ownership, PID reuse and wait state",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 63,
+      "source": "if(kill(child,SIGKILL)<0 && errno!=ESRCH)result=82;",
+      "source_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "apis": [
+        "kill"
+      ],
+      "compiler_targets": [
+        "kill",
+        "__errno_location"
+      ],
+      "effect_line": 63,
+      "effect_source": "if(kill(child,SIGKILL)<0 && errno!=ESRCH)result=82;",
+      "effect_hypothesis": "UNCLASSIFIED_AUTHORITY_CANDIDATE",
+      "required_review": "Resolve actual effect, permissions and failure paths",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 67,
+      "source": "do {reaped=waitpid(child,&status,0);}while(reaped<0&&errno==EINTR);",
+      "source_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "apis": [
+        "waitpid"
+      ],
+      "compiler_targets": [
+        "waitpid",
+        "waitpid",
+        "__errno_location"
+      ],
+      "effect_line": 67,
+      "effect_source": "do {reaped=waitpid(child,&status,0);}while(reaped<0&&errno==EINTR);",
+      "effect_hypothesis": "PROCESS_REAP",
+      "required_review": "Review child ownership, PID reuse and wait state",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 122,
+      "source": "ssize_t n = pread(held->fence_fd, observed + offset,",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "apis": [
+        "pread"
+      ],
+      "compiler_targets": [
+        "pread"
+      ],
+      "effect_line": 122,
+      "effect_source": "ssize_t n = pread(held->fence_fd, observed + offset,",
+      "effect_hypothesis": "DESCRIPTOR_READ",
+      "required_review": "Review descriptor provenance and bounded reads",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 129,
+      "source": "if (pread(held->fence_fd, &trailer, 1, (off_t)size) != 0 ||",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "apis": [
+        "pread"
+      ],
+      "compiler_targets": [
+        "pread",
+        "pread"
+      ],
+      "effect_line": 129,
+      "effect_source": "if (pread(held->fence_fd, &trailer, 1, (off_t)size) != 0 ||",
+      "effect_hypothesis": "DESCRIPTOR_READ",
+      "required_review": "Review descriptor provenance and bounded reads",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 104,
+      "source": "ssize_t got = pread(held->intent_fd, observed + count,",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "apis": [
+        "pread"
+      ],
+      "compiler_targets": [
+        "pread"
+      ],
+      "effect_line": 104,
+      "effect_source": "ssize_t got = pread(held->intent_fd, observed + count,",
+      "effect_hypothesis": "DESCRIPTOR_READ",
+      "required_review": "Review descriptor provenance and bounded reads",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 111,
+      "source": "if (pread(held->intent_fd, &excess, 1, (off_t)length) != 0 ||",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "apis": [
+        "pread"
+      ],
+      "compiler_targets": [
+        "pread",
+        "pread"
+      ],
+      "effect_line": 111,
+      "effect_source": "if (pread(held->intent_fd, &excess, 1, (off_t)length) != 0 ||",
+      "effect_hypothesis": "DESCRIPTOR_READ",
+      "required_review": "Review descriptor provenance and bounded reads",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "line": 67,
+      "source": "\"StartTransientUnit\");",
+      "source_sha256": "2035b4b5a6d560a69075f7cb7ca8d995734da822738f76df92a8d98805d3a2f3",
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "compiler_targets": [
+        "sd_bus_message_new_method_call"
+      ],
+      "effect_line": 67,
+      "effect_source": "\"StartTransientUnit\");",
+      "effect_hypothesis": "UNCLASSIFIED_AUTHORITY_CANDIDATE",
+      "required_review": "Resolve actual effect, permissions and failure paths",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 144,
+      "source": "ssize_t read_bytes = pread(fd, bytes + offset, expected - offset,",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "apis": [
+        "pread"
+      ],
+      "compiler_targets": [
+        "pread"
+      ],
+      "effect_line": 144,
+      "effect_source": "ssize_t read_bytes = pread(fd, bytes + offset, expected - offset,",
+      "effect_hypothesis": "DESCRIPTOR_READ",
+      "required_review": "Review descriptor provenance and bounded reads",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 151,
+      "source": "if (pread(fd, &trailer, 1, (off_t)expected) != 0) return refuse(EIO);",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "apis": [
+        "pread"
+      ],
+      "compiler_targets": [
+        "pread",
+        "pread",
+        "refuse"
+      ],
+      "effect_line": 151,
+      "effect_source": "if (pread(fd, &trailer, 1, (off_t)expected) != 0) return refuse(EIO);",
+      "effect_hypothesis": "DESCRIPTOR_READ",
+      "required_review": "Review descriptor provenance and bounded reads",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 83,
+      "source": "GE04_MANAGER_IFACE, \"Unsubscribe\",",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "apis": [
+        "Unsubscribe"
+      ],
+      "compiler_targets": [
+        "sd_bus_call_method",
+        "sd_bus_call_method"
+      ],
+      "effect_line": 83,
+      "effect_source": "GE04_MANAGER_IFACE, \"Unsubscribe\",",
+      "effect_hypothesis": "UNCLASSIFIED_AUTHORITY_CANDIDATE",
+      "required_review": "Resolve actual effect, permissions and failure paths",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 283,
+      "source": "GE04_MANAGER_IFACE, \"Subscribe\",",
+      "source_sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "apis": [
+        "Subscribe"
+      ],
+      "compiler_targets": [
+        "sd_bus_call_method",
+        "sd_bus_call_method"
+      ],
+      "effect_line": 283,
+      "effect_source": "GE04_MANAGER_IFACE, \"Subscribe\",",
+      "effect_hypothesis": "UNCLASSIFIED_AUTHORITY_CANDIDATE",
+      "required_review": "Resolve actual effect, permissions and failure paths",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 170,
+      "source": "s->fd=accept4(listener,NULL,NULL,SOCK_CLOEXEC|SOCK_NONBLOCK);",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "apis": [
+        "accept4"
+      ],
+      "compiler_targets": [
+        "accept4"
+      ],
+      "effect_line": 170,
+      "effect_source": "s->fd=accept4(listener,NULL,NULL,SOCK_CLOEXEC|SOCK_NONBLOCK);",
+      "effect_hypothesis": "SOCKET_ACCEPT",
+      "required_review": "Review peer identity, socket permissions and accepted descriptor lifetime",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 189,
+      "source": "if(c->cmsg_level==SOL_SOCKET&&(c->cmsg_type==SCM_RIGHTS",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "apis": [
+        "SCM_RIGHTS"
+      ],
+      "compiler_targets": [],
+      "effect_line": 195,
+      "effect_source": "int fd;memcpy(&fd,(char*)CMSG_DATA(c)+i,sizeof(fd));if(fd>=0)close(fd);",
+      "effect_hypothesis": "DESCRIPTOR_TRANSFER",
+      "required_review": "Review ancillary-data validation, descriptor ownership and rejection closure",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 212,
+      "source": "ssize_t n=recvmsg(s->fd,&msg,MSG_CMSG_CLOEXEC|MSG_DONTWAIT);",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "apis": [
+        "recvmsg"
+      ],
+      "compiler_targets": [
+        "recvmsg",
+        "recvmsg"
+      ],
+      "effect_line": 212,
+      "effect_source": "ssize_t n=recvmsg(s->fd,&msg,MSG_CMSG_CLOEXEC|MSG_DONTWAIT);",
+      "effect_hypothesis": "UNCLASSIFIED_AUTHORITY_CANDIDATE",
+      "required_review": "Resolve actual effect, permissions and failure paths",
+      "effect_identity_verified": true,
+      "authorization_verified": false,
+      "race_and_lifetime_verified": false,
+      "failure_path_verified": false,
+      "security_disposition": "PENDING"
+    }
+  ],
+  "historical_line_dossiers": [
+    {
+      "file": "bootstrap_binding.py",
+      "historical_line": 113,
+      "current_line": 113,
+      "source": "raw = os.pread(fd, before.st_size + 1, 0)",
+      "source_sha256": "ed644fe1187c268903a7404c561fe056d8169ccf356960da0b85298fd229431d",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "historical_line": 108,
+      "current_line": 108,
+      "source": "if not SUPPORTED or not hasattr(os, \"memfd_create\"):",
+      "source_sha256": "eb8eee722e8cc595faa6a1c29c9da632423825863c9d603547ad688a133ba74e",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "historical_line": 123,
+      "current_line": 123,
+      "source": "fd = os.memfd_create(\"ge04-unqualified-bootstrap\",",
+      "source_sha256": "eb8eee722e8cc595faa6a1c29c9da632423825863c9d603547ad688a133ba74e",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "historical_line": 3,
+      "current_line": 3,
+      "source": "Validates kernel SO_PEERCRED, bounded SCM_RIGHTS payload, expected generation,",
+      "source_sha256": "165c615801665e0f16ec95b8150b33adb6d129b4b7392bd26c0d5a4599726207",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "historical_line": 72,
+      "current_line": 72,
+      "source": "if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:",
+      "source_sha256": "165c615801665e0f16ec95b8150b33adb6d129b4b7392bd26c0d5a4599726207",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "bounded_job_signal_observer.py",
+      "historical_line": 79,
+      "current_line": 79,
+      "source": "process = subprocess.Popen(",
+      "source_sha256": "e6e25fc89ae66a815d54c8498af1f311962b2bc2d1512562c354f6637dbc6329",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "historical_line": 41,
+      "current_line": 43,
+      "source": "process = subprocess.Popen(",
+      "source_sha256": "55a44fcabd6a4c2e47374d02bbc3ebef05cabaa98a8475aa620b684ed507d4aa",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "historical_line": 31,
+      "current_line": 31,
+      "source": "int client = accept4(listener, NULL, NULL, SOCK_CLOEXEC);",
+      "source_sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+      "nearby_c_authority_sites": [
+        31
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "historical_line": 58,
+      "current_line": 58,
+      "source": "if(mkdirat(parent,argv[2],0700)){",
+      "source_sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+      "nearby_c_authority_sites": [
+        58
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 300,
+      "current_line": 300,
+      "source": "#ifdef SYS_renameat2",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 354,
+      "current_line": 354,
+      "source": "int status;pid_t got=waitpid(c->child[slot],&status,WNOHANG|WUNTRACED);",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "nearby_c_authority_sites": [
+        354
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 442,
+      "current_line": 442,
+      "source": "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "nearby_c_authority_sites": [
+        443
+      ],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 443,
+      "current_line": 443,
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "nearby_c_authority_sites": [
+        443,
+        445
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 531,
+      "current_line": 531,
+      "source": "bindings(c)&&budget_ok()&&unlinkat(c->outer,name,AT_REMOVEDIR)==0;",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "nearby_c_authority_sites": [
+        531
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 538,
+      "current_line": 538,
+      "source": "return intent(c->work,name,&r)&&records_equal(&r,&c->record)&&budget_ok()&&unlinkat(c->work,name,0)==0;",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "nearby_c_authority_sites": [
+        538
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 568,
+      "current_line": 568,
+      "source": "while((got=waitpid(-1,&status,WNOHANG))>0){}",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "nearby_c_authority_sites": [
+        568
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 585,
+      "current_line": 585,
+      "source": "unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "nearby_c_authority_sites": [
+        585
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 601,
+      "current_line": 601,
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "nearby_c_authority_sites": [
+        601
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 675,
+      "current_line": 675,
+      "source": "!bindings(c)||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "nearby_c_authority_sites": [
+        675
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 683,
+      "current_line": 683,
+      "source": "int status;pid_t got=waitpid(c->child[0],&status,WNOHANG);",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "nearby_c_authority_sites": [
+        683
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 724,
+      "current_line": 724,
+      "source": "if(!budget_ok()||mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "nearby_c_authority_sites": [
+        724
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 730,
+      "current_line": 730,
+      "source": "!budget_ok()||mkdirat(c.outer,\"launcher\",0700)||!budget_ok()||mkdirat(c.outer,\"payload\",0700)||",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "nearby_c_authority_sites": [
+        730
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 199,
+      "current_line": 224,
+      "source": "#ifdef SYS_renameat2",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 262,
+      "current_line": 287,
+      "source": "int status;pid_t got=waitpid(c->child,&status,WNOHANG|WUNTRACED);",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "nearby_c_authority_sites": [
+        287
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 283,
+      "current_line": 308,
+      "source": "if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "nearby_c_authority_sites": [
+        308,
+        309
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 284,
+      "current_line": 309,
+      "source": "setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "nearby_c_authority_sites": [
+        308,
+        309,
+        311
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 305,
+      "current_line": 331,
+      "source": "return unlinkat(c->work,name,0)==0;",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "nearby_c_authority_sites": [
+        331
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 319,
+      "current_line": 346,
+      "source": "while((n=waitpid(-1,&status,WNOHANG))>0){}",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "nearby_c_authority_sites": [
+        346
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 326,
+      "current_line": 353,
+      "source": "if(!bindings(c)||!empty(c)||unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "nearby_c_authority_sites": [
+        353
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 345,
+      "current_line": 372,
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "nearby_c_authority_sites": [
+        372
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 386,
+      "current_line": 428,
+      "source": "if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "nearby_c_authority_sites": [
+        428
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 396,
+      "current_line": 438,
+      "source": "fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "nearby_c_authority_sites": [
+        438
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 401,
+      "current_line": 443,
+      "source": "const char *modes[]={\"run\",\"fail-before-clone\",\"fail-attach\",\"fail-verify\",\"fail-resume\",\"fail-publish\",",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 425,
+      "current_line": 469,
+      "source": "if(mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "nearby_c_authority_sites": [
+        469
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 434,
+      "current_line": 478,
+      "source": "if(!strcmp(c.mode,\"fail-before-clone\")){reason=\"BEFORE_CLONE\";goto rollback;}",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 437,
+      "current_line": 481,
+      "source": "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "nearby_c_authority_sites": [
+        482
+      ],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 438,
+      "current_line": 482,
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "nearby_c_authority_sites": [
+        482,
+        484
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "historical_line": 116,
+      "current_line": 116,
+      "source": "if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "nearby_c_authority_sites": [
+        116,
+        117
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "historical_line": 117,
+      "current_line": 117,
+      "source": "setresuid(target,target,target))die(\"identity isolation failed\");",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "nearby_c_authority_sites": [
+        116,
+        117
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "historical_line": 125,
+      "current_line": 128,
+      "source": "#ifdef SYS_execveat",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "historical_line": 128,
+      "current_line": 131,
+      "source": "die(\"execveat unavailable\");",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "historical_line": 45,
+      "current_line": 45,
+      "source": "if(waitpid(child,&status,WUNTRACED)!=child||!WIFSTOPPED(status)||WSTOPSIG(status)!=SIGSTOP){result=74;goto cleanup;}",
+      "source_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "nearby_c_authority_sites": [
+        45
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "historical_line": 50,
+      "current_line": 50,
+      "source": "if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}",
+      "source_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "nearby_c_authority_sites": [
+        50
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "historical_line": 122,
+      "current_line": 122,
+      "source": "ssize_t n = pread(held->fence_fd, observed + offset,",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "nearby_c_authority_sites": [
+        122
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "historical_line": 129,
+      "current_line": 129,
+      "source": "if (pread(held->fence_fd, &trailer, 1, (off_t)size) != 0 ||",
+      "source_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "nearby_c_authority_sites": [
+        129
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "historical_line": 84,
+      "current_line": 84,
+      "source": "static int fixed_root_open(void);",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "historical_line": 87,
+      "current_line": 87,
+      "source": "int current_fd = fixed_root_open();",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "historical_line": 111,
+      "current_line": 111,
+      "source": "static int fixed_root_open(void) {",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "historical_line": 158,
+      "current_line": 158,
+      "source": "candidate.root_fd = fixed_root_open();",
+      "source_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "historical_line": 104,
+      "current_line": 104,
+      "source": "ssize_t got = pread(held->intent_fd, observed + count,",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "nearby_c_authority_sites": [
+        104
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "historical_line": 111,
+      "current_line": 111,
+      "source": "if (pread(held->intent_fd, &excess, 1, (off_t)length) != 0 ||",
+      "source_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "nearby_c_authority_sites": [
+        111
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "historical_line": 144,
+      "current_line": 144,
+      "source": "ssize_t read_bytes = pread(fd, bytes + offset, expected - offset,",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "nearby_c_authority_sites": [
+        144
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "historical_line": 151,
+      "current_line": 151,
+      "source": "if (pread(fd, &trailer, 1, (off_t)expected) != 0) return refuse(EIO);",
+      "source_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "nearby_c_authority_sites": [
+        151
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "historical_line": 100,
+      "current_line": 100,
+      "source": "match = bus.add_signal_receiver(",
+      "source_sha256": "e36da0146da76da7c89f713e51bfc5e6d10b867563ea668bd76184b1c21a80e9",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "historical_line": 106,
+      "current_line": 106,
+      "source": "manager.Subscribe(timeout=1)",
+      "source_sha256": "e36da0146da76da7c89f713e51bfc5e6d10b867563ea668bd76184b1c21a80e9",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "historical_line": 137,
+      "current_line": 137,
+      "source": "manager.Unsubscribe(timeout=1)",
+      "source_sha256": "e36da0146da76da7c89f713e51bfc5e6d10b867563ea668bd76184b1c21a80e9",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "historical_line": 57,
+      "current_line": 58,
+      "source": "def _mount(raw):",
+      "source_sha256": "86da8c10920d5ad3f54554d3bd264ff98bc6f3aa11c46b13d782233ec2df631e",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "historical_line": 121,
+      "current_line": 123,
+      "source": "mount = _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576))",
+      "source_sha256": "86da8c10920d5ad3f54554d3bd264ff98bc6f3aa11c46b13d782233ec2df631e",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "historical_line": 165,
+      "current_line": 167,
+      "source": "or _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576)) != mount",
+      "source_sha256": "86da8c10920d5ad3f54554d3bd264ff98bc6f3aa11c46b13d782233ec2df631e",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "historical_line": 170,
+      "current_line": 170,
+      "source": "s->fd=accept4(listener,NULL,NULL,SOCK_CLOEXEC|SOCK_NONBLOCK);",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "nearby_c_authority_sites": [
+        170
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "historical_line": 189,
+      "current_line": 189,
+      "source": "if(c->cmsg_level==SOL_SOCKET&&(c->cmsg_type==SCM_RIGHTS",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "nearby_c_authority_sites": [
+        189
+      ],
+      "source_line_is_direct_c_authority_site": true,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "historical_line": 221,
+      "current_line": 221,
+      "source": "int ge04_stream_read(struct ge04_stream_session *s,unsigned char *buffer,size_t capacity,size_t *length,int ms) {",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    },
+    {
+      "file": "worker-stream.c",
+      "historical_line": 248,
+      "current_line": 248,
+      "source": "int ge04_stream_write(struct ge04_stream_session *s,const unsigned char *buffer,size_t length,int ms) {",
+      "source_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "nearby_c_authority_sites": [],
+      "source_line_is_direct_c_authority_site": false,
+      "runtime_semantics_verified": false,
+      "security_disposition": "PENDING"
+    }
+  ],
+  "authority_hypothesis_counts": {
+    "SOCKET_ACCEPT": 2,
+    "FILESYSTEM_CREATION": 4,
+    "PROCESS_REAP": 8,
+    "MOUNT_MUTATION": 2,
+    "PROCESS_CGROUP_BIRTH": 2,
+    "UNCLASSIFIED_AUTHORITY_CANDIDATE": 10,
+    "FILESYSTEM_DELETION": 8,
+    "LOCKING": 2,
+    "IDENTITY_CHANGE": 3,
+    "PROCESS_EXECUTION": 2,
+    "DESCRIPTOR_READ": 6,
+    "DESCRIPTOR_TRANSFER": 1
+  },
+  "verified_source_matches": 63,
+  "compiler_or_noncall_effect_identity_candidates": 50,
+  "security_dispositions_approved": 0,
+  "status": "EVIDENCE_PREPARED_NOT_SEMANTIC_OR_SECURITY_APPROVAL",
+  "limitations": [
+    "API classifications are review hypotheses, not demonstrated security properties",
+    "Nearby source location is not proof of transitive effects",
+    "Runtime identity, authorization, race, failure and revocation must be verified separately",
+    "No privileged runtime tests were executed; security hold remains active"
+  ],
+  "security_hold": "ACTIVE"
+}

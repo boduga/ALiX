@@ -1,6 +1,70 @@
-# GE-04 production worker lifecycle integration — first slice
+# GE-04 worker lifecycle integration — SECURITY HOLD ACTIVE
 
-This opt-in `SubagentManagerOptions.supervisorWorkerLifecycle` hook observes actual child process spawn/exit and supplies the coordinator's run/worker/attempt identity to a trusted, caller-supplied supervisor callback. It deliberately suppresses credential payload transfer on FD3 when enabled. It does **not** turn on positive admission, does not authenticate native IPC, and does not prove worker execution is blocked before registration: the child may execute immediately after spawn. Registration callback rejection kills the child, but that is **not** a security boundary against pre-registration execution. Existing legacy credential delivery is unchanged when the hook is disabled. Do not enable this option in production or claim it isolates worker credentials. GE-04 SECURITY HOLD remains active.
+## Mandatory manager facade increment
+
+`SubagentManager` now requires a trusted `TaskWorkerSupervisor` for preparation, launch, completion, cancellation and startup recovery. It projects explicit nonsecret task fields, checks process-generation evidence, and accepts only bounded structured completion. It owns no subprocess, credential pipe, keyring environment or PID signalling. Default composition has no enabled task supervisor and refuses execution; old command overrides and optional observers are rejected.
+
+Credential-free doubles test facade behavior only. No qualified native task backend, authenticated result transport or cross-manager durable containment guarantee is supplied. A lost ownership lease cannot be protected by retaining a JavaScript map entry. Known in-process coordination and direct legacy worker CLI entry points now refuse through fixed unavailable-supervisor checks before execution/config loading. Graph CLI/SOP node dispatch and rerun also refuse before the node task loop executes; their host commands load configuration and policy earlier. Executor-entry loader spies do not establish public graph/SOP no-config loading. Their historical loop bodies and credential readers remain for later replacement/deletion, behind a production refusal that has no configuration bypass. Isolated tests explicitly mock that guard to preserve historical review/approval behavior. Complete consumer classification, durable-backend guarantees and OS qualification remain outstanding. R1-B2 through R1-F remain open; do not infer production qualification or hold clearance.
+
+## Proposed portable execution placement (ADR-0019; NOT IMPLEMENTED)
+
+The existing `TaskWorkerSupervisor` is the sole application-facing lifecycle
+seam and stays credential-free, mandatory and fail-closed. Proposed
+[ADR-0019](../architecture/adrs/ADR-0019-cross-platform-worker-execution.md)
+places Linux-only pidfds/cgroups/namespaces and the future pinned `runc`
+runtime **behind** that seam. This is a documented target, not a new
+`ExecutionBackend` implementation or alternate executor authority.
+
+- The manager prepares the same immutable nonsecret task and run/worker/attempt
+  identity on supported control hosts. A trusted execution implementation,
+  never the manager or task, chooses its qualified guest/runtime.
+- No backend may be selected solely because `process.platform`, an advertised
+  feature, WSL2, a VM or a reachable remote service reports support. Eligibility
+  requires current protected admission, independently qualified isolation,
+  exact backend/release/guest identity and approved task scope. Missing or
+  unqualified evidence refuses without local-spawn fallback.
+- A Windows/macOS client may eventually use a qualified Linux VM or remote
+  Linux executor. Controller/guest/worker are separate trust principals;
+  cross-host transport must bind attempts, authenticated peer and observed
+  worker generation, with no authority-bearing credentials in the untrusted
+  worker. The current local Linux qualification is not inherited by other
+  guest kernels, CPU architectures, host virtualization or transports.
+- Cancellation, termination evidence, persisted claim ownership, cleanup and
+  startup recovery must remain coherent after controller crash, guest crash,
+  network partition and reconnect. Uncertainty quarantines the attempt;
+  a remote ACK or backend exit code never implies safe termination, retry or
+  final-effect permission. No new agent-lifetime wall-clock timeout.
+- The future backend contract must be reconciled with
+  `src/agents/worker-task-supervisor.ts` before any source change. GitNexus
+  pre-design impact on `TaskWorkerSupervisor` was CRITICAL/lower-bound.
+  No backend implementation, OS expansion or security release is approved.
+
+### Existing API compatibility limit (source-reviewed, no implementation change)
+
+The current `SupervisedWorkerEvidence` is the bounded local Linux record
+`{identity,pid,uid,startTimeTicks,registrationId}` and
+`TaskCompletion.protocolVersion` is exactly `1`. These values cannot identify
+a guest process without separately binding a trusted guest/backend/boot
+instance. A PID in a VM is **not** a host PID. On non-Linux hosts,
+`process.getuid?.()` does not supply Linux guest UID verification.
+
+The existing `wait(): Promise<{exitCode,signal}>`,
+`cancel(): Promise<void>`, `revoke(): Promise<void>` and
+`reconcile(): Promise<void>` signatures are not proof of subtree emptiness,
+durable exclusion, cleanup or safe retry. A prospective versioned evidence
+contract must introduce guest-scoped identities and protected terminal/recovery
+outcomes while preserving fail-closed semantics for existing v1 consumers;
+it must not silently reinterpret `protocolVersion:1`. See ADR-0019's
+source-mapped API gap table. `snapshotWorkerEvidence` has CRITICAL upstream
+GitNexus impact (276 references, 102 processes); do not change the shape
+without a separate migration and independent security review.
+
+## Historical optional-observer integration
+
+The following describes the former manager path retained as historical design context. The option names remain deprecated types solely for explicit refusal; they no longer launch through the manager. Removal of the legacy CLI startup/credential readers remains R1-E work.
+
+
+This opt-in `SubagentManagerOptions.supervisorWorkerLifecycle` hook observes actual child process spawn/exit and supplies the coordinator's run/worker/attempt identity to a trusted, caller-supplied supervisor callback. It deliberately suppresses credential payload transfer on FD3 when enabled. It does **not** turn on positive admission, does not authenticate native IPC, and does not prove worker execution is blocked before registration: the child may execute immediately after spawn. Registration callback rejection kills the child, but that is **not** a security boundary against pre-registration execution. At that historical baseline, legacy credential delivery was unchanged when the hook was disabled. Do not enable this option in production or claim it isolates worker credentials. GE-04 SECURITY HOLD remains active.
 
 Next: redesign the worker startup as a true suspended/blocked handshake under a trusted supervisor, with no credential access before authenticated registration; verify Linux UID isolation and kernel-attested IPC before any positive governance admission.
 

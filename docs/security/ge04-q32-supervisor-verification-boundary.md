@@ -19,6 +19,38 @@
 6. `SO_PEERCRED` identifies the original connector of a Unix socket, not necessarily a later sender of a delegated connected descriptor. Therefore peer credentials alone do not authenticate a request payload or establish nondelegation. The design must explicitly address `SCM_RIGHTS`, inherited descriptors, subprocess handle passing, and credential delegation; avoiding file-descriptor payloads in a normal protocol is necessary but not sufficient.
 7. A positive verification verdict is **not** final-effect permission by itself. The supervisor must recheck revocation/expiry/policy and the protected serialized effect fence at the final mutation boundary. An ambiguous crash after an effect may have started must not trigger blind retry.
 
+## Cross-host supervisor verification extension (ADR-0019; proposed)
+
+The interface above is authority-boundary neutral; its current Linux
+`SO_PEERCRED` evidence is **local Unix-socket qualification only**. A VM or
+remote Linux backend requires additional independently reviewed trust claims
+before the issuer/supervisor ever considers a verification verdict:
+
+- Enroll and authenticate the backend/guest instance, approved release,
+  administrative trust domain and current boot/session. Bind the channel
+  cryptographically to the requesting attempt and protected audience.
+- Establish that the authenticated channel ends at the correct protected
+  supervisor rather than an untrusted host process, forwarded socket,
+  impersonated VM, stale/replayed guest or arbitrarily delegated descriptor.
+  Local pidfd/procfs identities inside a guest are never host-side identities.
+- Retain the existing issuer's final decision authority and protected
+  mutation fence. A guest launch, receipt, channel ACK, client-supplied
+  `approved` field or provider credential cannot serve as authorization.
+- Cross-controller cancellation/recovery requires durable single-attempt
+  exclusion, backend generation fencing, revocation/expiry checks, and
+  independently established descendant cleanup. Ambiguous partition,
+  crash or snapshot rollback means quarantine, not automatic retry.
+- Independently review transport, keys, guest trust, hypervisor management,
+  network sharing and rollback boundaries before *any* positive adapter
+  activation. Shared administrators/rollback domains defeat claimed
+  independent evidence even if mTLS authenticates both peers.
+
+This proposed architecture does not change this Q3.2 verifier's implementation
+or clear any existing GE-04 security gate. See
+[ADR-0019](../architecture/adrs/ADR-0019-cross-platform-worker-execution.md)
+and the independent trust-service design in
+[ADR-0018](../architecture/adrs/ADR-0018-independent-trust-service.md).
+
 ## Fail-closed acceptance criteria (not yet tested)
 
 - Supervisor verification path cannot access issuer-private authority files or writable issuer descriptors, including via inherited or transferred handles.

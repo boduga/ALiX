@@ -132,6 +132,10 @@ jobs:
       # supply-chain gate, not here.
       - name: Staleness audit (references still resolve)
         run: node scripts/check-staleness.mjs
+      # Author-side candidate drift only. This does not authorize GE-04 execution
+      # or replace independent human review of indirect/unknown authority sites.
+      - name: GE-04 sensitive-site candidate drift (security hold remains active)
+        run: python3 scripts/check-ge04-sensitive-ci-gate.py
 
   # ─── Lane 2: Unit tests (vitest) ──────────────────────────────────────────
   unit:

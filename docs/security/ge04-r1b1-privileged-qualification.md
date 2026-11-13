@@ -13,6 +13,14 @@ root-owned directory under `/run` and removes the directory afterward.
 - A reserved, nonzero test UID (example `20002`) distinct from root; no existing
   service or user should use it. No user account is created by this test.
 - Linux kernel support for `openat2`, `execveat` and `close_range`.
+- Trusted root-owned system command binaries and runtime libraries, with no
+  group/world-writable ancestry. The fixtures copy only fixed identity,
+  environment, read and sleep commands into their fresh root-owned directories;
+  this does not authorize arbitrary executable input. On Ubuntu with Rust
+  multicall utilities, set `ALIX_GE04_TEST_GNU_COREUTILS=1` to select installed
+  standalone `/usr/bin/gnu{id,env,cat,sleep}`. Rust executable-identity checks
+  can reject descriptor execution even when the copied basename is preserved.
+  Never weaken the launcher checks or replace system utilities to make a test pass.
 
 From the repository checkout in the VM, using a root shell:
 
@@ -33,7 +41,8 @@ and test UID in the security evidence record.
 - Supplementary groups are removed and the only group is the target GID.
 - Inherited environment (including a fake provider key and DBus address) is
   replaced with exactly the three allowlisted variables.
-- A protected root-owned file is unreadable to the child.
+- A protected root-owned file beneath an inaccessible directory is unreadable
+  to the child; this does not independently isolate file-mode enforcement.
 
 ## Evidence NOT covered
 
@@ -388,3 +397,11 @@ with **no command-line arguments**. Do not reuse the account-management
 rule in `/etc/sudoers.d/alix-ge04-q31`; do not use a wildcard command,
 compiler, shell or script as a sudo target. This preflight does not qualify
 real attachment or cleanup, and GE-04 SECURITY HOLD remains active.
+
+### 2026-11-09 designated VM observation
+
+The bounded UID/environment and direct-child probes passed on the designated
+Ubuntu x86-64 VM. Exact source hashes, the initial Rust-coreutils failure,
+commands, skips, cleanup and witness comparison are recorded in
+`docs/audits/evidence/ge04/r1b1-native-2026-11-09/record.md`. This is engineering
+evidence for these narrow tests, not B2 completion or independent release approval.

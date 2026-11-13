@@ -1,0 +1,34 @@
+test_invalid_mode (test_ge04_cgroup_worker.CgroupBuild.test_invalid_mode) ... ok
+test_nonroot_refuses_before_writes (test_ge04_cgroup_worker.CgroupBuild.test_nonroot_refuses_before_writes) ... ok
+test_approval_invocation_mismatch (test_ge04_cgroup_worker.CgroupLive.test_approval_invocation_mismatch) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_attach_failure_stays_stopped (test_ge04_cgroup_worker.CgroupLive.test_attach_failure_stays_stopped) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_concurrent_writer_refuses (test_ge04_cgroup_worker.CgroupLive.test_concurrent_writer_refuses) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_control_custody_change_preserves_members (test_ge04_cgroup_worker.CgroupLive.test_control_custody_change_preserves_members) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_existing_intent_refuses_new_run (test_ge04_cgroup_worker.CgroupLive.test_existing_intent_refuses_new_run) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_intent_crash (test_ge04_cgroup_worker.CgroupLive.test_intent_crash) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_interruption_child (test_ge04_cgroup_worker.CgroupLive.test_interruption_child) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_interruption_running (test_ge04_cgroup_worker.CgroupLive.test_interruption_running) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_interruption_temp (test_ge04_cgroup_worker.CgroupLive.test_interruption_temp) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_leaf_custody_change_quarantines (test_ge04_cgroup_worker.CgroupLive.test_leaf_custody_change_quarantines) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_leaf_inode_mismatch (test_ge04_cgroup_worker.CgroupLive.test_leaf_inode_mismatch) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_malformed_intent (test_ge04_cgroup_worker.CgroupLive.test_malformed_intent) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_normal_descendants (test_ge04_cgroup_worker.CgroupLive.test_normal_descendants) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_parent_inode_mismatch (test_ge04_cgroup_worker.CgroupLive.test_parent_inode_mismatch) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_preclone_denial (test_ge04_cgroup_worker.CgroupLive.test_preclone_denial) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_preintent_leaf_crash (test_ge04_cgroup_worker.CgroupLive.test_preintent_leaf_crash) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_publication_failure (test_ge04_cgroup_worker.CgroupLive.test_publication_failure) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_resume_failure_stays_stopped (test_ge04_cgroup_worker.CgroupLive.test_resume_failure_stays_stopped) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_running_crash (test_ge04_cgroup_worker.CgroupLive.test_running_crash) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_stopped_child_crash (test_ge04_cgroup_worker.CgroupLive.test_stopped_child_crash) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_temp_crash (test_ge04_cgroup_worker.CgroupLive.test_temp_crash) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_unknown_private_artifact_prevents_stop (test_ge04_cgroup_worker.CgroupLive.test_unknown_private_artifact_prevents_stop) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_verification_failure_stays_stopped (test_ge04_cgroup_worker.CgroupLive.test_verification_failure_stays_stopped) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_wrong_unit_identity_never_stops (test_ge04_cgroup_worker.CgroupLive.test_wrong_unit_identity_never_stops) ... skipped 'explicit disposable-root cgroup qualification required; skip is not a pass'
+test_same_content_replacement_rejected_by_original_identity (test_ge04_cgroup_worker.StageLayoutTests.test_same_content_replacement_rejected_by_original_identity) ... ok
+test_special_node_rejected (test_ge04_cgroup_worker.StageLayoutTests.test_special_node_rejected) ... ok
+test_unexpected_empty_directory_rejected (test_ge04_cgroup_worker.StageLayoutTests.test_unexpected_empty_directory_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 29 tests in 0.588s
+
+OK (skipped=24)

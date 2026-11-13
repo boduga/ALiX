@@ -1,0 +1,226 @@
+{
+  "scope": "MEDIUM-2 M2.7 SYSTEMD AND DBUS AUTHORITY",
+  "c_authority_sites": [
+    {
+      "file": "protected-dispatch-preparation.c",
+      "line": 67,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "\"StartTransientUnit\");"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 83,
+      "apis": [
+        "Unsubscribe"
+      ],
+      "source": "GE04_MANAGER_IFACE, \"Unsubscribe\","
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 283,
+      "apis": [
+        "Subscribe"
+      ],
+      "source": "GE04_MANAGER_IFACE, \"Subscribe\","
+    }
+  ],
+  "source_paths": [
+    {
+      "file": "native/ge04/protected-systemd-transaction.c",
+      "anchors": [
+        {
+          "fragment": "SD_BUS_CREDS_UNIQUE_NAME | SD_BUS_CREDS_EUID",
+          "lines": [
+            44,
+            264
+          ]
+        },
+        {
+          "fragment": "uid != (uid_t)0",
+          "lines": [
+            50,
+            269
+          ]
+        },
+        {
+          "fragment": "sd_bus_match_signal(bus, &slot, tx->owner",
+          "lines": [
+            278
+          ]
+        },
+        {
+          "fragment": "\"JobRemoved\"",
+          "lines": [
+            279
+          ]
+        },
+        {
+          "fragment": "\"Subscribe\"",
+          "lines": [
+            283
+          ]
+        },
+        {
+          "fragment": "\"Unsubscribe\"",
+          "lines": [
+            83
+          ]
+        },
+        {
+          "fragment": "reply_cookie != tx->request_cookie",
+          "lines": [
+            163
+          ]
+        },
+        {
+          "fragment": "strcmp(sd_bus_message_get_sender(reply), tx->owner)",
+          "lines": [
+            169
+          ]
+        },
+        {
+          "fragment": "return deny(EPERM); /* SECURITY HOLD: no StartTransientUnit */",
+          "lines": [
+            306
+          ]
+        }
+      ],
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "native/ge04/protected-dispatch-preparation.c",
+      "anchors": [
+        {
+          "fragment": "sd_bus_message_new_method_call(",
+          "lines": [
+            65
+          ]
+        },
+        {
+          "fragment": "\"StartTransientUnit\"",
+          "lines": [
+            46,
+            67
+          ]
+        },
+        {
+          "fragment": "expected_headers(message, tx)",
+          "lines": [
+            73
+          ]
+        },
+        {
+          "fragment": "return refuse(tx); /* SECURITY HOLD: no sd_bus_send or method call. */",
+          "lines": [
+            89
+          ]
+        }
+      ],
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "native/ge04/protected-systemd-request.c",
+      "anchors": [
+        {
+          "fragment": "GE04_PREBIRTH_UNIT",
+          "lines": [
+            62
+          ]
+        },
+        {
+          "fragment": "\"fail\"",
+          "lines": [
+            62
+          ]
+        },
+        {
+          "fragment": "GE04_KEEPER_CANDIDATE",
+          "lines": [
+            38,
+            42
+          ]
+        }
+      ],
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "native/ge04/systemd_job_signal_observer.py",
+      "anchors": [
+        {
+          "fragment": "bus.add_signal_receiver(",
+          "lines": [
+            100
+          ]
+        },
+        {
+          "fragment": "manager.Subscribe(timeout=1)",
+          "lines": [
+            106
+          ]
+        },
+        {
+          "fragment": "manager.Unsubscribe(timeout=1)",
+          "lines": [
+            137
+          ]
+        },
+        {
+          "fragment": "bus.get_name_owner(SERVICE)",
+          "lines": [
+            50,
+            70,
+            108,
+            119
+          ]
+        },
+        {
+          "fragment": "bus.get_unix_user(owner)",
+          "lines": [
+            52,
+            71,
+            120
+          ]
+        },
+        {
+          "fragment": "follow_name_owner_changes=False",
+          "lines": [
+            105
+          ]
+        },
+        {
+          "fragment": "window.quarantine()",
+          "lines": [
+            84,
+            92,
+            130
+          ]
+        },
+        {
+          "fragment": "\"UNQUALIFIED_LIVE_SYSTEMD_JOB_SIGNAL\"",
+          "lines": [
+            123
+          ]
+        }
+      ],
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    }
+  ],
+  "observed": [
+    "C transaction pins unique root-owned manager identity on a private system bus and matches JobRemoved before Subscribe",
+    "C job reply validates sender, message type, bus, cookie, signature and canonical job path",
+    "C StartTransientUnit preparation is distinct from dispatch; both dispatch entrypoints deny under security hold",
+    "Python observer checks manager owner and root identity around bounded signal window, marks result unqualified"
+  ],
+  "unresolved": [
+    "Subscribe/Unsubscribe are real D-Bus method calls and may have side effects despite the StartTransientUnit hold",
+    "Unsubscribe failure is swallowed in Python observer; effect on returned unqualified observation needs independent semantics review",
+    "C transaction close issues best-effort synchronous Unsubscribe with no explicit separate deadline or outcome proof",
+    "Unique-name owner continuity and signal/reply ordering need adversarial manager-restart and forged-signal tests",
+    "No privileged live D-Bus test or independent proof that every dispatch path remains unreachable",
+    "Python observer signal window is not bound to an exclusive StartTransientUnit request and cannot prove birth"
+  ],
+  "decision": "AUTHOR_SOURCE_REVIEW_ONLY; NO_BIRTH_AUTHORITY_OR_SECURITY_ACCEPTANCE",
+  "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+}

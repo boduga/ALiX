@@ -1,0 +1,204 @@
+{
+  "source_revision": "7a15a906488996bd677a246d2d24787d4fbf5b4e",
+  "resolution": "UNIQUE_NAME_CANDIDATES_NOT_LINKER_VERIFIED",
+  "unique_cross_tu_candidates": [
+    {
+      "caller": "diagnostic-fd-wait.c:fail",
+      "unresolved": "unresolved:ge04_deadline_quarantine",
+      "candidate_targets": [
+        "diagnostic-deadline.c:ge04_deadline_quarantine"
+      ]
+    },
+    {
+      "caller": "diagnostic-fd-wait.c:ge04_diagnostic_wait_fd_cancel",
+      "unresolved": "unresolved:ge04_deadline_check",
+      "candidate_targets": [
+        "diagnostic-deadline.c:ge04_deadline_check"
+      ]
+    },
+    {
+      "caller": "diagnostic-fd-wait.c:ge04_diagnostic_wait_fd_cancel",
+      "unresolved": "unresolved:ge04_deadline_remaining",
+      "candidate_targets": [
+        "diagnostic-deadline.c:ge04_deadline_remaining"
+      ]
+    },
+    {
+      "caller": "protected-attempt-fence.c:ge04_attempt_begin",
+      "unresolved": "unresolved:ge04_open_protected_directory",
+      "candidate_targets": [
+        "protected-prebirth-journal.c:ge04_open_protected_directory"
+      ]
+    },
+    {
+      "caller": "protected-attempt-fence.c:ge04_attempt_begin",
+      "unresolved": "unresolved:ge04_prebirth_encode",
+      "candidate_targets": [
+        "protected-prebirth-journal.c:ge04_prebirth_encode"
+      ]
+    },
+    {
+      "caller": "protected-attempt-fence.c:ge04_attempt_fence_encode",
+      "unresolved": "unresolved:ge04_prebirth_encode",
+      "candidate_targets": [
+        "protected-prebirth-journal.c:ge04_prebirth_encode"
+      ]
+    },
+    {
+      "caller": "protected-cgroup-custody.c:ge04_cgroup_pin_unqualified",
+      "unresolved": "unresolved:ge04_keeper_recheck_unqualified",
+      "candidate_targets": [
+        "protected-keeper-custody.c:ge04_keeper_recheck_unqualified"
+      ]
+    },
+    {
+      "caller": "protected-cgroup-custody.c:ge04_cgroup_pin_unqualified",
+      "unresolved": "unresolved:ge04_systemd_recheck_original",
+      "candidate_targets": [
+        "protected-systemd-transaction.c:ge04_systemd_recheck_original"
+      ]
+    },
+    {
+      "caller": "protected-cgroup-custody.c:ge04_cgroup_recheck_unqualified",
+      "unresolved": "unresolved:ge04_keeper_recheck_unqualified",
+      "candidate_targets": [
+        "protected-keeper-custody.c:ge04_keeper_recheck_unqualified"
+      ]
+    },
+    {
+      "caller": "protected-dispatch-intent.c:ge04_dispatch_intent_encode",
+      "unresolved": "unresolved:ge04_prebirth_encode",
+      "candidate_targets": [
+        "protected-prebirth-journal.c:ge04_prebirth_encode"
+      ]
+    },
+    {
+      "caller": "protected-dispatch-intent.c:ge04_dispatch_intent_stage",
+      "unresolved": "unresolved:ge04_attempt_recheck",
+      "candidate_targets": [
+        "protected-attempt-fence.c:ge04_attempt_recheck"
+      ]
+    },
+    {
+      "caller": "protected-dispatch-intent.c:ge04_dispatch_intent_stage",
+      "unresolved": "unresolved:ge04_open_protected_directory",
+      "candidate_targets": [
+        "protected-prebirth-journal.c:ge04_open_protected_directory"
+      ]
+    },
+    {
+      "caller": "protected-dispatch-intent.c:ge04_dispatch_intent_stage",
+      "unresolved": "unresolved:ge04_prebirth_recheck",
+      "candidate_targets": [
+        "protected-prebirth-journal.c:ge04_prebirth_recheck"
+      ]
+    },
+    {
+      "caller": "protected-dispatch-intent.c:ge04_dispatch_intent_stage",
+      "unresolved": "unresolved:ge04_systemd_recheck_original",
+      "candidate_targets": [
+        "protected-systemd-transaction.c:ge04_systemd_recheck_original"
+      ]
+    },
+    {
+      "caller": "protected-dispatch-preparation.c:ge04_prepare_fixed_dispatch",
+      "unresolved": "unresolved:ge04_append_fixed_transient_request",
+      "candidate_targets": [
+        "protected-systemd-request.c:ge04_append_fixed_transient_request"
+      ]
+    },
+    {
+      "caller": "protected-dispatch-preparation.c:ge04_prepare_fixed_dispatch",
+      "unresolved": "unresolved:ge04_systemd_recheck_original",
+      "candidate_targets": [
+        "protected-systemd-transaction.c:ge04_systemd_recheck_original"
+      ]
+    },
+    {
+      "caller": "protected-keeper-custody.c:ge04_keeper_pin_unqualified",
+      "unresolved": "unresolved:ge04_observe_unqualified_postbirth",
+      "candidate_targets": [
+        "protected-systemd-birth-observer.c:ge04_observe_unqualified_postbirth"
+      ]
+    },
+    {
+      "caller": "protected-keeper-custody.c:ge04_keeper_pin_unqualified",
+      "unresolved": "unresolved:ge04_systemd_recheck_original",
+      "candidate_targets": [
+        "protected-systemd-transaction.c:ge04_systemd_recheck_original"
+      ]
+    },
+    {
+      "caller": "protected-mount-namespace.c:ge04_mount_namespace_pin_unqualified",
+      "unresolved": "unresolved:ge04_cgroup_recheck_unqualified",
+      "candidate_targets": [
+        "protected-cgroup-custody.c:ge04_cgroup_recheck_unqualified"
+      ]
+    },
+    {
+      "caller": "protected-mount-namespace.c:ge04_mount_namespace_pin_unqualified",
+      "unresolved": "unresolved:ge04_keeper_recheck_unqualified",
+      "candidate_targets": [
+        "protected-keeper-custody.c:ge04_keeper_recheck_unqualified"
+      ]
+    },
+    {
+      "caller": "protected-mount-namespace.c:ge04_mount_namespace_recheck_unqualified",
+      "unresolved": "unresolved:ge04_cgroup_recheck_unqualified",
+      "candidate_targets": [
+        "protected-cgroup-custody.c:ge04_cgroup_recheck_unqualified"
+      ]
+    },
+    {
+      "caller": "protected-mount-namespace.c:ge04_mount_namespace_recheck_unqualified",
+      "unresolved": "unresolved:ge04_keeper_recheck_unqualified",
+      "candidate_targets": [
+        "protected-keeper-custody.c:ge04_keeper_recheck_unqualified"
+      ]
+    },
+    {
+      "caller": "protected-prebirth-journal.c:ge04_prebirth_stage",
+      "unresolved": "unresolved:ge04_attempt_recheck",
+      "candidate_targets": [
+        "protected-attempt-fence.c:ge04_attempt_recheck"
+      ]
+    },
+    {
+      "caller": "protected-systemd-birth-observer.c:ge04_observe_unqualified_postbirth",
+      "unresolved": "unresolved:ge04_systemd_recheck_original",
+      "candidate_targets": [
+        "protected-systemd-transaction.c:ge04_systemd_recheck_original"
+      ]
+    },
+    {
+      "caller": "protected-systemd-transaction.c:ge04_systemd_recheck_original",
+      "unresolved": "unresolved:ge04_attempt_recheck",
+      "candidate_targets": [
+        "protected-attempt-fence.c:ge04_attempt_recheck"
+      ]
+    },
+    {
+      "caller": "protected-systemd-transaction.c:ge04_systemd_recheck_original",
+      "unresolved": "unresolved:ge04_prebirth_recheck",
+      "candidate_targets": [
+        "protected-prebirth-journal.c:ge04_prebirth_recheck"
+      ]
+    },
+    {
+      "caller": "protected-systemd-transaction.c:ge04_systemd_subscribe_original",
+      "unresolved": "unresolved:ge04_attempt_recheck",
+      "candidate_targets": [
+        "protected-attempt-fence.c:ge04_attempt_recheck"
+      ]
+    },
+    {
+      "caller": "protected-systemd-transaction.c:ge04_systemd_subscribe_original",
+      "unresolved": "unresolved:ge04_prebirth_recheck",
+      "candidate_targets": [
+        "protected-prebirth-journal.c:ge04_prebirth_recheck"
+      ]
+    }
+  ],
+  "ambiguous_or_missing": [],
+  "limitations": "Source-name reconciliation only; does not establish linkage, signatures, compile flags, runtime reachability, or security acceptance."
+}

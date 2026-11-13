@@ -1,0 +1,1456 @@
+{
+  "method": "AUTHOR_AUTHORITY_REVIEW_QUEUE_NOT_SECURITY_ACCEPTANCE",
+  "entries": [
+    {
+      "file": "broker-peer-probe.c",
+      "line": 31,
+      "apis": [
+        "accept4"
+      ],
+      "source": "int client = accept4(listener, NULL, NULL, SOCK_CLOEXEC);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "descriptor_transfer",
+          "review_question": "Verify peer credential binding, ancillary bounds, fd close on every rejection, and message truncation.",
+          "required_invariant": "Untrusted descriptors cannot gain authority or leak across refusal paths."
+        }
+      ],
+      "source_context": [
+        "  if (listener < 0) return 1;",
+        "  if (bind(listener, (struct sockaddr *)&addr, sizeof(addr)) != 0) { perror(\"bind\"); close(listener); return 1; }",
+        "  if (chmod(argv[1], argc == 5 ? 0666 : 0600) != 0 || listen(listener, 1) != 0) { perror(\"listen/chmod\"); close(listener); unlink(argv[1]); return 1; }",
+        "  puts(\"READY\"); fflush(stdout);",
+        "  int client = accept4(listener, NULL, NULL, SOCK_CLOEXEC);",
+        "  int result = 1;",
+        "  if (client >= 0) {",
+        "    struct ucred cred; socklen_t len = sizeof(cred);",
+        "    if (getsockopt(client, SOL_SOCKET, SO_PEERCRED, &cred, &len) == 0 && len == sizeof(cred) && cred.pid > 0) {"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "line": 58,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "if(mkdirat(parent,argv[2],0700)){",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "destructive_mutation",
+          "review_question": "Verify fd/record binding immediately before mutation, exclusive custody, name-replacement race, and crash replay.",
+          "required_invariant": "Identity-bound removal or explicit quarantine on mismatch; no unowned deletion."
+        }
+      ],
+      "source_context": [
+        "   close(parent);return 76;",
+        "  }",
+        " }",
+        " /* mkdirat must fail with EEXIST: never adopt an existing leaf. */",
+        " if(mkdirat(parent,argv[2],0700)){",
+        "  int result=errno==EEXIST?73:71;",
+        "  close(parent);return result;",
+        " }",
+        " int leaf=openat(parent,argv[2],O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 354,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child[slot],&status,WNOHANG|WUNTRACED);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        "static int wait_stop(struct context *c,int slot,int migrated) {",
+        " long long until=begin_operation();",
+        " for(;;){",
+        "  long long now=clock_ms();if(now<0||now>=until)return 0;",
+        "  int status;pid_t got=waitpid(c->child[slot],&status,WNOHANG|WUNTRACED);",
+        "  if(got<0&&errno!=EINTR)return 0;",
+        "  if(got==c->child[slot]&&(WIFEXITED(status)||WIFSIGNALED(status)))return 0;",
+        "  int dir=slot==0&&!migrated?c->outer:c->launcher;",
+        "  unsigned long long ticks;char state;"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 405,
+      "apis": [
+        "mount"
+      ],
+      "source": "if(mount(NULL,\"/\",NULL,MS_REC|MS_PRIVATE,NULL))_exit(121);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "destructive_mutation",
+          "review_question": "Verify fd/record binding immediately before mutation, exclusive custody, name-replacement race, and crash replay.",
+          "required_invariant": "Identity-bound removal or explicit quarantine on mismatch; no unowned deletion."
+        }
+      ],
+      "source_context": [
+        "}",
+        "static void bootstrap_child(pid_t parent,int nullfd,int launcher,const char *mode) {",
+        " child_setup(parent,nullfd,launcher,-1);",
+        " if(unshare(CLONE_NEWNS|CLONE_NEWCGROUP))_exit(120);",
+        " if(mount(NULL,\"/\",NULL,MS_REC|MS_PRIVATE,NULL))_exit(121);",
+        " if(!strcmp(mode,\"fail-mount\"))_exit(122);",
+        " if(mount(\"none\",\"/sys/fs/cgroup\",\"cgroup2\",MS_NOSUID|MS_NODEV|MS_NOEXEC,NULL))_exit(123);",
+        " if(write(3,\"0\",1)!=1)_exit(124);",
+        " close(3);"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 407,
+      "apis": [
+        "mount"
+      ],
+      "source": "if(mount(\"none\",\"/sys/fs/cgroup\",\"cgroup2\",MS_NOSUID|MS_NODEV|MS_NOEXEC,NULL))_exit(123);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "destructive_mutation",
+          "review_question": "Verify fd/record binding immediately before mutation, exclusive custody, name-replacement race, and crash replay.",
+          "required_invariant": "Identity-bound removal or explicit quarantine on mismatch; no unowned deletion."
+        }
+      ],
+      "source_context": [
+        " child_setup(parent,nullfd,launcher,-1);",
+        " if(unshare(CLONE_NEWNS|CLONE_NEWCGROUP))_exit(120);",
+        " if(mount(NULL,\"/\",NULL,MS_REC|MS_PRIVATE,NULL))_exit(121);",
+        " if(!strcmp(mode,\"fail-mount\"))_exit(122);",
+        " if(mount(\"none\",\"/sys/fs/cgroup\",\"cgroup2\",MS_NOSUID|MS_NODEV|MS_NOEXEC,NULL))_exit(123);",
+        " if(write(3,\"0\",1)!=1)_exit(124);",
+        " close(3);",
+        " if(raise(SIGSTOP))_exit(124);",
+        " for(;;)pause();"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 443,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],",
+      "syntax_disposition": "AUTHORITY_RELEVANT_NONCALL_OR_SYSCALL_FLAG",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        " if(!valid){for(int i=0;i<3;i++)if(high[i]>=0)close(high[i]);return 0;}",
+        " pid_t parent=getpid();",
+        " if(!budget_ok()){for(int i=0;i<3;i++)if(high[i]>=0)close(high[i]);return 0;}",
+        "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)",
+        " struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],",
+        "  .exit_signal=SIGCHLD,.cgroup=(unsigned)(slot==0?c->outer:c->launcher)};",
+        " c->child[slot]=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+        " if(!c->child[slot]){",
+        "  if(slot==0)bootstrap_child(parent,high[0],high[1],c->mode);"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 445,
+      "apis": [
+        "SYS_clone3"
+      ],
+      "source": "c->child[slot]=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+      "syntax_disposition": "SYSCALL_NUMBER_DISPATCH",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        " if(!budget_ok()){for(int i=0;i<3;i++)if(high[i]>=0)close(high[i]);return 0;}",
+        "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)",
+        " struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],",
+        "  .exit_signal=SIGCHLD,.cgroup=(unsigned)(slot==0?c->outer:c->launcher)};",
+        " c->child[slot]=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+        " if(!c->child[slot]){",
+        "  if(slot==0)bootstrap_child(parent,high[0],high[1],c->mode);",
+        "  else join_child(parent,high[0],high[1],high[2]);",
+        "  _exit(127);"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 531,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "bindings(c)&&budget_ok()&&unlinkat(c->outer,name,AT_REMOVEDIR)==0;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "destructive_mutation",
+          "review_question": "Verify fd/record binding immediately before mutation, exclusive custody, name-replacement race, and crash replay.",
+          "required_invariant": "Identity-bound removal or explicit quarantine on mismatch; no unowned deletion."
+        }
+      ],
+      "source_context": [
+        "}",
+        "static int empty_inner_remove(struct context *c,const char *name,int fd,const struct stat *saved) {",
+        " int a,b;",
+        " return inner_custody(c,name,fd,saved)&&controllers(fd,0)&&known_children(fd,0,&a,&b)&&!a&&!b&&empty(fd)&&",
+        "  bindings(c)&&budget_ok()&&unlinkat(c->outer,name,AT_REMOVEDIR)==0;",
+        "}",
+        "static int remove_record(struct context *c,const char *name) {",
+        " if(!budget_ok())return 0;",
+        " struct stat s;"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 538,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "return intent(c->work,name,&r)&&records_equal(&r,&c->record)&&budget_ok()&&unlinkat(c->work,name,0)==0;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "destructive_mutation",
+          "review_question": "Verify fd/record binding immediately before mutation, exclusive custody, name-replacement race, and crash replay.",
+          "required_invariant": "Identity-bound removal or explicit quarantine on mismatch; no unowned deletion."
+        }
+      ],
+      "source_context": [
+        " if(!budget_ok())return 0;",
+        " struct stat s;",
+        " if(fstatat(c->work,name,&s,AT_SYMLINK_NOFOLLOW))return errno==ENOENT;",
+        " struct record r={0};",
+        " return intent(c->work,name,&r)&&records_equal(&r,&c->record)&&budget_ok()&&unlinkat(c->work,name,0)==0;",
+        "}",
+        "static int cleanup_until(struct context *c,int notify,long long until) {",
+        " active_until=until;",
+        " /* Lack of a pinned original outer must never count as cleanup success. */"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 568,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "while((got=waitpid(-1,&status,WNOHANG))>0){}",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        " int done=0;",
+        " for(;;){",
+        "  long long now=clock_ms();if(now<0||now>=until)break;",
+        "  int status;pid_t got;",
+        "  while((got=waitpid(-1,&status,WNOHANG))>0){}",
+        "  if(got<0&&errno!=ECHILD&&errno!=EINTR)return 0;",
+        "  int reaped=got<0&&errno==ECHILD;",
+        "  if(empty(c->outer)&&(c->pidfd[0]<0||pidfd_state(c->pidfd[0])==1)&&",
+        "     (c->pidfd[1]<0||pidfd_state(c->pidfd[1])==1)&&reaped){done=1;break;}"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 585,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "destructive_mutation",
+          "review_question": "Verify fd/record binding immediately before mutation, exclusive custody, name-replacement race, and crash replay.",
+          "required_invariant": "Identity-bound removal or explicit quarantine on mismatch; no unowned deletion."
+        }
+      ],
+      "source_context": [
+        " if(!known_children(c->outer,0,&a,&b)||clock_ms()<0||clock_ms()>=until)return 0;",
+        " if(b&&(!empty_inner_remove(c,\"payload\",c->payload,&c->inner_stat[1])))return 0;",
+        " if(a&&(!empty_inner_remove(c,\"launcher\",c->launcher,&c->inner_stat[0])))return 0;",
+        " if(!bindings(c)||!empty(c->outer)||clock_ms()<0||clock_ms()>=until||",
+        "    unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+        " c->owned=0;",
+        " if(!bindings(c)||!remove_record(c,\"intent.v1\"))return 0;",
+        " c->published=0;",
+        " return bindings(c)&&remove_record(c,\"intent.tmp\")&&budget_ok()&&fsync(c->work)==0&&budget_ok();"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 601,
+      "apis": [
+        "flock"
+      ],
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "custody_and_locking",
+          "review_question": "Verify pinned inode/owner/mode, seal/lock semantics, TOCTOU and cleanup of partial state.",
+          "required_invariant": "No untrusted replacement or partial publication may be accepted."
+        }
+      ],
+      "source_context": [
+        " if(!root_directory(c->work,1)||fstat(c->work,&c->work_stat)||fstatfs(c->work,&workfs)||",
+        "    workfs.f_type!=TMPFS_MAGIC)return 0;",
+        " c->lock=open_regular(c->work,\".lock\",O_RDWR,0600,0,1);",
+        " if(!regular_root(c->lock,0600,0)||fstat(c->lock,&c->lock_stat))return 0;",
+        " if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+        "  c->reason=(errno==EAGAIN||errno==EWOULDBLOCK)?\"LOCK_DENIED\":\"LOCK_ERROR\";return 0;",
+        " }",
+        " if(!approval(c->work,&c->record))return 0;",
+        " c->parent=pin_directory(PARENT);struct statfs fs;"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 675,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "!bindings(c)||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "destructive_mutation",
+          "review_question": "Verify fd/record binding immediately before mutation, exclusive custody, name-replacement race, and crash replay.",
+          "required_invariant": "Identity-bound removal or explicit quarantine on mismatch; no unowned deletion."
+        }
+      ],
+      "source_context": [
+        " }",
+        " if(has_temp){",
+        "  if(fstatat(c->parent,pending.name,&s,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT)return 0;",
+        "  struct record now={0};if(!intent(c->work,\"intent.tmp\",&now)||!records_equal(&now,&pending)||",
+        "     !bindings(c)||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+        " }",
+        " return budget_ok()&&fsync(c->work)==0&&budget_ok();",
+        "}",
+        "static int wait_injected_exit(struct context *c,int code) {"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 683,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child[0],&status,WNOHANG);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        "static int wait_injected_exit(struct context *c,int code) {",
+        " long long until=begin_operation();",
+        " for(;;){",
+        "  long long now=clock_ms();if(now<0||now>=until)return 0;",
+        "  int status;pid_t got=waitpid(c->child[0],&status,WNOHANG);",
+        "  if(got==c->child[0])return WIFEXITED(status)&&WEXITSTATUS(status)==code;",
+        "  if(got<0&&errno!=EINTR)return 0;",
+        "  usleep(1000);",
+        " }"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 724,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "if(!budget_ok()||mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "destructive_mutation",
+          "review_question": "Verify fd/record binding immediately before mutation, exclusive custody, name-replacement race, and crash replay.",
+          "required_invariant": "Identity-bound removal or explicit quarantine on mismatch; no unowned deletion."
+        }
+      ],
+      "source_context": [
+        "    parent_single_outer(&c,existing,sizeof(existing),&unused)!=0){c.reason=\"EXISTING_STATE\";goto finished;}",
+        " if(prctl(PR_SET_CHILD_SUBREAPER,1,0,0,0))goto finished;",
+        " unsigned char random[8];if(!budget_ok()||getrandom(random,8,GRND_NONBLOCK)!=8)goto finished;",
+        " strcpy(c.record.name,\"worker-\");for(int i=0;i<8;i++)snprintf(c.record.name+7+i*2,3,\"%02x\",random[i]);",
+        " if(!budget_ok()||mkdirat(c.parent,c.record.name,0700))goto finished;",
+        " int initial=openat(c.parent,c.record.name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);",
+        " if(initial<0||fstat(initial,&s)){if(initial>=0)close(initial);goto finished;}close(initial);",
+        " c.record.outer_dev=s.st_dev;c.record.outer_ino=s.st_ino;",
+        " if(!open_outer(&c))goto finished;"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 730,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "!budget_ok()||mkdirat(c.outer,\"launcher\",0700)||!budget_ok()||mkdirat(c.outer,\"payload\",0700)||",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "destructive_mutation",
+          "review_question": "Verify fd/record binding immediately before mutation, exclusive custody, name-replacement race, and crash replay.",
+          "required_invariant": "Identity-bound removal or explicit quarantine on mismatch; no unowned deletion."
+        }
+      ],
+      "source_context": [
+        " if(initial<0||fstat(initial,&s)){if(initial>=0)close(initial);goto finished;}close(initial);",
+        " c.record.outer_dev=s.st_dev;c.record.outer_ino=s.st_ino;",
+        " if(!open_outer(&c))goto finished;",
+        " if(!empty(c.outer)||!controllers(c.outer,0)||!text_is(c.outer,\"cgroup.type\",\"domain\\n\")||",
+        "    !budget_ok()||mkdirat(c.outer,\"launcher\",0700)||!budget_ok()||mkdirat(c.outer,\"payload\",0700)||",
+        "    !open_inner(&c,\"launcher\",&c.launcher,&c.inner_stat[0])||",
+        "    !open_inner(&c,\"payload\",&c.payload,&c.inner_stat[1])||",
+        "    !set_text(c.outer,\"pids.max\",\"128\")||!set_text(c.outer,\"memory.max\",\"536870912\")||",
+        "    !set_text(c.outer,\"memory.swap.max\",\"0\")||!set_text(c.outer,\"cpu.max\",\"50000 100000\")||"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 287,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child,&status,WNOHANG|WUNTRACED);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        "static int wait_stopped(struct context *c,unsigned long long *ticks) {",
+        " long long until=clock_ms()+3000;",
+        " while(1){",
+        "  long long now=clock_ms();if(now<0||now>=until)break;",
+        "  int status;pid_t got=waitpid(c->child,&status,WNOHANG|WUNTRACED);",
+        "  if(got==c->child){char state;return WIFSTOPPED(status)&&WSTOPSIG(status)==SIGSTOP&&",
+        "    pidfd_alive(c->pidfd)&&process_info(c->child,ticks,&state,0)&&state=='T';}",
+        "  if(got<0)return 0;",
+        "  usleep(1000);"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 308,
+      "apis": [
+        "setgroups"
+      ],
+      "source": "if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "privilege_transition",
+          "review_question": "Verify real/effective/saved IDs, group clearing, no_new_privs, and all failed-transition paths.",
+          "required_invariant": "No exec/fork after partial privilege drop; verify independently in permitted test environment."
+        }
+      ],
+      "source_context": [
+        "#else",
+        " _exit(125);",
+        "#endif",
+        " if(raise(SIGSTOP))_exit(125);",
+        " if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||",
+        "    setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+        " uid_t ru,eu,su;gid_t rg,eg,sg;if(getresuid(&ru,&eu,&su)||getresgid(&rg,&eg,&sg)||ru!=TEST_UID||eu!=TEST_UID||su!=TEST_UID||rg!=TEST_UID||eg!=TEST_UID||sg!=TEST_UID||getgroups(0,NULL)!=0)_exit(125);",
+        " pid_t descendant=fork();if(descendant<0)_exit(125);",
+        " if(!descendant&&setsid()<0)_exit(125);"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 309,
+      "apis": [
+        "setresgid",
+        "setresuid"
+      ],
+      "source": "setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "privilege_transition",
+          "review_question": "Verify real/effective/saved IDs, group clearing, no_new_privs, and all failed-transition paths.",
+          "required_invariant": "No exec/fork after partial privilege drop; verify independently in permitted test environment."
+        }
+      ],
+      "source_context": [
+        " _exit(125);",
+        "#endif",
+        " if(raise(SIGSTOP))_exit(125);",
+        " if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||",
+        "    setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+        " uid_t ru,eu,su;gid_t rg,eg,sg;if(getresuid(&ru,&eu,&su)||getresgid(&rg,&eg,&sg)||ru!=TEST_UID||eu!=TEST_UID||su!=TEST_UID||rg!=TEST_UID||eg!=TEST_UID||sg!=TEST_UID||getgroups(0,NULL)!=0)_exit(125);",
+        " pid_t descendant=fork();if(descendant<0)_exit(125);",
+        " if(!descendant&&setsid()<0)_exit(125);",
+        " for(;;)pause();"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 311,
+      "apis": [
+        "fork"
+      ],
+      "source": "pid_t descendant=fork();if(descendant<0)_exit(125);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        " if(raise(SIGSTOP))_exit(125);",
+        " if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||",
+        "    setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+        " uid_t ru,eu,su;gid_t rg,eg,sg;if(getresuid(&ru,&eu,&su)||getresgid(&rg,&eg,&sg)||ru!=TEST_UID||eu!=TEST_UID||su!=TEST_UID||rg!=TEST_UID||eg!=TEST_UID||sg!=TEST_UID||getgroups(0,NULL)!=0)_exit(125);",
+        " pid_t descendant=fork();if(descendant<0)_exit(125);",
+        " if(!descendant&&setsid()<0)_exit(125);",
+        " for(;;)pause();",
+        "}",
+        "static int wait_running(struct context *c,unsigned long long expected_ticks) {"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 331,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "return unlinkat(c->work,name,0)==0;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "destructive_mutation",
+          "review_question": "Verify fd/record binding immediately before mutation, exclusive custody, name-replacement race, and crash replay.",
+          "required_invariant": "Identity-bound removal or explicit quarantine on mismatch; no unowned deletion."
+        }
+      ],
+      "source_context": [
+        "static int remove_artifact(struct context *c,const char *name) {",
+        " struct stat s;",
+        " if(fstatat(c->work,name,&s,AT_SYMLINK_NOFOLLOW))return errno==ENOENT;",
+        " struct record r={0};if(!read_intent(c->work,name,&r)||!records_equal(&r,&c->record))return 0;",
+        " return unlinkat(c->work,name,0)==0;",
+        "}",
+        "static int cleanup(struct context *c,int notify) {",
+        " /* No pinned, owned leaf is not evidence of a successful cleanup. */",
+        " if(!c->owned_leaf)return 0;"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 346,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "while((n=waitpid(-1,&status,WNOHANG))>0){}",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        "  long long now=clock_ms();if(now<0||now>=until)break;",
+        "  if(empty(c)){",
+        "   if(c->child>0){",
+        "    int status;pid_t n;",
+        "    while((n=waitpid(-1,&status,WNOHANG))>0){}",
+        "    if(n<0&&errno==ECHILD&&(!pidfd_alive(c->pidfd))){done=1;break;}",
+        "   }else{done=1;break;}",
+        "  }",
+        "  usleep(1000);"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 353,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "if(!bindings(c)||!empty(c)||unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "destructive_mutation",
+          "review_question": "Verify fd/record binding immediately before mutation, exclusive custody, name-replacement race, and crash replay.",
+          "required_invariant": "Identity-bound removal or explicit quarantine on mismatch; no unowned deletion."
+        }
+      ],
+      "source_context": [
+        "  }",
+        "  usleep(1000);",
+        " }",
+        " if(!done||!bindings(c)||(notify&&!event(\"EMPTY\")))return 0;",
+        " if(!bindings(c)||!empty(c)||unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+        " c->owned_leaf=0;",
+        " if(!remove_artifact(c,\"intent.v1\")||!remove_artifact(c,\"intent.tmp\")||fsync(c->work))return 0;",
+        " return 1;",
+        "}"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 372,
+      "apis": [
+        "flock"
+      ],
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "custody_and_locking",
+          "review_question": "Verify pinned inode/owner/mode, seal/lock semantics, TOCTOU and cleanup of partial state.",
+          "required_invariant": "No untrusted replacement or partial publication may be accepted."
+        }
+      ],
+      "source_context": [
+        " c->work=pin_directory(WORK);",
+        " if(c->work<0||fstat(c->work,&c->work_stat)||(c->work_stat.st_mode&07777)!=0700)return 0;",
+        " c->lock=openat(c->work,\".lock\",O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC,0600);",
+        " if(!regular_root(c->lock,0600,0)||fstat(c->lock,&c->lock_stat))return 0;",
+        " if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+        "  c->setup_reason=(errno==EWOULDBLOCK||errno==EAGAIN)?\"LOCK_DENIED\":\"LOCK_ERROR\";",
+        "  return 0;",
+        " }",
+        " if(!approval(c->work,&c->record))return 0;"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 428,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "destructive_mutation",
+          "review_question": "Verify fd/record binding immediately before mutation, exclusive custody, name-replacement race, and crash replay.",
+          "required_invariant": "Identity-bound removal or explicit quarantine on mismatch; no unowned deletion."
+        }
+      ],
+      "source_context": [
+        "  /* Never adopt by name: the durable unpublished intent must name this exact",
+        "   * directory and record its device/inode, otherwise quarantine. */",
+        "  if(!sweep_candidate_allowed(has_temp,&pending,&st,e->d_name)){ok=0;break;}",
+        "  c->record=pending;",
+        "  if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}",
+        "  c->owned_leaf=0;",
+        "  close(c->procs);close(c->events);close(c->killfd);close(c->leaf);c->procs=c->events=c->killfd=c->leaf=-1;",
+        " }",
+        " closedir(dir);"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 438,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "destructive_mutation",
+          "review_question": "Verify fd/record binding immediately before mutation, exclusive custody, name-replacement race, and crash replay.",
+          "required_invariant": "Identity-bound removal or explicit quarantine on mismatch; no unowned deletion."
+        }
+      ],
+      "source_context": [
+        " struct record temp={0};",
+        " if(fstatat(c->work,\"intent.tmp\",&st,AT_SYMLINK_NOFOLLOW)==0){",
+        "  if(!read_intent(c->work,\"intent.tmp\",&temp)||strcmp(temp.invocation,c->record.invocation)||",
+        "     temp.parent_dev!=c->record.parent_dev||temp.parent_ino!=c->record.parent_ino||",
+        "     fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+        " }else if(errno!=ENOENT)return 0;",
+        " return fsync(c->work)==0;",
+        "}",
+        "int main(int argc,char **argv) {"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 469,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "if(mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "destructive_mutation",
+          "review_question": "Verify fd/record binding immediately before mutation, exclusive custody, name-replacement race, and crash replay.",
+          "required_invariant": "Identity-bound removal or explicit quarantine on mismatch; no unowned deletion."
+        }
+      ],
+      "source_context": [
+        "  reason=\"EXISTING_STATE\";goto finished;",
+        " }",
+        " unsigned char random[8];if(getrandom(random,sizeof(random),0)!=(ssize_t)sizeof(random))goto finished;",
+        " strcpy(c.record.name,\"worker-\");for(int i=0;i<8;i++)snprintf(c.record.name+7+i*2,3,\"%02x\",random[i]);",
+        " if(mkdirat(c.parent,c.record.name,0700))goto finished;",
+        " c.leaf=openat(c.parent,c.record.name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);",
+        " if(!root_directory(c.leaf)||fstat(c.leaf,&c.leaf_stat))goto finished;",
+        " c.record.leaf_dev=c.leaf_stat.st_dev;c.record.leaf_ino=c.leaf_stat.st_ino;c.owned_leaf=1;",
+        " if(!open_controls(&c)||!bindings(&c)||!empty(&c)||!event(\"LEAF\"))goto rollback;"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 482,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,",
+      "syntax_disposition": "AUTHORITY_RELEVANT_NONCALL_OR_SYSCALL_FLAG",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        " if(!strcmp(c.mode,\"fail-before-clone\")){reason=\"BEFORE_CLONE\";goto rollback;}",
+        " if(!bindings(&c)||!empty(&c)||prctl(PR_SET_CHILD_SUBREAPER,1,0,0,0))goto rollback;",
+        " signal(SIGCHLD,SIG_DFL);",
+        "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)",
+        " struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,",
+        "  .exit_signal=SIGCHLD,.cgroup=(unsigned)c.leaf};",
+        " c.child=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+        " if(c.child==0)worker();",
+        "#else"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 484,
+      "apis": [
+        "SYS_clone3"
+      ],
+      "source": "c.child=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+      "syntax_disposition": "SYSCALL_NUMBER_DISPATCH",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        " signal(SIGCHLD,SIG_DFL);",
+        "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)",
+        " struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,",
+        "  .exit_signal=SIGCHLD,.cgroup=(unsigned)c.leaf};",
+        " c.child=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+        " if(c.child==0)worker();",
+        "#else",
+        " c.child=-1;errno=ENOSYS;",
+        "#endif"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "line": 14,
+      "apis": [
+        "execveat"
+      ],
+      "source": "execveat(3, \"\", argv + 1, (char *const[]){\"PATH=/usr/bin:/bin\", NULL}, AT_EMPTY_PATH);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        " */",
+        "int main(int argc, char **argv) {",
+        "  /* argv[0] is the launcher, argv[1] is the pinned probe identity. */",
+        "  if (argc != 5 && argc != 6) return 64;",
+        "  execveat(3, \"\", argv + 1, (char *const[]){\"PATH=/usr/bin:/bin\", NULL}, AT_EMPTY_PATH);",
+        "  fprintf(stderr, \"execveat pinned probe failed: %s\\n\", strerror(errno));",
+        "  return 126;",
+        "}"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned.c",
+      "line": 13,
+      "apis": [
+        "execveat"
+      ],
+      "source": "execveat(4, \"\", argv, environ, AT_EMPTY_PATH);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        " * The peercred helper receives the accepted socket as fd 3 unchanged.",
+        " */",
+        "int main(void) {",
+        "  char *const argv[] = {(char *)\"peercred\", NULL};",
+        "  execveat(4, \"\", argv, environ, AT_EMPTY_PATH);",
+        "  fprintf(stderr, \"execveat pinned helper failed: %s\\n\", strerror(errno));",
+        "  return 126;",
+        "}"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 116,
+      "apis": [
+        "setgroups",
+        "setresgid"
+      ],
+      "source": "if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "privilege_transition",
+          "review_question": "Verify real/effective/saved IDs, group clearing, no_new_privs, and all failed-transition paths.",
+          "required_invariant": "No exec/fork after partial privilege drop; verify independently in permitted test environment."
+        }
+      ],
+      "source_context": [
+        "   * the child-side synchronization point; no untrusted code runs yet. */",
+        "  if(raise(SIGSTOP)!=0)die(\"pre-exec stop failed\");",
+        " }",
+        " if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0))die(\"no_new_privs failed\");",
+        " if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||",
+        "    setresuid(target,target,target))die(\"identity isolation failed\");",
+        " if(getuid()!=target||geteuid()!=target||getgid()!=(gid_t)target||",
+        "    getegid()!=(gid_t)target)die(\"identity mismatch\");",
+        " uid_t ru,eu,su;gid_t rg,eg,sg;"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 117,
+      "apis": [
+        "setresuid"
+      ],
+      "source": "setresuid(target,target,target))die(\"identity isolation failed\");",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "privilege_transition",
+          "review_question": "Verify real/effective/saved IDs, group clearing, no_new_privs, and all failed-transition paths.",
+          "required_invariant": "No exec/fork after partial privilege drop; verify independently in permitted test environment."
+        }
+      ],
+      "source_context": [
+        "  if(raise(SIGSTOP)!=0)die(\"pre-exec stop failed\");",
+        " }",
+        " if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0))die(\"no_new_privs failed\");",
+        " if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||",
+        "    setresuid(target,target,target))die(\"identity isolation failed\");",
+        " if(getuid()!=target||geteuid()!=target||getgid()!=(gid_t)target||",
+        "    getegid()!=(gid_t)target)die(\"identity mismatch\");",
+        " uid_t ru,eu,su;gid_t rg,eg,sg;",
+        " if(getresuid(&ru,&eu,&su)||getresgid(&rg,&eg,&sg)||ru!=target||eu!=target||su!=target||rg!=(gid_t)target||eg!=(gid_t)target||sg!=(gid_t)target||getgroups(0,NULL)!=0)die(\"saved identity or supplementary groups mismatch\");"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 35,
+      "apis": [
+        "fork"
+      ],
+      "source": "pid_t child=fork();",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        " int fail_before_resume=argc==2 && !strcmp(argv[1],\"--fail-before-resume\");",
+        " int fail_cleanup_signal=argc==2 && !strcmp(argv[1],\"--fail-cleanup-pidfd-signal\");",
+        " if(argc!=1 && !fail_open && !fail_before_resume && !fail_cleanup_signal){fprintf(stderr,\"invalid arguments\\n\");return 64;}",
+        "#ifdef SYS_pidfd_open",
+        " pid_t child=fork();",
+        " if(child<0){perror(\"fork\");return 70;}",
+        " if(child==0){for(;;)pause();}",
+        " /* Child cannot exit voluntarily. The parent owns its lifetime and does",
+        "  * not accept an externally supplied PID. The pidfd stays open throughout. */"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 45,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "if(waitpid(child,&status,WUNTRACED)!=child||!WIFSTOPPED(status)||WSTOPSIG(status)!=SIGSTOP){result=74;goto cleanup;}",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        " int result=0,status=0;",
+        " if(fd<0){if(!fail_open)perror(\"pidfd_open\");result=71;goto cleanup;}",
+        " if(!pinned_alive(fd)){result=72;goto cleanup;}",
+        " if(send_pinned(fd,SIGSTOP)<0){perror(\"stop\");result=73;goto cleanup;}",
+        " if(waitpid(child,&status,WUNTRACED)!=child||!WIFSTOPPED(status)||WSTOPSIG(status)!=SIGSTOP){result=74;goto cleanup;}",
+        " if(!pinned_alive(fd)){result=75;goto cleanup;}",
+        " if(fail_before_resume||fail_cleanup_signal){result=76;goto cleanup;}",
+        " if(send_pinned(fd,SIGCONT)<0){perror(\"resume\");result=76;goto cleanup;}",
+        " if(send_pinned(fd,SIGKILL)<0){perror(\"kill\");result=77;goto cleanup;}"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 50,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        " if(!pinned_alive(fd)){result=75;goto cleanup;}",
+        " if(fail_before_resume||fail_cleanup_signal){result=76;goto cleanup;}",
+        " if(send_pinned(fd,SIGCONT)<0){perror(\"resume\");result=76;goto cleanup;}",
+        " if(send_pinned(fd,SIGKILL)<0){perror(\"kill\");result=77;goto cleanup;}",
+        " if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}",
+        " child=-1;",
+        " if(pinned_alive(fd)){result=79;goto cleanup;}",
+        " if(send_pinned(fd,SIGCONT)==0||errno!=ESRCH){result=80;goto cleanup;}",
+        " puts(\"retained-pidfd lifecycle: PASS\");"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 63,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(kill(child,SIGKILL)<0 && errno!=ESRCH)result=82;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        "  int signaled=fd>=0 && !fail_cleanup_signal && send_pinned(fd,SIGKILL)==0;",
+        "  if(!signaled){",
+        "   /* An owned direct child is the only safe PID fallback here. If the",
+        "    * pidfd signal failed, never block waiting for a still-running child. */",
+        "   if(kill(child,SIGKILL)<0 && errno!=ESRCH)result=82;",
+        "   if(fd>=0)result=82;",
+        "  }",
+        "  pid_t reaped;",
+        "  do {reaped=waitpid(child,&status,0);}while(reaped<0&&errno==EINTR);"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 67,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "do {reaped=waitpid(child,&status,0);}while(reaped<0&&errno==EINTR);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "process_lifecycle",
+          "review_question": "Verify target PID/pidfd generation, cgroup membership, signal/reap error paths and stale process refusal.",
+          "required_invariant": "Only the bound process may be signalled or reaped; failures are terminal or quarantined."
+        }
+      ],
+      "source_context": [
+        "   if(kill(child,SIGKILL)<0 && errno!=ESRCH)result=82;",
+        "   if(fd>=0)result=82;",
+        "  }",
+        "  pid_t reaped;",
+        "  do {reaped=waitpid(child,&status,0);}while(reaped<0&&errno==EINTR);",
+        "  if(reaped!=child)result=83;",
+        " }",
+        " if(fd>=0)close(fd);",
+        " return result;"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 122,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t n = pread(held->fence_fd, observed + offset,",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "custody_and_locking",
+          "review_question": "Verify pinned inode/owner/mode, seal/lock semantics, TOCTOU and cleanup of partial state.",
+          "required_invariant": "No untrusted replacement or partial publication may be accepted."
+        }
+      ],
+      "source_context": [
+        "        return deny(EPERM);",
+        "    char observed[GE04_ATTEMPT_MAX];",
+        "    size_t offset = 0;",
+        "    while (offset < size) {",
+        "        ssize_t n = pread(held->fence_fd, observed + offset,",
+        "                          size - offset, (off_t)offset);",
+        "        if (n < 0 && errno == EINTR) continue;",
+        "        if (n <= 0) return deny(EIO);",
+        "        offset += (size_t)n;"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 129,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(held->fence_fd, &trailer, 1, (off_t)size) != 0 ||",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "custody_and_locking",
+          "review_question": "Verify pinned inode/owner/mode, seal/lock semantics, TOCTOU and cleanup of partial state.",
+          "required_invariant": "No untrusted replacement or partial publication may be accepted."
+        }
+      ],
+      "source_context": [
+        "        if (n <= 0) return deny(EIO);",
+        "        offset += (size_t)n;",
+        "    }",
+        "    char trailer;",
+        "    if (pread(held->fence_fd, &trailer, 1, (off_t)size) != 0 ||",
+        "        memcmp(observed, content, size) != 0) return deny(EIO);",
+        "    return 0;",
+        "}",
+        ""
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 104,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t got = pread(held->intent_fd, observed + count,",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "custody_and_locking",
+          "review_question": "Verify pinned inode/owner/mode, seal/lock semantics, TOCTOU and cleanup of partial state.",
+          "required_invariant": "No untrusted replacement or partial publication may be accepted."
+        }
+      ],
+      "source_context": [
+        "        return refuse(EPERM);",
+        "    char observed[GE04_DISPATCH_INTENT_MAX];",
+        "    size_t count = 0;",
+        "    while (count < length) {",
+        "        ssize_t got = pread(held->intent_fd, observed + count,",
+        "                            length - count, (off_t)count);",
+        "        if (got < 0 && errno == EINTR) continue;",
+        "        if (got <= 0) return refuse(EIO);",
+        "        count += (size_t)got;"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 111,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(held->intent_fd, &excess, 1, (off_t)length) != 0 ||",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "custody_and_locking",
+          "review_question": "Verify pinned inode/owner/mode, seal/lock semantics, TOCTOU and cleanup of partial state.",
+          "required_invariant": "No untrusted replacement or partial publication may be accepted."
+        }
+      ],
+      "source_context": [
+        "        if (got <= 0) return refuse(EIO);",
+        "        count += (size_t)got;",
+        "    }",
+        "    char excess;",
+        "    if (pread(held->intent_fd, &excess, 1, (off_t)length) != 0 ||",
+        "        memcmp(bytes, observed, length) != 0)",
+        "        return refuse(EIO);",
+        "    return 0;",
+        "}"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "line": 67,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "\"StartTransientUnit\");",
+      "syntax_disposition": "AUTHORITY_RELEVANT_NONCALL_OR_SYSCALL_FLAG",
+      "security_checks": [
+        {
+          "category": "bus_authority",
+          "review_question": "Verify trusted bus owner and unit/job identity, method allowlist, response provenance and refusal behavior.",
+          "required_invariant": "No unreviewed manager mutation, and StartTransientUnit remains refused."
+        }
+      ],
+      "source_context": [
+        "        return refuse(tx);",
+        "    sd_bus_message *message = NULL;",
+        "    int r = sd_bus_message_new_method_call(",
+        "        tx->bus, &message, tx->owner, MANAGER_PATH, MANAGER_IFACE,",
+        "        \"StartTransientUnit\");",
+        "    if (r < 0 || !message) {",
+        "        sd_bus_message_unref(message);",
+        "        return refuse(tx);",
+        "    }"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 144,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t read_bytes = pread(fd, bytes + offset, expected - offset,",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "custody_and_locking",
+          "review_question": "Verify pinned inode/owner/mode, seal/lock semantics, TOCTOU and cleanup of partial state.",
+          "required_invariant": "No untrusted replacement or partial publication may be accepted."
+        }
+      ],
+      "source_context": [
+        "",
+        "static int read_all_at(int fd, char *bytes, size_t expected) {",
+        "    size_t offset = 0;",
+        "    while (offset < expected) {",
+        "        ssize_t read_bytes = pread(fd, bytes + offset, expected - offset,",
+        "                                  (off_t)offset);",
+        "        if (read_bytes < 0 && errno == EINTR) continue;",
+        "        if (read_bytes <= 0) return refuse(EIO);",
+        "        offset += (size_t)read_bytes;"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 151,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(fd, &trailer, 1, (off_t)expected) != 0) return refuse(EIO);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "custody_and_locking",
+          "review_question": "Verify pinned inode/owner/mode, seal/lock semantics, TOCTOU and cleanup of partial state.",
+          "required_invariant": "No untrusted replacement or partial publication may be accepted."
+        }
+      ],
+      "source_context": [
+        "        if (read_bytes <= 0) return refuse(EIO);",
+        "        offset += (size_t)read_bytes;",
+        "    }",
+        "    char trailer;",
+        "    if (pread(fd, &trailer, 1, (off_t)expected) != 0) return refuse(EIO);",
+        "    return 0;",
+        "}",
+        "",
+        "int ge04_prebirth_recheck(const struct ge04_prebirth_claim *claim,"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 83,
+      "apis": [
+        "Unsubscribe"
+      ],
+      "source": "GE04_MANAGER_IFACE, \"Unsubscribe\",",
+      "syntax_disposition": "AUTHORITY_RELEVANT_NONCALL_OR_SYSCALL_FLAG",
+      "security_checks": [
+        {
+          "category": "bus_authority",
+          "review_question": "Verify trusted bus owner and unit/job identity, method allowlist, response provenance and refusal behavior.",
+          "required_invariant": "No unreviewed manager mutation, and StartTransientUnit remains refused."
+        }
+      ],
+      "source_context": [
+        "        /* This is a private connection. Best effort; close releases it.",
+        "         * The bounded process supervisor will ultimately be required.",
+        "         */",
+        "        sd_bus_call_method(tx->bus, tx->owner, GE04_MANAGER_PATH,",
+        "                           GE04_MANAGER_IFACE, \"Unsubscribe\",",
+        "                           NULL, NULL, \"\");",
+        "    }",
+        "    sd_bus_slot_unref(tx->job_slot);",
+        "    sd_bus_close_unref(tx->bus);"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 283,
+      "apis": [
+        "Subscribe"
+      ],
+      "source": "GE04_MANAGER_IFACE, \"Subscribe\",",
+      "syntax_disposition": "AUTHORITY_RELEVANT_NONCALL_OR_SYSCALL_FLAG",
+      "security_checks": [
+        {
+          "category": "bus_authority",
+          "review_question": "Verify trusted bus owner and unit/job identity, method allowlist, response provenance and refusal behavior.",
+          "required_invariant": "No unreviewed manager mutation, and StartTransientUnit remains refused."
+        }
+      ],
+      "source_context": [
+        "                            GE04_MANAGER_IFACE, \"JobRemoved\",",
+        "                            job_event, tx);",
+        "    if (r < 0) goto failed;",
+        "    r = sd_bus_call_method(bus, tx->owner, GE04_MANAGER_PATH,",
+        "                           GE04_MANAGER_IFACE, \"Subscribe\",",
+        "                           NULL, NULL, \"\");",
+        "    if (r < 0) goto failed;",
+        "    tx->bus = bus;",
+        "    tx->job_slot = slot;"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 170,
+      "apis": [
+        "accept4"
+      ],
+      "source": "s->fd=accept4(listener,NULL,NULL,SOCK_CLOEXEC|SOCK_NONBLOCK);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "descriptor_transfer",
+          "review_question": "Verify peer credential binding, ancillary bounds, fd close on every rejection, and message truncation.",
+          "required_invariant": "Untrusted descriptors cannot gain authority or leak across refusal paths."
+        }
+      ],
+      "source_context": [
+        " if(s->pidfd<0||!live(s))return fail(s,GE04_STREAM_DENIED);",
+        " for(;;){",
+        "  int status=ready(s,listener,POLLIN,until);",
+        "  if(status)return fail(s,status);",
+        "  s->fd=accept4(listener,NULL,NULL,SOCK_CLOEXEC|SOCK_NONBLOCK);",
+        "  if(s->fd>=0)break;",
+        "  if(errno!=EINTR&&errno!=EAGAIN&&errno!=EWOULDBLOCK)return fail(s,GE04_STREAM_DENIED);",
+        " }",
+        " struct ucred cred;n=sizeof(cred);int one=1;"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 189,
+      "apis": [
+        "SCM_RIGHTS"
+      ],
+      "source": "if(c->cmsg_level==SOL_SOCKET&&(c->cmsg_type==SCM_RIGHTS",
+      "syntax_disposition": "AUTHORITY_RELEVANT_NONCALL_OR_SYSCALL_FLAG",
+      "security_checks": [
+        {
+          "category": "descriptor_transfer",
+          "review_question": "Verify peer credential binding, ancillary bounds, fd close on every rejection, and message truncation.",
+          "required_invariant": "Untrusted descriptors cannot gain authority or leak across refusal paths."
+        }
+      ],
+      "source_context": [
+        " if(msg->msg_flags&MSG_CTRUNC)s->saw_ctrunc=1;",
+        " for(struct cmsghdr *c=CMSG_FIRSTHDR(msg);c;c=CMSG_NXTHDR(msg,c)){",
+        "  if(c->cmsg_len<CMSG_LEN(0)){valid=0;continue;}",
+        "  size_t bytes=c->cmsg_len-CMSG_LEN(0);",
+        "  if(c->cmsg_level==SOL_SOCKET&&(c->cmsg_type==SCM_RIGHTS",
+        "#ifdef SCM_PIDFD",
+        "      ||c->cmsg_type==SCM_PIDFD",
+        "#endif",
+        "      )){"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 212,
+      "apis": [
+        "recvmsg"
+      ],
+      "source": "ssize_t n=recvmsg(s->fd,&msg,MSG_CMSG_CLOEXEC|MSG_DONTWAIT);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "security_checks": [
+        {
+          "category": "descriptor_transfer",
+          "review_question": "Verify peer credential binding, ancillary bounds, fd close on every rejection, and message truncation.",
+          "required_invariant": "Untrusted descriptors cannot gain authority or leak across refusal paths."
+        }
+      ],
+      "source_context": [
+        "  int status=ready(s,s->fd,POLLIN,until);if(status)return status;",
+        "  union {struct cmsghdr align;unsigned char bytes[CMSG_SPACE(sizeof(struct ucred))+CMSG_SPACE(16*sizeof(int))];} control;",
+        "  struct iovec iov={.iov_base=out+used,.iov_len=length-used};",
+        "  struct msghdr msg={.msg_iov=&iov,.msg_iovlen=1,.msg_control=control.bytes,.msg_controllen=sizeof(control.bytes)};",
+        "  ssize_t n=recvmsg(s->fd,&msg,MSG_CMSG_CLOEXEC|MSG_DONTWAIT);",
+        "  if(n<0){if(errno==EINTR||errno==EAGAIN||errno==EWOULDBLOCK)continue;return GE04_STREAM_DENIED;}",
+        "  int valid=controls(s,&msg); /* Close received descriptors even on EOF/rejection. */",
+        "  if(!valid||n<=0)return GE04_STREAM_DENIED;",
+        "  status=check(s,until);if(status)return status;"
+      ],
+      "author_finding": "REQUIRES_CONTROL_FLOW_AND_NEGATIVE_PATH_REVIEW",
+      "reviewer_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    }
+  ],
+  "limitations": "Review questions are not control-flow proofs. Existing 12-group destructive review is partial; no runtime privileged validation, indirect-call closure, or historical 63-line reconciliation."
+}

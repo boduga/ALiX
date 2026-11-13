@@ -1,0 +1,410 @@
+{
+  "status": "candidate test build recipe index; NOT a production build manifest",
+  "source_revision": "7a15a906488996bd677a246d2d24787d4fbf5b4e",
+  "records": [
+    {
+      "test": "tests/agents/test_ge04_protected_approval_observer.py",
+      "explicit_source_references": [],
+      "compiler_list_literals": [],
+      "flag_literals": [],
+      "uses_pkg_config_libsystemd": false,
+      "contains_generated_harness": false,
+      "limitations": "AST literal extraction misses dynamically assembled source and flags; inspect referenced test source"
+    },
+    {
+      "test": "tests/agents/test_ge04_protected_cgroup_custody.py",
+      "explicit_source_references": [
+        "protected-attempt-fence.c",
+        "protected-cgroup-custody.c",
+        "protected-keeper-custody.c",
+        "protected-prebirth-journal.c",
+        "protected-systemd-birth-observer.c",
+        "protected-systemd-transaction.c"
+      ],
+      "compiler_list_literals": [
+        {
+          "line": 98,
+          "expression": "[\"cc\", \"-std=gnu11\", \"-O2\", \"-Wall\", \"-Wextra\",\n                       \"-Werror\", \"-Wpedantic\", \"-Wconversion\", \"-Wshadow\",\n                       \"-Wformat=2\", \"-I\", str(NATIVE), str(harness),\n                       *(str(NATIVE / name) for name in (\n                           \"protected-keeper-custody.c\",\n                           \"protected-systemd-birth-observer.c\",\n                           \"protected-systemd-transaction.c\",\n                           \"protected-prebirth-journal.c\",\n                           \"protected-attempt-fence.c\")),\n                       *libs, \"-o\", str(target)]"
+        }
+      ],
+      "flag_literals": [
+        "-I",
+        "-O2",
+        "-Wall",
+        "-Wconversion",
+        "-Werror",
+        "-Wextra",
+        "-Wformat=2",
+        "-Wpedantic",
+        "-Wshadow",
+        "-std=gnu11"
+      ],
+      "uses_pkg_config_libsystemd": true,
+      "contains_generated_harness": true,
+      "limitations": "AST literal extraction misses dynamically assembled source and flags; inspect referenced test source"
+    },
+    {
+      "test": "tests/agents/test_ge04_protected_dispatch_hold.py",
+      "explicit_source_references": [
+        "protected-dispatch-intent.c",
+        "protected-dispatch-preparation.c",
+        "protected-root-controller.c",
+        "protected-systemd-request.c",
+        "protected-systemd-transaction.c"
+      ],
+      "compiler_list_literals": [
+        {
+          "line": 34,
+          "expression": "[\"cc\", \"-std=gnu11\", \"-Wall\", \"-Wextra\", \"-Werror\",\n                 str(NATIVE / \"protected-root-controller.c\"), \"-o\",\n                 str(executable)]"
+        }
+      ],
+      "flag_literals": [
+        "-Wall",
+        "-Werror",
+        "-Wextra",
+        "-std=gnu11"
+      ],
+      "uses_pkg_config_libsystemd": false,
+      "contains_generated_harness": false,
+      "limitations": "AST literal extraction misses dynamically assembled source and flags; inspect referenced test source"
+    },
+    {
+      "test": "tests/agents/test_ge04_protected_dispatch_intent.py",
+      "explicit_source_references": [
+        "protected-attempt-fence.c",
+        "protected-dispatch-intent.c",
+        "protected-dispatch-preparation.c",
+        "protected-prebirth-journal.c",
+        "protected-systemd-request.c",
+        "protected-systemd-transaction.c"
+      ],
+      "compiler_list_literals": [
+        {
+          "line": 92,
+          "expression": "[\"cc\", \"-std=gnu11\", \"-O2\", \"-Wall\", \"-Wextra\",\n                       \"-Werror\", \"-Wpedantic\", \"-Wconversion\", \"-Wshadow\",\n                       \"-Wformat=2\", \"-I\", str(NATIVE), str(root / \"check.c\"),\n                       *(str(NATIVE / name) for name in (\n                           \"protected-dispatch-intent.c\",\n                           \"protected-dispatch-preparation.c\",\n                           \"protected-systemd-request.c\",\n                           \"protected-systemd-transaction.c\",\n                           \"protected-attempt-fence.c\",\n                           \"protected-prebirth-journal.c\")),\n                       *libs, \"-o\", str(root / \"check\")]"
+        }
+      ],
+      "flag_literals": [
+        "-I",
+        "-O2",
+        "-Wall",
+        "-Wconversion",
+        "-Werror",
+        "-Wextra",
+        "-Wformat=2",
+        "-Wpedantic",
+        "-Wshadow",
+        "-std=gnu11"
+      ],
+      "uses_pkg_config_libsystemd": true,
+      "contains_generated_harness": true,
+      "limitations": "AST literal extraction misses dynamically assembled source and flags; inspect referenced test source"
+    },
+    {
+      "test": "tests/agents/test_ge04_protected_dispatch_preparation.py",
+      "explicit_source_references": [
+        "protected-dispatch-preparation.c"
+      ],
+      "compiler_list_literals": [
+        {
+          "line": 156,
+          "expression": "[\"cc\", \"-std=gnu11\", \"-O2\", \"-Wall\", \"-Wextra\", \"-Werror\",\n                 \"-Wpedantic\", \"-Wconversion\", \"-Wshadow\", \"-Wformat=2\",\n                 \"-I\", str(NATIVE), str(dirpath / \"check.c\"),\n                 str(NATIVE / \"protected-dispatch-preparation.c\"),\n                 *(f\"-Wl,--wrap={name}\" for name in wrappers),\n                 *libs, \"-o\", str(binary)]"
+        }
+      ],
+      "flag_literals": [
+        "-I",
+        "-O2",
+        "-Wall",
+        "-Wconversion",
+        "-Werror",
+        "-Wextra",
+        "-Wformat=2",
+        "-Wl,--wrap=",
+        "-Wpedantic",
+        "-Wshadow",
+        "-std=gnu11"
+      ],
+      "uses_pkg_config_libsystemd": true,
+      "contains_generated_harness": true,
+      "limitations": "AST literal extraction misses dynamically assembled source and flags; inspect referenced test source"
+    },
+    {
+      "test": "tests/agents/test_ge04_protected_keeper_custody.py",
+      "explicit_source_references": [
+        "protected-attempt-fence.c",
+        "protected-keeper-custody.c",
+        "protected-prebirth-journal.c",
+        "protected-systemd-birth-observer.c",
+        "protected-systemd-transaction.c"
+      ],
+      "compiler_list_literals": [
+        {
+          "line": 70,
+          "expression": "[\"cc\", \"-std=gnu11\", \"-O2\", \"-Wall\", \"-Wextra\",\n                       \"-Werror\", \"-Wpedantic\", \"-Wconversion\", \"-Wshadow\",\n                       \"-Wformat=2\", \"-I\", str(NATIVE), str(harness),\n                       *(str(NATIVE / name) for name in (\n                           \"protected-systemd-birth-observer.c\",\n                           \"protected-systemd-transaction.c\",\n                           \"protected-prebirth-journal.c\",\n                           \"protected-attempt-fence.c\")),\n                       *lib, \"-o\", str(target)]"
+        }
+      ],
+      "flag_literals": [
+        "-I",
+        "-O2",
+        "-Wall",
+        "-Wconversion",
+        "-Werror",
+        "-Wextra",
+        "-Wformat=2",
+        "-Wpedantic",
+        "-Wshadow",
+        "-std=gnu11"
+      ],
+      "uses_pkg_config_libsystemd": true,
+      "contains_generated_harness": true,
+      "limitations": "AST literal extraction misses dynamically assembled source and flags; inspect referenced test source"
+    },
+    {
+      "test": "tests/agents/test_ge04_protected_mount_namespace.py",
+      "explicit_source_references": [
+        "protected-attempt-fence.c",
+        "protected-cgroup-custody.c",
+        "protected-keeper-custody.c",
+        "protected-mount-namespace.c",
+        "protected-prebirth-journal.c",
+        "protected-systemd-birth-observer.c",
+        "protected-systemd-transaction.c"
+      ],
+      "compiler_list_literals": [
+        {
+          "line": 85,
+          "expression": "[\"cc\", \"-std=gnu11\", \"-O2\", \"-Wall\", \"-Wextra\", \"-Werror\",\n                 \"-Wpedantic\", \"-Wconversion\", \"-Wshadow\", \"-Wformat=2\",\n                 \"-I\", str(NATIVE), str(path / \"check.c\"),\n                 *(str(NATIVE / name) for name in (\n                     \"protected-cgroup-custody.c\",\n                     \"protected-keeper-custody.c\",\n                     \"protected-systemd-birth-observer.c\",\n                     \"protected-systemd-transaction.c\",\n                     \"protected-prebirth-journal.c\",\n                     \"protected-attempt-fence.c\")),\n                 *libs, \"-o\", str(path / \"check\")]"
+        }
+      ],
+      "flag_literals": [
+        "-I",
+        "-O2",
+        "-Wall",
+        "-Wconversion",
+        "-Werror",
+        "-Wextra",
+        "-Wformat=2",
+        "-Wpedantic",
+        "-Wshadow",
+        "-std=gnu11"
+      ],
+      "uses_pkg_config_libsystemd": true,
+      "contains_generated_harness": true,
+      "limitations": "AST literal extraction misses dynamically assembled source and flags; inspect referenced test source"
+    },
+    {
+      "test": "tests/agents/test_ge04_protected_native_journal.py",
+      "explicit_source_references": [
+        "protected-attempt-fence.c",
+        "protected-prebirth-journal.c",
+        "protected-root-controller.c"
+      ],
+      "compiler_list_literals": [],
+      "flag_literals": [
+        "-I",
+        "-O2",
+        "-Wall",
+        "-Wconversion",
+        "-Werror",
+        "-Wextra",
+        "-Wformat=2",
+        "-Wpedantic",
+        "-Wshadow",
+        "-std=gnu11"
+      ],
+      "uses_pkg_config_libsystemd": false,
+      "contains_generated_harness": true,
+      "limitations": "AST literal extraction misses dynamically assembled source and flags; inspect referenced test source"
+    },
+    {
+      "test": "tests/agents/test_ge04_protected_owner_review_boundary.py",
+      "explicit_source_references": [],
+      "compiler_list_literals": [],
+      "flag_literals": [],
+      "uses_pkg_config_libsystemd": false,
+      "contains_generated_harness": false,
+      "limitations": "AST literal extraction misses dynamically assembled source and flags; inspect referenced test source"
+    },
+    {
+      "test": "tests/agents/test_ge04_protected_systemd_birth_observer.py",
+      "explicit_source_references": [
+        "protected-attempt-fence.c",
+        "protected-prebirth-journal.c",
+        "protected-systemd-birth-observer.c",
+        "protected-systemd-transaction.c"
+      ],
+      "compiler_list_literals": [
+        {
+          "line": 166,
+          "expression": "[\"cc\", \"-std=gnu11\", \"-O2\", \"-Wall\", \"-Wextra\", \"-Werror\",\n                   \"-Wpedantic\", \"-Wconversion\", \"-Wshadow\", \"-Wformat=2\",\n                   \"-I\", str(NATIVE), str(harness),\n                   str(NATIVE / \"protected-systemd-birth-observer.c\"),\n                   str(NATIVE / \"protected-systemd-transaction.c\"),\n                   str(NATIVE / \"protected-prebirth-journal.c\"),\n                   str(NATIVE / \"protected-attempt-fence.c\"),\n                   *(f\"-Wl,--wrap={name}\" for name in wrappers),\n                   *libs, \"-o\", str(target)]"
+        }
+      ],
+      "flag_literals": [
+        "-I",
+        "-O2",
+        "-Wall",
+        "-Wconversion",
+        "-Werror",
+        "-Wextra",
+        "-Wformat=2",
+        "-Wl,--wrap=",
+        "-Wpedantic",
+        "-Wshadow",
+        "-std=gnu11"
+      ],
+      "uses_pkg_config_libsystemd": true,
+      "contains_generated_harness": true,
+      "limitations": "AST literal extraction misses dynamically assembled source and flags; inspect referenced test source"
+    },
+    {
+      "test": "tests/agents/test_ge04_protected_systemd_job_binding.py",
+      "explicit_source_references": [
+        "protected-attempt-fence.c",
+        "protected-prebirth-journal.c",
+        "protected-systemd-transaction.c"
+      ],
+      "compiler_list_literals": [
+        {
+          "line": 210,
+          "expression": "[\"cc\", \"-std=gnu11\", \"-O2\", \"-Wall\", \"-Wextra\", \"-Werror\",\n                 \"-Wpedantic\", \"-Wconversion\", \"-Wshadow\", \"-Wformat=2\",\n                 \"-I\", str(NATIVE), str(harness),\n                 str(NATIVE / \"protected-attempt-fence.c\"),\n                 str(NATIVE / \"protected-prebirth-journal.c\"),\n                 *(f\"-Wl,--wrap={name}\" for name in wrapped),\n                 *libraries, \"-o\", str(target)]"
+        }
+      ],
+      "flag_literals": [
+        "-I",
+        "-O2",
+        "-Wall",
+        "-Wconversion",
+        "-Werror",
+        "-Wextra",
+        "-Wformat=2",
+        "-Wl,--wrap=",
+        "-Wpedantic",
+        "-Wshadow",
+        "-std=gnu11"
+      ],
+      "uses_pkg_config_libsystemd": true,
+      "contains_generated_harness": true,
+      "limitations": "AST literal extraction misses dynamically assembled source and flags; inspect referenced test source"
+    },
+    {
+      "test": "tests/agents/test_ge04_protected_systemd_request.py",
+      "explicit_source_references": [
+        "protected-systemd-request.c"
+      ],
+      "compiler_list_literals": [
+        {
+          "line": 123,
+          "expression": "[\"cc\", \"-std=gnu11\", \"-Wall\", \"-Wextra\", \"-Werror\",\n                 \"-Wpedantic\", \"-Wconversion\", \"-Wshadow\", \"-Wformat=2\",\n                 \"-O2\", \"-I\", str(NATIVE), str(harness),\n                 str(NATIVE / \"protected-systemd-request.c\"),\n                 \"-Wl,--wrap=sd_bus_message_open_container\",\n                 \"-Wl,--wrap=sd_bus_message_close_container\",\n                 \"-Wl,--wrap=sd_bus_message_append\", *libs,\n                 \"-o\", str(binary)]"
+        }
+      ],
+      "flag_literals": [
+        "-I",
+        "-O2",
+        "-Wall",
+        "-Wconversion",
+        "-Werror",
+        "-Wextra",
+        "-Wformat=2",
+        "-Wl,--wrap=sd",
+        "-Wpedantic",
+        "-Wshadow",
+        "-std=gnu11"
+      ],
+      "uses_pkg_config_libsystemd": true,
+      "contains_generated_harness": true,
+      "limitations": "AST literal extraction misses dynamically assembled source and flags; inspect referenced test source"
+    },
+    {
+      "test": "tests/agents/test_ge04_protected_systemd_signal_dispatch.py",
+      "explicit_source_references": [
+        "protected-attempt-fence.c",
+        "protected-prebirth-journal.c",
+        "protected-systemd-transaction.c"
+      ],
+      "compiler_list_literals": [
+        {
+          "line": 85,
+          "expression": "[\"cc\", \"-std=gnu11\", \"-O2\", \"-Wall\", \"-Wextra\", \"-Werror\",\n                 \"-Wpedantic\", \"-Wconversion\", \"-Wshadow\", \"-Wformat=2\",\n                 \"-I\", str(NATIVE), str(harness),\n                 *(str(NATIVE / name) for name in (\n                     \"protected-systemd-transaction.c\",\n                     \"protected-attempt-fence.c\",\n                     \"protected-prebirth-journal.c\")),\n                 *(f\"-Wl,--wrap={name}\" for name in wrapper_names),\n                 *libs, \"-o\", str(target)]"
+        }
+      ],
+      "flag_literals": [
+        "-I",
+        "-O2",
+        "-Wall",
+        "-Wconversion",
+        "-Werror",
+        "-Wextra",
+        "-Wformat=2",
+        "-Wl,--wrap=",
+        "-Wpedantic",
+        "-Wshadow",
+        "-std=gnu11"
+      ],
+      "uses_pkg_config_libsystemd": true,
+      "contains_generated_harness": true,
+      "limitations": "AST literal extraction misses dynamically assembled source and flags; inspect referenced test source"
+    },
+    {
+      "test": "tests/agents/test_ge04_protected_systemd_transaction.py",
+      "explicit_source_references": [
+        "protected-attempt-fence.c",
+        "protected-prebirth-journal.c",
+        "protected-root-controller.c",
+        "protected-systemd-transaction.c"
+      ],
+      "compiler_list_literals": [
+        {
+          "line": 84,
+          "expression": "[\"cc\", *CFLAGS, \"-I\", str(NATIVE), *sources,\n                 *(str(NATIVE / name) for name in FILES),\n                 *libs, \"-o\", str(target)]"
+        }
+      ],
+      "flag_literals": [
+        "-I",
+        "-O2",
+        "-Wall",
+        "-Wconversion",
+        "-Werror",
+        "-Wextra",
+        "-Wformat=2",
+        "-Wpedantic",
+        "-Wshadow",
+        "-std=gnu11"
+      ],
+      "uses_pkg_config_libsystemd": true,
+      "contains_generated_harness": true,
+      "limitations": "AST literal extraction misses dynamically assembled source and flags; inspect referenced test source"
+    },
+    {
+      "test": "tests/agents/test_ge04_protected_transaction_state.py",
+      "explicit_source_references": [
+        "protected-transaction-state.c"
+      ],
+      "compiler_list_literals": [
+        {
+          "line": 57,
+          "expression": "[\"cc\", \"-std=c11\", \"-Wall\", \"-Wextra\", \"-Werror\",\n                 \"-Wpedantic\", \"-Wconversion\", \"-Wshadow\",\n                 \"-I\", str(NATIVE), str(root / \"test.c\"),\n                 str(NATIVE / \"protected-transaction-state.c\"),\n                 \"-o\", str(root / \"test\")]"
+        }
+      ],
+      "flag_literals": [
+        "-I",
+        "-Wall",
+        "-Wconversion",
+        "-Werror",
+        "-Wextra",
+        "-Wpedantic",
+        "-Wshadow",
+        "-std=c11"
+      ],
+      "uses_pkg_config_libsystemd": false,
+      "contains_generated_harness": true,
+      "limitations": "AST literal extraction misses dynamically assembled source and flags; inspect referenced test source"
+    }
+  ],
+  "unresolved": [
+    "test-specific dynamically constructed commands",
+    "actual preprocessed and linked object closure",
+    "header and sysroot hashes",
+    "production controller deployment build recipe",
+    "independent security acceptance"
+  ]
+}

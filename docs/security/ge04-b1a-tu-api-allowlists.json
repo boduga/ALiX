@@ -1,0 +1,3076 @@
+{
+  "scope": "MEDIUM-2 M2.10 PER-TRANSLATION-UNIT CANDIDATE API ALLOWLISTS",
+  "files": 54,
+  "entries": [
+    {
+      "file": "bootstrap_binding.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [
+        "pread"
+      ],
+      "candidate_sites": [
+        {
+          "line": 113,
+          "apis": [
+            "pread"
+          ],
+          "source": "raw = os.pread(fd, before.st_size + 1, 0)",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 70,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [
+        "memfd_create"
+      ],
+      "candidate_sites": [
+        {
+          "line": 108,
+          "apis": [
+            "memfd_create"
+          ],
+          "source": "if not SUPPORTED or not hasattr(os, \"memfd_create\"):",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 123,
+          "apis": [
+            "memfd_create"
+          ],
+          "source": "fd = os.memfd_create(\"ge04-unqualified-bootstrap\",",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 55,
+      "python_direct_import_calls": [
+        {
+          "line": 94,
+          "callee": "parse_bootstrap_binding",
+          "target": "bootstrap_binding.py:parse_bootstrap_binding"
+        }
+      ],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [
+        "SCM_RIGHTS",
+        "recvmsg"
+      ],
+      "candidate_sites": [
+        {
+          "line": 3,
+          "apis": [
+            "SCM_RIGHTS"
+          ],
+          "source": "Validates kernel SO_PEERCRED, bounded SCM_RIGHTS payload, expected generation,",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 67,
+          "apis": [
+            "recvmsg"
+          ],
+          "source": "payload, ancillary, flags, _ = sock.recvmsg(",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 73,
+          "apis": [
+            "SCM_RIGHTS"
+          ],
+          "source": "if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 52,
+      "python_direct_import_calls": [
+        {
+          "line": 82,
+          "callee": "read_sealed_bootstrap_binding",
+          "target": "bootstrap_binding.py:read_sealed_bootstrap_binding"
+        }
+      ],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bounded_dispatch_evidence.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 24,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bounded_job_signal_observer.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [
+        "kill"
+      ],
+      "candidate_sites": [
+        {
+          "line": 132,
+          "apis": [
+            "kill"
+          ],
+          "source": "process.kill()",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 80,
+      "python_direct_import_calls": [
+        {
+          "line": 29,
+          "callee": "JobEventWindow",
+          "target": "systemd_job_event_contract.py:JobEventWindow"
+        }
+      ],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [
+        "kill"
+      ],
+      "candidate_sites": [
+        {
+          "line": 4,
+          "apis": [
+            "kill"
+          ],
+          "source": "with one end-to-end absolute monotonic deadline and terminal kill/reap.",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 95,
+          "apis": [
+            "kill"
+          ],
+          "source": "process.kill()",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 82,
+      "python_direct_import_calls": [
+        {
+          "line": 25,
+          "callee": "require_unprivileged",
+          "target": "unprivileged_observer.py:require_unprivileged"
+        },
+        {
+          "line": 37,
+          "callee": "parse_bootstrap_binding",
+          "target": "bootstrap_binding.py:parse_bootstrap_binding"
+        }
+      ],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "accept4"
+      ],
+      "candidate_sites": [
+        {
+          "line": 31,
+          "apis": [
+            "accept4"
+          ],
+          "source": "int client = accept4(listener, NULL, NULL, SOCK_CLOEXEC);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 1,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "accept4",
+        "bind",
+        "chmod",
+        "close",
+        "fflush",
+        "fprintf",
+        "getsockopt",
+        "if",
+        "listen",
+        "main",
+        "memcpy",
+        "perror",
+        "printf",
+        "puts",
+        "return",
+        "signal",
+        "socket",
+        "strcmp",
+        "strlen",
+        "strtoul",
+        "unlink",
+        "write"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "kill"
+      ],
+      "candidate_sites": [
+        {
+          "line": 28,
+          "apis": [
+            "kill"
+          ],
+          "source": "int kill=openat(leaf,\"cgroup.kill\",O_WRONLY|O_NOFOLLOW|O_CLOEXEC);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 29,
+          "apis": [
+            "kill"
+          ],
+          "source": "if(procs<0||events<0||kill<0){",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 32,
+          "apis": [
+            "kill"
+          ],
+          "source": "if(kill>=0)close(kill);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 36,
+          "apis": [
+            "kill"
+          ],
+          "source": "if(fstat(procs,&a)||fstat(events,&b)||fstat(kill,&c)||",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 38,
+          "apis": [
+            "kill"
+          ],
+          "source": "close(procs);close(events);close(kill);close(leaf);return 74;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 45,
+          "apis": [
+            "kill"
+          ],
+          "source": "close(procs);close(events);close(kill);close(leaf);return 75;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 49,
+          "apis": [
+            "kill"
+          ],
+          "source": "close(procs);close(events);close(kill);close(leaf);return 76;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 52,
+          "apis": [
+            "kill"
+          ],
+          "source": "close(procs);close(events);close(kill);close(leaf);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "close",
+        "fstat",
+        "fstatfs",
+        "ftruncate",
+        "if",
+        "lseek",
+        "main",
+        "memcmp",
+        "open",
+        "openat",
+        "puts",
+        "read",
+        "return",
+        "strchr",
+        "strcmp",
+        "strlen",
+        "write"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "kill"
+      ],
+      "candidate_sites": [
+        {
+          "line": 77,
+          "apis": [
+            "kill"
+          ],
+          "source": "const char *name=i==0?\"cgroup.procs\":i==1?\"cgroup.events\":\"cgroup.kill\";",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "close",
+        "fail",
+        "fprintf",
+        "fstat",
+        "fstatfs",
+        "if",
+        "main",
+        "memcpy",
+        "open",
+        "openat",
+        "pin_root",
+        "puts",
+        "return",
+        "strchr",
+        "strcmp",
+        "strlen"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "mkdirat"
+      ],
+      "candidate_sites": [
+        {
+          "line": 58,
+          "apis": [
+            "mkdirat"
+          ],
+          "source": "if(mkdirat(parent,argv[2],0700)){",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 1,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__errno_location",
+        "close",
+        "fstat",
+        "fstatat",
+        "fstatfs",
+        "geteuid",
+        "if",
+        "main",
+        "memcpy",
+        "mkdirat",
+        "open",
+        "openat",
+        "pin_root",
+        "printf",
+        "return",
+        "strchr",
+        "strcmp",
+        "strlen",
+        "valid_name"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "CLONE_INTO_CGROUP",
+        "SYS_clone3",
+        "flock",
+        "kill",
+        "mkdirat",
+        "mount",
+        "unlinkat",
+        "waitpid"
+      ],
+      "candidate_sites": [
+        {
+          "line": 230,
+          "apis": [
+            "kill"
+          ],
+          "source": "!control_custody(c->outer,\"cgroup.kill\",c->killfd))goto out;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 354,
+          "apis": [
+            "waitpid"
+          ],
+          "source": "int status;pid_t got=waitpid(c->child[slot],&status,WNOHANG|WUNTRACED);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 405,
+          "apis": [
+            "mount"
+          ],
+          "source": "if(mount(NULL,\"/\",NULL,MS_REC|MS_PRIVATE,NULL))_exit(121);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 406,
+          "apis": [
+            "mount"
+          ],
+          "source": "if(!strcmp(mode,\"fail-mount\"))_exit(122);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 407,
+          "apis": [
+            "mount"
+          ],
+          "source": "if(mount(\"none\",\"/sys/fs/cgroup\",\"cgroup2\",MS_NOSUID|MS_NODEV|MS_NOEXEC,NULL))_exit(123);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 443,
+          "apis": [
+            "CLONE_INTO_CGROUP"
+          ],
+          "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 445,
+          "apis": [
+            "SYS_clone3"
+          ],
+          "source": "c->child[slot]=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 531,
+          "apis": [
+            "unlinkat"
+          ],
+          "source": "bindings(c)&&budget_ok()&&unlinkat(c->outer,name,AT_REMOVEDIR)==0;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 538,
+          "apis": [
+            "unlinkat"
+          ],
+          "source": "return intent(c->work,name,&r)&&records_equal(&r,&c->record)&&budget_ok()&&unlinkat(c->work,name,0)==0;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 568,
+          "apis": [
+            "waitpid"
+          ],
+          "source": "while((got=waitpid(-1,&status,WNOHANG))>0){}",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 585,
+          "apis": [
+            "unlinkat"
+          ],
+          "source": "unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 601,
+          "apis": [
+            "flock"
+          ],
+          "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 621,
+          "apis": [
+            "kill"
+          ],
+          "source": "c->killfd=control(c->outer,\"cgroup.kill\",O_WRONLY);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 675,
+          "apis": [
+            "unlinkat"
+          ],
+          "source": "!bindings(c)||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 683,
+          "apis": [
+            "waitpid"
+          ],
+          "source": "int status;pid_t got=waitpid(c->child[0],&status,WNOHANG);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 690,
+          "apis": [
+            "mount"
+          ],
+          "source": "const char *modes[]={\"run\",\"crash-pre-namespace\",\"crash-pinned\",\"crash-ready\",\"fail-mount\",\"fail-enable\",\"recover\",\"sweep-empty\"};",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 724,
+          "apis": [
+            "mkdirat"
+          ],
+          "source": "if(!budget_ok()||mkdirat(c.parent,c.record.name,0700))goto finished;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 730,
+          "apis": [
+            "mkdirat"
+          ],
+          "source": "!budget_ok()||mkdirat(c.outer,\"launcher\",0700)||!budget_ok()||mkdirat(c.outer,\"payload\",0700)||",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 743,
+          "apis": [
+            "mount"
+          ],
+          "source": "if(!strcmp(c.mode,\"fail-mount\")){",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 14,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "_exit",
+        "ack_exact",
+        "ack_phase",
+        "approval",
+        "begin_operation",
+        "bindings",
+        "bootstrap_child",
+        "budget_ok",
+        "child_setup",
+        "cleanup",
+        "cleanup_until",
+        "clock_gettime",
+        "clock_ms",
+        "close",
+        "closedir",
+        "continue_child",
+        "control",
+        "control_custody",
+        "controllers",
+        "dup3",
+        "empty",
+        "empty_inner_remove",
+        "event",
+        "event_until",
+        "fcntl",
+        "fdopendir",
+        "fflush",
+        "flock",
+        "fstat",
+        "fstatat",
+        "fstatfs",
+        "fsync",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getpid",
+        "getppid",
+        "getrandom",
+        "getuid",
+        "gnu_dev_makedev",
+        "hex_string",
+        "if",
+        "inner_custody",
+        "intent",
+        "intent_text",
+        "ioctl",
+        "join_child",
+        "known_children",
+        "limits",
+        "lseek",
+        "main",
+        "members",
+        "mkdirat",
+        "mount",
+        "namespace_stat",
+        "open",
+        "open_inner",
+        "open_outer",
+        "open_regular",
+        "open_view",
+        "openat",
+        "parent_single_outer",
+        "pause",
+        "pidfd_alive",
+        "pidfd_state",
+        "pin_directory",
+        "pin_view",
+        "poll",
+        "prctl",
+        "printf",
+        "process_info",
+        "publish",
+        "raise",
+        "read",
+        "read_fd",
+        "read_record",
+        "readdir",
+        "records_equal",
+        "regular_root",
+        "remove_record",
+        "reopen_inner",
+        "return",
+        "root_directory",
+        "same_inode",
+        "set_text",
+        "setns",
+        "setrlimit",
+        "setup",
+        "signal",
+        "snprintf",
+        "spawn_child",
+        "sscanf",
+        "stat",
+        "stopped",
+        "strchr",
+        "strcmp",
+        "strcpy",
+        "strlen",
+        "strncmp",
+        "strrchr",
+        "strspn",
+        "strstr",
+        "strtok_r",
+        "strtol",
+        "strtoull",
+        "sweep_empty",
+        "syscall",
+        "text_is",
+        "unlinkat",
+        "unshare",
+        "usleep",
+        "wait_injected_exit",
+        "wait_stop",
+        "waitpid",
+        "write",
+        "write_all"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "CLONE_INTO_CGROUP",
+        "SYS_clone3",
+        "flock",
+        "fork",
+        "kill",
+        "mkdirat",
+        "setgroups",
+        "setresgid",
+        "setresuid",
+        "unlinkat",
+        "waitpid"
+      ],
+      "candidate_sites": [
+        {
+          "line": 157,
+          "apis": [
+            "kill"
+          ],
+          "source": "c->killfd=control(c->leaf,\"cgroup.kill\",O_WRONLY);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 177,
+          "apis": [
+            "kill"
+          ],
+          "source": "!control_custody(c->leaf,\"cgroup.kill\",c->killfd,c->leaf_stat.st_dev))return 0;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 287,
+          "apis": [
+            "waitpid"
+          ],
+          "source": "int status;pid_t got=waitpid(c->child,&status,WNOHANG|WUNTRACED);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 308,
+          "apis": [
+            "setgroups"
+          ],
+          "source": "if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 309,
+          "apis": [
+            "setresgid",
+            "setresuid"
+          ],
+          "source": "setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 311,
+          "apis": [
+            "fork"
+          ],
+          "source": "pid_t descendant=fork();if(descendant<0)_exit(125);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 331,
+          "apis": [
+            "unlinkat"
+          ],
+          "source": "return unlinkat(c->work,name,0)==0;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 346,
+          "apis": [
+            "waitpid"
+          ],
+          "source": "while((n=waitpid(-1,&status,WNOHANG))>0){}",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 353,
+          "apis": [
+            "unlinkat"
+          ],
+          "source": "if(!bindings(c)||!empty(c)||unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 372,
+          "apis": [
+            "flock"
+          ],
+          "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 428,
+          "apis": [
+            "unlinkat"
+          ],
+          "source": "if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 438,
+          "apis": [
+            "unlinkat"
+          ],
+          "source": "fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 469,
+          "apis": [
+            "mkdirat"
+          ],
+          "source": "if(mkdirat(c.parent,c.record.name,0700))goto finished;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 482,
+          "apis": [
+            "CLONE_INTO_CGROUP"
+          ],
+          "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 484,
+          "apis": [
+            "SYS_clone3"
+          ],
+          "source": "c.child=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 13,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "_exit",
+        "approval",
+        "bindings",
+        "cleanup",
+        "clock_gettime",
+        "clock_ms",
+        "close",
+        "closedir",
+        "control",
+        "control_custody",
+        "control_stat",
+        "dup2",
+        "empty",
+        "event",
+        "fdopendir",
+        "fflush",
+        "flock",
+        "fork",
+        "fstat",
+        "fstatat",
+        "fstatfs",
+        "fsync",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getgroups",
+        "getrandom",
+        "getresgid",
+        "getresuid",
+        "getuid",
+        "gnu_dev_makedev",
+        "hex_string",
+        "if",
+        "intent_text",
+        "ld",
+        "lseek",
+        "main",
+        "members",
+        "mkdirat",
+        "no_worker_directories",
+        "open",
+        "open_controls",
+        "open_recorded_leaf",
+        "openat",
+        "pause",
+        "pidfd_alive",
+        "pin_directory",
+        "poll",
+        "prctl",
+        "printf",
+        "process_info",
+        "publish",
+        "raise",
+        "read",
+        "read_fd",
+        "read_intent",
+        "read_record_file",
+        "readdir",
+        "records_equal",
+        "regular_root",
+        "regular_root_stat",
+        "remove_artifact",
+        "return",
+        "root_directory",
+        "root_directory_stat",
+        "root_identity",
+        "root_identity_of",
+        "root_owned",
+        "same_inode",
+        "setgroups",
+        "setresgid",
+        "setresuid",
+        "setsid",
+        "setup",
+        "signal",
+        "snprintf",
+        "sscanf",
+        "stat_info",
+        "strchr",
+        "strcmp",
+        "strcpy",
+        "strlen",
+        "strncmp",
+        "strrchr",
+        "strspn",
+        "strtok_r",
+        "strtol",
+        "strtoull",
+        "sweep_candidate_allowed",
+        "sweep_empty",
+        "syscall",
+        "unlinkat",
+        "usleep",
+        "wait_running",
+        "wait_stopped",
+        "waitpid",
+        "worker",
+        "write",
+        "write_all"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup2-fixed-preflight.c",
+      "kind": "C",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__errno_location",
+        "close",
+        "dup",
+        "fstat",
+        "fstatfs",
+        "geteuid",
+        "if",
+        "inspect",
+        "main",
+        "open",
+        "openat",
+        "puts"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup2-mount-preflight.c",
+      "kind": "C",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__errno_location",
+        "close",
+        "fstat",
+        "fstatfs",
+        "if",
+        "main",
+        "memcpy",
+        "open",
+        "openat",
+        "puts",
+        "strlen"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cross_source_birth_reconciliation.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [
+        "mount"
+      ],
+      "candidate_sites": [
+        {
+          "line": 17,
+          "apis": [
+            "mount"
+          ],
+          "source": "_EXPECTED_KERNEL = frozenset((\"status\", \"pid\", \"startticks\", \"mount\", \"cgroup\"))",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 84,
+          "apis": [
+            "mount"
+          ],
+          "source": "or tuple(kernel[\"mount\"]) !=",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 87,
+          "apis": [
+            "mount"
+          ],
+          "source": "raise ValueError(\"Kernel generation and mount inconsistent\")",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 43,
+      "python_direct_import_calls": [
+        {
+          "line": 30,
+          "callee": "parse_bootstrap_binding",
+          "target": "bootstrap_binding.py:parse_bootstrap_binding"
+        },
+        {
+          "line": 43,
+          "callee": "canonical_prebirth",
+          "target": "prebirth_issuance_contract.py:canonical_prebirth"
+        },
+        {
+          "line": 44,
+          "callee": "canonical_birth",
+          "target": "prebirth_issuance_contract.py:canonical_birth"
+        },
+        {
+          "line": 53,
+          "callee": "ExclusiveUnitBirthHandoff",
+          "target": "exclusive_birth_handoff.py:ExclusiveUnitBirthHandoff"
+        },
+        {
+          "line": 60,
+          "callee": "job_removed_diagnostic",
+          "target": "systemd_job_event_contract.py:job_removed_diagnostic"
+        }
+      ],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "diagnostic-deadline.c",
+      "kind": "C",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__errno_location",
+        "clock_gettime",
+        "deny",
+        "ge04_deadline_begin",
+        "ge04_deadline_can_ack",
+        "ge04_deadline_can_dispatch",
+        "ge04_deadline_check",
+        "ge04_deadline_quarantine",
+        "ge04_deadline_remaining",
+        "if",
+        "monotonic_ns"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "diagnostic-fd-wait.c",
+      "kind": "C",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__errno_location",
+        "fail",
+        "fcntl",
+        "ge04_deadline_check",
+        "ge04_deadline_quarantine",
+        "ge04_deadline_remaining",
+        "ge04_diagnostic_wait_fd",
+        "ge04_diagnostic_wait_fd_cancel",
+        "if",
+        "poll"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exclusive_birth_handoff.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [
+        "StartTransientUnit"
+      ],
+      "candidate_sites": [
+        {
+          "line": 41,
+          "apis": [
+            "StartTransientUnit"
+          ],
+          "source": "if (value[\"unit\"] != UNIT or value[\"method\"] != \"StartTransientUnit\"",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 67,
+      "python_direct_import_calls": [
+        {
+          "line": 75,
+          "callee": "canonical_prebirth",
+          "target": "prebirth_issuance_contract.py:canonical_prebirth"
+        }
+      ],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "execveat"
+      ],
+      "candidate_sites": [
+        {
+          "line": 14,
+          "apis": [
+            "execveat"
+          ],
+          "source": "execveat(3, \"\", argv + 1, (char *const[]){\"PATH=/usr/bin:/bin\", NULL}, AT_EMPTY_PATH);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 15,
+          "apis": [
+            "execveat"
+          ],
+          "source": "fprintf(stderr, \"execveat pinned probe failed: %s\\n\", strerror(errno));",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 1,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__errno_location",
+        "execveat",
+        "fprintf",
+        "if",
+        "main",
+        "strerror"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "execveat"
+      ],
+      "candidate_sites": [
+        {
+          "line": 13,
+          "apis": [
+            "execveat"
+          ],
+          "source": "execveat(4, \"\", argv, environ, AT_EMPTY_PATH);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 14,
+          "apis": [
+            "execveat"
+          ],
+          "source": "fprintf(stderr, \"execveat pinned helper failed: %s\\n\", strerror(errno));",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 1,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__errno_location",
+        "execveat",
+        "fprintf",
+        "main",
+        "strerror"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "execveat",
+        "openat2",
+        "setgroups",
+        "setresgid",
+        "setresuid"
+      ],
+      "candidate_sites": [
+        {
+          "line": 78,
+          "apis": [
+            "openat2"
+          ],
+          "source": "(void)path;die(\"openat2 unavailable\");",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 116,
+          "apis": [
+            "setgroups",
+            "setresgid"
+          ],
+          "source": "if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 117,
+          "apis": [
+            "setresuid"
+          ],
+          "source": "setresuid(target,target,target))die(\"identity isolation failed\");",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 131,
+          "apis": [
+            "execveat"
+          ],
+          "source": "die(\"execveat unavailable\");",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 2,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "_exit",
+        "chdir",
+        "close",
+        "close_inherited_fds",
+        "die",
+        "fprintf",
+        "fstat",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getgroups",
+        "getresgid",
+        "getresuid",
+        "getuid",
+        "if",
+        "lstat",
+        "main",
+        "memcpy",
+        "open",
+        "pin_executable",
+        "prctl",
+        "raise",
+        "return",
+        "setgroups",
+        "setresgid",
+        "setresuid",
+        "strcmp",
+        "strlen",
+        "strtoul",
+        "syscall",
+        "trusted_directory",
+        "uid_arg"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated_job_signal_worker.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 27,
+      "python_direct_import_calls": [
+        {
+          "line": 44,
+          "callee": "JobEventWindow",
+          "target": "systemd_job_event_contract.py:JobEventWindow"
+        },
+        {
+          "line": 48,
+          "callee": "observe_fixed_job_signal",
+          "target": "systemd_job_signal_observer.py:observe_fixed_job_signal"
+        }
+      ],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated_phase_observer_worker.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 18,
+      "python_direct_import_calls": [
+        {
+          "line": 23,
+          "callee": "require_unprivileged",
+          "target": "unprivileged_observer.py:require_unprivileged"
+        },
+        {
+          "line": 25,
+          "callee": "parse_bootstrap_binding",
+          "target": "bootstrap_binding.py:parse_bootstrap_binding"
+        },
+        {
+          "line": 26,
+          "callee": "corroborate_existing_approval",
+          "target": "protected_approval_observer.py:corroborate_existing_approval"
+        },
+        {
+          "line": 27,
+          "callee": "observe_manager_and_kernel",
+          "target": "unit_kernel_observer.py:observe_manager_and_kernel"
+        },
+        {
+          "line": 28,
+          "callee": "corroborate_existing_approval",
+          "target": "protected_approval_observer.py:corroborate_existing_approval"
+        }
+      ],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "nonexecuting-sender-contract.c",
+      "kind": "C",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__errno_location",
+        "ge04_sender_contract_can_ack",
+        "ge04_sender_contract_can_send",
+        "ge04_sender_contract_init",
+        "ge04_sender_contract_observe",
+        "if",
+        "quarantine",
+        "switch"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "oci_qualification_image.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 129,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "original_provenance_diagnostic.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 18,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "peercred.c",
+      "kind": "C",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "fprintf",
+        "getsockopt",
+        "if",
+        "main",
+        "printf",
+        "return",
+        "strerror"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "phase_controller.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 64,
+      "python_direct_import_calls": [
+        {
+          "line": 58,
+          "callee": "parse_bootstrap_binding",
+          "target": "bootstrap_binding.py:parse_bootstrap_binding"
+        },
+        {
+          "line": 75,
+          "callee": "require_unprivileged",
+          "target": "unprivileged_observer.py:require_unprivileged"
+        },
+        {
+          "line": 106,
+          "callee": "require_unprivileged",
+          "target": "unprivileged_observer.py:require_unprivileged"
+        }
+      ],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "fork",
+        "kill",
+        "waitpid"
+      ],
+      "candidate_sites": [
+        {
+          "line": 35,
+          "apis": [
+            "fork"
+          ],
+          "source": "pid_t child=fork();",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 36,
+          "apis": [
+            "fork"
+          ],
+          "source": "if(child<0){perror(\"fork\");return 70;}",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 45,
+          "apis": [
+            "waitpid"
+          ],
+          "source": "if(waitpid(child,&status,WUNTRACED)!=child||!WIFSTOPPED(status)||WSTOPSIG(status)!=SIGSTOP){result=74;goto cleanup;}",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 49,
+          "apis": [
+            "kill"
+          ],
+          "source": "if(send_pinned(fd,SIGKILL)<0){perror(\"kill\");result=77;goto cleanup;}",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 50,
+          "apis": [
+            "waitpid"
+          ],
+          "source": "if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 63,
+          "apis": [
+            "kill"
+          ],
+          "source": "if(kill(child,SIGKILL)<0 && errno!=ESRCH)result=82;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 67,
+          "apis": [
+            "waitpid"
+          ],
+          "source": "do {reaped=waitpid(child,&status,0);}while(reaped<0&&errno==EINTR);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 5,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "close",
+        "fork",
+        "fprintf",
+        "if",
+        "kill",
+        "main",
+        "pause",
+        "perror",
+        "pinned_alive",
+        "poll",
+        "puts",
+        "return",
+        "send_pinned",
+        "strcmp",
+        "syscall",
+        "waitpid"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "kill",
+        "pidfd_send_signal"
+      ],
+      "candidate_sites": [
+        {
+          "line": 24,
+          "apis": [
+            "kill"
+          ],
+          "source": "strcmp(argv[1],\"resume\")&&strcmp(argv[1],\"kill\")))return 64;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 35,
+          "apis": [
+            "kill"
+          ],
+          "source": "else if(!strcmp(argv[1],\"kill\"))sig=SIGKILL;",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 38,
+          "apis": [
+            "pidfd_send_signal"
+          ],
+          "source": "if(syscall(SYS_pidfd_send_signal,fd,sig,NULL,0)<0){perror(\"pidfd_send_signal\");close(fd);return 72;}",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "close",
+        "if",
+        "main",
+        "parse_pid",
+        "perror",
+        "poll",
+        "return",
+        "strcmp",
+        "strtol",
+        "syscall"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "prebirth_fixture_journal.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 68,
+      "python_direct_import_calls": [
+        {
+          "line": 66,
+          "callee": "canonical_prebirth",
+          "target": "prebirth_issuance_contract.py:canonical_prebirth"
+        },
+        {
+          "line": 86,
+          "callee": "canonical_prebirth",
+          "target": "prebirth_issuance_contract.py:canonical_prebirth"
+        }
+      ],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "prebirth_issuance_contract.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [
+        "mount"
+      ],
+      "candidate_sites": [
+        {
+          "line": 80,
+          "apis": [
+            "mount"
+          ],
+          "source": "raise ValueError(\"Invalid original mount and cgroup ancestry\")",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 65,
+      "python_direct_import_calls": [
+        {
+          "line": 144,
+          "callee": "parse_bootstrap_binding",
+          "target": "bootstrap_binding.py:parse_bootstrap_binding"
+        }
+      ],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "pread"
+      ],
+      "candidate_sites": [
+        {
+          "line": 122,
+          "apis": [
+            "pread"
+          ],
+          "source": "ssize_t n = pread(held->fence_fd, observed + offset,",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 129,
+          "apis": [
+            "pread"
+          ],
+          "source": "if (pread(held->fence_fd, &trailer, 1, (off_t)size) != 0 ||",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 2,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "close",
+        "deny",
+        "fstat",
+        "fstatat",
+        "fsync",
+        "ge04_attempt_begin",
+        "ge04_attempt_close",
+        "ge04_attempt_custody_init",
+        "ge04_attempt_fence_encode",
+        "ge04_attempt_recheck",
+        "ge04_open_protected_directory",
+        "ge04_prebirth_encode",
+        "ge04_read_kernel_boot_id",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getrandom",
+        "getuid",
+        "if",
+        "is_root",
+        "memcmp",
+        "memcpy",
+        "open",
+        "openat",
+        "pread",
+        "read",
+        "return",
+        "snprintf",
+        "strcmp",
+        "strnlen",
+        "write"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "mount"
+      ],
+      "candidate_sites": [
+        {
+          "line": 181,
+          "apis": [
+            "mount"
+          ],
+          "source": "return 0; /* Not proof of original cgroup birth or trusted mount owner. */",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__builtin_va_end",
+        "__builtin_va_start",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "close",
+        "fixed_root_open",
+        "fstat",
+        "fstatat",
+        "fstatfs",
+        "ge04_cgroup_custody_close",
+        "ge04_cgroup_custody_init",
+        "ge04_cgroup_pin_unqualified",
+        "ge04_cgroup_recheck_unqualified",
+        "ge04_keeper_recheck_unqualified",
+        "ge04_systemd_recheck_original",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getuid",
+        "if",
+        "memset",
+        "name_binds",
+        "open",
+        "openat",
+        "refuse",
+        "return",
+        "revalidate_chain",
+        "root_identity",
+        "same",
+        "sd_bus_close_unref",
+        "sd_bus_close_unrefp",
+        "sd_bus_creds_unref",
+        "sd_bus_creds_unrefp",
+        "sd_bus_flush_close_unref",
+        "sd_bus_flush_close_unrefp",
+        "sd_bus_message_unref",
+        "sd_bus_message_unrefp",
+        "sd_bus_slot_unref",
+        "sd_bus_slot_unrefp",
+        "sd_bus_track_unref",
+        "sd_bus_track_unrefp",
+        "sd_bus_unref",
+        "sd_bus_unrefp",
+        "sd_event_source_disable_unref",
+        "sd_event_source_disable_unrefp",
+        "sd_event_source_unref",
+        "sd_event_source_unrefp",
+        "sd_event_unref",
+        "sd_event_unrefp",
+        "sd_id128_equal",
+        "sd_id128_in_set_sentinel",
+        "sd_id128_in_setv",
+        "sd_id128_is_allf",
+        "sd_id128_is_null",
+        "snapshot",
+        "statx"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "StartTransientUnit",
+        "pread"
+      ],
+      "candidate_sites": [
+        {
+          "line": 104,
+          "apis": [
+            "pread"
+          ],
+          "source": "ssize_t got = pread(held->intent_fd, observed + count,",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 111,
+          "apis": [
+            "pread"
+          ],
+          "source": "if (pread(held->intent_fd, &excess, 1, (off_t)length) != 0 ||",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 130,
+          "apis": [
+            "StartTransientUnit"
+          ],
+          "source": "member && strcmp(member, \"StartTransientUnit\") == 0 &&",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 2,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__builtin_va_end",
+        "__builtin_va_start",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "a",
+        "close",
+        "fstat",
+        "fstatat",
+        "fsync",
+        "ge04_attempt_recheck",
+        "ge04_dispatch_intent_close",
+        "ge04_dispatch_intent_encode",
+        "ge04_dispatch_intent_init",
+        "ge04_dispatch_intent_recheck",
+        "ge04_dispatch_intent_stage",
+        "ge04_open_protected_directory",
+        "ge04_prebirth_encode",
+        "ge04_prebirth_recheck",
+        "ge04_systemd_recheck_original",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getuid",
+        "if",
+        "manager_name",
+        "matches_prepared",
+        "memcmp",
+        "openat",
+        "pread",
+        "refuse",
+        "return",
+        "root_identity",
+        "sa",
+        "sd_bus_close_unref",
+        "sd_bus_close_unrefp",
+        "sd_bus_creds_unref",
+        "sd_bus_creds_unrefp",
+        "sd_bus_flush_close_unref",
+        "sd_bus_flush_close_unrefp",
+        "sd_bus_message_get_bus",
+        "sd_bus_message_get_destination",
+        "sd_bus_message_get_interface",
+        "sd_bus_message_get_member",
+        "sd_bus_message_get_path",
+        "sd_bus_message_has_signature",
+        "sd_bus_message_unref",
+        "sd_bus_message_unrefp",
+        "sd_bus_slot_unref",
+        "sd_bus_slot_unrefp",
+        "sd_bus_track_unref",
+        "sd_bus_track_unrefp",
+        "sd_bus_unref",
+        "sd_bus_unrefp",
+        "sd_event_source_disable_unref",
+        "sd_event_source_disable_unrefp",
+        "sd_event_source_unref",
+        "sd_event_source_unrefp",
+        "sd_event_unref",
+        "sd_event_unrefp",
+        "sd_id128_equal",
+        "sd_id128_in_set_sentinel",
+        "sd_id128_in_setv",
+        "sd_id128_is_allf",
+        "sd_id128_is_null",
+        "snprintf",
+        "ssa",
+        "strcmp",
+        "write"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "StartTransientUnit"
+      ],
+      "candidate_sites": [
+        {
+          "line": 46,
+          "apis": [
+            "StartTransientUnit"
+          ],
+          "source": "member && strcmp(member, \"StartTransientUnit\") == 0 &&",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 67,
+          "apis": [
+            "StartTransientUnit"
+          ],
+          "source": "\"StartTransientUnit\");",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 1,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__builtin_va_end",
+        "__builtin_va_start",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "a",
+        "expected_headers",
+        "ge04_append_fixed_transient_request",
+        "ge04_dispatch_prepared",
+        "ge04_prepare_fixed_dispatch",
+        "ge04_prepared_dispatch_close",
+        "ge04_prepared_dispatch_init",
+        "ge04_systemd_recheck_original",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getuid",
+        "if",
+        "refuse",
+        "return",
+        "root_identity",
+        "sa",
+        "sd_bus_close_unref",
+        "sd_bus_close_unrefp",
+        "sd_bus_creds_unref",
+        "sd_bus_creds_unrefp",
+        "sd_bus_flush_close_unref",
+        "sd_bus_flush_close_unrefp",
+        "sd_bus_message_get_bus",
+        "sd_bus_message_get_destination",
+        "sd_bus_message_get_interface",
+        "sd_bus_message_get_member",
+        "sd_bus_message_get_path",
+        "sd_bus_message_has_signature",
+        "sd_bus_message_new_method_call",
+        "sd_bus_message_unref",
+        "sd_bus_message_unrefp",
+        "sd_bus_slot_unref",
+        "sd_bus_slot_unrefp",
+        "sd_bus_track_unref",
+        "sd_bus_track_unrefp",
+        "sd_bus_unref",
+        "sd_bus_unrefp",
+        "sd_event_source_disable_unref",
+        "sd_event_source_disable_unrefp",
+        "sd_event_source_unref",
+        "sd_event_source_unrefp",
+        "sd_event_unref",
+        "sd_event_unrefp",
+        "sd_id128_equal",
+        "sd_id128_in_set_sentinel",
+        "sd_id128_in_setv",
+        "sd_id128_is_allf",
+        "sd_id128_is_null",
+        "ssa",
+        "strcmp"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "kind": "C",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__builtin_va_end",
+        "__builtin_va_start",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "alive",
+        "close",
+        "denied",
+        "fstat",
+        "ge04_keeper_custody_close",
+        "ge04_keeper_custody_init",
+        "ge04_keeper_pin_unqualified",
+        "ge04_keeper_recheck_unqualified",
+        "ge04_observe_unqualified_postbirth",
+        "ge04_systemd_recheck_original",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getuid",
+        "if",
+        "ld",
+        "memcmp",
+        "memcpy",
+        "open",
+        "parse_startticks",
+        "poll",
+        "read",
+        "read_proc",
+        "return",
+        "root_identity",
+        "sample",
+        "sd_bus_close_unref",
+        "sd_bus_close_unrefp",
+        "sd_bus_creds_unref",
+        "sd_bus_creds_unrefp",
+        "sd_bus_flush_close_unref",
+        "sd_bus_flush_close_unrefp",
+        "sd_bus_message_unref",
+        "sd_bus_message_unrefp",
+        "sd_bus_slot_unref",
+        "sd_bus_slot_unrefp",
+        "sd_bus_track_unref",
+        "sd_bus_track_unrefp",
+        "sd_bus_unref",
+        "sd_bus_unrefp",
+        "sd_event_source_disable_unref",
+        "sd_event_source_disable_unrefp",
+        "sd_event_source_unref",
+        "sd_event_source_unrefp",
+        "sd_event_unref",
+        "sd_event_unrefp",
+        "sd_id128_equal",
+        "sd_id128_in_set_sentinel",
+        "sd_id128_in_setv",
+        "sd_id128_is_allf",
+        "sd_id128_is_null",
+        "snprintf",
+        "strchr",
+        "syscall"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "mount"
+      ],
+      "candidate_sites": [
+        {
+          "line": 187,
+          "apis": [
+            "mount"
+          ],
+          "source": "return 0; /* UNQUALIFIED: matching current mount namespace only. */",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__builtin_va_end",
+        "__builtin_va_start",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "close",
+        "decimal_id",
+        "deny",
+        "fstat",
+        "ge04_cgroup_recheck_unqualified",
+        "ge04_keeper_recheck_unqualified",
+        "ge04_mount_namespace_close",
+        "ge04_mount_namespace_init",
+        "ge04_mount_namespace_pin_unqualified",
+        "ge04_mount_namespace_recheck_unqualified",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getpid",
+        "getuid",
+        "if",
+        "memcmp",
+        "mountinfo_matches",
+        "namespace_id",
+        "open",
+        "open_keeper_namespace",
+        "parse_mountinfo",
+        "read",
+        "return",
+        "root_identity",
+        "sd_bus_close_unref",
+        "sd_bus_close_unrefp",
+        "sd_bus_creds_unref",
+        "sd_bus_creds_unrefp",
+        "sd_bus_flush_close_unref",
+        "sd_bus_flush_close_unrefp",
+        "sd_bus_message_unref",
+        "sd_bus_message_unrefp",
+        "sd_bus_slot_unref",
+        "sd_bus_slot_unrefp",
+        "sd_bus_track_unref",
+        "sd_bus_track_unrefp",
+        "sd_bus_unref",
+        "sd_bus_unrefp",
+        "sd_event_source_disable_unref",
+        "sd_event_source_disable_unrefp",
+        "sd_event_source_unref",
+        "sd_event_source_unrefp",
+        "sd_event_unref",
+        "sd_event_unrefp",
+        "sd_id128_equal",
+        "sd_id128_in_set_sentinel",
+        "sd_id128_in_setv",
+        "sd_id128_is_allf",
+        "sd_id128_is_null",
+        "snprintf"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "pread"
+      ],
+      "candidate_sites": [
+        {
+          "line": 144,
+          "apis": [
+            "pread"
+          ],
+          "source": "ssize_t read_bytes = pread(fd, bytes + offset, expected - offset,",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 151,
+          "apis": [
+            "pread"
+          ],
+          "source": "if (pread(fd, &trailer, 1, (off_t)expected) != 0) return refuse(EIO);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 2,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "close",
+        "exact_hex",
+        "fstat",
+        "fstatat",
+        "fsync",
+        "ge04_attempt_recheck",
+        "ge04_open_protected_directory",
+        "ge04_prebirth_close",
+        "ge04_prebirth_custody_init",
+        "ge04_prebirth_encode",
+        "ge04_prebirth_recheck",
+        "ge04_prebirth_stage",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getuid",
+        "if",
+        "memcmp",
+        "open",
+        "openat",
+        "original_file",
+        "pread",
+        "read_all_at",
+        "refuse",
+        "reset_custody",
+        "return",
+        "root_parent_dir",
+        "root_private_dir",
+        "snprintf",
+        "strnlen",
+        "write"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-root-controller.c",
+      "kind": "C",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "main"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-birth-observer.c",
+      "kind": "C",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__builtin_va_end",
+        "__builtin_va_start",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "deny",
+        "free",
+        "ge04_observe_unqualified_postbirth",
+        "ge04_systemd_recheck_original",
+        "get_exact_string",
+        "get_invocation",
+        "if",
+        "memset",
+        "return",
+        "sample",
+        "sd_bus_call_method",
+        "sd_bus_close_unref",
+        "sd_bus_close_unrefp",
+        "sd_bus_creds_unref",
+        "sd_bus_creds_unrefp",
+        "sd_bus_flush_close_unref",
+        "sd_bus_flush_close_unrefp",
+        "sd_bus_get_property",
+        "sd_bus_get_property_string",
+        "sd_bus_get_property_trivial",
+        "sd_bus_message_read",
+        "sd_bus_message_read_array",
+        "sd_bus_message_unref",
+        "sd_bus_message_unrefp",
+        "sd_bus_slot_unref",
+        "sd_bus_slot_unrefp",
+        "sd_bus_track_unref",
+        "sd_bus_track_unrefp",
+        "sd_bus_unref",
+        "sd_bus_unrefp",
+        "sd_event_source_disable_unref",
+        "sd_event_source_disable_unrefp",
+        "sd_event_source_unref",
+        "sd_event_source_unrefp",
+        "sd_event_unref",
+        "sd_event_unrefp",
+        "sd_id128_equal",
+        "sd_id128_in_set_sentinel",
+        "sd_id128_in_setv",
+        "sd_id128_is_allf",
+        "sd_id128_is_null",
+        "strcmp"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-request.c",
+      "kind": "C",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__builtin_va_end",
+        "__builtin_va_start",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "a",
+        "exec_start",
+        "field",
+        "ge04_append_fixed_transient_request",
+        "if",
+        "return",
+        "sa",
+        "sd_bus_close_unref",
+        "sd_bus_close_unrefp",
+        "sd_bus_creds_unref",
+        "sd_bus_creds_unrefp",
+        "sd_bus_flush_close_unref",
+        "sd_bus_flush_close_unrefp",
+        "sd_bus_message_append",
+        "sd_bus_message_close_container",
+        "sd_bus_message_open_container",
+        "sd_bus_message_unref",
+        "sd_bus_message_unrefp",
+        "sd_bus_slot_unref",
+        "sd_bus_slot_unrefp",
+        "sd_bus_track_unref",
+        "sd_bus_track_unrefp",
+        "sd_bus_unref",
+        "sd_bus_unrefp",
+        "sd_event_source_disable_unref",
+        "sd_event_source_disable_unrefp",
+        "sd_event_source_unref",
+        "sd_event_source_unrefp",
+        "sd_event_unref",
+        "sd_event_unrefp",
+        "sd_id128_equal",
+        "sd_id128_in_set_sentinel",
+        "sd_id128_in_setv",
+        "sd_id128_is_allf",
+        "sd_id128_is_null"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "StartTransientUnit",
+        "Subscribe",
+        "Unsubscribe"
+      ],
+      "candidate_sites": [
+        {
+          "line": 83,
+          "apis": [
+            "Unsubscribe"
+          ],
+          "source": "GE04_MANAGER_IFACE, \"Unsubscribe\",",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 283,
+          "apis": [
+            "Subscribe"
+          ],
+          "source": "GE04_MANAGER_IFACE, \"Subscribe\",",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 306,
+          "apis": [
+            "StartTransientUnit"
+          ],
+          "source": "return deny(EPERM); /* SECURITY HOLD: no StartTransientUnit */",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 2,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__builtin_va_end",
+        "__builtin_va_start",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "apply_job_event",
+        "canonical_job_path",
+        "current_root_manager",
+        "deny",
+        "drain_pending",
+        "ge04_attempt_recheck",
+        "ge04_prebirth_recheck",
+        "ge04_systemd_bind_job_reply",
+        "ge04_systemd_create_exclusive",
+        "ge04_systemd_recheck_original",
+        "ge04_systemd_subscribe_original",
+        "ge04_systemd_transaction_close",
+        "ge04_systemd_transaction_init",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getuid",
+        "if",
+        "job_event",
+        "memcpy",
+        "poison",
+        "return",
+        "root_identity",
+        "sd_bus_call_method",
+        "sd_bus_close_unref",
+        "sd_bus_close_unrefp",
+        "sd_bus_creds_get_euid",
+        "sd_bus_creds_get_unique_name",
+        "sd_bus_creds_unref",
+        "sd_bus_creds_unrefp",
+        "sd_bus_flush_close_unref",
+        "sd_bus_flush_close_unrefp",
+        "sd_bus_get_name_creds",
+        "sd_bus_match_signal",
+        "sd_bus_message_get_bus",
+        "sd_bus_message_get_reply_cookie",
+        "sd_bus_message_get_sender",
+        "sd_bus_message_get_type",
+        "sd_bus_message_has_signature",
+        "sd_bus_message_read",
+        "sd_bus_message_unref",
+        "sd_bus_message_unrefp",
+        "sd_bus_new",
+        "sd_bus_process",
+        "sd_bus_set_address",
+        "sd_bus_set_bus_client",
+        "sd_bus_set_method_call_timeout",
+        "sd_bus_slot_unref",
+        "sd_bus_slot_unrefp",
+        "sd_bus_start",
+        "sd_bus_track_unref",
+        "sd_bus_track_unrefp",
+        "sd_bus_unref",
+        "sd_bus_unrefp",
+        "sd_event_source_disable_unref",
+        "sd_event_source_disable_unrefp",
+        "sd_event_source_unref",
+        "sd_event_source_unrefp",
+        "sd_event_unref",
+        "sd_event_unrefp",
+        "sd_id128_equal",
+        "sd_id128_in_set_sentinel",
+        "sd_id128_in_setv",
+        "sd_id128_is_allf",
+        "sd_id128_is_null",
+        "snprintf",
+        "strcmp",
+        "strlen",
+        "strncmp",
+        "strnlen",
+        "unique_owner"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-transaction-state.c",
+      "kind": "C",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "ge04_tx_can_retry",
+        "ge04_tx_reduce",
+        "if"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected_approval_observer.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 82,
+      "python_direct_import_calls": [
+        {
+          "line": 91,
+          "callee": "require_unprivileged",
+          "target": "unprivileged_observer.py:require_unprivileged"
+        }
+      ],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected_owner_review_boundary.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [
+        "mount"
+      ],
+      "candidate_sites": [
+        {
+          "line": 25,
+          "apis": [
+            "mount"
+          ],
+          "source": "\"KERNEL_RESOURCE_CUSTODY\": \"Pinned original keeper, mount namespace and cgroup FDs\",",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 31,
+      "python_direct_import_calls": [
+        {
+          "line": 40,
+          "callee": "canonical_prebirth",
+          "target": "prebirth_issuance_contract.py:canonical_prebirth"
+        }
+      ],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_absence_observer.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 27,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_event_contract.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 33,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [
+        "Subscribe",
+        "Unsubscribe",
+        "add_signal_receiver"
+      ],
+      "candidate_sites": [
+        {
+          "line": 24,
+          "apis": [
+            "Subscribe"
+          ],
+          "source": "\"\"\"Subscribe, listen, and remove listener under a short bounded GLib loop.",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 31,
+          "apis": [
+            "Subscribe"
+          ],
+          "source": "bus/Subscribe may extend wall-clock duration. Never use for authority.",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 100,
+          "apis": [
+            "add_signal_receiver"
+          ],
+          "source": "match = bus.add_signal_receiver(",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 106,
+          "apis": [
+            "Subscribe"
+          ],
+          "source": "manager.Subscribe(timeout=1)",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 137,
+          "apis": [
+            "Unsubscribe"
+          ],
+          "source": "manager.Unsubscribe(timeout=1)",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 63,
+      "python_direct_import_calls": [
+        {
+          "line": 37,
+          "callee": "JobEventWindow",
+          "target": "systemd_job_event_contract.py:JobEventWindow"
+        }
+      ],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "systemd_unit_observer.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 58,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "transaction_consumption_fixture.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 75,
+      "python_direct_import_calls": [
+        {
+          "line": 53,
+          "callee": "_fixture_directory",
+          "target": "prebirth_fixture_journal.py:_fixture_directory"
+        },
+        {
+          "line": 83,
+          "callee": "_fixture_directory",
+          "target": "prebirth_fixture_journal.py:_fixture_directory"
+        },
+        {
+          "line": 86,
+          "callee": "_read_exact_file",
+          "target": "prebirth_fixture_journal.py:_read_exact_file"
+        },
+        {
+          "line": 87,
+          "callee": "canonical_prebirth",
+          "target": "prebirth_issuance_contract.py:canonical_prebirth"
+        },
+        {
+          "line": 121,
+          "callee": "_read_exact_file",
+          "target": "prebirth_fixture_journal.py:_read_exact_file"
+        },
+        {
+          "line": 125,
+          "callee": "reconcile_birth_packet",
+          "target": "cross_source_birth_reconciliation.py:reconcile_birth_packet"
+        },
+        {
+          "line": 128,
+          "callee": "canonical_prebirth",
+          "target": "prebirth_issuance_contract.py:canonical_prebirth"
+        },
+        {
+          "line": 134,
+          "callee": "_read_exact_file",
+          "target": "prebirth_fixture_journal.py:_read_exact_file"
+        }
+      ],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [
+        "_mount",
+        "mount"
+      ],
+      "candidate_sites": [
+        {
+          "line": 58,
+          "apis": [
+            "_mount"
+          ],
+          "source": "def _mount(raw):",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 74,
+          "apis": [
+            "mount"
+          ],
+          "source": "raise ValueError(\"Unexpected cgroup mount scope\")",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 77,
+          "apis": [
+            "mount"
+          ],
+          "source": "raise ValueError(\"Missing or ambiguous keeper cgroup2 mount\")",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 87,
+          "apis": [
+            "mount"
+          ],
+          "source": "\"\"\"Observe real pidfd/procfs/mount/cgroup, compare to original binding.",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 123,
+          "apis": [
+            "_mount",
+            "mount"
+          ],
+          "source": "mount = _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576))",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 124,
+          "apis": [
+            "mount"
+          ],
+          "source": "if mount != (original.get(\"mountId\"), original.get(\"mountDevice\")):",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 125,
+          "apis": [
+            "mount"
+          ],
+          "source": "raise ValueError(\"Keeper cgroup mount replaced\")",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 167,
+          "apis": [
+            "_mount",
+            "mount"
+          ],
+          "source": "or _mount(_read_fixed(f\"/proc/{pid}/mountinfo\", 1048576)) != mount",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 172,
+          "apis": [
+            "mount"
+          ],
+          "source": "\"pid\": pid, \"startticks\": ticks, \"mount\": mount,",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 143,
+      "python_direct_import_calls": [
+        {
+          "line": 92,
+          "callee": "require_unprivileged",
+          "target": "unprivileged_observer.py:require_unprivileged"
+        },
+        {
+          "line": 181,
+          "callee": "require_unprivileged",
+          "target": "unprivileged_observer.py:require_unprivileged"
+        },
+        {
+          "line": 182,
+          "callee": "observe_fixed_systemd_unit",
+          "target": "systemd_unit_observer.py:observe_fixed_systemd_unit"
+        },
+        {
+          "line": 186,
+          "callee": "observe_fixed_systemd_unit",
+          "target": "systemd_unit_observer.py:observe_fixed_systemd_unit"
+        }
+      ],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "unprivileged_observer.py",
+      "kind": "Python",
+      "candidate_api_allowlist": [],
+      "candidate_sites": [],
+      "c_authority_site_count": 0,
+      "python_ast_call_count": 5,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "worker-stream.c",
+      "kind": "C",
+      "candidate_api_allowlist": [
+        "SCM_RIGHTS",
+        "accept4",
+        "recvmsg"
+      ],
+      "candidate_sites": [
+        {
+          "line": 170,
+          "apis": [
+            "accept4"
+          ],
+          "source": "s->fd=accept4(listener,NULL,NULL,SOCK_CLOEXEC|SOCK_NONBLOCK);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 189,
+          "apis": [
+            "SCM_RIGHTS"
+          ],
+          "source": "if(c->cmsg_level==SOL_SOCKET&&(c->cmsg_type==SCM_RIGHTS",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        },
+        {
+          "line": 212,
+          "apis": [
+            "recvmsg"
+          ],
+          "source": "ssize_t n=recvmsg(s->fd,&msg,MSG_CMSG_CLOEXEC|MSG_DONTWAIT);",
+          "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+        }
+      ],
+      "c_authority_site_count": 3,
+      "python_ast_call_count": null,
+      "python_direct_import_calls": [],
+      "c_compiler_lowered_name_candidates": [
+        "__bswap_16",
+        "__bswap_32",
+        "__bswap_64",
+        "__builtin_bswap16",
+        "__builtin_bswap32",
+        "__builtin_bswap64",
+        "__cmsg_nxthdr",
+        "__errno_location",
+        "__uint16_identity",
+        "__uint32_identity",
+        "__uint64_identity",
+        "accept4",
+        "check",
+        "clock_gettime",
+        "close",
+        "close_owned",
+        "controls",
+        "deadline",
+        "decimal",
+        "fail",
+        "fcntl",
+        "four_ids",
+        "fstat",
+        "ge04_stream_accept",
+        "ge04_stream_destroy",
+        "ge04_stream_read",
+        "ge04_stream_write",
+        "getegid",
+        "geteuid",
+        "getgid",
+        "getsockname",
+        "getsockopt",
+        "getuid",
+        "htonl",
+        "if",
+        "ld",
+        "live",
+        "memcmp",
+        "memcpy",
+        "memset",
+        "now_ms",
+        "ntohl",
+        "open",
+        "poll",
+        "read",
+        "ready",
+        "receive_exact",
+        "recvmsg",
+        "restricted_ids",
+        "return",
+        "send",
+        "send_exact",
+        "setsockopt",
+        "small_file",
+        "snprintf",
+        "sscanf",
+        "start_ticks",
+        "strchr",
+        "strcmp",
+        "strlen",
+        "strncmp",
+        "strrchr",
+        "strtok_r",
+        "syscall",
+        "zero_hex"
+      ],
+      "allowlist_status": "AUTHOR_DRAFT_NOT_REVIEWED_OR_COMPLETE",
+      "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    }
+  ],
+  "limits": [
+    "Draft API lists are derived from a global lexical vocabulary, not an independently reviewed complete API universe.",
+    "Empty candidate_api_allowlist is NOT evidence that the translation unit lacks authority.",
+    "C compiler lowered-name candidates are not source-level verified calls.",
+    "Python AST expressions and direct imports do not resolve dynamic/indirect targets.",
+    "CI drift checking against the same incomplete source recognizer cannot establish exhaustive semantic coverage.",
+    "Human reviewers must adjudicate APIs and every authority site before these become approved allowlists."
+  ],
+  "independent_human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW",
+  "security_hold": "ACTIVE"
+}

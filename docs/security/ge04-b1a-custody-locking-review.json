@@ -1,0 +1,253 @@
+{
+  "scope": "MEDIUM-2 M2.6 CUSTODY AND LOCKING",
+  "authority_sites": [
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 601,
+      "apis": [
+        "flock"
+      ],
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 372,
+      "apis": [
+        "flock"
+      ],
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 122,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t n = pread(held->fence_fd, observed + offset,"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 129,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(held->fence_fd, &trailer, 1, (off_t)size) != 0 ||"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 104,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t got = pread(held->intent_fd, observed + count,"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 111,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(held->intent_fd, &excess, 1, (off_t)length) != 0 ||"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 144,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t read_bytes = pread(fd, bytes + offset, expected - offset,"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 151,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(fd, &trailer, 1, (off_t)expected) != 0) return refuse(EIO);"
+    }
+  ],
+  "source_paths": [
+    {
+      "file": "native/ge04/cgroup-worker-qualification.c",
+      "anchors": [
+        {
+          "fragment": "flock(c->lock,LOCK_EX|LOCK_NB)",
+          "lines": [
+            372
+          ]
+        },
+        {
+          "fragment": "same_inode(&s,&c->lock_stat)",
+          "lines": [
+            170
+          ]
+        },
+        {
+          "fragment": "same_inode(&s,&c->parent_stat)",
+          "lines": [
+            172
+          ]
+        },
+        {
+          "fragment": "O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC",
+          "lines": [
+            83,
+            385,
+            470
+          ]
+        }
+      ],
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "native/ge04/cgroup-runtime-view-qualification.c",
+      "anchors": [
+        {
+          "fragment": "flock(c->lock,LOCK_EX|LOCK_NB)",
+          "lines": [
+            601
+          ]
+        },
+        {
+          "fragment": "same_inode(&s,&c->lock_stat)",
+          "lines": [
+            221
+          ]
+        },
+        {
+          "fragment": "same_inode(&s,&c->parent_stat)",
+          "lines": [
+            220
+          ]
+        },
+        {
+          "fragment": "O_PATH|O_NOFOLLOW|O_CLOEXEC",
+          "lines": [
+            122
+          ]
+        }
+      ],
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "native/ge04/protected-attempt-fence.c",
+      "anchors": [
+        {
+          "fragment": "pread(held->fence_fd",
+          "lines": [
+            122,
+            129
+          ]
+        },
+        {
+          "fragment": "pread(held->fence_fd, &trailer",
+          "lines": [
+            129
+          ]
+        },
+        {
+          "fragment": "held->owned != 1",
+          "lines": [
+            96
+          ]
+        },
+        {
+          "fragment": "fstatat(held->directory_fd",
+          "lines": [
+            112
+          ]
+        },
+        {
+          "fragment": "named.st_ino != fd.st_ino",
+          "lines": [
+            115
+          ]
+        }
+      ],
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "native/ge04/protected-dispatch-intent.c",
+      "anchors": [
+        {
+          "fragment": "pread(held->intent_fd",
+          "lines": [
+            104,
+            111
+          ]
+        },
+        {
+          "fragment": "pread(held->intent_fd, &excess",
+          "lines": [
+            111
+          ]
+        },
+        {
+          "fragment": "held->owned != 1",
+          "lines": [
+            77
+          ]
+        },
+        {
+          "fragment": "fstatat(held->directory_fd",
+          "lines": [
+            95
+          ]
+        },
+        {
+          "fragment": "named.st_ino != descriptor.st_ino",
+          "lines": [
+            99
+          ]
+        }
+      ],
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "native/ge04/protected-prebirth-journal.c",
+      "anchors": [
+        {
+          "fragment": "pread(fd, bytes + offset",
+          "lines": [
+            144
+          ]
+        },
+        {
+          "fragment": "pread(fd, &trailer",
+          "lines": [
+            151
+          ]
+        },
+        {
+          "fragment": "O_CREAT | O_EXCL | O_NOFOLLOW",
+          "lines": [
+            208
+          ]
+        },
+        {
+          "fragment": "root_private_dir(custody->directory_fd, 0700)",
+          "lines": [
+            165
+          ]
+        }
+      ],
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    }
+  ],
+  "observed": [
+    "Both cgroup fixtures take nonblocking exclusive advisory flock and recheck the named lock inode",
+    "Pinned parent/work and control descriptor identities are compared with named entries",
+    "Protected fence, dispatch intent, and prebirth journal use bounded positional reads and reject trailing bytes",
+    "Protected records use exclusive no-follow creation and retained descriptors"
+  ],
+  "unresolved": [
+    "flock does not exclude uncooperative privileged writers, writable aliases, or alternate mount namespace views",
+    "name-based unlink and directory replacement remain non-atomic after identity recheck",
+    "the privileged writer set and file-system mount topology are not independently enumerated",
+    "pread validation does not make concurrently writable record content immutable",
+    "open-file-description lock inheritance and failure-path lifetime require runtime fault injection",
+    "privileged record creation/recovery and fsync durability need controlled crash tests"
+  ],
+  "decision": "AUTHOR_SOURCE_REVIEW_ONLY; WRITER_EXCLUSION_AND_ATOMIC_IDENTITY_UNPROVEN",
+  "independent_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+}

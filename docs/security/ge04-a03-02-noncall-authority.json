@@ -1,0 +1,56 @@
+{
+  "scope": "A03-02 explicit noncall authority reference to effect crosswalk",
+  "reviewed_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+  "previously_unmatched_authority_sites": 3,
+  "source_and_compiler_effect_links": 3,
+  "entries": [
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "reference_line": 443,
+      "reference_token": "CLONE_INTO_CGROUP",
+      "reference_source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],",
+      "effect_line": 445,
+      "effect_target": "syscall",
+      "effect_source": "c->child[slot]=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+      "effect_gimple_candidates": 1,
+      "effect_classification": "CLONE3_CGROUP_BIRTH",
+      "review_status": "SOURCE_AND_COMPILER_EFFECT_LINKED_NOT_SECURITY_ADJUDICATED",
+      "sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "reference_line": 482,
+      "reference_token": "CLONE_INTO_CGROUP",
+      "reference_source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,",
+      "effect_line": 484,
+      "effect_target": "syscall",
+      "effect_source": "c.child=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+      "effect_gimple_candidates": 1,
+      "effect_classification": "CLONE3_CGROUP_BIRTH",
+      "review_status": "SOURCE_AND_COMPILER_EFFECT_LINKED_NOT_SECURITY_ADJUDICATED",
+      "sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e"
+    },
+    {
+      "file": "worker-stream.c",
+      "reference_line": 189,
+      "reference_token": "SCM_RIGHTS",
+      "reference_source": "if(c->cmsg_level==SOL_SOCKET&&(c->cmsg_type==SCM_RIGHTS",
+      "effect_line": 195,
+      "effect_target": "close",
+      "effect_source": "int fd;memcpy(&fd,(char*)CMSG_DATA(c)+i,sizeof(fd));if(fd>=0)close(fd);",
+      "effect_gimple_candidates": 1,
+      "effect_classification": "ANCILLARY_DESCRIPTOR_REJECTION",
+      "review_status": "SOURCE_AND_COMPILER_EFFECT_LINKED_NOT_SECURITY_ADJUDICATED",
+      "sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3"
+    }
+  ],
+  "status": "ALL_THREE_NONCALL_REFERENCES_LINKED_TO_EFFECT_PATHS; NOT_A_COMPLETE_SEMANTIC_AUDIT",
+  "limitations": [
+    "CLONE_INTO_CGROUP is an initializer flag; actual birth effect is later syscall",
+    "SCM_RIGHTS is a control-message discriminator; rejection effect closes received descriptors",
+    "Line-local crosswalk cannot prove authorization, ordering, negative paths or absence of other effects",
+    "A03-02 indirect calls, Python aliases, wrappers and unknown APIs still require analysis",
+    "A03-03 independent site-level security verdicts remain outstanding"
+  ],
+  "security_hold": "ACTIVE"
+}

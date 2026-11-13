@@ -1,0 +1,288 @@
+{
+  "scope": "MEDIUM-2 M2.4 PROCESS LIFECYCLE",
+  "authority_sites": [
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 354,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child[slot],&status,WNOHANG|WUNTRACED);"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 443,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 445,
+      "apis": [
+        "SYS_clone3"
+      ],
+      "source": "c->child[slot]=(pid_t)syscall(SYS_clone3,&args,sizeof(args));"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 568,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "while((got=waitpid(-1,&status,WNOHANG))>0){}"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 683,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child[0],&status,WNOHANG);"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 287,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child,&status,WNOHANG|WUNTRACED);"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 311,
+      "apis": [
+        "fork"
+      ],
+      "source": "pid_t descendant=fork();if(descendant<0)_exit(125);"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 346,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "while((n=waitpid(-1,&status,WNOHANG))>0){}"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 482,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 484,
+      "apis": [
+        "SYS_clone3"
+      ],
+      "source": "c.child=(pid_t)syscall(SYS_clone3,&args,sizeof(args));"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "line": 14,
+      "apis": [
+        "execveat"
+      ],
+      "source": "execveat(3, \"\", argv + 1, (char *const[]){\"PATH=/usr/bin:/bin\", NULL}, AT_EMPTY_PATH);"
+    },
+    {
+      "file": "exec-pinned.c",
+      "line": 13,
+      "apis": [
+        "execveat"
+      ],
+      "source": "execveat(4, \"\", argv, environ, AT_EMPTY_PATH);"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 35,
+      "apis": [
+        "fork"
+      ],
+      "source": "pid_t child=fork();"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 45,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "if(waitpid(child,&status,WUNTRACED)!=child||!WIFSTOPPED(status)||WSTOPSIG(status)!=SIGSTOP){result=74;goto cleanup;}"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 50,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 63,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(kill(child,SIGKILL)<0 && errno!=ESRCH)result=82;"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 67,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "do {reaped=waitpid(child,&status,0);}while(reaped<0&&errno==EINTR);"
+    }
+  ],
+  "fixtures": [
+    {
+      "file": "cgroup-worker-qualification.c",
+      "anchors": {
+        "clone_pidfd": {
+          "fragment": "CLONE_INTO_CGROUP|CLONE_PIDFD",
+          "lines": [
+            482
+          ]
+        },
+        "generation_readback": {
+          "fragment": "after!=expected_ticks",
+          "lines": [
+            506
+          ]
+        },
+        "stopped_gate": {
+          "fragment": "state!='T'",
+          "lines": [
+            503,
+            508
+          ]
+        },
+        "resume_by_pidfd": {
+          "fragment": "SYS_pidfd_send_signal,c.pidfd,SIGCONT",
+          "lines": [
+            513
+          ]
+        },
+        "cgroup_kill": {
+          "fragment": "write(c->killfd,\"1\",1)",
+          "lines": [
+            338
+          ]
+        },
+        "reap": {
+          "fragment": "waitpid(-1,&status,WNOHANG)",
+          "lines": [
+            346
+          ]
+        }
+      },
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "anchors": {
+        "clone_pidfd": {
+          "fragment": "CLONE_INTO_CGROUP|CLONE_PIDFD",
+          "lines": [
+            443
+          ]
+        },
+        "generation_gate": {
+          "fragment": "ticks!=c->ticks[slot]",
+          "lines": [
+            377
+          ]
+        },
+        "membership_gate": {
+          "fragment": "stopped(c,slot,slot==0?c->outer:c->launcher)",
+          "lines": [
+            380
+          ]
+        },
+        "resume_by_pidfd": {
+          "fragment": "SYS_pidfd_send_signal,c->pidfd[slot],SIGCONT",
+          "lines": [
+            382
+          ]
+        },
+        "cgroup_kill": {
+          "fragment": "write(c->killfd,\"1\",1)",
+          "lines": [
+            562
+          ]
+        },
+        "reap": {
+          "fragment": "waitpid(-1,&status,WNOHANG)",
+          "lines": [
+            568
+          ]
+        }
+      },
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "anchors": {
+        "owned_child": {
+          "fragment": "pid_t child=fork()",
+          "lines": [
+            35
+          ]
+        },
+        "pidfd_open": {
+          "fragment": "SYS_pidfd_open,child,0",
+          "lines": [
+            40
+          ]
+        },
+        "signal_by_pidfd": {
+          "fragment": "SYS_pidfd_send_signal,fd,signal_number",
+          "lines": [
+            18
+          ]
+        },
+        "owned_pid_fallback": {
+          "fragment": "kill(child,SIGKILL)",
+          "lines": [
+            63
+          ]
+        },
+        "reap": {
+          "fragment": "waitpid(child,&status,0)",
+          "lines": [
+            50,
+            67
+          ]
+        },
+        "poll_liveness": {
+          "fragment": "return result==0;",
+          "lines": [
+            26
+          ]
+        }
+      },
+      "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    }
+  ],
+  "author_observations": [
+    "worker and runtime-view clone3 use CLONE_PIDFD with CLONE_INTO_CGROUP",
+    "SIGCONT uses pidfd rather than a reusable numeric PID",
+    "stopped-state and cgroup membership readbacks precede resume",
+    "cleanup checks empty cgroup and reaps children",
+    "standalone pidfd fixture permits kill(PID) fallback only for its directly forked unreaped child"
+  ],
+  "unresolved": [
+    "poll errors and unexpected revents need negative-path adjudication",
+    "waitpid(-1) reaping scope and potential unrelated children need isolation proof",
+    "process /proc start-time and namespace identity reads are separate from pidfd identity checks",
+    "cgroup.kill and failed cleanup need adversarial failure injection",
+    "standalone pidfd fallback kill and blocking reap require independent deadlock/ownership analysis",
+    "exec-pinned helpers have no pidfd-based admission proof and must remain qualification-only"
+  ],
+  "decision": "AUTHOR_SOURCE_REVIEW_ONLY_NOT_SECURITY_ACCEPTANCE",
+  "human_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+}

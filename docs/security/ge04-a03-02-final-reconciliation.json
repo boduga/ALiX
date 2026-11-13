@@ -1,0 +1,560 @@
+{
+  "scope": "GE-04 A03-02 final bidirectional source-to-inventory and inventory-to-source evidence reconciliation",
+  "reviewed_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+  "source_units": 54,
+  "python_ast_calls_verified_against_current_reviewed_source": 1379,
+  "historical_original_omissions_verified": 63,
+  "c_authority_sites_crosswalked": 50,
+  "c_noncall_authority_effect_links": 3,
+  "c_gap_names_crosswalked": 642,
+  "python_gap_calls_crosswalked": 1377,
+  "unresolved_c_wrapper_candidates": 365,
+  "draft_c_compiler_name_mismatches": 20,
+  "historical_identity_crosswalk": [
+    {
+      "file": "bootstrap_binding.py",
+      "historical_line": 113,
+      "matched_keyword": "read(",
+      "historical_line_sha256": "4982710ab6835a0d7442489d1179eed8f444b0411d7f10250e423a509557eb73",
+      "current_reviewed_file_sha256": "ed644fe1187c268903a7404c561fe056d8169ccf356960da0b85298fd229431d",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "historical_line": 108,
+      "matched_keyword": "memfd_create",
+      "historical_line_sha256": "a4c66c5dfca5d6fd1d48b75bf9e3defdb1dbbc55df106bbafe64efae6715148c",
+      "current_reviewed_file_sha256": "eb8eee722e8cc595faa6a1c29c9da632423825863c9d603547ad688a133ba74e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "historical_line": 123,
+      "matched_keyword": "memfd_create",
+      "historical_line_sha256": "ec0d24eca7a516c2db5531fce6218b397db7abef645b4b8767abc89f94d56be7",
+      "current_reviewed_file_sha256": "eb8eee722e8cc595faa6a1c29c9da632423825863c9d603547ad688a133ba74e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "historical_line": 3,
+      "matched_keyword": "SCM_RIGHTS",
+      "historical_line_sha256": "8106614b420428877dd30d6ffd15adc3cc46d306bf4bf85e4dcfae927b7d4e97",
+      "current_reviewed_file_sha256": "165c615801665e0f16ec95b8150b33adb6d129b4b7392bd26c0d5a4599726207",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "historical_line": 72,
+      "matched_keyword": "SCM_RIGHTS",
+      "historical_line_sha256": "816bbee46438c74e1db96e3a4df941a9a68d8b81d6decf99332e31494a670a74",
+      "current_reviewed_file_sha256": "165c615801665e0f16ec95b8150b33adb6d129b4b7392bd26c0d5a4599726207",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "bounded_job_signal_observer.py",
+      "historical_line": 79,
+      "matched_keyword": "open(",
+      "historical_line_sha256": "0b366d0ca06d5df0b894ba71acc181831764541e1b125a784c46979cb48d5fb4",
+      "current_reviewed_file_sha256": "e6e25fc89ae66a815d54c8498af1f311962b2bc2d1512562c354f6637dbc6329",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "historical_line": 41,
+      "matched_keyword": "open(",
+      "historical_line_sha256": "0b366d0ca06d5df0b894ba71acc181831764541e1b125a784c46979cb48d5fb4",
+      "current_reviewed_file_sha256": "55a44fcabd6a4c2e47374d02bbc3ebef05cabaa98a8475aa620b684ed507d4aa",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "historical_line": 31,
+      "matched_keyword": "accept4",
+      "historical_line_sha256": "c3de5913857d297bf8bcb471959d7d47fc478fead5bc50af67635988bc6c0ce7",
+      "current_reviewed_file_sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "historical_line": 58,
+      "matched_keyword": "mkdir",
+      "historical_line_sha256": "d5ab0e146cd88dbec132becde5c35a600c534180de44565c6a86cb919bfe51c6",
+      "current_reviewed_file_sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 300,
+      "matched_keyword": "rename",
+      "historical_line_sha256": "c10bb82da64479ba2ef5b17a661343ebdef7c3ddb17e8848c51e3724b7c519fe",
+      "current_reviewed_file_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 354,
+      "matched_keyword": "waitpid",
+      "historical_line_sha256": "62a3badc1916063a9127c51ecab36f2963707c7f4a1fe5986433cde96f830e47",
+      "current_reviewed_file_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 442,
+      "matched_keyword": "clone",
+      "historical_line_sha256": "4a7a511a0b95b022fc29b36962e21a37e8761f7ef5af1e5de25a530abe515607",
+      "current_reviewed_file_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 443,
+      "matched_keyword": "clone",
+      "historical_line_sha256": "3a5043fc1fa3675c3c7d4492ca3f09163dca776af5303e807ebe90902be4030e",
+      "current_reviewed_file_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 531,
+      "matched_keyword": "unlink",
+      "historical_line_sha256": "e78abf7181ed2d17aa43d6014c8877686f6ccef414763b33884e5af554ba0cec",
+      "current_reviewed_file_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 538,
+      "matched_keyword": "unlink",
+      "historical_line_sha256": "5dbc575f0c62249fec3dc43468982a6e4c3012e44d4e5f61634e4eb64d178f44",
+      "current_reviewed_file_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 568,
+      "matched_keyword": "waitpid",
+      "historical_line_sha256": "a45ca0ef9dafc0ee024dc35ee624dc2d1b42a05d64e7a6bc723962b5a379d788",
+      "current_reviewed_file_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 585,
+      "matched_keyword": "unlink",
+      "historical_line_sha256": "082780cd16e6d7e8b48609f569a35472a72556821fb47bfdef8a8d85dfdb0027",
+      "current_reviewed_file_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 601,
+      "matched_keyword": "flock(",
+      "historical_line_sha256": "a512207be4aa37bae0070174559a4b5bef38b489e033ee771429d894e928e670",
+      "current_reviewed_file_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 675,
+      "matched_keyword": "unlink",
+      "historical_line_sha256": "b5a3064b38d5dbb8ab59c5200698f41da0b2247fa40fda8a9b8759b8dc72db6f",
+      "current_reviewed_file_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 683,
+      "matched_keyword": "waitpid",
+      "historical_line_sha256": "19187b6491110599b6908e03c833dc910bd91b11da07fc4a2f6c4d7cddcedcd2",
+      "current_reviewed_file_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 724,
+      "matched_keyword": "mkdir",
+      "historical_line_sha256": "b24a38dab7e08902a4c640bce49a7f2e55966487a0ea057904753357c8f70ddf",
+      "current_reviewed_file_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "historical_line": 730,
+      "matched_keyword": "mkdir",
+      "historical_line_sha256": "c98d1ca0c3927db050750da1927d34389d57a57b691a7b1db86da24518e2b815",
+      "current_reviewed_file_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 199,
+      "matched_keyword": "rename",
+      "historical_line_sha256": "c10bb82da64479ba2ef5b17a661343ebdef7c3ddb17e8848c51e3724b7c519fe",
+      "current_reviewed_file_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 262,
+      "matched_keyword": "waitpid",
+      "historical_line_sha256": "2022ed818aab1a4e0b5788974cfb0a2cea647b52b11bcea32279799d32701d65",
+      "current_reviewed_file_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 283,
+      "matched_keyword": "setgroups",
+      "historical_line_sha256": "9ac3fc3cec734c390cb7d876c5b93165e8e0f9ae6121896186f21795dc8d5838",
+      "current_reviewed_file_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 284,
+      "matched_keyword": "setres",
+      "historical_line_sha256": "c12887963325ac80a883b8aca44bfb8bb13933f6cae48558506d4cd42783f917",
+      "current_reviewed_file_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 305,
+      "matched_keyword": "unlink",
+      "historical_line_sha256": "1ee9cb2e10701ae6f7d27983688a4c788f508ca2362b863f65f85d3edbbdd936",
+      "current_reviewed_file_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 319,
+      "matched_keyword": "waitpid",
+      "historical_line_sha256": "f43a1210b3c32d2fb558a2ff62feab2cdfeab27c39b81be18a58c7125915a787",
+      "current_reviewed_file_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 326,
+      "matched_keyword": "unlink",
+      "historical_line_sha256": "cac0fb626adad57c80e65e9c25931d3536287c6999d5a92a4175a299689c77a4",
+      "current_reviewed_file_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 345,
+      "matched_keyword": "flock(",
+      "historical_line_sha256": "a512207be4aa37bae0070174559a4b5bef38b489e033ee771429d894e928e670",
+      "current_reviewed_file_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 386,
+      "matched_keyword": "unlink",
+      "historical_line_sha256": "ddce77aac403180205ba62b68e60763869870a795fdba84a599be892875b7711",
+      "current_reviewed_file_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 396,
+      "matched_keyword": "unlink",
+      "historical_line_sha256": "d39a6f9b7235102c377322e7c9b9cbeb2d424b6af3e45b4293755ae2c45e46e8",
+      "current_reviewed_file_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 401,
+      "matched_keyword": "clone",
+      "historical_line_sha256": "cef81fa894bf9eba07468465b6ab4cb75de49b98ddf0270e91c09bb84f8acad3",
+      "current_reviewed_file_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 425,
+      "matched_keyword": "mkdir",
+      "historical_line_sha256": "cf1fb4fdda1c225ed34131425864c1ec75e3ebcd1e2d1aa7f77c0ef30a7165d9",
+      "current_reviewed_file_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 434,
+      "matched_keyword": "clone",
+      "historical_line_sha256": "d03329b37ce1ae5175b9d87302eaa0d9ad1c31b99c3c5f6695c3a67ede0e4df8",
+      "current_reviewed_file_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 437,
+      "matched_keyword": "clone",
+      "historical_line_sha256": "4a7a511a0b95b022fc29b36962e21a37e8761f7ef5af1e5de25a530abe515607",
+      "current_reviewed_file_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "historical_line": 438,
+      "matched_keyword": "clone",
+      "historical_line_sha256": "94162eb583a2676eb1848252ec84eb37f0786247e528ed173c031e37fb158a95",
+      "current_reviewed_file_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "historical_line": 116,
+      "matched_keyword": "setres",
+      "historical_line_sha256": "02a7df900ff3436c669b2fe3f32897986388b7242cadf1439b0a32c8dc7f3cf0",
+      "current_reviewed_file_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "historical_line": 117,
+      "matched_keyword": "setres",
+      "historical_line_sha256": "78d7a286890a7f30c8147ff640052ec951d5ae9c2fbe93a2c98b7e93c5da6b4f",
+      "current_reviewed_file_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "historical_line": 125,
+      "matched_keyword": "execve",
+      "historical_line_sha256": "c076b61c5953c6cb656ca29358abc3be734d473bf99434a3e4fb7d097ca8f4d5",
+      "current_reviewed_file_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "historical_line": 128,
+      "matched_keyword": "execve",
+      "historical_line_sha256": "c3e14675e83d07ea2791f7881dbc05ebac8def3decf9266fe4faab09a59533e7",
+      "current_reviewed_file_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "historical_line": 45,
+      "matched_keyword": "waitpid",
+      "historical_line_sha256": "e3b468b01f1a7ab6046eeee2dce4225eb2648b4c32d6a2ab63f720f0fbf74877",
+      "current_reviewed_file_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "historical_line": 50,
+      "matched_keyword": "waitpid",
+      "historical_line_sha256": "71b074ae3e622d79bc214794b8a52959270dc77e8020ab8321955c3d0a32f849",
+      "current_reviewed_file_sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "historical_line": 122,
+      "matched_keyword": "read(",
+      "historical_line_sha256": "b7a70919c59212cd1065ac15c829d3f4ccc9770099f0982b4dd063e4f6baaae2",
+      "current_reviewed_file_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "historical_line": 129,
+      "matched_keyword": "read(",
+      "historical_line_sha256": "39ffc2a487494e57ec305a46451cc168b95dee4d0a42cb736cfa53e0168cb01c",
+      "current_reviewed_file_sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "historical_line": 84,
+      "matched_keyword": "open(",
+      "historical_line_sha256": "609901845f08a411a432cdbc1a5f63ab44ef54e95f755aab6d9cb934648edb8b",
+      "current_reviewed_file_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "historical_line": 87,
+      "matched_keyword": "open(",
+      "historical_line_sha256": "d6ad858d8775c234631dfc5b3c463d742b21161de6302cff5f78d835df51d4a5",
+      "current_reviewed_file_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "historical_line": 111,
+      "matched_keyword": "open(",
+      "historical_line_sha256": "ec9bc9db3478d9c6c49be7cb0b5c73d2d078dad8aac9b3340b4df4639417f944",
+      "current_reviewed_file_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "historical_line": 158,
+      "matched_keyword": "open(",
+      "historical_line_sha256": "da3c1a29dae4cf46ea50b6cbc37f485af19727a36bc949bf60f9b49668dde8c1",
+      "current_reviewed_file_sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "historical_line": 104,
+      "matched_keyword": "read(",
+      "historical_line_sha256": "1f4cca0f380c0efbad41de2757a37e7bdf91ff4a4a9a72e0fc328d400c20f6cd",
+      "current_reviewed_file_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "historical_line": 111,
+      "matched_keyword": "read(",
+      "historical_line_sha256": "bd2ede0925b25fc0fc4940e1f73c815dd61b3cd0f010edb04714eaaad7d84377",
+      "current_reviewed_file_sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "historical_line": 144,
+      "matched_keyword": "read(",
+      "historical_line_sha256": "d711fc9c05d983e59a11ac26009eac6c21a6783aa4ace526f20732ea5ebafa86",
+      "current_reviewed_file_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "historical_line": 151,
+      "matched_keyword": "read(",
+      "historical_line_sha256": "b08d0bf4a0733fe25ca331be7d14281327719685a74af0d08a62779ac0df9ec7",
+      "current_reviewed_file_sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "historical_line": 100,
+      "matched_keyword": "add_signal_receiver",
+      "historical_line_sha256": "931b180ee58c3c8986829f702e06d907c8ce28a7ead500ede8b266c7862adecd",
+      "current_reviewed_file_sha256": "e36da0146da76da7c89f713e51bfc5e6d10b867563ea668bd76184b1c21a80e9",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "historical_line": 106,
+      "matched_keyword": ".Subscribe",
+      "historical_line_sha256": "7a2ae2cfeadfa920eb5a537e4615e7952676d7a66d6cf39b228dee295c169fb1",
+      "current_reviewed_file_sha256": "e36da0146da76da7c89f713e51bfc5e6d10b867563ea668bd76184b1c21a80e9",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "historical_line": 137,
+      "matched_keyword": ".Unsubscribe",
+      "historical_line_sha256": "8a5584c64aa16f0dc2ba22406cc85cbedd9ece6f7dff39d006dcb247dcf8511d",
+      "current_reviewed_file_sha256": "e36da0146da76da7c89f713e51bfc5e6d10b867563ea668bd76184b1c21a80e9",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "historical_line": 57,
+      "matched_keyword": "mount(",
+      "historical_line_sha256": "b47d2b64a2810c9e25e19bd16dfd4a5ff5afd68716d97e997d0a983e61599429",
+      "current_reviewed_file_sha256": "86da8c10920d5ad3f54554d3bd264ff98bc6f3aa11c46b13d782233ec2df631e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "historical_line": 121,
+      "matched_keyword": "mount(",
+      "historical_line_sha256": "dc63d97b9de3d52d78760608c613e4f23edbc37d50e99ad9a596b4715e18eaa0",
+      "current_reviewed_file_sha256": "86da8c10920d5ad3f54554d3bd264ff98bc6f3aa11c46b13d782233ec2df631e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "historical_line": 165,
+      "matched_keyword": "mount(",
+      "historical_line_sha256": "4f19c86f5855944c9201b52ef6893a733287c6664c1c1b2dada60b45e7821200",
+      "current_reviewed_file_sha256": "86da8c10920d5ad3f54554d3bd264ff98bc6f3aa11c46b13d782233ec2df631e",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "worker-stream.c",
+      "historical_line": 170,
+      "matched_keyword": "accept4",
+      "historical_line_sha256": "8d5fa78d86a5cdfb77c9cd381ca8814a3d4b2ff4945567887ff10f1fa0cb04b8",
+      "current_reviewed_file_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "worker-stream.c",
+      "historical_line": 189,
+      "matched_keyword": "SCM_RIGHTS",
+      "historical_line_sha256": "9f002d1045858465f005ba9a9c5adfef9fd23717c965db56505739bc54eb4d71",
+      "current_reviewed_file_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "worker-stream.c",
+      "historical_line": 221,
+      "matched_keyword": "read(",
+      "historical_line_sha256": "04fbf9b14b64491f92a2c46d06abbe2aaa46643766ceeafc581169ec1ac878b7",
+      "current_reviewed_file_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    },
+    {
+      "file": "worker-stream.c",
+      "historical_line": 248,
+      "matched_keyword": "write(",
+      "historical_line_sha256": "33125ef951fac0cbc678cbdda218934e87b1d1779ad40531fa92b1abe617c71e",
+      "current_reviewed_file_sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "current_effect_disposition": "PENDING_SOURCE_TO_CURRENT_SEMANTIC_MAPPING"
+    }
+  ],
+  "open_blockers": [
+    {
+      "id": "HISTORICAL_63_CURRENT_EFFECT_MAPPING",
+      "count": 63,
+      "reason": "Original historical source lines have not been individually mapped to reviewed current authority effects and dispositions"
+    },
+    {
+      "id": "C_AUTHORITY_SITE_DISPOSITIONS",
+      "count": 50,
+      "reason": "Compiler/noncall crosswalk is complete but each site remains unadjudicated"
+    },
+    {
+      "id": "C_UNRESOLVED_WRAPPER_EFFECTS",
+      "count": 365,
+      "reason": "Object symbols narrow origins but do not establish external, macro or transitive authority effects"
+    },
+    {
+      "id": "C_DRAFT_API_COMPILER_MISMATCH",
+      "count": 20,
+      "reason": "Draft API names lack exact compiler-name match and need semantic reconciliation"
+    },
+    {
+      "id": "C_VOCABULARY_EFFECT_REVIEW",
+      "count": 642,
+      "reason": "Risk hypotheses and source lines are recorded but individual authority effects not adjudicated"
+    },
+    {
+      "id": "PYTHON_VOCABULARY_EFFECT_REVIEW",
+      "count": 1377,
+      "reason": "Imported wrappers, receiver identity, dynamic dispatch and runtime binding remain unresolved"
+    },
+    {
+      "id": "INDIRECT_AND_MACRO_COMPLETENESS",
+      "count": null,
+      "reason": "Negative lexical/GIMPLE patterns do not prove absence of all computed calls or macro-lowered authority effects"
+    }
+  ],
+  "adversarial_omission_fixtures": "PASS: missing one historical identity, queue site or AST call is rejected",
+  "a03_02_verdict": "NOT_SATISFIED_SEMANTIC_COMPLETENESS_NOT_DEMONSTRATED",
+  "next_action": "Remain in A03-02 and resolve blocker effects before A03-03",
+  "security_hold": "ACTIVE"
+}

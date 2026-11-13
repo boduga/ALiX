@@ -1,0 +1,23 @@
+test_descriptor_types_sizes_media_and_paths (test_ge04_oci_image.QualificationImageTests.test_descriptor_types_sizes_media_and_paths) ... ok
+test_golden_and_determinism (test_ge04_oci_image.QualificationImageTests.test_golden_and_determinism) ... ok
+test_independent_oci_graph_and_tar_oracle (test_ge04_oci_image.QualificationImageTests.test_independent_oci_graph_and_tar_oracle) ... ok
+test_inert_payload_is_integrity_only (test_ge04_oci_image.QualificationImageTests.test_inert_payload_is_integrity_only) ... ok
+test_invalid_metadata (test_ge04_oci_image.QualificationImageTests.test_invalid_metadata) ... ok
+test_invalid_pins_and_file_types (test_ge04_oci_image.QualificationImageTests.test_invalid_pins_and_file_types) ... ok
+test_inventory_and_total_bounds (test_ge04_oci_image.QualificationImageTests.test_inventory_and_total_bounds) ... ok
+test_mapping_methods_never_invoked (test_ge04_oci_image.QualificationImageTests.test_mapping_methods_never_invoked) ... ok
+test_noncanonical_json_and_unknown_metadata (test_ge04_oci_image.QualificationImageTests.test_noncanonical_json_and_unknown_metadata) ... ok
+test_output_frozen_and_receipt_detached (test_ge04_oci_image.QualificationImageTests.test_output_frozen_and_receipt_detached) ... ok
+test_payload_boundaries (test_ge04_oci_image.QualificationImageTests.test_payload_boundaries) ... ok
+test_raw_blob_corruption_and_missing_reference (test_ge04_oci_image.QualificationImageTests.test_raw_blob_corruption_and_missing_reference) ... ok
+test_rehashed_archive_checksum_padding_truncation_and_trailing_data (test_ge04_oci_image.QualificationImageTests.test_rehashed_archive_checksum_padding_truncation_and_trailing_data) ... ok
+test_rehashed_image_config_changes (test_ge04_oci_image.QualificationImageTests.test_rehashed_image_config_changes) ... ok
+test_rehashed_manifest_and_platform_changes (test_ge04_oci_image.QualificationImageTests.test_rehashed_manifest_and_platform_changes) ... ok
+test_rehashed_unsafe_archive_names_types_and_metadata (test_ge04_oci_image.QualificationImageTests.test_rehashed_unsafe_archive_names_types_and_metadata) ... ok
+test_reject_mutable_empty_oversized_or_subclass_payload (test_ge04_oci_image.QualificationImageTests.test_reject_mutable_empty_oversized_or_subclass_payload) ... ok
+test_self_consistent_changed_probe_cannot_replace_caller_pin (test_ge04_oci_image.QualificationImageTests.test_self_consistent_changed_probe_cannot_replace_caller_pin) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.076s
+
+OK

@@ -1,0 +1,167 @@
+{
+  "scope": "A03-02 GCC GIMPLE C indirect-dispatch triage",
+  "reviewed_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+  "files": 30,
+  "potential_indirect_candidates": 0,
+  "entries": [
+    {
+      "file": "broker-peer-probe.c",
+      "sha256": "ae1913c7ea260a420fc263540bba1324c13d9de2ad8824ff5fc5292ba29ddbb2",
+      "indirect_candidates": []
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "sha256": "c44a068849500e0c97b87673ab187c754831d2dc1d8ae4da725647618cbec041",
+      "indirect_candidates": []
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "sha256": "6574105e67ebf5dab7cfb0c4c7e699f8628e7102b63872f7a37236011c483c81",
+      "indirect_candidates": []
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "sha256": "a6c4b0d7a90bdeda9e891afa1f699707574baf70aa3e97f45d44cbd7548cd7f4",
+      "indirect_candidates": []
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "indirect_candidates": []
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "indirect_candidates": []
+    },
+    {
+      "file": "cgroup2-fixed-preflight.c",
+      "sha256": "3f05def25625b16ef11429b593728d3db1f59196f44f66386a6daae497017c7e",
+      "indirect_candidates": []
+    },
+    {
+      "file": "cgroup2-mount-preflight.c",
+      "sha256": "12e3e18fc3956fb2375c5eaa0f7916c572a91cc8948d5a60f732cc7856380c7c",
+      "indirect_candidates": []
+    },
+    {
+      "file": "diagnostic-deadline.c",
+      "sha256": "aa876e75acd520a1085836d3d000fd0802cb3d2321f2687a128d10886ed1f6fd",
+      "indirect_candidates": []
+    },
+    {
+      "file": "diagnostic-fd-wait.c",
+      "sha256": "6c947418f6cdb90431b5152b2300c3f709b5fa7b090a5cb9ff8d249af1a2f575",
+      "indirect_candidates": []
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "sha256": "269f48509a139586e52b49675ac148921176e6fc6cfd265243591b432044fc83",
+      "indirect_candidates": []
+    },
+    {
+      "file": "exec-pinned.c",
+      "sha256": "5e1363d9e07961f1403d9a3662f0f123c0991efa37025719148ab6f50253335f",
+      "indirect_candidates": []
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "indirect_candidates": []
+    },
+    {
+      "file": "nonexecuting-sender-contract.c",
+      "sha256": "224f05c939b1d0b73579a1efe781d85a0bbaf6e70224bee1610bfc9debcdcc8b",
+      "indirect_candidates": []
+    },
+    {
+      "file": "peercred.c",
+      "sha256": "3048a51bc84b8ba8ee9871a27d07b91ec674ff52b46612d08dd429408f36d983",
+      "indirect_candidates": []
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "sha256": "30621c61ac07c990bb37971b9c1fcc39f63a9b5770a5375aa8cafd4980b652ac",
+      "indirect_candidates": []
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "sha256": "776ba0c0c885a52afb2d951279dc4a757c0c432b9bb09b015cfe77841142b695",
+      "indirect_candidates": []
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "sha256": "3a50d7ed11f4039c16417fae4b5ace28226f4db017577916a4ae52d2e2d778d7",
+      "indirect_candidates": []
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "sha256": "a357818847033f37187c5eb8c89b85aad3c01f0830291a338d6f25d558aed6a3",
+      "indirect_candidates": []
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "sha256": "1976e53181442d953542d6e067f27e7c2dc96164ab776390661f2011a141eb49",
+      "indirect_candidates": []
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "sha256": "2035b4b5a6d560a69075f7cb7ca8d995734da822738f76df92a8d98805d3a2f3",
+      "indirect_candidates": []
+    },
+    {
+      "file": "protected-keeper-custody.c",
+      "sha256": "1bf541f587e9f417f833acfce257537bb45c015ff62195e4cce933f329f779dc",
+      "indirect_candidates": []
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "sha256": "3ea5c5a1bb21c35d3a6936891d4bc90c0c75a1c556d596f16ee395243dd80506",
+      "indirect_candidates": []
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "sha256": "06cedebeacb85331e28c806bfc51cdc9ecae095332606cfe4386982d179b4adb",
+      "indirect_candidates": []
+    },
+    {
+      "file": "protected-root-controller.c",
+      "sha256": "e994999de7933d55b838c882583fe415b2b32eb8cf2d7c1c0b58b9c711fc9e51",
+      "indirect_candidates": []
+    },
+    {
+      "file": "protected-systemd-birth-observer.c",
+      "sha256": "2c83bf395265e723f5d5ed2892edac6879ad4f77a21c316c3ce2f3c13b6f7d36",
+      "indirect_candidates": []
+    },
+    {
+      "file": "protected-systemd-request.c",
+      "sha256": "25218a14f73523a71bd451a304ac497273f0edcd3f85c53110e386a7a4d7a9a0",
+      "indirect_candidates": []
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "sha256": "21747be87ffcf7cb6b1fd6e8d9b266bdd61e4c9c6b6df0edeec9cc99a93b00f0",
+      "indirect_candidates": []
+    },
+    {
+      "file": "protected-transaction-state.c",
+      "sha256": "d72d5456ab43763bb8cbfec70ca56dc003e834859c2cf0eab5c540e41efd1830",
+      "indirect_candidates": []
+    },
+    {
+      "file": "worker-stream.c",
+      "sha256": "d083be27f291886cc08b203ca21f64ad9caa70e294a9d5d6bd9f82784e70faf3",
+      "indirect_candidates": []
+    }
+  ],
+  "fixture": "PASS: function-pointer call flagged; ordinary direct call not flagged",
+  "status": "HEURISTIC_POINTER_DISPATCH_TRIAGE_NOT_EXHAUSTIVE",
+  "limitations": [
+    "Local pointer assignment recognizer is not a compiler-verified points-to analysis",
+    "Function pointers in structures, parameters, casts, phi nodes, aliases and macros can evade heuristic",
+    "No unresolved pointer candidate is assumed safe; zero findings does not prove absence",
+    "Full semantic closure and independent site verdicts remain pending"
+  ],
+  "security_hold": "ACTIVE"
+}

@@ -1,13 +1,16 @@
-import { spawn, type ChildProcess } from "child_process";
-import { buildChildEnv } from "../runtime-state/runtime/child-env.js";
+import { randomUUID } from "node:crypto";
 import { resolve } from "path";
-import { fileURLToPath } from "url";
 import type { SubagentRole, SubagentTask, SubagentResult, SubagentRoleConfig, AlixConfig } from "../operations/config/schema.js";
 import { parseSessionMode } from "../operations/config/schema.js";
 import { getSubagentRole } from "../operations/config/subagent-config.js";
 import { createModelResolver } from "../operations/config/model-resolver.js";
 import type { EventLog } from "../runtime-state/events/event-log.js";
 import { OwnershipRegistry, type AcquireRequest } from "../coordination/ownership/ownership-registry.js";
+import { ExecutionCancelledError } from "../runtime-state/runtime/cancellation-token.js";
+import { requireTaskWorkerSupervisor, projectSupervisorTask, snapshotPreparedRequest, snapshotWorkerEvidence, validateTaskCompletion } from "./worker-task-supervisor.js";
+import type { TaskWorkerSupervisor, TaskWorkerHandle } from "./worker-task-supervisor.js";
+import type { WorkerGrantIdentity } from "./worker-grant-binding.js";
+import { WorkerSupervisorUnavailableError } from "./worker-supervisor.js";
 import { resolveOwnedScopePrefix } from "../coordination/ownership/path-scope.js";
 
 // Re-export types for consumers
@@ -24,11 +27,13 @@ export type SubagentManagerOptions = {
    */
   cwd?: string;
   config?: AlixConfig;
-  /** Override the spawned command for testing. Defaults to the alix CLI. */
+  /** Trusted composition only. Runtime configuration cannot select a supervisor. */
+  workerSupervisor?: TaskWorkerSupervisor;
+  /** @deprecated Rejected: direct worker spawning is no longer supported. */
   spawnOverride?: { command: string; args?: string[] };
   /** Event log for emitting subagent lifecycle events into the session stream. */
   eventLog?: EventLog;
-  /** GE-04 qualification-only observer. No credential authority or admission. */
+  /** @deprecated Rejected: an observer cannot authorize worker execution. */
   supervisorWorkerLifecycle?: {
     onSpawned: (identity: { pid: number; uid: number; coordinationRunId: string; workerId: string; attempt: number }) => Promise<void>;
     onExited: (pid: number) => void;
@@ -37,37 +42,28 @@ export type SubagentManagerOptions = {
 
 type RunningSubagent = {
   task: SubagentTask;
-  process: ChildProcess;
-  resolve: (result: SubagentResult) => void;
-  reject: (err: Error) => void;
+  identity: WorkerGrantIdentity;
+  supervisor: TaskWorkerSupervisor;
+  handle?: TaskWorkerHandle;
   cancelled: boolean;
+  launchInvoked: boolean;
+  prepareInvoked: boolean;
+  clean: boolean;
+  revocation?: Promise<void>;
+  pendingLaunch?: Promise<TaskWorkerHandle>;
+  handleCancellation?: Promise<void>;
+  interrupted: Promise<never>;
+  interrupt: (error: Error) => void;
 };
 
-/**
- * Kill a child and any grandchildren it spawned.
- *
- * On POSIX the child is spawned detached (its own process group whose id
- * is its pid), so signalling the negative pid reaches the whole tree —
- * including shell commands the subagent launched. Windows has no
- * equivalent group signal here, so it falls back to the direct child.
- * Combined with the child's stdin-EOF watchdog, this covers both explicit
- * cancellation and host death.
- */
-function terminateProcessTree(child: ChildProcess, signal: NodeJS.Signals = "SIGKILL"): void {
-  if (!child.pid) return;
-  if (process.platform !== "win32") {
-    try {
-      process.kill(-child.pid, signal);
-      return;
-    } catch {
-      // Group already gone — fall through to the direct kill.
-    }
-  }
+/** Control-plane bounds never impose a deadline on a running agent. */
+async function boundedControl<T>(operation: Promise<T>, milliseconds = 5000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    child.kill(signal);
-  } catch {
-    // Already exited.
-  }
+    return await Promise.race([operation, new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("WorkerSupervisor control operation unresolved")), milliseconds);
+    })]);
+  } finally { if (timer) clearTimeout(timer); }
 }
 
 export type SubagentResultCallback = (result: SubagentResult) => void;
@@ -87,16 +83,6 @@ export function coordinationPresentationMeta(task: SubagentTask): {
     ...(task.assignedAgentId ? { assignedAgentId: task.assignedAgentId } : {}),
     ...(task.taskLabel ? { taskLabel: task.taskLabel } : {}),
   };
-}
-
-function resolvedCredentialPayload(config: AlixConfig | undefined): string | undefined {
-  const apiKeys: Record<string, string> = {};
-  for (const [provider, value] of Object.entries(config?.apiKeys ?? {})) {
-    if (typeof value === "string" && value.length > 0 && !value.startsWith("cred://")) {
-      apiKeys[provider] = value;
-    }
-  }
-  return Object.keys(apiKeys).length > 0 ? JSON.stringify(apiKeys) : undefined;
 }
 
 /** Renew active chat-delegate leases well inside the registry's 30-min TTL. */
@@ -143,6 +129,10 @@ export class SubagentManager {
    * re-checks the epoch after acquisition and cancels itself instead.
    */
   private spawnEpoch = 0;
+  private readonly delegateRunId = `delegate:${randomUUID()}`;
+  private readonly attempts = new Map<string, number>();
+  private startup?: Promise<void>;
+  private quarantined = false;
 
   constructor(private options: SubagentManagerOptions) {
     this.registryCwd = resolve(options.cwd ?? process.cwd());
@@ -229,314 +219,200 @@ export class SubagentManager {
    */
   private ensureLeaseRenewal(): void {
     if (this.renewTimer) return;
-    this.renewTimer = setInterval(() => {
-      void (async () => {
-        for (const [taskId, entry] of [...this.leasesByTask]) {
-          const registry = this.registryFor(entry.cwd);
-          const kept: string[] = [];
-          for (const id of entry.ids) {
-            const ok = await registry.renew(id).catch(() => false);
-            if (ok) kept.push(id);
-          }
-          const outcome = resolveRenewalResult(this.leasesByTask.has(taskId), kept);
-          if (outcome.action === "set") {
-            this.leasesByTask.set(taskId, { ...entry, ids: kept });
-          } else if (outcome.action === "delete") {
-            this.leasesByTask.delete(taskId);
-          } else {
-            // Task released during the awaits: release the ids this pass
-            // renewed rather than resurrecting a released task.
-            for (const id of outcome.releaseIds) {
-              await registry.release(id).catch(() => false);
-            }
-          }
-        }
-        if (this.leasesByTask.size === 0 && this.renewTimer) {
-          clearInterval(this.renewTimer);
-          this.renewTimer = undefined;
-        }
-      })();
-    }, LEASE_RENEW_INTERVAL_MS);
+    this.renewTimer = setInterval(() => { void this.renewTaskLeases().catch(() => { this.enterQuarantine(); }); }, LEASE_RENEW_INTERVAL_MS);
     this.renewTimer.unref?.();
+  }
+
+  private async renewTaskLeases(): Promise<void> {
+    for (const [taskId, entry] of [...this.leasesByTask]) {
+      const registry = this.registryFor(entry.cwd);
+      for (const id of entry.ids) {
+        const renewed = await registry.renew(id).catch(() => false);
+        if (!this.leasesByTask.has(taskId)) {
+          if (renewed) await registry.release(id).catch(() => false);
+          continue;
+        }
+        if (!renewed) {
+          // Tracking a lost lease does not preserve exclusivity. Fence execution
+          // and quarantine this manager; only canonical recovery can clear it.
+          this.cancel(taskId);
+          this.enterQuarantine();
+          this.emitLifecycle("agent.state_changed", {agentId: taskId, state: "cancelling",
+            error: "Ownership renewal failed; supervisor recovery required"});
+        }
+      }
+    }
+    if (this.leasesByTask.size === 0 && this.renewTimer) {
+      clearInterval(this.renewTimer);
+      this.renewTimer = undefined;
+    }
   }
 
   onResult(cb: SubagentResultCallback): void {
     this.callbacks.push(cb);
   }
 
-  /**
-   * Spawn a subagent process. For chat-path write tasks, acquires durable
-   * ownership leases first — rejects if owned paths overlap another agent's
-   * active claim, or if a path cannot be reduced to a workspace scope.
-   */
-  async spawn(task: SubagentTask): Promise<SubagentResult> {
-    // Throws → the async function rejects (same rejection surface the old
-    // in-Promise overlap check produced; spawnMany maps it to a failed result).
+  /** Dispatch only through the canonical task supervisor. No direct-spawn fallback. */
+  async spawn(input: SubagentTask): Promise<SubagentResult> {
+    if (this.quarantined) throw new Error("WorkerSupervisor SECURITY HOLD: unresolved worker cleanup");
+    if (this.options.spawnOverride || this.options.supervisorWorkerLifecycle) throw new WorkerSupervisorUnavailableError();
+    const supervisor = requireTaskWorkerSupervisor(this.options.workerSupervisor);
+    // Snapshot before any await. Caller mutation cannot change the prepared task.
+    const task = structuredClone(input);
+    if (this.running.has(task.id)) throw new Error("Duplicate active worker task");
+    const coordinated = task.coordinationRunId !== undefined || task.coordinationWorkerAttempt !== undefined;
+    if ((coordinated && (!task.coordinationRunId?.trim() || !Number.isSafeInteger(task.coordinationWorkerAttempt) || task.coordinationWorkerAttempt! < 1)) ||
+        (task.assignedAgentId && !coordinated)) throw new Error("Incomplete coordinated worker identity");
+    const attempt = coordinated ? task.coordinationWorkerAttempt! : (this.attempts.get(task.id) ?? 0) + 1;
+    const identity = Object.freeze({coordinationRunId: coordinated ? task.coordinationRunId! : this.delegateRunId, workerId: task.id, attempt});
+    const model = this.getRoleModel(task.role);
+    const projected = projectSupervisorTask(task, identity, resolve(task.cwd ?? this.registryCwd), model,
+      parseSessionMode(this.options.config?.permissions?.sessionMode));
+    let interrupt!: (error: Error) => void;
+    const interrupted = new Promise<never>((_, reject) => { interrupt = reject; });
+    void interrupted.catch(() => {});
+    const state: RunningSubagent = {interrupted, interrupt, task, identity: projected.identity, supervisor, cancelled: false,
+      launchInvoked: false, prepareInvoked: false, clean: false};
+    this.running.set(task.id, state);
+    if (!coordinated) this.attempts.set(task.id, attempt);
     const epoch = this.spawnEpoch;
-    await this.acquireTaskOwnership(task);
-    if (epoch !== this.spawnEpoch) {
-      // shutdown() raced this spawn while it awaited acquisition — cancel
-      // here (release leases, publish the cancelled lifecycle row) rather
-      // than spawning a child nothing will ever kill.
-      await this.releaseTaskOwnership(task.id);
-      const eventSessionId = task.eventSessionId ?? this.options.sessionId;
-      this.emitLifecycle("agent.cancelled", {
-        agentId: task.id,
-        parentAgentId: this.options.parentAgentId ?? `session:${eventSessionId}`,
-        taskId: task.id,
-        role: task.role,
-        state: "cancelled",
-        status: "cancelled",
-        operation: "Manager shutdown",
-      }, eventSessionId);
-      throw new Error("SubagentManager shut down during spawn");
-    }
-    return new Promise((resolvePromise, reject) => {
-      try {
-        // Resolve the model before publishing the spawn so the roster never
-        // shows a fabricated or guessed model identity.
-        const { provider, name } = this.getRoleModel(task.role);
-        // Coordination managers have their own internal id (`coord-sub-*`),
-        // but their lifecycle events stay in the explicit parent runtime
-        // session so session-scoped projections can observe the worker.
-        const eventSessionId = task.eventSessionId ?? this.options.sessionId;
-        const parentAgentId = this.options.parentAgentId ?? `session:${eventSessionId}`;
-        const lifecycleBase = {
-          agentId: task.id,
-          parentAgentId,
-          taskId: task.id,
-          role: task.role,
-          model: `${provider}/${name}`,
-          ...coordinationPresentationMeta(task),
-        };
-        // Emit subagent.started event
-        this.options.eventLog?.append({
-          sessionId: eventSessionId,
-          actor: "system",
-          type: "subagent.started",
-          payload: { role: task.role, taskId: task.id, prompt: task.prompt.slice(0, 200), ownedPaths: task.ownedPaths ?? [] },
-        });
-        this.emitLifecycle("agent.spawned", {
-          ...lifecycleBase,
-          state: "starting",
-          operation: task.prompt.slice(0, 200),
-          ownedPaths: task.ownedPaths ?? [],
-        }, eventSessionId);
-        this.emitLifecycle("agent.task_assigned", {
-          ...lifecycleBase,
-          title: task.taskLabel ?? task.prompt.slice(0, 200),
-          prompt: task.prompt.slice(0, 200),
-          ownedPaths: task.ownedPaths ?? [],
-        }, eventSessionId);
-        if (task.ownedPaths?.length) {
-          this.emitLifecycle("agent.ownership_changed", { ...lifecycleBase, ownedPaths: task.ownedPaths }, eventSessionId);
-        }
-
-        // Build CLI args array
-        const sessionMode = parseSessionMode(this.options.config?.permissions?.sessionMode);
-        const cliArgs = [
-          "run", "--subagent", task.role,
-          "--task-id", task.id,
-          "--prompt", task.prompt,
-          "--mode", task.mode,
-          "--session-id", task.contextBundle ?? `sub-${Date.now()}`,
-          ...(task.assignedObjective ? ["--assigned-objective", task.assignedObjective] : []),
-          "--provider", provider,
-          "--model", name,
-          "--session-mode", sessionMode,
-          ...(task.coordinationRunId ? ["--coordination-run-id", task.coordinationRunId] : []),
-          ...(task.coordinationRunId && task.coordinationWorkerAttempt !== undefined
-            ? ["--worker-attempt", String(task.coordinationWorkerAttempt)] : []),
-          ...(task.coordinationRunId && task.coordinationOwnershipClaims
-            ? ["--ownership-claims-json", JSON.stringify(task.coordinationOwnershipClaims)] : []),
-          ...(task.coordinationRunId ? ["--credential-fd", "3"] : []),
-          ...(this.options.supervisorWorkerLifecycle ? ["--ge04-startup-fd", "4"] : []),
-          ...(task.ownedPaths?.length ? ["--owned-paths", task.ownedPaths.join(",")] : []),
-          ...(task.inputPaths?.length ? ["--input-paths", JSON.stringify(task.inputPaths)] : []),
-        ];
-
-        // Use spawnOverride for testing, otherwise use alix CLI
-        const spawnOverride = this.options.spawnOverride;
-        let command: string;
-        let commandArgs: string[];
-        if (spawnOverride) {
-          command = spawnOverride.command;
-          commandArgs = spawnOverride.args ?? cliArgs;
-        } else {
-          // Resolve to the alix CLI entry point
-          const thisFile = fileURLToPath(import.meta.url);
-          const repoRoot = resolve(thisFile, "..", "..", "..", "..");
-          command = String(process.execPath);
-          commandArgs = [resolve(repoRoot, "dist", "src", "cli.js"), ...cliArgs];
-        }
-
-        // Qualification observer never receives a credential-bearing FD.
-        // Existing credential delivery remains unchanged when the observer is absent.
-        const credentialPayload = task.coordinationRunId && !this.options.supervisorWorkerLifecycle
-          ? resolvedCredentialPayload(this.options.config) : undefined;
-        const child = spawn(command, commandArgs, {
-          cwd: task.cwd,
-          stdio: this.options.supervisorWorkerLifecycle
-            ? ["pipe", "pipe", "pipe", "pipe", "pipe"] as const
-            : ["pipe", "pipe", "pipe", "pipe"] as const,
-          // Own process group on POSIX so terminateProcessTree can reap the
-          // whole tree; the stdin pipe still closes on host death, which
-          // the child's watchdog turns into a clean exit.
-          detached: process.platform !== "win32",
-          env: buildChildEnv(this.options.config?.runtime?.envAllowlist, {
-            ALIX_NO_BANNER: "1",
-            // Secret-service IPC so the child can resolve cred:// references
-            // through loadConfig exactly like the parent. Without the bus
-            // address, libsecret lookups fail with "Credential not found" and
-            // every delegate call dies. No secret VALUES cross this boundary —
-            // only the address of the user's own keyring bus (plus the runtime
-            // dir that normally holds its socket).
-            ...(process.env.DBUS_SESSION_BUS_ADDRESS
-              ? { DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS }
-              : {}),
-            ...(process.env.XDG_RUNTIME_DIR
-              ? { XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR }
-              : {}),
-            ...(task.scriptedScenarioJson ? { ALIX_EVAL_SCENARIO: task.scriptedScenarioJson } : {}),
-          }),
-        }) as ChildProcess;
-
-        const credentialPipe = child.stdio[3];
-        if (credentialPipe && "end" in credentialPipe) {
-          credentialPipe.on("error", () => { /* child may exit before consuming the optional snapshot */ });
-          // No credential bytes or positive admission during GE-04 qualification.
-          credentialPipe.end(credentialPayload ?? "{}");
-        }
-        const lifecycle = this.options.supervisorWorkerLifecycle;
-        if (lifecycle) {
-          const pid = child.pid;
-          const uid = process.getuid?.();
-          if (!task.coordinationRunId || task.coordinationWorkerAttempt === undefined ||
-              !Number.isSafeInteger(pid) || !Number.isSafeInteger(uid)) {
-            terminateProcessTree(child);
-            throw new Error("GE-04 qualification requires a coordinated worker and known PID/UID");
-          }
-          // Cooperative startup gate: release FD4 only after supervisor callback.
-          // No secret is written to FD4. This is NOT OS process suspension.
-          const gate = child.stdio[4];
-          if (!gate || !("end" in gate)) {
-            terminateProcessTree(child);
-            throw new Error("GE-04 startup gate unavailable");
-          }
-          gate.on("error", () => { /* exited before release */ });
-          void lifecycle.onSpawned({pid:pid!,uid:uid!,coordinationRunId:task.coordinationRunId,
-            workerId:task.id,attempt:task.coordinationWorkerAttempt}).then(() => {
-            if (child.exitCode === null && !child.killed) gate.end("GE04_READY\n");
-          }).catch(() => {
-            gate.end();
-            terminateProcessTree(child);
-          });
-          child.once("exit", () => lifecycle.onExited(pid!));
-        }
-
-        const running: RunningSubagent = { task, process: child, resolve: resolvePromise, reject, cancelled: false };
-        this.running.set(task.id, running);
-        this.emitLifecycle("agent.state_changed", { ...lifecycleBase, state: "thinking", operation: "Subagent running" }, eventSessionId);
-
-        let stdoutData = "";
-        if (child.stdout) {
-          child.stdout.on("data", (chunk: Buffer) => { stdoutData += chunk.toString(); });
-        }
-        let stderr = "";
-
-        if (child.stderr) {
-          child.stderr.on("data", (data: Buffer) => { stderr += data.toString(); });
-        }
-
-        child.on("exit", async (code: number | null) => {
-          this.running.delete(task.id);
-          // Await before resolving: callers that spawn a successor task for
-          // the same paths observe the lease release deterministically.
-          await this.releaseTaskOwnership(task.id);
-
-          const exitCode = code ?? 1;
-          // The subagent may write streaming output to stdout before
-          // its final JSON result. Take only the last JSON line.
-          let parsed: Partial<SubagentResult> | null = null;
-          if (stdoutData.trim()) {
-            const lines = stdoutData.trim().split("\n").filter(Boolean);
-            for (let i = lines.length - 1; i >= 0; i--) {
-              try { parsed = JSON.parse(lines[i]) as Partial<SubagentResult>; break; } catch { /* skip non-JSON lines */ }
-            }
-          }
-          const status: SubagentResult["status"] =
-            parsed?.status === "success" || parsed?.status === "failed" || parsed?.status === "rejected" || parsed?.status === "partial"
-              ? parsed.status
-              : exitCode === 0 ? "success" : "failed";
-
-          const result: SubagentResult = {
-            id: task.id,
-            role: task.role,
-            status,
-            findings: parsed?.findings ?? [],
-            events: parsed?.events ?? [],
-            error: status !== "success" ? (parsed?.error || stderr || `Exit code ${exitCode}`) : undefined,
-          };
-
-          for (const cb of this.callbacks) cb(result);
-
-          // Emit subagent.result event
-          this.options.eventLog?.append({
-            sessionId: eventSessionId,
-            actor: "system",
-            type: "subagent.result",
-            payload: {
-              role: task.role,
-              taskId: task.id,
-              status: result.status,
-              findings: result.findings,
-              ...coordinationPresentationMeta(task),
-              ...(task.deferTerminalLifecycle ? { attemptTerminal: false } : {}),
-              agentId: task.id,
-            },
-          });
-          if (!running.cancelled && !task.deferTerminalLifecycle) {
-            const terminalType = result.status === "failed" || result.status === "rejected"
-              ? "agent.failed"
-              : "agent.completed";
-            this.emitLifecycle(terminalType, {
-              ...lifecycleBase,
-              state: result.status === "success" ? "completed" : result.status,
-              status: result.status,
-              ...(result.error ? { error: result.error } : {}),
-            }, eventSessionId);
-          }
-
-          // Resolve whenever we have a structured result (even a failed one, so the
-          // parent keeps findings) or the child exited cleanly. Reject only on a
-          // genuine crash: no parseable JSON AND a non-zero exit code.
-          if (parsed || exitCode === 0) {
-            resolvePromise(result);
-          } else {
-            reject(new Error(result.error ?? `Subagent exited with code ${exitCode}`));
-          }
-        });
-
-        child.on("error", async (err: Error) => {
-          this.running.delete(task.id);
-          await this.releaseTaskOwnership(task.id);
-          if (!running.cancelled) {
-            this.emitLifecycle("agent.failed", {
-              ...lifecycleBase,
-              state: "failed",
-              status: "failed",
-              error: err.message,
-            }, eventSessionId);
-          }
-          reject(err);
-        });
-      } catch (err) {
-        // Spawn setup failed — release leases so future delegate attempts
-        // don't hit "Overlapping ownership" for a subagent that never ran.
-        void this.releaseTaskOwnership(task.id);
-        reject(err instanceof Error ? err : new Error(String(err)));
+    const eventSessionId = task.eventSessionId ?? this.options.sessionId;
+    const lifecycleBase = {agentId: task.id, parentAgentId: this.options.parentAgentId ?? `session:${eventSessionId}`,
+      taskId: task.id, role: task.role, model: `${model.provider}/${model.name}`, ...coordinationPresentationMeta(task)};
+    const checkCancelled = (): void => {
+      if (this.quarantined) throw new Error("WorkerSupervisor SECURITY HOLD: unresolved worker cleanup");
+      if (state.cancelled || epoch !== this.spawnEpoch) throw new ExecutionCancelledError("Manager cancellation");
+    };
+    try {
+      if (!this.startup) {
+        const operation = boundedControl(Promise.resolve().then(() => supervisor.reconcile()));
+        this.startup = operation;
+        void operation.catch(() => { if (this.startup === operation) this.startup = undefined; });
       }
-    });
+      await Promise.race([this.startup, interrupted]);
+      checkCancelled();
+      await this.acquireTaskOwnership(task);
+      checkCancelled();
+      state.prepareInvoked = true;
+      const request = snapshotPreparedRequest(await Promise.race([supervisor.prepareTask(projected), interrupted]), projected);
+      checkCancelled();
+      state.launchInvoked = true;
+      const launching = Promise.resolve().then(() => { checkCancelled(); return supervisor.launch(request); });
+      state.pendingLaunch = launching;
+      // A timed-out launch can return after the caller has been quarantined.
+      // Retain cleanup responsibility for that exact late generation.
+      void launching.then(async handle => {
+        state.handle = handle;
+        if (state.cancelled || this.quarantined) {
+          if (!handle || typeof handle.cancel !== "function") throw new Error("Late worker has no cancellation handle");
+          await this.cancelHandle(state, handle);
+        }
+      }, () => { /* Main finalization owns launch rejection cleanup. */ }).catch(() => { this.enterQuarantine(); });
+      const handle = await Promise.race([launching, interrupted]);
+      state.handle = handle;
+      if (!handle || typeof handle.cancel !== "function" || typeof handle.wait !== "function" || typeof handle.completion !== "function") {
+        throw new Error("WorkerSupervisor returned an incomplete task handle");
+      }
+      const evidence = snapshotWorkerEvidence(handle.evidence, identity);
+      checkCancelled();
+      this.emitLifecycle("subagent.started", {role: task.role, taskId: task.id, prompt: task.prompt.slice(0, 200), ownedPaths: task.ownedPaths ?? []}, eventSessionId);
+      this.emitLifecycle("agent.spawned", {...lifecycleBase, state: "starting", operation: task.prompt.slice(0, 200), ownedPaths: task.ownedPaths ?? []}, eventSessionId);
+      this.emitLifecycle("agent.task_assigned", {...lifecycleBase, title: task.taskLabel ?? task.prompt.slice(0, 200),
+        prompt: task.prompt.slice(0, 200), ownedPaths: task.ownedPaths ?? []}, eventSessionId);
+      if (task.ownedPaths?.length) this.emitLifecycle("agent.ownership_changed", {...lifecycleBase, ownedPaths: task.ownedPaths}, eventSessionId);
+      this.emitLifecycle("agent.state_changed", {...lifecycleBase, state: "thinking", operation: "Supervised worker running"}, eventSessionId);
+      const completion = Promise.resolve().then(() => handle.completion()).then(value => validateTaskCompletion(value, evidence, task.role));
+      const waiting = Promise.resolve().then(() => handle.wait());
+      // Attach handlers immediately: either operation may reject first.
+      void completion.catch(() => {});
+      void waiting.catch(() => {});
+      const afterExit = waiting.then(() => boundedControl(completion, 1000));
+      const [raw, exit] = await Promise.race([Promise.all([Promise.race([completion, afterExit]), waiting]), interrupted]);
+      if (!exit || (exit.exitCode !== null && (!Number.isSafeInteger(exit.exitCode) || exit.exitCode < 0)) ||
+          (exit.signal !== null && typeof exit.signal !== "string")) throw new Error("Invalid supervised worker exit result");
+      if (state.revocation) await state.revocation;
+      state.clean = true; // Trusted wait contract includes reap/containment, not a PID probe.
+      checkCancelled();
+      const result: SubagentResult = structuredClone(raw);
+      if (result.status === "success" && (exit.exitCode !== 0 || exit.signal !== null)) {
+        result.status = "failed";
+        result.error = "Worker success report contradicted by abnormal native exit";
+      }
+      await this.releaseTaskOwnership(task.id);
+      checkCancelled();
+      this.running.delete(task.id);
+      for (const callback of this.callbacks) { try { callback(structuredClone(result)); } catch { /* telemetry cannot change task outcome */ } }
+      this.emitLifecycle("subagent.result", {role: task.role, taskId: task.id, status: result.status, findings: result.findings,
+        ...coordinationPresentationMeta(task), ...(task.deferTerminalLifecycle ? {attemptTerminal: false} : {}), agentId: task.id}, eventSessionId);
+      if (!task.deferTerminalLifecycle) this.emitLifecycle(result.status === "failed" || result.status === "rejected" ? "agent.failed" : "agent.completed",
+        {...lifecycleBase, state: result.status === "success" ? "completed" : result.status, status: result.status,
+          ...(result.error ? {error: result.error} : {})}, eventSessionId);
+      return result;
+    } catch (error) {
+      let cleanupError: unknown;
+      if (!state.clean && state.prepareInvoked) {
+        try { await this.confirmCleanup(state); state.clean = true; } catch (failure) { cleanupError = failure; }
+      }
+      if (cleanupError) {
+        this.enterQuarantine();
+        this.emitLifecycle("agent.state_changed", {...lifecycleBase, state: "cancelling", error: "Worker cleanup unresolved; dispatch quarantined"}, eventSessionId);
+        const combined = new AggregateError([error, cleanupError], "WorkerSupervisor cleanup unresolved; original failure retained");
+        if (state.cancelled || epoch !== this.spawnEpoch) {
+          const cancelled = new ExecutionCancelledError("Worker cleanup unresolved; dispatch quarantined");
+          cancelled.cause = combined;
+          throw cancelled;
+        }
+        throw combined;
+      }
+      await this.releaseTaskOwnership(task.id);
+      this.running.delete(task.id);
+      if (state.cancelled || epoch !== this.spawnEpoch) {
+        this.emitLifecycle("agent.cancelled", {...lifecycleBase, state: "cancelled", status: "cancelled"}, eventSessionId);
+        throw new ExecutionCancelledError("Manager cancellation");
+      }
+      this.emitLifecycle("agent.failed", {...lifecycleBase, state: "failed", status: "failed",
+        error: error instanceof Error ? error.message : "Supervised worker failed"}, eventSessionId);
+      throw error;
+    }
+  }
+
+  private requestRevocation(state: RunningSubagent): Promise<void> {
+    if (!state.revocation) {
+      state.revocation = boundedControl(Promise.resolve().then(() => state.supervisor.revoke(state.identity)));
+      void state.revocation.catch(() => { this.enterQuarantine(); });
+    }
+    return state.revocation;
+  }
+
+  private cancelHandle(state: RunningSubagent, handle: TaskWorkerHandle): Promise<void> {
+    if (!state.handleCancellation) {
+      state.handleCancellation = boundedControl(Promise.resolve().then(() => handle.cancel("Task failed or cancelled")));
+      void state.handleCancellation.catch(() => { this.enterQuarantine(); });
+    }
+    return state.handleCancellation;
+  }
+
+  private enterQuarantine(): void {
+    this.quarantined = true;
+    for (const state of this.running.values()) {
+      state.interrupt(new Error("WorkerSupervisor SECURITY HOLD: unresolved worker cleanup"));
+    }
+  }
+
+  private async confirmCleanup(state: RunningSubagent): Promise<void> {
+    const operations: Promise<unknown>[] = [this.requestRevocation(state)];
+    if (state.pendingLaunch) {
+      operations.push(boundedControl(state.pendingLaunch.then(async handle => {
+        if (!handle || typeof handle.cancel !== "function") throw new Error("Worker cleanup handle unavailable");
+        await this.cancelHandle(state, handle);
+      }, () => { /* A rejected launch still requires canonical revoke/reconcile. */ })));
+    } else if (state.handle && typeof state.handle.cancel === "function") {
+      operations.push(this.cancelHandle(state, state.handle));
+    }
+    const outcomes = await Promise.allSettled(operations);
+    await boundedControl(Promise.resolve().then(() => state.supervisor.reconcile()));
+    const failure = outcomes.find(item => item.status === "rejected");
+    if (failure?.status === "rejected") throw failure.reason;
   }
 
   /**
@@ -547,8 +423,6 @@ export class SubagentManager {
    * ownership, lifecycle, and session-mode propagation behave identically.
    */
   async spawnMany(specs: SubagentTask[]): Promise<SubagentResult[]> {
-    const indices = new Map<string, number>();
-    specs.forEach((task, i) => indices.set(task.id, i));
     const settled = await Promise.allSettled(specs.map(task => this.spawn(task)));
     return settled.map((outcome, i) => {
       if (outcome.status === "fulfilled") return outcome.value;
@@ -564,57 +438,27 @@ export class SubagentManager {
     });
   }
 
-  /** Cancel one running subagent (kill + release ownership). No-op when unknown. */
+  /** Accept a cancellation request; termination is confirmed by spawn settlement. */
   cancel(taskId: string): boolean {
-    const running = this.running.get(taskId);
-    if (!running) return false;
-    running.cancelled = true;
-    this.emitLifecycle("agent.cancelled", {
-      agentId: taskId,
-      parentAgentId: this.options.parentAgentId ?? `session:${running.task.eventSessionId ?? this.options.sessionId}`,
-      taskId: running.task.id,
-      role: running.task.role,
-      state: "cancelled",
-      status: "cancelled",
-      operation: "Manager cancel",
-    }, running.task.eventSessionId ?? this.options.sessionId);
-    terminateProcessTree(running.process);
-    this.running.delete(taskId);
-    // Kick release now (idempotent — the child's exit handler no-ops once the
-    // task's lease entry is gone), so an immediate successor spawn on the same
-    // paths serializes behind this release under the registry lock.
-    void this.releaseTaskOwnership(taskId);
+    const state = this.running.get(taskId);
+    if (!state) return false;
+    if (state.cancelled) return true;
+    state.cancelled = true;
+    state.interrupt(new ExecutionCancelledError("Manager cancellation"));
+    this.emitLifecycle("agent.state_changed", {agentId: taskId, taskId, role: state.task.role,
+      state: "cancelling", operation: "Manager cancel"}, state.task.eventSessionId ?? this.options.sessionId);
+    if (state.prepareInvoked && !state.clean) void this.requestRevocation(state);
     return true;
   }
 
   shutdown(): void {
     this.spawnEpoch++;
-    for (const [agentId, running] of this.running) {
-      running.cancelled = true;
-      this.emitLifecycle("agent.cancelled", {
-        agentId,
-        parentAgentId: this.options.parentAgentId ?? `session:${running.task.eventSessionId ?? this.options.sessionId}`,
-        taskId: running.task.id,
-        role: running.task.role,
-        state: "cancelled",
-        status: "cancelled",
-        operation: "Manager shutdown",
-      }, running.task.eventSessionId ?? this.options.sessionId);
-      terminateProcessTree(running.process);
-    }
-    this.running.clear();
-    // Leases release via each child's exit handler; the TTL is the backstop
-    // for any exit event that never arrives. The renewal timer stops itself
-    // once the lease map empties.
+    for (const id of this.running.keys()) this.cancel(id);
   }
 
   private emitLifecycle(type: string, payload: Record<string, unknown>, sessionId = this.options.sessionId): void {
-    void this.options.eventLog?.append({
-      sessionId,
-      actor: "system",
-      type,
-      payload,
-    });
+    try { void this.options.eventLog?.append({sessionId, actor: "system", type, payload}).catch(() => {}); }
+    catch { /* Best-effort presentation must not change execution or cleanup. */ }
   }
 
   getRoleConfig(role: SubagentRole): SubagentRoleConfig | undefined {

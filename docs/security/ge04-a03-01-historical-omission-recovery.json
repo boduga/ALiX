@@ -1,0 +1,231 @@
+{
+  "scope": "A03-01 historical omission identity recovery \u2014 reviewer source extraction",
+  "source_artifact": "docs/security/ge04-b1a-original-63-reconciliation.json",
+  "reviewer_reported_total": 63,
+  "reviewer_reported_files": 18,
+  "reviewer_explicit_example_rows": 18,
+  "full_63_identities_available": false,
+  "examples": [
+    {
+      "file": "systemd_job_signal_observer.py",
+      "reviewer_historical_line_text": "106",
+      "reviewer_operation_text": "`manager.Subscribe(timeout=1)`",
+      "reviewer_rationale": "Real system-bus **state-changing** method call; the matrix lists only `L144: bus.close()`.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "reviewer_historical_line_text": "137",
+      "reviewer_operation_text": "`manager.Unsubscribe(timeout=1)`",
+      "reviewer_rationale": "Teardown path; per-call timeout only.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "reviewer_historical_line_text": "100",
+      "reviewer_operation_text": "`bus.add_signal_receiver(...)`",
+      "reviewer_rationale": "Signal-match registration = the actual authority-relevant edge.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "reviewer_historical_line_text": "72",
+      "reviewer_operation_text": "`kind == socket.SCM_RIGHTS` extraction loop",
+      "reviewer_rationale": "Descriptor-receipt path; inventory lists only `recvmsg`/`close`.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "reviewer_historical_line_text": "123",
+      "reviewer_operation_text": "`os.memfd_create(...)`",
+      "reviewer_rationale": "Sealable-descriptor creation.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "bootstrap_binding.py",
+      "reviewer_historical_line_text": "113",
+      "reviewer_operation_text": "`os.pread(fd, \u2026)`",
+      "reviewer_rationale": "The only read of the sealed bytes.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "reviewer_historical_line_text": "116-117",
+      "reviewer_operation_text": "`setresgid(...)` / `setresuid(...)`",
+      "reviewer_rationale": "Privilege drop; inventory lists `execveat`/`openat2` but not the drop.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "reviewer_historical_line_text": "283-284",
+      "reviewer_operation_text": "`setgroups(0,NULL)`, `setresgid`, `setresuid`",
+      "reviewer_rationale": "Same, in the worker child.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "reviewer_historical_line_text": "305, 326, 386, 396",
+      "reviewer_operation_text": "`unlinkat(...)`",
+      "reviewer_rationale": "**Destructive** operations absent from a destructive-boundary inventory.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "reviewer_historical_line_text": "531, 538, 585, 675",
+      "reviewer_operation_text": "`unlinkat(...)`",
+      "reviewer_rationale": "Same.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "reviewer_historical_line_text": "354, 568",
+      "reviewer_operation_text": "`waitpid(...)`",
+      "reviewer_rationale": "Reap/kill-observation edge.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "reviewer_historical_line_text": "442-443",
+      "reviewer_operation_text": "`clone3` + `CLONE_INTO_CGROUP`",
+      "reviewer_rationale": "The cgroup-birth primitive itself; only the `SYS_clone3` call line is listed.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "reviewer_historical_line_text": "601",
+      "reviewer_operation_text": "`flock(LOCK_EX",
+      "reviewer_rationale": "LOCK_NB)`",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "reviewer_historical_line_text": "31",
+      "reviewer_operation_text": "`accept4(...)`",
+      "reviewer_rationale": "Peer-inbound edge.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "worker-stream.c",
+      "reviewer_historical_line_text": "170",
+      "reviewer_operation_text": "`accept4(...)`",
+      "reviewer_rationale": "Peer-inbound edge.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "worker-stream.c",
+      "reviewer_historical_line_text": "189",
+      "reviewer_operation_text": "`SCM_RIGHTS` handling",
+      "reviewer_rationale": "Descriptor-transfer rejection path.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "reviewer_historical_line_text": "57, 121, 165",
+      "reviewer_operation_text": "`_mount(...)` mountinfo parser",
+      "reviewer_rationale": "The mount-provenance check.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "reviewer_historical_line_text": "58",
+      "reviewer_operation_text": "`mkdirat(...)`",
+      "reviewer_rationale": "Leaf creation.",
+      "identity_status": "REVIEWER_EXPLICIT_EXAMPLE_NOT_COMPLETE_63_LIST"
+    }
+  ],
+  "per_file_counts": [
+    {
+      "file": "cgroup-worker-qualification.c",
+      "reported_omissions": 15,
+      "candidate_count": 40
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "reported_omissions": 13,
+      "candidate_count": 64
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "reported_omissions": 4,
+      "candidate_count": 10
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "reported_omissions": 4,
+      "candidate_count": 5
+    },
+    {
+      "file": "worker-stream.c",
+      "reported_omissions": 4,
+      "candidate_count": 5
+    },
+    {
+      "file": "systemd_job_signal_observer.py",
+      "reported_omissions": 3,
+      "candidate_count": 8
+    },
+    {
+      "file": "unit_kernel_observer.py",
+      "reported_omissions": 3,
+      "candidate_count": 18
+    },
+    {
+      "file": "bootstrap_publisher.py",
+      "reported_omissions": 2,
+      "candidate_count": 5
+    },
+    {
+      "file": "bootstrap_receiver.py",
+      "reported_omissions": 2,
+      "candidate_count": 13
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "reported_omissions": 2,
+      "candidate_count": 6
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "reported_omissions": 2,
+      "candidate_count": 5
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "reported_omissions": 2,
+      "candidate_count": 6
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "reported_omissions": 2,
+      "candidate_count": 8
+    },
+    {
+      "file": "bootstrap_binding.py",
+      "reported_omissions": 1,
+      "candidate_count": 9
+    },
+    {
+      "file": "bounded_job_signal_observer.py",
+      "reported_omissions": 1,
+      "candidate_count": 0
+    },
+    {
+      "file": "bounded_phase_observer.py",
+      "reported_omissions": 1,
+      "candidate_count": 8
+    },
+    {
+      "file": "broker-peer-probe.c",
+      "reported_omissions": 1,
+      "candidate_count": 3
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "reported_omissions": 1,
+      "candidate_count": 7
+    }
+  ],
+  "status": "PARTIAL_RECONCILIATION_NOT_SEMANTIC_COMPLETENESS",
+  "required_next": "Recover all 63 original identities or independently replace with complete semantic operation inventory and human review; 18 example rows are not 18 verified distinct missing line identities",
+  "operational_hold": "ACTIVE"
+}

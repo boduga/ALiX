@@ -1,440 +1,203 @@
-import { describe, it, beforeEach, after, test } from "node:test";
-import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { SubagentManager } from "../../src/agents/subagent-manager.js";
-import { resolveRenewalResult } from "../../src/agents/subagent-manager.js";
-import type { AlixConfig, SubagentRole, SubagentTask } from "../../src/operations/config/schema.js";
-
-/**
- * Minimal subagent config so getRoleModel doesn't throw.
- *
- * Model tiers live under `models`, not `subagents`: `createModelResolver` reads
- * `config.models[tier]`, and §2.8.1/§2.8.4 make `subagents.<tier>` a
- * loader-derived projection that is never persisted and never the source. A
- * fixture that supplies only `subagents.<tier>` leaves `models` empty and
- * `getRoleModel` throws "tier is unconfigured" — which is what this fixture did
- * before, failing 16 tests for a reason unrelated to anything they assert.
- */
-const TEST_SUBAGENT_CFG: AlixConfig["subagents"] = {
-  enabled: true,
-  roles: [
-    { role: "explorer", mode: "read_only", style: "fast", retryCount: 1 },
-    { role: "worker", mode: "write", style: "coding", retryCount: 0 },
-  ],
-};
-
-/** Model tiers, resolved from `models` exactly as the loader projects them. */
-const TEST_MODELS: AlixConfig["models"] = {
-  default: { provider: "ollama", name: "llama3.2:3b" },
-  fast: { provider: "ollama", name: "llama3.2:3b" },
-  coding: { provider: "ollama", name: "llama3.2:3b" },
-  thinking: { provider: "ollama", name: "llama3.2:3b" },
-  critic: { provider: "ollama", name: "llama3.2:3b" },
-};
-
-const tmpCwds: string[] = [];
-/** Isolated workspace root so write-task leases never touch the repo. */
-function tmpCwd(): string {
-  const dir = mkdtempSync(join(tmpdir(), "alix-subagent-"));
-  tmpCwds.push(dir);
-  return dir;
+import {test, after} from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync, rmSync, existsSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {SubagentManager, resolveRenewalResult} from '../../src/agents/subagent-manager.js';
+import type {AlixConfig, SubagentTask} from '../../src/operations/config/schema.js';
+import {fixtureSupervisor, taskResult, deferred} from '../fixtures/task-worker-supervisor.js';
+const dirs: string[] = [];
+function cwd() { const path = mkdtempSync(join(tmpdir(), 'alix-supervised-')); dirs.push(path); return path; }
+after(() => {for (const path of dirs) rmSync(path, {recursive: true, force: true});});
+const config = {models: {default: {provider: 'fixture', name: 'fixture-model'}}} as AlixConfig;
+function task(changes: Partial<SubagentTask> = {}): SubagentTask {
+  return {id: 'worker', role: 'explorer', mode: 'read_only', prompt: 'test', ...changes};
 }
-after(() => {
-  for (const dir of tmpCwds) rmSync(dir, { recursive: true, force: true });
-});
+function setup(options: Parameters<typeof fixtureSupervisor>[0] = {}, managerOptions: Record<string, unknown> = {}) {
+  const fixture = fixtureSupervisor(options);
+  const manager = new SubagentManager({sessionId: 'test', cwd: cwd(), config,
+    workerSupervisor: fixture.supervisor, ...managerOptions});
+  return {manager, fixture};
+}
+async function flush() { for (let i = 0; i < 10; i++) await new Promise<void>(resolve => setImmediate(resolve)); }
 
-async function waitUntil(cond: () => boolean, ms = 5000): Promise<void> {
-  const start = Date.now();
-  while (!cond()) {
-    if (Date.now() - start > ms) throw new Error("waitUntil timed out");
-    await new Promise((r) => setTimeout(r, 10));
+test('no supervisor, command override and observer all fail closed before execution', async () => {
+  for (const options of [{}, {spawnOverride: {command: 'must-never-run'}},
+    {supervisorWorkerLifecycle: {onSpawned: async () => assert.fail(), onExited: () => assert.fail()}}]) {
+    const manager = new SubagentManager({sessionId: 'test', cwd: cwd(), config, ...options});
+    await assert.rejects(manager.spawn(task()), /SECURITY HOLD/);
   }
-}
-
-function makeTask(overrides: Partial<SubagentTask> = {}): SubagentTask {
-  return {
-    id: "test-1",
-    role: "explorer" as SubagentRole,
-    mode: "read_only",
-    prompt: "echo test",
-    ownedPaths: undefined,
-    expectedOutput: undefined,
-    contextBundle: undefined,
-    ...overrides,
-  };
-}
-
-describe("SubagentManager", () => {
-  let manager: SubagentManager;
-  let cwd: string;
-
-  beforeEach(() => {
-    cwd = tmpCwd();
-    manager = new SubagentManager({
-      sessionId: "test-session",
-      cwd,
-      config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
-      // Use node -e which exits immediately with code 0 — no real CLI needed
-      spawnOverride: { command: process.execPath, args: ["-e", "process.exit(0)"] },
-    });
-  });
-
-  it("spawns a process and resolves on exit", async () => {
-    const task = makeTask({ id: "spawn-test", prompt: "echo hello" });
-    const result = await manager.spawn(task);
-    assert.equal(result.status, "success");
-    assert.equal(result.role, "explorer");
-  });
-
-  it("rejects overlapping owned paths at spawn time across manager instances", async () => {
-    // R3.2: overlap detection is the DURABLE registry, not an in-process map —
-    // the holder and the rejected spawn use different SubagentManager
-    // instances sharing one workspace root.
-    const holder = new SubagentManager({
-      sessionId: "holder-session",
-      cwd,
-      config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
-      spawnOverride: { command: process.execPath, args: ["-e", "setInterval(() => {}, 1000)"] },
-    });
-    const holderResult = holder.spawn(
-      makeTask({ role: "worker" as SubagentRole, mode: "write" as const, id: "overlap-task-1", ownedPaths: ["src/foo.ts"] }),
-    );
-    await waitUntil(() => (holder as unknown as { leasesByTask: Map<string, unknown> }).leasesByTask.size === 1);
-
-    const task2 = makeTask({ role: "worker" as SubagentRole, mode: "write" as const, id: "overlap-task-2", ownedPaths: ["src/foo.ts"] });
-    await assert.rejects(async () => manager.spawn(task2), /overlapping ownership/i);
-
-    holder.cancel("overlap-task-1");
-    await assert.rejects(holderResult);
-    // Lease released on cancel → a fresh spawn on the same path succeeds.
-    const retry = await manager.spawn(
-      makeTask({ role: "worker" as SubagentRole, mode: "write" as const, id: "overlap-task-3", ownedPaths: ["src/foo.ts"] }),
-    );
-    assert.equal(retry.status, "success");
-  });
-
-  it("skips durable acquisition for coordination tasks (scheduler pre-claims)", async () => {
-    const coordCwd = tmpCwd();
-    const coordManager = new SubagentManager({
-      sessionId: "coord-session",
-      cwd: coordCwd,
-      config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
-      spawnOverride: { command: process.execPath, args: ["-e", "process.exit(0)"] },
-    });
-    const result = await coordManager.spawn(makeTask({
-      id: "coord-task",
-      role: "worker" as SubagentRole,
-      mode: "write" as const,
-      ownedPaths: ["src/bar.ts"],
-      coordinationRunId: "coord-run-1",
-    }));
-    assert.equal(result.status, "success");
-    assert.equal(
-      existsSync(join(coordCwd, ".alix", "ownership", "ownership.json")),
-      false,
-      "coordination tasks must not double-claim — the scheduler already holds their leases",
-    );
-  });
-
-  it("tracks concurrent subagents", async () => {
-    const [r1, r2] = await Promise.all([
-      manager.spawn(makeTask({ id: "c1" })),
-      manager.spawn(makeTask({ id: "c2" })),
-    ]);
-    assert.equal(r1.role, "explorer");
-    assert.equal(r2.role, "explorer");
-  });
-
-  it("fires callback on completion", async () => {
-    let called = false;
-    manager.onResult(() => { called = true; });
-    await manager.spawn(makeTask({ id: "callback-test" }));
-    assert.ok(called, "callback should fire on completion");
-  });
-
-  it("releases ownership on shutdown", async () => {
-    // spawn's resolution awaits the exit-path lease release, so by the time
-    // this returns the durable claim is gone; shutdown clears the rest.
-    await manager.spawn(makeTask({ role: "worker" as SubagentRole, mode: "write" as const, ownedPaths: ["src/bar.ts"] }));
-    manager.shutdown();
-    // After shutdown, new tasks can claim the same paths
-    const fresh = new SubagentManager({
-      sessionId: "fresh-session",
-      cwd,
-      config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
-      spawnOverride: { command: process.execPath, args: ["-e", "process.exit(0)"] },
-    });
-    const result = await fresh.spawn(makeTask({ role: "worker" as SubagentRole, ownedPaths: ["src/bar.ts"] }));
-    assert.equal(result.status, "success");
-  });
 });
-
-test("manager resolves with the child's failed status instead of overriding to success", async () => {
-  const manager = new SubagentManager({
-    sessionId: "s1",
-    cwd: tmpCwd(),
-    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
-    spawnOverride: {
-      command: process.execPath,
-      args: ["-e", `console.log(JSON.stringify({ id: "w", role: "worker", status: "failed", findings: [], events: [], error: "write blocked" })); process.exit(1);`],
-    },
-  });
-  const result = await manager.spawn({
-    id: "w", role: "worker", mode: "write", ownedPaths: ["src"], prompt: "fix", contextBundle: "s1",
-  });
-  assert.equal(result.status, "failed");
-  assert.equal(result.error, "write blocked");
+test('canonical preparation precedes launch and receives no credential configuration', async () => {
+  const {manager, fixture} = setup({}, {config: {...config, apiKeys: {openai: 'DO_NOT_FORWARD'}}});
+  const result = await manager.spawn(task({contextBundle: 'context', expectedOutput: 'answer', inputPaths: ['input.md']}));
+  assert.equal(result.status, 'success');
+  assert.equal(fixture.tasks.length, 1);
+  assert.equal(fixture.launches.length, 1);
+  assert.equal(fixture.tasks[0].contextBundle, 'context');
+  assert.ok(!JSON.stringify(fixture.tasks).includes('DO_NOT_FORWARD'));
+  assert.ok(Object.isFrozen(fixture.tasks[0].identity));
 });
-
-test("manager resolves with failed status even on exit 0 when the child reports failed", async () => {
-  const manager = new SubagentManager({
-    sessionId: "s1",
-    cwd: tmpCwd(),
-    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
-    spawnOverride: {
-      command: process.execPath,
-      args: ["-e", `console.log(JSON.stringify({ id: "w", role: "worker", status: "failed", findings: [], events: [], error: "no writes applied" })); process.exit(0);`],
-    },
-  });
-  const result = await manager.spawn({
-    id: "w", role: "worker", mode: "write", ownedPaths: ["src"], prompt: "fix", contextBundle: "s1",
-  });
-  assert.equal(result.status, "failed");
+test('preserves structured partial, failed and rejected findings', async () => {
+  for (const status of ['partial', 'failed', 'rejected'] as const) for (const exitCode of [0, 1]) {
+    const {manager} = setup({result: t => taskResult(t, {status, error: 'incomplete'}),
+      wait: async () => ({exitCode, signal: null})});
+    const result = await manager.spawn(task());
+    assert.equal(result.status, status);
+    assert.equal(result.findings[0].content, 'done');
+    assert.equal(result.error, 'incomplete');
+  }
 });
-
-test("manager preserves child-reported partial status on exit 1", async () => {
-  const manager = new SubagentManager({
-    sessionId: "s1",
-    cwd: tmpCwd(),
-    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
-    spawnOverride: {
-      command: process.execPath,
-      args: ["-e", `console.log(JSON.stringify({ id: "w", role: "worker", status: "partial", findings: [], events: [], error: "delegated objective incomplete" })); process.exit(1);`],
-    },
-  });
-  const result = await manager.spawn({
-    id: "w", role: "worker", mode: "write", ownedPaths: ["src"], prompt: "fix", contextBundle: "s1",
-  });
-  assert.equal(result.status, "partial");
+test('abnormal native exit cannot preserve a success claim', async () => {
+  const {manager} = setup({wait: async () => ({exitCode: 1, signal: null})});
+  const result = await manager.spawn(task());
+  assert.equal(result.status, 'failed');
+  assert.equal(result.findings.length, 1);
 });
-
-test("manager preserves child-reported partial status on exit 0", async () => {
-  const manager = new SubagentManager({
-    sessionId: "s1",
-    cwd: tmpCwd(),
-    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
-    spawnOverride: {
-      command: process.execPath,
-      args: ["-e", `console.log(JSON.stringify({ id: "w", role: "worker", status: "partial", findings: [], events: [], error: "delegated objective incomplete" })); process.exit(0);`],
-    },
-  });
-  const result = await manager.spawn({
-    id: "w", role: "worker", mode: "write", ownedPaths: ["src"], prompt: "fix", contextBundle: "s1",
-  });
-  assert.equal(result.status, "partial");
+test('callbacks and telemetry failures do not change result or cleanup', async () => {
+  const {manager} = setup({}, {eventLog: {append() {throw new Error('telemetry failed');}}});
+  manager.onResult(() => {throw new Error('presentation failed');});
+  assert.equal((await manager.spawn(task())).status, 'success');
 });
-
-test("manager emits partial once without rewriting it as completed state", async () => {
-  const emitted: Array<{ type: string; payload: Record<string, unknown> }> = [];
-  const manager = new SubagentManager({
-    sessionId: "s1",
-    cwd: tmpCwd(),
-    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
-    eventLog: { append: (entry: any) => { emitted.push(entry); return Promise.resolve(entry); } } as any,
-    spawnOverride: {
-      command: process.execPath,
-      args: ["-e", `console.log(JSON.stringify({ id: "w", role: "worker", status: "partial", findings: [], events: [], error: "incomplete" }));`],
-    },
-  });
-
-  await manager.spawn(makeTask({ id: "w", role: "worker", mode: "write" }));
-  const terminal = emitted.filter((entry) => entry.type === "agent.completed" || entry.type === "agent.failed" || entry.type === "agent.cancelled");
-  assert.deepEqual(terminal.map((entry) => [entry.type, entry.payload.state]), [["agent.completed", "partial"]]);
+test('lifecycle uses parent session and preserves partial state once', async () => {
+  const events: Array<{type: string; sessionId: string; payload: Record<string, unknown>}> = [];
+  const {manager} = setup({result: t => taskResult(t, {status: 'partial'})},
+    {eventLog: {append(e: any) {events.push(e); return Promise.resolve(e);}}});
+  await manager.spawn(task({eventSessionId: 'parent'}));
+  assert.ok(events.every(event => event.sessionId === 'parent'));
+  assert.deepEqual(events.filter(e => e.type === 'agent.completed').map(e => e.payload.state), ['partial']);
 });
-
-test("manager emits coordination lifecycle into the parent runtime session", async () => {
-  const emitted: Array<{ type: string; sessionId: string }> = [];
-  const manager = new SubagentManager({
-    sessionId: "coord-sub-run-1",
-    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
-    eventLog: { append: (entry: any) => { emitted.push(entry); return Promise.resolve(entry); } } as any,
-    spawnOverride: { command: process.execPath, args: ["-e", "process.exit(0)"] },
-  });
-
-  await manager.spawn(makeTask({
-    id: "coord-worker",
-    contextBundle: "serialized worker context",
-    eventSessionId: "agent-session-1",
-  }));
-
-  assert.ok(emitted.some((entry) => entry.type === "agent.spawned"));
-  assert.ok(emitted.every((entry) => entry.sessionId === "agent-session-1"));
+test('cancel during preparation fences launch and settles only after cleanup', async () => {
+  const gate = deferred<void>();
+  const {manager, fixture} = setup({prepare: async () => gate.promise});
+  const pending = manager.spawn(task());
+  const rejected = assert.rejects(pending, /cancel/i);
+  await flush();
+  assert.equal(manager.cancel('worker'), true);
+  gate.resolve();
+  await rejected;
+  assert.equal(fixture.launches.length, 0);
+  assert.ok(fixture.revocations > 0);
 });
-
-test("manager shutdown emits cancellation without a later failed terminal", async () => {
-  const emitted: Array<{ type: string }> = [];
-  const manager = new SubagentManager({
-    sessionId: "s1",
-    cwd: tmpCwd(),
-    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
-    eventLog: { append: (entry: any) => { emitted.push(entry); return Promise.resolve(entry); } } as any,
-    spawnOverride: { command: process.execPath, args: ["-e", "setInterval(() => {}, 1000)"] },
-  });
-
-  const result = manager.spawn(makeTask({ id: "cancelled" }));
+test('shutdown immediately fences an in-flight spawn', async () => {
+  const {manager, fixture} = setup();
+  const pending = manager.spawn(task());
+  const rejected = assert.rejects(pending, /cancel/i);
   manager.shutdown();
-  await assert.rejects(result);
-  await new Promise((resolve) => setImmediate(resolve));
-  const terminal = emitted.filter((entry) => entry.type === "agent.completed" || entry.type === "agent.failed" || entry.type === "agent.cancelled");
-  assert.deepEqual(terminal.map((entry) => entry.type), ["agent.cancelled"]);
+  await rejected;
+  assert.equal(fixture.launches.length, 0);
 });
-
-test("spawned subagent inherits the secret-service bus address but not ambient secrets", async () => {
-  // Regression: delegate children re-run loadConfig, which resolves cred://
-  // through the OS keychain (libsecret on Linux). The scrubbed child env
-  // dropped DBUS_SESSION_BUS_ADDRESS/XDG_RUNTIME_DIR, so every delegate call
-  // died with "Credential not found" even though the parent resolved fine.
-  const saved: NodeJS.ProcessEnv = {};
-  for (const k of ["DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "ALIX_TEST_SENTINEL_SECRET"]) {
-    if (k in process.env) saved[k] = process.env[k];
-  }
-  process.env.DBUS_SESSION_BUS_ADDRESS = "unix:path=/run/user/1000/bus";
-  process.env.XDG_RUNTIME_DIR = "/run/user/1000";
-  process.env.ALIX_TEST_SENTINEL_SECRET = "s3cret-must-not-propagate";
-  try {
-    const manager = new SubagentManager({
-      sessionId: "s1",
-      cwd: tmpCwd(),
-      config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
-      spawnOverride: {
-        command: process.execPath,
-        args: ["-e", `console.log(JSON.stringify({ id: "env-probe", role: "explorer", status: "success", findings: ["DBUS=" + (process.env.DBUS_SESSION_BUS_ADDRESS ?? "<absent>"), "XDG=" + (process.env.XDG_RUNTIME_DIR ?? "<absent>"), "SECRET=" + ("ALIX_TEST_SENTINEL_SECRET" in process.env ? process.env.ALIX_TEST_SENTINEL_SECRET : "<absent>")], events: [] }));`],
-      },
-    });
-    const result = await manager.spawn(makeTask({ id: "env-probe" }));
-    assert.equal(result.status, "success");
-    const findings = result.findings as unknown as string[];
-    assert.ok(
-      findings.some((f) => f === "DBUS=unix:path=/run/user/1000/bus"),
-      "bus address must reach the child: " + JSON.stringify(findings),
-    );
-    assert.ok(
-      findings.some((f) => f === "XDG=/run/user/1000"),
-      "runtime dir must reach the child: " + JSON.stringify(findings),
-    );
-    assert.ok(
-      findings.every((f) => !f.includes("s3cret")),
-      "ambient secret values must not propagate: " + JSON.stringify(findings),
-    );
-  } finally {
-    for (const k of ["DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "ALIX_TEST_SENTINEL_SECRET"]) {
-      if (saved[k] === undefined) delete process.env[k];
-      else process.env[k] = saved[k];
-    }
-  }
+test('cancellation during native launch cancels the late returned handle', async () => {
+  const gate = deferred<void>();
+  const {manager, fixture} = setup({launch: async () => gate.promise});
+  const pending = manager.spawn(task());
+  const rejected = assert.rejects(pending, /cancel/i);
+  await flush();
+  manager.cancel('worker');
+  gate.resolve();
+  await rejected;
+  assert.equal(fixture.handles.length, 1);
+  assert.equal(fixture.cancellations.length, 1);
 });
-
-test("coordination worker inherits store-resolved API keys over private fd 3", async () => {
-  const manager = new SubagentManager({
-    sessionId: "s1",
-    cwd: tmpCwd(),
-    config: {
-      subagents: TEST_SUBAGENT_CFG,
-      models: TEST_MODELS,
-      apiKeys: { deepseek: "resolved-parent-secret" },
-    } as unknown as AlixConfig,
-    spawnOverride: {
-      command: process.execPath,
-      args: ["-e", `const fs = require("node:fs"); const inherited = JSON.parse(fs.readFileSync(3, "utf8")); console.log(JSON.stringify({ id: "credential-pipe", role: "worker", status: "success", findings: [inherited.deepseek], events: [] }));`],
-    },
-  });
-  const result = await manager.spawn(makeTask({
-    id: "credential-pipe",
-    role: "worker",
-    mode: "write",
-    coordinationRunId: "coord-1",
-  }));
-  assert.deepEqual(result.findings, ["resolved-parent-secret"]);
+test('wait rejection triggers cancellation before releasing ownership', async () => {
+  const {manager, fixture} = setup({wait: async () => {throw new Error('wait failed');}});
+  await assert.rejects(manager.spawn(task()), /wait failed/);
+  assert.equal(fixture.cancellations.length, 1);
+  assert.equal(fixture.revocations, 1);
 });
-
-test("spawnMany runs specs in parallel and aligns results to input order", async () => {
-  const manager = new SubagentManager({
-    sessionId: "s1",
-    cwd: tmpCwd(),
-    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
-    spawnOverride: {
-      command: process.execPath,
-      args: ["-e", `await new Promise(r => setTimeout(r, 200)); console.log(JSON.stringify({ status: "success", findings: [], events: [] }));`],
-    },
-  });
-  const pending = manager.spawnMany([
-    makeTask({ id: "m1" }),
-    makeTask({ id: "m2" }),
-    makeTask({ id: "m3" }),
-  ]);
-  // Deterministic overlap proof: all three children are tracked as running
-  // before any of them has resolved (no wall-clock threshold).
-  await new Promise((r) => setImmediate(r));
-  assert.equal((manager as unknown as { running: Map<string, unknown> }).running.size, 3);
+test('uncertain cleanup quarantines successors and retains ownership tracking', async () => {
+  const {manager, fixture} = setup({result: async () => {throw new Error('bad result');},
+    revoke: async () => {throw new Error('revoke failed');}});
+  await assert.rejects(manager.spawn(task({role: 'worker', mode: 'write', ownedPaths: ['report.md']})), /cleanup unresolved/);
+  assert.equal((manager as any).leasesByTask.size, 1);
+  await assert.rejects(manager.spawn(task({id: 'successor'})), /unresolved/);
+  assert.equal(fixture.launches.length, 1);
+  manager.shutdown();
+});
+test('duplicate IDs cannot replace pending attempts; batches retain order and isolation', async () => {
+  const gates = new Map([['a', deferred<void>()], ['b', deferred<void>()]]);
+  const {manager} = setup({result: async t => {await gates.get(t.identity.workerId)?.promise; return taskResult(t);}});
+  const pending = manager.spawnMany([task({id: 'a'}), task({id: 'b'}), task({id: 'a'})]);
+  await flush();
+  assert.equal((manager as any).running.size, 2);
+  gates.get('b')!.resolve(); gates.get('a')!.resolve();
   const results = await pending;
-  assert.deepEqual(results.map(r => r.id), ["m1", "m2", "m3"]);
-  assert.ok(results.every(r => r.status === "success"));
+  assert.deepEqual(results.map(r => r.id), ['a', 'b', 'a']);
+  assert.deepEqual(results.map(r => r.status), ['success', 'success', 'failed']);
+});
+test('standalone write ownership blocks a second manager and releases after confirmed exit', async () => {
+  const root = cwd(), gate = deferred<void>();
+  const holder = setup({result: async t => {await gate.promise; return taskResult(t);}}, {cwd: root});
+  const successor = setup({}, {cwd: root});
+  const pending = holder.manager.spawn(task({role: 'worker', mode: 'write', ownedPaths: ['report.md']}));
+  await flush();
+  await assert.rejects(successor.manager.spawn(task({role: 'worker', mode: 'write', id: 'other', ownedPaths: ['report.md']})), /overlapping/i);
+  gate.resolve(); await pending;
+  assert.equal((await successor.manager.spawn(task({role: 'worker', mode: 'write', id: 'next', ownedPaths: ['report.md']}))).status, 'success');
+});
+test('complete scheduler identities skip duplicate ownership; partial identities reject', async () => {
+  const root = cwd();
+  const {manager} = setup({}, {cwd: root});
+  await manager.spawn(task({coordinationRunId: 'run', coordinationWorkerAttempt: 1, role: 'worker', mode: 'write', ownedPaths: ['report.md']}));
+  assert.equal(existsSync(join(root, '.alix', 'ownership', 'ownership.json')), false);
+  await assert.rejects(manager.spawn(task({coordinationRunId: 'run'})), /Incomplete/);
+  await assert.rejects(manager.spawn(task({assignedAgentId: 'label'})), /Incomplete/);
+});
+test('renewal false or rejection fences execution rather than dropping tracked claims', async () => {
+  for (const throws of [false, true]) {
+    const gate = deferred<void>(), started = deferred<void>();
+    const {manager} = setup({result: async t => {started.resolve(); await gate.promise; return taskResult(t);},
+      revoke: async () => {throw new Error('uncertain termination');}});
+    const pending = manager.spawn(task({role: 'worker', mode: 'write', ownedPaths: ['report.md']}));
+    const rejected = assert.rejects(pending, /unresolved/);
+    await started.promise;
+    for (const registry of (manager as any).registries.values()) registry.renew = async () => {if (throws) throw new Error('lock failed'); return false;};
+    await (manager as any).renewTaskLeases();
+    gate.resolve(); await rejected;
+    assert.equal((manager as any).leasesByTask.size, 1);
+    await assert.rejects(manager.spawn(task({id: 'next'})), /unresolved/);
+  }
+});
+test('lease release/renew helper retains its established race semantics', () => {
+  assert.deepEqual(resolveRenewalResult(false, ['a']), {action: 'release', releaseIds: ['a']});
+  assert.deepEqual(resolveRenewalResult(true, ['a']), {action: 'set', releaseIds: []});
+  assert.deepEqual(resolveRenewalResult(true, []), {action: 'delete', releaseIds: []});
 });
 
-test("spawnMany isolates a spawn rejection to a failed result", async () => {
-  const manager = new SubagentManager({
-    sessionId: "s1",
-    cwd: tmpCwd(),
-    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
-    // Slow children: the first task must still hold its lease while the
-    // second task's acquisition runs (fast-exit children would release
-    // before the sibling acquire and hide the overlap).
-    spawnOverride: {
-      command: process.execPath,
-      args: ["-e", `await new Promise(r => setTimeout(r, 1000)); console.log(JSON.stringify({ status: "success", findings: [], events: [] }));`],
-    },
-  });
-  const results = await manager.spawnMany([
-    makeTask({ role: "worker" as SubagentRole, mode: "write" as const, id: "ok-1", ownedPaths: ["src/a.ts"] }),
-    makeTask({ role: "worker" as SubagentRole, mode: "write" as const, id: "bad-1", ownedPaths: ["src/a.ts"] }),
-  ]);
-  assert.equal(results[0].status, "success");
-  assert.equal(results[1].status, "failed");
-  assert.match(results[1].error ?? "", /overlapping ownership/i);
+
+test('cancellation during lease release cannot emit or return success', async () => {
+  const root = cwd(), entered = deferred<void>(), releaseGate = deferred<void>();
+  const events: string[] = [];
+  const {manager} = setup({}, {cwd: root, eventLog: {append(e: {type: string}) {events.push(e.type); return Promise.resolve(e);}}});
+  const registry = (manager as any).registryFor(root);
+  const release = registry.release.bind(registry);
+  registry.release = async (id: string) => {entered.resolve(); await releaseGate.promise; return release(id);};
+  const pending = manager.spawn(task({role: 'worker', mode: 'write', ownedPaths: ['report.md']}));
+  const rejected = assert.rejects(pending, /cancel/i);
+  await entered.promise;
+  manager.cancel('worker');
+  releaseGate.resolve();
+  await rejected;
+  assert.equal(events.filter(e => e === 'agent.cancelled').length, 1);
+  assert.equal(events.includes('agent.completed'), false);
+  assert.equal(events.includes('subagent.result'), false);
 });
 
-describe("resolveRenewalResult (lease release/renew race regression)", () => {
-  it("releases the ids a pass renewed after the task was released mid-await", () => {
-    // The task is no longer tracked (releaseTaskOwnership ran while renew was
-    // awaited): never re-insert it; release whatever the pass renewed.
-    assert.deepEqual(resolveRenewalResult(false, ["a", "b"]), { action: "release", releaseIds: ["a", "b"] });
-    assert.deepEqual(resolveRenewalResult(false, []), { action: "release", releaseIds: [] });
-  });
-
-  it("continues tracking a task that is still present", () => {
-    assert.deepEqual(resolveRenewalResult(true, ["a"]), { action: "set", releaseIds: [] });
-    // Every renewed lease was gone: drop the task.
-    assert.deepEqual(resolveRenewalResult(true, []), { action: "delete", releaseIds: [] });
-  });
-});
-
-test('GE-04 opt-in worker lifecycle observes real spawn and exit without passing credentials', async () => {
-  if (process.platform === 'win32') return;
-  const cwd=tmpCwd();
-  const observed: Array<{pid:number;uid:number;coordinationRunId:string;workerId:string;attempt:number}>=[];
-  const exited:number[]=[];
-  const manager=new SubagentManager({sessionId:'ge04-test',cwd,
-    config:{subagents:TEST_SUBAGENT_CFG,models:TEST_MODELS,apiKeys:{openai:'DO_NOT_SEND_GE04_SECRET'}} as unknown as AlixConfig,
-    spawnOverride:{command:process.execPath,args:['-e',`let s='';process.stdin.resume();process.stdin.on('end',()=>{});const fs=require('fs');try{s=fs.readFileSync(3,'utf8')}catch{};if(s.includes('DO_NOT_SEND_GE04_SECRET'))process.exit(81);process.exit(0)`]},
-    supervisorWorkerLifecycle:{onSpawned:async identity=>{observed.push(identity);},onExited:pid=>{exited.push(pid);}},
-  });
-  const result=await manager.spawn(makeTask({id:'ge04-worker',coordinationRunId:'coord-ge04',coordinationWorkerAttempt:1}));
-  assert.equal(observed.length,1);
-  assert.equal(observed[0]?.workerId,'ge04-worker');
-  assert.equal(observed[0]?.attempt,1);
-  assert.equal(observed[0]?.coordinationRunId,'coord-ge04');
-  assert.equal(exited[0],observed[0]?.pid);
-  assert.notEqual(result.status,'failed');
+test('a renewal that completes after release cannot resurrect ownership tracking', async () => {
+  const root = cwd(), started = deferred<void>(), resultGate = deferred<void>();
+  const renewed = deferred<boolean>(), entered = deferred<void>();
+  const {manager} = setup({result: async t => {started.resolve(); await resultGate.promise; return taskResult(t);}}, {cwd: root});
+  const pending = manager.spawn(task({role: 'worker', mode: 'write', ownedPaths: ['report.md']}));
+  await started.promise;
+  const registry = (manager as any).registryFor(root);
+  let releases = 0;
+  const release = registry.release.bind(registry);
+  registry.release = async (id: string) => {releases++; return release(id);};
+  registry.renew = async () => {entered.resolve(); return renewed.promise;};
+  const pass = (manager as any).renewTaskLeases();
+  await entered.promise;
+  resultGate.resolve(); await pending;
+  renewed.resolve(true); await pass;
+  assert.equal((manager as any).leasesByTask.size, 0);
+  assert.equal(releases, 2, 'release the raced renewed claim without reinserting its entry');
 });

@@ -1,0 +1,1528 @@
+{
+  "method": "AUTHOR_C_SOURCE_SYNTAX_TRIAGE_NOT_SEMANTIC_SECURITY_REVIEW",
+  "entries": [
+    {
+      "file": "broker-peer-probe.c",
+      "line": 31,
+      "apis": [
+        "accept4"
+      ],
+      "source": "int client = accept4(listener, NULL, NULL, SOCK_CLOEXEC);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "required_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 28,
+      "apis": [
+        "kill"
+      ],
+      "source": "int kill=openat(leaf,\"cgroup.kill\",O_WRONLY|O_NOFOLLOW|O_CLOEXEC);",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "local fd variable named kill, not kill(2)",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 29,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(procs<0||events<0||kill<0){",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "local fd variable named kill, not kill(2)",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 32,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(kill>=0)close(kill);",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "local fd variable named kill, not kill(2)",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 36,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(fstat(procs,&a)||fstat(events,&b)||fstat(kill,&c)||",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "local fd variable named kill, not kill(2)",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 38,
+      "apis": [
+        "kill"
+      ],
+      "source": "close(procs);close(events);close(kill);close(leaf);return 74;",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "local fd variable named kill, not kill(2)",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 45,
+      "apis": [
+        "kill"
+      ],
+      "source": "close(procs);close(events);close(kill);close(leaf);return 75;",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "local fd variable named kill, not kill(2)",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 49,
+      "apis": [
+        "kill"
+      ],
+      "source": "close(procs);close(events);close(kill);close(leaf);return 76;",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "local fd variable named kill, not kill(2)",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-control-fd-qualification.c",
+      "line": 52,
+      "apis": [
+        "kill"
+      ],
+      "source": "close(procs);close(events);close(kill);close(leaf);",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "local fd variable named kill, not kill(2)",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-dirfd-qualification.c",
+      "line": 77,
+      "apis": [
+        "kill"
+      ],
+      "source": "const char *name=i==0?\"cgroup.procs\":i==1?\"cgroup.events\":\"cgroup.kill\";",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "string literal cgroup.kill, not kill(2)",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-leaf-ownership-qualification.c",
+      "line": 58,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "if(mkdirat(parent,argv[2],0700)){",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 230,
+      "apis": [
+        "kill"
+      ],
+      "source": "!control_custody(c->outer,\"cgroup.kill\",c->killfd))goto out;",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "string literal cgroup.kill, not kill(2)",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 354,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child[slot],&status,WNOHANG|WUNTRACED);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 405,
+      "apis": [
+        "mount"
+      ],
+      "source": "if(mount(NULL,\"/\",NULL,MS_REC|MS_PRIVATE,NULL))_exit(121);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 406,
+      "apis": [
+        "mount"
+      ],
+      "source": "if(!strcmp(mode,\"fail-mount\"))_exit(122);",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "mode string fail-mount, not mount(2)",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 407,
+      "apis": [
+        "mount"
+      ],
+      "source": "if(mount(\"none\",\"/sys/fs/cgroup\",\"cgroup2\",MS_NOSUID|MS_NODEV|MS_NOEXEC,NULL))_exit(123);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 443,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c->pidfd[slot],",
+      "syntax_disposition": "AUTHORITY_RELEVANT_NONCALL_OR_SYSCALL_FLAG",
+      "reason": "Method/ancillary/clone flag participates in authority-bearing operation; inspect enclosing call and custody.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 445,
+      "apis": [
+        "SYS_clone3"
+      ],
+      "source": "c->child[slot]=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+      "syntax_disposition": "SYSCALL_NUMBER_DISPATCH",
+      "reason": "syscall(SYS_clone3, ...) dispatch; review clone flags, cgroup binding and failure.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 531,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "bindings(c)&&budget_ok()&&unlinkat(c->outer,name,AT_REMOVEDIR)==0;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 538,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "return intent(c->work,name,&r)&&records_equal(&r,&c->record)&&budget_ok()&&unlinkat(c->work,name,0)==0;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 568,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "while((got=waitpid(-1,&status,WNOHANG))>0){}",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 585,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 601,
+      "apis": [
+        "flock"
+      ],
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 621,
+      "apis": [
+        "kill"
+      ],
+      "source": "c->killfd=control(c->outer,\"cgroup.kill\",O_WRONLY);",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "string literal cgroup.kill, not kill(2)",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 675,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "!bindings(c)||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 683,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child[0],&status,WNOHANG);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 690,
+      "apis": [
+        "mount"
+      ],
+      "source": "const char *modes[]={\"run\",\"crash-pre-namespace\",\"crash-pinned\",\"crash-ready\",\"fail-mount\",\"fail-enable\",\"recover\",\"sweep-empty\"};",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "mode string fail-mount, not mount(2)",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 724,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "if(!budget_ok()||mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 730,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "!budget_ok()||mkdirat(c.outer,\"launcher\",0700)||!budget_ok()||mkdirat(c.outer,\"payload\",0700)||",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "line": 743,
+      "apis": [
+        "mount"
+      ],
+      "source": "if(!strcmp(c.mode,\"fail-mount\")){",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "mode string fail-mount, not mount(2)",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 157,
+      "apis": [
+        "kill"
+      ],
+      "source": "c->killfd=control(c->leaf,\"cgroup.kill\",O_WRONLY);",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "string literal cgroup.kill, not kill(2)",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 177,
+      "apis": [
+        "kill"
+      ],
+      "source": "!control_custody(c->leaf,\"cgroup.kill\",c->killfd,c->leaf_stat.st_dev))return 0;",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "string literal cgroup.kill, not kill(2)",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 287,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "int status;pid_t got=waitpid(c->child,&status,WNOHANG|WUNTRACED);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 308,
+      "apis": [
+        "setgroups"
+      ],
+      "source": "if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)||setgroups(0,NULL)||",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "privilege_transition"
+      ],
+      "required_checks": [
+        "failure handling before worker action",
+        "initial uid/euid/gid/egid custody",
+        "irreversible privilege drop"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 309,
+      "apis": [
+        "setresgid",
+        "setresuid"
+      ],
+      "source": "setresgid(TEST_UID,TEST_UID,TEST_UID)||setresuid(TEST_UID,TEST_UID,TEST_UID))_exit(125);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "privilege_transition"
+      ],
+      "required_checks": [
+        "failure handling before worker action",
+        "initial uid/euid/gid/egid custody",
+        "irreversible privilege drop"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 311,
+      "apis": [
+        "fork"
+      ],
+      "source": "pid_t descendant=fork();if(descendant<0)_exit(125);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 331,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "return unlinkat(c->work,name,0)==0;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 346,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "while((n=waitpid(-1,&status,WNOHANG))>0){}",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 353,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "if(!bindings(c)||!empty(c)||unlinkat(c->parent,c->record.name,AT_REMOVEDIR))return 0;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 372,
+      "apis": [
+        "flock"
+      ],
+      "source": "if(flock(c->lock,LOCK_EX|LOCK_NB)){",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 428,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "if(!open_recorded_leaf(c)||!empty(c)||!bindings(c)||unlinkat(c->parent,e->d_name,AT_REMOVEDIR)){ok=0;break;}",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 438,
+      "apis": [
+        "unlinkat"
+      ],
+      "source": "fstatat(c->parent,temp.name,&st,AT_SYMLINK_NOFOLLOW)==0||errno!=ENOENT||unlinkat(c->work,\"intent.tmp\",0))return 0;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 469,
+      "apis": [
+        "mkdirat"
+      ],
+      "source": "if(mkdirat(c.parent,c.record.name,0700))goto finished;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 482,
+      "apis": [
+        "CLONE_INTO_CGROUP"
+      ],
+      "source": "struct clone_args args={.flags=CLONE_INTO_CGROUP|CLONE_PIDFD,.pidfd=(uintptr_t)&c.pidfd,",
+      "syntax_disposition": "AUTHORITY_RELEVANT_NONCALL_OR_SYSCALL_FLAG",
+      "reason": "Clone flag participates in cgroup-targeted process birth.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "line": 484,
+      "apis": [
+        "SYS_clone3"
+      ],
+      "source": "c.child=(pid_t)syscall(SYS_clone3,&args,sizeof(args));",
+      "syntax_disposition": "SYSCALL_NUMBER_DISPATCH",
+      "reason": "syscall(SYS_clone3, ...) dispatch; review clone flags, cgroup binding and failure.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "line": 14,
+      "apis": [
+        "execveat"
+      ],
+      "source": "execveat(3, \"\", argv + 1, (char *const[]){\"PATH=/usr/bin:/bin\", NULL}, AT_EMPTY_PATH);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned-probe.c",
+      "line": 15,
+      "apis": [
+        "execveat"
+      ],
+      "source": "fprintf(stderr, \"execveat pinned probe failed: %s\\n\", strerror(errno));",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "diagnostic string execveat, not execveat invocation",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned.c",
+      "line": 13,
+      "apis": [
+        "execveat"
+      ],
+      "source": "execveat(4, \"\", argv, environ, AT_EMPTY_PATH);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "exec-pinned.c",
+      "line": 14,
+      "apis": [
+        "execveat"
+      ],
+      "source": "fprintf(stderr, \"execveat pinned helper failed: %s\\n\", strerror(errno));",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "diagnostic string execveat, not execveat invocation",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 78,
+      "apis": [
+        "openat2"
+      ],
+      "source": "(void)path;die(\"openat2 unavailable\");",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "diagnostic string openat2 unavailable, not openat2 invocation",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 116,
+      "apis": [
+        "setgroups",
+        "setresgid"
+      ],
+      "source": "if(setgroups(0,NULL)||setresgid((gid_t)target,(gid_t)target,(gid_t)target)||",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "privilege_transition"
+      ],
+      "required_checks": [
+        "failure handling before worker action",
+        "initial uid/euid/gid/egid custody",
+        "irreversible privilege drop"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 117,
+      "apis": [
+        "setresuid"
+      ],
+      "source": "setresuid(target,target,target))die(\"identity isolation failed\");",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "privilege_transition"
+      ],
+      "required_checks": [
+        "failure handling before worker action",
+        "initial uid/euid/gid/egid custody",
+        "irreversible privilege drop"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "line": 131,
+      "apis": [
+        "execveat"
+      ],
+      "source": "die(\"execveat unavailable\");",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "diagnostic string execveat unavailable, not execveat invocation",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 35,
+      "apis": [
+        "fork"
+      ],
+      "source": "pid_t child=fork();",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 36,
+      "apis": [
+        "fork"
+      ],
+      "source": "if(child<0){perror(\"fork\");return 70;}",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "diagnostic string fork on error branch, not a fork call",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 45,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "if(waitpid(child,&status,WUNTRACED)!=child||!WIFSTOPPED(status)||WSTOPSIG(status)!=SIGSTOP){result=74;goto cleanup;}",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 49,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(send_pinned(fd,SIGKILL)<0){perror(\"kill\");result=77;goto cleanup;}",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "diagnostic string kill; call is send_pinned",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 50,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "if(waitpid(child,&status,0)!=child||!WIFSIGNALED(status)||WTERMSIG(status)!=SIGKILL){result=78;goto cleanup;}",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 63,
+      "apis": [
+        "kill"
+      ],
+      "source": "if(kill(child,SIGKILL)<0 && errno!=ESRCH)result=82;",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-lifecycle-qualification.c",
+      "line": 67,
+      "apis": [
+        "waitpid"
+      ],
+      "source": "do {reaped=waitpid(child,&status,0);}while(reaped<0&&errno==EINTR);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "line": 24,
+      "apis": [
+        "kill"
+      ],
+      "source": "strcmp(argv[1],\"resume\")&&strcmp(argv[1],\"kill\")))return 64;",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "CLI mode string kill, not kill(2)",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "line": 35,
+      "apis": [
+        "kill"
+      ],
+      "source": "else if(!strcmp(argv[1],\"kill\"))sig=SIGKILL;",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "CLI mode string kill, not kill(2)",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "pidfd-qualification.c",
+      "line": 38,
+      "apis": [
+        "pidfd_send_signal"
+      ],
+      "source": "if(syscall(SYS_pidfd_send_signal,fd,sig,NULL,0)<0){perror(\"pidfd_send_signal\");close(fd);return 72;}",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "diagnostic string pidfd_send_signal; actual invocation is syscall(SYS_pidfd_send_signal)",
+      "review_categories": [
+        "process_lifecycle"
+      ],
+      "required_checks": [
+        "admission and process identity binding",
+        "pidfd or generation freshness",
+        "reap/kill/error and replay behavior"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 122,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t n = pread(held->fence_fd, observed + offset,",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-attempt-fence.c",
+      "line": 129,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(held->fence_fd, &trailer, 1, (off_t)size) != 0 ||",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-cgroup-custody.c",
+      "line": 181,
+      "apis": [
+        "mount"
+      ],
+      "source": "return 0; /* Not proof of original cgroup birth or trusted mount owner. */",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "comment describing mount provenance, not mount(2)",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 104,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t got = pread(held->intent_fd, observed + count,",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 111,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(held->intent_fd, &excess, 1, (off_t)length) != 0 ||",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-intent.c",
+      "line": 130,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "member && strcmp(member, \"StartTransientUnit\") == 0 &&",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "D-Bus method string comparison, not dispatch",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "line": 46,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "member && strcmp(member, \"StartTransientUnit\") == 0 &&",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "D-Bus method string comparison, not dispatch",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-dispatch-preparation.c",
+      "line": 67,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "\"StartTransientUnit\");",
+      "syntax_disposition": "AUTHORITY_RELEVANT_NONCALL_OR_SYSCALL_FLAG",
+      "reason": "Method/ancillary/clone flag participates in authority-bearing operation; inspect enclosing call and custody.",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-mount-namespace.c",
+      "line": 187,
+      "apis": [
+        "mount"
+      ],
+      "source": "return 0; /* UNQUALIFIED: matching current mount namespace only. */",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "comment describing mount namespace, not mount(2)",
+      "review_categories": [
+        "destructive_mutation"
+      ],
+      "required_checks": [
+        "authorized target and TOCTOU window",
+        "idempotency and crash recovery",
+        "pinned dirfd and inode/device binding"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 144,
+      "apis": [
+        "pread"
+      ],
+      "source": "ssize_t read_bytes = pread(fd, bytes + offset, expected - offset,",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-prebirth-journal.c",
+      "line": 151,
+      "apis": [
+        "pread"
+      ],
+      "source": "if (pread(fd, &trailer, 1, (off_t)expected) != 0) return refuse(EIO);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "custody_and_locking"
+      ],
+      "required_checks": [
+        "file provenance and ownership",
+        "race/error/cleanup behavior",
+        "single-writer and seal invariants"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 83,
+      "apis": [
+        "Unsubscribe"
+      ],
+      "source": "GE04_MANAGER_IFACE, \"Unsubscribe\",",
+      "syntax_disposition": "AUTHORITY_RELEVANT_NONCALL_OR_SYSCALL_FLAG",
+      "reason": "Method/ancillary/clone flag participates in authority-bearing operation; inspect enclosing call and custody.",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 283,
+      "apis": [
+        "Subscribe"
+      ],
+      "source": "GE04_MANAGER_IFACE, \"Subscribe\",",
+      "syntax_disposition": "AUTHORITY_RELEVANT_NONCALL_OR_SYSCALL_FLAG",
+      "reason": "Method/ancillary/clone flag participates in authority-bearing operation; inspect enclosing call and custody.",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "protected-systemd-transaction.c",
+      "line": 306,
+      "apis": [
+        "StartTransientUnit"
+      ],
+      "source": "return deny(EPERM); /* SECURITY HOLD: no StartTransientUnit */",
+      "syntax_disposition": "NONCALL_LEXICAL_REFERENCE",
+      "reason": "fail-closed refusal of StartTransientUnit, not a dispatch",
+      "review_categories": [
+        "bus_authority"
+      ],
+      "required_checks": [
+        "bus target and method allowlist",
+        "error propagation and cancellation",
+        "subscription ownership and bounded teardown"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 170,
+      "apis": [
+        "accept4"
+      ],
+      "source": "s->fd=accept4(listener,NULL,NULL,SOCK_CLOEXEC|SOCK_NONBLOCK);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "required_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 189,
+      "apis": [
+        "SCM_RIGHTS"
+      ],
+      "source": "if(c->cmsg_level==SOL_SOCKET&&(c->cmsg_type==SCM_RIGHTS",
+      "syntax_disposition": "AUTHORITY_RELEVANT_NONCALL_OR_SYSCALL_FLAG",
+      "reason": "Method/ancillary/clone flag participates in authority-bearing operation; inspect enclosing call and custody.",
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "required_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    },
+    {
+      "file": "worker-stream.c",
+      "line": 212,
+      "apis": [
+        "recvmsg"
+      ],
+      "source": "ssize_t n=recvmsg(s->fd,&msg,MSG_CMSG_CLOEXEC|MSG_DONTWAIT);",
+      "syntax_disposition": "DIRECT_C_CALL_SYNTAX",
+      "reason": "Source shows direct API call syntax; review preconditions, authorization, error and cleanup.",
+      "review_categories": [
+        "descriptor_transfer"
+      ],
+      "required_checks": [
+        "bounded ancillary data and fd lifetime",
+        "peer identity and descriptor provenance",
+        "rejection and cleanup on malformed input"
+      ],
+      "security_verdict": "PENDING_INDEPENDENT_HUMAN_REVIEW"
+    }
+  ],
+  "limitations": "Direct syntax and flags do not establish reachability, authorization, error handling, or race freedom."
+}

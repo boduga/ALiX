@@ -4,6 +4,14 @@
 **Deciders:** Architecture team
 **Scope:** Subagent dispatch, isolation, communication, and lifecycle
 
+**Current qualification note (2026-11-09):** The direct `child_process.spawn()`
+process-isolation rationale below is historical, not a security-certified
+worker boundary. The present mandatory `TaskWorkerSupervisor` is fail-closed
+under GE-04 SECURITY HOLD. Proposed
+[ADR-0019](ADR-0019-cross-platform-worker-execution.md) records the portable
+control-plane/Linux-execution separation; it does not retroactively qualify
+or silently replace this accepted historical decision.
+
 ---
 
 ## 1. Context

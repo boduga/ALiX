@@ -1,0 +1,99 @@
+{
+  "scope": "A03-02 conditional syscall effects for five historical C preprocessor references",
+  "reviewed_revision": "f748ea2e3030bec9d1e3fa375374663721e7496a",
+  "entries": [
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "directive_line": 300,
+      "directive": "#ifdef SYS_renameat2",
+      "conditional_syscall": "SYS_renameat2",
+      "call": {
+        "line": 301,
+        "source": "if(!budget_ok()||syscall(SYS_renameat2,c->work,\"intent.tmp\",c->work,\"intent.v1\",RENAME_NOREPLACE))return 0;"
+      },
+      "conditional_branch_end": 304,
+      "else_line": 302,
+      "effect_parameter": "RENAME_NOREPLACE",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "source_branch_link": "EXACT_SOURCE_SYSCALL_LINK",
+      "runtime_execution_proven": false,
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-runtime-view-qualification.c",
+      "directive_line": 442,
+      "directive": "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)",
+      "conditional_syscall": "SYS_clone3",
+      "call": {
+        "line": 445,
+        "source": "c->child[slot]=(pid_t)syscall(SYS_clone3,&args,sizeof(args));"
+      },
+      "conditional_branch_end": 453,
+      "else_line": 451,
+      "effect_parameter": "CLONE_INTO_CGROUP",
+      "source_sha256": "b7707bdf97293ec50499f4fac5a2470dd7848be6c85babeeaa261dace04b06af",
+      "source_branch_link": "EXACT_SOURCE_SYSCALL_LINK",
+      "runtime_execution_proven": false,
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "directive_line": 224,
+      "directive": "#ifdef SYS_renameat2",
+      "conditional_syscall": "SYS_renameat2",
+      "call": {
+        "line": 225,
+        "source": "if(syscall(SYS_renameat2,c->work,\"intent.tmp\",c->work,\"intent.v1\",RENAME_NOREPLACE))return 0;"
+      },
+      "conditional_branch_end": 228,
+      "else_line": 226,
+      "effect_parameter": "RENAME_NOREPLACE",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_branch_link": "EXACT_SOURCE_SYSCALL_LINK",
+      "runtime_execution_proven": false,
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "cgroup-worker-qualification.c",
+      "directive_line": 481,
+      "directive": "#if defined(SYS_clone3) && defined(CLONE_INTO_CGROUP)",
+      "conditional_syscall": "SYS_clone3",
+      "call": {
+        "line": 484,
+        "source": "c.child=(pid_t)syscall(SYS_clone3,&args,sizeof(args));"
+      },
+      "conditional_branch_end": 488,
+      "else_line": 486,
+      "effect_parameter": "CLONE_INTO_CGROUP",
+      "source_sha256": "db3853acecc9f91c6a0c6aa594caeefeac5b80e3c735cea0d9fac873623c4e3e",
+      "source_branch_link": "EXACT_SOURCE_SYSCALL_LINK",
+      "runtime_execution_proven": false,
+      "security_verdict": "PENDING"
+    },
+    {
+      "file": "isolated-worker-launcher.c",
+      "directive_line": 128,
+      "directive": "#ifdef SYS_execveat",
+      "conditional_syscall": "SYS_execveat",
+      "call": {
+        "line": 129,
+        "source": "syscall(SYS_execveat,executable_fd,\"\",args,env,AT_EMPTY_PATH);"
+      },
+      "conditional_branch_end": 132,
+      "else_line": 130,
+      "effect_parameter": "AT_EMPTY_PATH",
+      "source_sha256": "e0fd63a10877e21e57022963fb333146fa7d0499bcaf838670cb168c142f071b",
+      "source_branch_link": "EXACT_SOURCE_SYSCALL_LINK",
+      "runtime_execution_proven": false,
+      "security_verdict": "PENDING"
+    }
+  ],
+  "exact_source_conditional_syscall_links": 5,
+  "runtime_effects_verified": 0,
+  "limitations": [
+    "Conditional compilation and kernel availability determine actual branch",
+    "Source syscall link does not prove privilege, authorization, object identity or failure safety",
+    "No native privileged execution or root tests performed"
+  ],
+  "security_hold": "ACTIVE"
+}
