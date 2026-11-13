@@ -14,6 +14,9 @@ jobs:
   # ─── Lane 0: Supply-chain check (first gate) ──────────────────────────
   supply-chain:
     runs-on: ubuntu-latest
+    # Hard cap. Without one, a resolver that stops converging occupies a runner
+    # until the 6-hour org limit and surfaces as a hang with no diagnosis.
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -47,13 +50,41 @@ jobs:
         run: pnpm check:internal-naming
       - name: Supply-chain gate (Sf.x)
         run: bash scripts/check-supply-chain.sh
+      # Installs the packed tarball the way a USER does — `npm install` — so this
+      # lane exercises the documented `npm install -g alix` resolution path, not
+      # pnpm's. The dependency set is npm-resolvable by construction; see the
+      # OTel peer pins in package.json (they exist because @langfuse/otel declares
+      # required peers that npm must satisfy, unlike pnpm).
+      #
+      # Each phase is individually bounded so a stall names itself instead of
+      # consuming the job budget. Observed cold-cache install: ~70s.
       - name: Packaged CLI smoke
         run: |
-          PACK_JSON="$(pnpm pack --json --pack-destination "$RUNNER_TEMP")"
+          set -euo pipefail
+          PACK_JSON="$(timeout 180 pnpm pack --json --pack-destination "$RUNNER_TEMP")"
           TARBALL="$(printf '%s' "$PACK_JSON" | node -p "const parsed = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8')); (Array.isArray(parsed) ? parsed[0] : parsed).filename")"
           SMOKE_DIR="$(mktemp -d)"
-          npm install --prefix "$SMOKE_DIR" --no-audit --no-fund "$TARBALL"
-          (cd "$SMOKE_DIR" && ./node_modules/.bin/alix init && ./node_modules/.bin/alix doctor && ./node_modules/.bin/alix models doctor --json)
+          echo "::group::install tarball ($TARBALL)"
+          if ! timeout 600 npm install --prefix "$SMOKE_DIR" --no-audit --no-fund "$TARBALL"; then
+            echo "::endgroup::"
+            echo "ERROR: tarball install failed or exceeded 600s" >&2
+            exit 1
+          fi
+          echo "::endgroup::"
+          set +e
+          INSTALL_FAIL=0
+          for cmd in init doctor "models doctor --json"; do
+            echo "::group::alix $cmd"
+            # shellcheck disable=SC2086  # deliberate word splitting for the arg list
+            (cd "$SMOKE_DIR" && timeout 180 ./node_modules/.bin/alix $cmd)
+            rc=$?
+            echo "::endgroup::"
+            if [ "$rc" -ne 0 ]; then
+              echo "ERROR: 'alix $cmd' failed (exit $rc)" >&2
+              INSTALL_FAIL=1
+            fi
+          done
+          exit "$INSTALL_FAIL"
 
   # ─── Lane 1: TypeScript typecheck (fast, no build needed) ─────────────
   typecheck:
@@ -262,7 +293,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - name: Boundedness + retrieval_precision thresholds (#645)
-        run: npx vitest run tests/benchmark-thresholds.vitest.ts --config vitest.config.mts
+        run: pnpm exec vitest run tests/benchmark-thresholds.vitest.ts --config vitest.config.mts
 
   # ─── Lane 9: node:test suite (unit-level, non-vitest) ────────────────
   # Covers the ~6500 node:test tests the vitest unit lane never runs
@@ -323,7 +354,7 @@ jobs:
           {
             echo "## Coverage summary"
             echo '```'
-            npx c8 report --reporter=text 2>/dev/null | tail -n 8
+            pnpm exec c8 report --reporter=text 2>/dev/null | tail -n 8
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       # actions/upload-artifact v4 — pinned SHA
