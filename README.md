@@ -12,6 +12,88 @@ alix run "explain the architecture of this project"
 
 ---
 
+## System Overview
+
+ALiX is a local-first Agent OS. One process entry surface dispatches work into a
+layered runtime, and every system mutation has to pass a human gate before it can
+change anything durable.
+
+- **Entry and process surface** — [src/cli.ts:COMMAND_ROUTER], [src/run.ts:runTask], and the shared task taxonomy in [src/task-classifier.ts:classifyTask].
+- **Agent execution** — agent turns, sessions, and subagent dispatch in [./src/agents/README.md](./src/agents/README.md), the task loop and read-only surface in [./src/execution/README.md](./src/execution/README.md), and coordinated multi-worker runs in [./src/coordination/README.md](./src/coordination/README.md).
+- **Capability and tool surface** — capability resolution, policy-filtered tool offers, and per-channel routing in [./src/capabilities/README.md](./src/capabilities/README.md).
+- **Context, models, and configuration** — context compilation and RepoMap in [./src/context/README.md](./src/context/README.md), provider adapters and model resolution in [./src/models/README.md](./src/models/README.md), and config truth in [./src/operations/config/README.md](./src/operations/config/README.md).
+- **Governance and security** — policy verdicts, the approval queue, audit, and credential handling in [./src/governance/README.md](./src/governance/README.md).
+- **Planning and governed evolution** — plan generation and the propose → approve → apply lifecycle in [./src/planning/README.md](./src/planning/README.md).
+- **Persistence and state** — sessions, runtime events, and leases in [./src/session/README.md](./src/session/README.md) and [./src/runtime-state/README.md](./src/runtime-state/README.md), with the SQLite kernel in [./src/operations/db/README.md](./src/operations/db/README.md).
+- **Operator interfaces** — CLI commands, the TUI, and the loopback Inspector server in [./src/interfaces/README.md](./src/interfaces/README.md).
+- **Operational harnesses** — daemon, hooks, scheduling, observability, evals, and benchmarks in [./src/operations/README.md](./src/operations/README.md).
+
+A request flows from an operator interface into run orchestration, which offers
+tools and capabilities under governance, then records results in session and
+runtime state. Plans and proposals are produced without mutating the workspace;
+a separate human approval and a separate apply step are what authorize a change.
+Agent turns have no wall-clock deadline — liveness is progress-based.
+
+## Subdirectories & System Boundaries
+
+`docs/architecture/runtime-spine.md` is the authoritative cross-subsystem trace;
+`docs/architecture/overview.md` covers the 12-subsystem / 4-layer split and the
+guard tests that pin it. Each subsystem publishes its own contract:
+
+- [./src/README.md](./src/README.md) — source root: process entry, version constant, and the task taxonomy every layer shares.
+- [./src/agents/README.md](./src/agents/README.md) — model-facing tool names from [src/agents/tool-manifest.ts:ALIX_BUILTIN_EXECUTORS], role policy, and subagent qualification.
+- [./src/capabilities/README.md](./src/capabilities/README.md) — capability registry, tool executor, and first-party state read tools.
+- [./src/context/README.md](./src/context/README.md) — context compilation, RepoMap, embeddings, and provider-based baseline facts.
+- [./src/coordination/README.md](./src/coordination/README.md) — coordination runs, worker scheduling, owned scope, aggregates, and conflict detection.
+- [./src/execution/README.md](./src/execution/README.md) — run orchestration, the task loop, completion evidence, and the read-only surface derived by [src/execution/run/helpers.ts:buildReadOnlyToolFilter].
+- [./src/governance/README.md](./src/governance/README.md) — policy gate, approval store ([src/governance/approvals/approval-store.ts:ApprovalStore]), audit, and Inspector authentication.
+- [./src/interfaces/README.md](./src/interfaces/README.md) — CLI, TUI, and the Inspector server entry [src/interfaces/server/server.ts:startServer].
+- [./src/models/README.md](./src/models/README.md) — provider adapters, model catalogs, tiers, and local inference.
+- [./src/operations/README.md](./src/operations/README.md) — config loading via [src/operations/config/loader.ts:loadConfig], daemon [src/operations/daemon/daemon-manager.ts:DaemonManager], database [src/operations/db/manager.ts:DatabaseManager], hooks, schedule, observability, evals, benchmarks.
+- [./src/planning/README.md](./src/planning/README.md) — plan mode, plans, and the governed adaptation lifecycle.
+- [./src/runtime-state/README.md](./src/runtime-state/README.md) — event kernel, runtime ledger [src/runtime-state/storage/runtime-ledger.ts:RuntimeLedger], ownership leases, and state query.
+- [./src/session/README.md](./src/session/README.md) — append-first session records, resume, and session-scoped mutation state.
+
+Boundaries enforced by test: `tests/architecture/layer-boundaries.test.ts` pins
+the direction of value imports between subsystems, and
+`tests/architecture/r1-boundary-freeze.test.ts` pins imports of protected files.
+
+## Global Invariants
+
+- **Exact model-facing tool names.** A turn may call only exact `alix_*` names offered in that turn, resolved through `ALIX_BUILTIN_EXECUTORS`; aliases, executor ids, and guessed names are rejected [src/agents/tool-manifest.ts:ALIX_BUILTIN_EXECUTORS].
+- **Store-only API key resolution.** Provider keys come from `~/.config/alix/config.json` `apiKeys` (literals or `cred://` references). Environment variables are never consulted at a resolution site; resolved keys are only injected into the process *after* load so provider SDKs work [src/operations/config/loader.ts:loadConfig].
+- **Governance gates are separate acts.** Generate ≠ approve, approve ≠ apply, apply ≠ mutate, observe ≠ revert. Approvals are single-use: a cited approval is claimed exactly once before any router runs, and a replay fails closed [src/governance/approvals/approval-store.ts:ApprovalStore].
+- **Project config overrides user config, and project config wins on conflict.** `~/.config/alix/config.json` is read first, `<cwd>/.alix/config.json` second; an unresolved `cred://` reference throws [src/operations/config/loader.ts:loadConfig].
+- **Read-only scopes are contained.** One derivation, [src/execution/run/helpers.ts:buildReadOnlyToolFilter], produces the read-only offer surface and withholds `alix_shell_run`; both the agent loop and session setup use it instead of hand-built copies.
+- **Workspace containment and network policy apply to shell clients.** Every filesystem operand admitted by the safe-shell grammar passes workspace path resolution, and shell network clients are held to the same domain allowlist as `alix_web_fetch`. A sensitive-path denial is a hard denial and is never escalated to an approval prompt.
+- **Unlimited agent lifetime, progress-based liveness.** No wall-clock deadline on an agent turn; a stalled run is surfaced as an event and a TUI warning, never auto-terminated. Provider streaming is idle-timeout-only.
+- **Completion requires executed evidence.** For objectives that require mutation or post-change verification, prose and `alix_done` are insufficient: only successful mutation results count, and verification must succeed after the mutation. A coordination run is successful only when terminal execution, a generated aggregate, a known outcome, and the matching aggregate-completion event all line up.
+- **Verification runs on the real tree.** Verification isolation refuses non-sandbox roots and runs in place rather than stashing the working tree.
+- **Repository contracts are mandatory.** GitNexus `impact` before editing a symbol, `detect-changes` before committing, and a DOX pass on the applicable `AGENTS.md` chain after editing.
+- **Runtime floor.** Node.js 26.4.0 or newer; `ALIX_VERSION = "0.6.0"` is the single version literal [src/index.ts:ALIX_VERSION].
+
+## Global Side Effects
+
+- **Project-local state** under `<cwd>/.alix/`: project config [src/operations/config/loader.ts:loadConfig], plus sessions, plans, approvals, audit, governance stores, memory, embeddings, benchmarks, graphs, and ownership leases written by their owning subsystems.
+- **User-global state** under `~/.alix/`: the SQLite kernel database ([src/operations/db/manager.ts:DatabaseManager] opens `~/.alix/alix.db` with WAL journaling and foreign keys on), daemon socket and PID/status files, scheduled tasks, and workflow skills; configuration lives separately in `~/.config/alix/`.
+- **Append-only records.** Audit, runtime events, metrics, and session event logs are append-oriented JSONL; sessions are written append-first and resumed deterministically [src/runtime-state/storage/runtime-ledger.ts:RuntimeLedger].
+- **Process and network.** Provider and model calls go out over the network, as do web fetch/search; local inference may auto-start a `llama-server` child. Shell tools, hooks, daemon workers, and subagents spawn child processes.
+- **Filesystem mutation.** Patches, file create/delete, and checkpoint rollback write to the workspace, bounded by workspace containment and owned-scope grants for scoped workers.
+- **Operator-visible output.** The CLI writes to stdout/stderr and exits with the codes in `EXIT_CODES`, including `REJECTED_SCOPE_EXPANSION = 3` when a run refuses to widen its scope [src/execution/run/run-contract.ts:EXIT_CODES].
+- **No side effects** are claimed for the pure classification and contract modules (for example [src/task-classifier.ts:classifyTask] and the tool-manifest maps); they declare values and functions only.
+
+## System Verification
+
+- Run: `pnpm test` — full suite (node:test plus vitest).
+- Run: `pnpm build` — clean build output, TypeScript compile, then copy build artifacts.
+- Run: `pnpm check` — build, node test set, dependency pin verification, and naming checks.
+- Run: `pnpm check:dox` — verifies added DOX claims resolve to branch content.
+- Run: `pnpm check:staleness` — fails on unresolved schema refs, dead root-relative paths, and policy drift.
+- Run: `git diff --check` — whitespace and conflict-marker check.
+- Run: `node .gitnexus/run.cjs detect-changes --scope all --repo .` — required graph change analysis before committing.
+- Supporting gates: `pnpm typecheck` and `pnpm typecheck:unused` (zero unused locals/parameters under `src/`), `pnpm check:dead` (src modules with no importers), and the architecture boundary tests above.
+
+
 ## Features
 
 | Feature | What it does |
@@ -26,7 +108,7 @@ alix run "explain the architecture of this project"
 | **Persistent daemon** | Background process with Unix socket, task queue, cooperative cancel, crash recovery |
 | **Inspector UI** | Local web dashboard with live sessions, graph view, policy, approvals, audit, registry, daemon |
 | **Autonomous loop** | Plans first, then executes. Reviews the plan with you before touching files |
-| **12 LLM providers** | Anthropic, OpenAI, Google, DeepSeek, Groq, Ollama, Perplexity, and more |
+| **17 LLM providers** | Anthropic, OpenAI, Google, DeepSeek, Groq, Ollama, OpenRouter, Perplexity, and more |
 | **MCP support** | Full Model Context Protocol client — tool discovery, deferral, caching, transport |
 | **Patch engine** | Structured patches with preimage validation, git-aware checkpoints, automatic rollback |
 | **Local llama.cpp** | Auto-starts `llama-server` on demand. Grammar-constrained tool calling |
@@ -61,7 +143,7 @@ enforced at the code level, never optional at runtime:
 
 ```bash
 # Generate pending proposals from reflection, effectiveness, or capability analysis
-alix adaptation generate --reflection
+alix adaptation generate --reflection <path>
 alix adaptation generate --capability-evolution
 
 # Review and approve
@@ -71,8 +153,8 @@ alix adaptation approve <proposal-id>
 # Apply approved changes
 alix adaptation apply <proposal-id>
 
-# Measure effectiveness (runs automatically after apply)
-alix adaptation status
+# Measure effectiveness explicitly after apply
+alix adaptation effectiveness <proposal-id>
 
 # Revert if needed — goes through full propose→approve→apply
 alix adaptation revert <proposal-id>
@@ -147,12 +229,13 @@ alix serve
 | `alix models set-default` | Interactive provider + model selection |
 | `alix models doctor|fit|list-profiles|show-profile|apply-profile|install-profile` | Model profile management and diagnostics |
 | `alix session list|show` | Session management |
-| `alix adaptation list|show|status` | Adaptation proposal management |
+| `alix adaptation list|show <id>` | Adaptation proposal inspection |
 | `alix adaptation propose|approve|reject|apply` | Proposal lifecycle (human-gated) |
 | `alix adaptation revert <id>` | Propose a revert (goes through full approval) |
-| `alix adaptation generate --reflection` | Auto-generate proposals from reflection |
+| `alix adaptation generate --reflection <path>` | Auto-generate proposals from a reflection report |
 | `alix adaptation generate --capability-evolution` | Auto-generate proposals from capability analysis |
-| `alix capability-evolution report` | Generate capability health/gap/overlap/drift report |
+| `alix adaptation effectiveness <id>` | Assess an applied proposal (`--all` for every applied proposal) |
+| `alix adaptation capability-evolution` | Read-only capability health/gap/overlap/drift report |
 
 ---
 
@@ -295,9 +378,10 @@ alix run "fix the TS2322 error in src/auth.ts"
 
 Config files are loaded in priority order:
 
-1. **Project**: `.alix/config.json` (in your project root)
-2. **User**: `~/.config/alix/config.json` (homedir XDG)
-3. **Global**: `/etc/alix/config.json`
+1. **User**: `~/.config/alix/config.json` (homedir XDG)
+2. **Project**: `.alix/config.json` (in your project root)
+
+Project config overrides user config. There is no global config layer.
 
 ### Subagent tiers
 
@@ -307,6 +391,9 @@ Subagent roles use model tiers that you can set independently:
 alix models set-tier thinking   # Strategic reasoning, planning
 alix models set-tier coding     # Code generation, tool execution
 alix models set-tier fast       # Quick classification, routing
+alix models set-tier critic     # Verification, validation
+alix models set-tier tiny       # Embeddings, reranking, memory compression
+alix models set-tier image      # Image generation, multimodal analysis
 ```
 
 Each tier inherits from the main model if not explicitly configured.
@@ -350,8 +437,10 @@ Level 6: Autonomous    ⬜  Future
 ALiX can search the web and fetch page content with built-in tools.
 
 ```bash
-export BRAVE_API_KEY="BSA..."
+alix credential set brave apiKey <BSA...>
 ```
+
+Provider API keys are resolved from the credential store, never from environment variables.
 
 Free key at [api.search.brave.com/app/dashboard](https://api.search.brave.com/app/dashboard)
 
