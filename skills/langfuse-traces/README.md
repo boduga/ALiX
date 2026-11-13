@@ -6,7 +6,7 @@ the marketplace `langfuse` skill stays human-invoked for platform work
 
 ## Why dependency-free `.mjs` (not `src/` TypeScript)
 
-The hook sandbox (`src/hooks/runner.ts` → `/bin/sh`) and cron run these
+The hook sandbox (`src/operations/hooks/runner.ts` → `/bin/sh`) and cron run these
 scripts directly with no repo build step. So: no TS imports, no npm deps,
 one shared `scripts/lib/` (`args.mjs` CLI parsing, `client.mjs` gateway
 client). This is a deliberate carve-out from the repo's TS/strict norm —
@@ -49,7 +49,7 @@ no polling, no guessing.
 
 ## Fresh installation (new machine, end to end)
 
-1. **Prereqs:** Node 22+, `alix` on PATH (`alix --version`).
+1. **Prereqs:** Node 26.4.0+, `alix` on PATH (`alix --version`).
 2. **Creds (store-only, never env files):**
    ```sh
    alix credential set langfuse publicKey <key>
@@ -126,7 +126,7 @@ at 500 chars). Tiering: summary always, full diagnostic on failure or
 
 ## Known runner gap (landed)
 
-`hooks/runner.ts` `runHook` now interpolates env and passes run identity
+`src/operations/hooks/runner.ts` `runHook` now interpolates env and passes run identity
 (`ALIX_RUN_ID`/`ALIX_SESSION_ID`/`ALIX_RUN_STATUS`); `query.mjs --session`
 targets the just-finished run's traces. Section kept so the next gap has
 a home.

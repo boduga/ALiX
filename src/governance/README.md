@@ -1,0 +1,74 @@
+# Governance
+
+## Overview
+Governance is the operator-control and evidence layer for ALiX: it captures signals and operator decisions, evaluates policy, records approvals and an append-only audit trail, turns findings into remediation and manually executed handoffs, and produces read-only dashboards, explanations, and closure reports. The package separates authorities that write durable state (audit, policy, security, remediation/execution stores) from pure analysis and reporting modules that never execute machine actions.
+
+## Interface
+- `ActionProposalKind`, `ActionProposalStatus`, `GovernanceActionProposal`, `ActionProposalStatusTransition`, `ActionQueueStore`, and `FileActionQueueStore` — append-only proposal and transition records `[action-queue.ts:ActionQueueStore]`, `[action-queue.ts:FileActionQueueStore]`.
+- `createActionProposal` and `deriveEffectiveStatus` — build a pending proposal from an eligible operator decision and fold its transitions into a current status `[action-queue.ts:createActionProposal]`, `[action-queue.ts:deriveEffectiveStatus]`.
+- `buildApprovalWorkflow`, `approveGate`, `denyGate`, `isWorkflowApproved`, and `approvalCLI` — approval workflow construction and CLI entry point `[approval-workflow.ts:buildApprovalWorkflow]`, `[approval-workflow.ts:approvalCLI]`.
+- `GovernancePolicyRule`, `DEFAULT_GOVERNANCE_POLICIES`, `pathMatches`, `governanceMatch`, and `evaluateGovernancePolicies` — pure governance policy evaluation with deny-wins precedence `[autonomous-policy.ts:GovernancePolicyRule]`, `[autonomous-policy.ts:evaluateGovernancePolicies]`.
+- `GovernanceAuditEvent`, `normalizeGovernanceEventType`, `AuditStore`, `FileAuditStore`, `verifyChain`, `detectAnomalies`, `exportEvents`, and `redactEvent` — audit event model, persistence, chain verification, anomaly detection, and export `[audit-types.ts:normalizeGovernanceEventType]`, `[audit-store.ts:FileAuditStore]`, `[audit-chain.ts:verifyChain]`, `[audit-anomalies.ts:detectAnomalies]`, `[audit-export.ts:exportEvents]`.
+- `AuditedSignalStore`, `AuditedDecisionStore`, `AuditedActionQueueStore`, `AuditedReviewStore`, and `auditSignalStore` — decorators that wrap governance stores with audit emission `[audit-decorators.ts:AuditedSignalStore]`.
+- `GovernanceSignal`, `SignalStore`, `FileSignalStore`, `validateGovernanceSignal`, `dedupKey`, `isDuplicate`, and `normalizeSignalOutputs` — validated, evidence-linked governance signal capture `[governance-signal.ts:validateGovernanceSignal]`, `[governance-signal.ts:dedupKey]`.
+- `createLedgerEntry`, `FileLedgerStore`, `computeAnalytics`, `computeFrictionReport`, `FileFailureMemoryStore`, and `computeEffectiveness` — run ledger, analytics, approval friction, failure memory, and operator-effectiveness models `[run-ledger.ts:FileLedgerStore]`, `[ledger-analytics.ts:computeAnalytics]`, `[approval-friction.ts:computeFrictionReport]`, `[failure-memory.ts:FileFailureMemoryStore]`, `[operator-effectiveness.ts:computeEffectiveness]`.
+- `DecisionKind`, `OperatorDecision`, `FileDecisionStore`, and `createOperatorDecision` — operator decision capture `[decision-capture.ts:FileDecisionStore]`, `[decision-capture.ts:createOperatorDecision]`.
+- `detectPolicyDrift`, `PolicyDriftSignal`, `PolicyDriftBoundaryFlags`, `computePolicySuggestions`, and `detectPolicyFeedbackCandidates` — advisory policy drift and suggestion analysis `[policy-drift.ts:detectPolicyDrift]`, `[policy-drift-types.ts:PolicyDriftBoundaryFlags]`, `[policy-suggestions.ts:computePolicySuggestions]`, `[policy-feedback-candidates.ts:detectPolicyFeedbackCandidates]`.
+- `buildWorkbenchSnapshot`, `buildLifecycleTrace`, `recommendGovernanceResponsesFromAnomalies`, and `buildGovernanceResponseReport` — workbench, lifecycle, response recommendation, and report builders `[governance-workbench.ts:buildWorkbenchSnapshot]`, `[governance-workbench.ts:buildLifecycleTrace]`, `[response-recommendations.ts:recommendGovernanceResponsesFromAnomalies]`, `[response-report.ts:buildGovernanceResponseReport]`.
+- `createRemediationProposalsFromRecommendations`, `transitionRemediationState`, and `RemediationStore` — remediation queue, lifecycle, and persistence `[remediation-queue.ts:createRemediationProposalsFromRecommendations]`, `[remediation-lifecycle.ts:transitionRemediationState]`, `[remediation-store.ts:RemediationStore]`.
+- `GovernanceExecutionPlan`, `createExecutionPlanFromRemediation`, `ExecutionPlanStore`, `approveExecutionPlan`, `rejectExecutionPlan`, and `recordExecutionAttempt` — plans, explicit approval, and attempt recording `[execution-plans.ts:createExecutionPlanFromRemediation]`, `[execution-approval.ts:approveExecutionPlan]`, `[execution-recorder.ts:recordExecutionAttempt]`.
+- `classifyExecutionReadiness`, `evaluateReadinessGate`, `simulateExecutionPlan`, and `buildExecutionReport` — readiness classification, gate, dry run, and execution report `[execution-readiness.ts:classifyExecutionReadiness]`, `[readiness-policy-gate.ts:evaluateReadinessGate]`, `[dry-run-simulator.ts:simulateExecutionPlan]`, `[execution-report.ts:buildExecutionReport]`.
+- `buildHandoffPackage`, `HandoffPackage`, `validateHandoffEvidence`, `prepareHandoffRecord`, `buildHandoffReport`, `aggregateClosureOutcomes`, and `buildHandoffIntelligenceReport` — manual handoff construction, evidence validation, recording, and outcome aggregation `[handoff-builder.ts:buildHandoffPackage]`, `[handoff-evidence.ts:validateHandoffEvidence]`, `[handoff-recorder.ts:prepareHandoffRecord]`, `[handoff-outcome-aggregate.ts:aggregateClosureOutcomes]`, `[handoff-intelligence-report.ts:buildHandoffIntelligenceReport]`.
+- `FileEvidenceLedgerStore`, `validateReview`, `deriveLatestState`, `FileClosureReviewStore`, and `buildHumanExecutionClosureReport` — human execution evidence, closure review lifecycle, and closure reporting `[human-execution-evidence-ledger.ts:FileEvidenceLedgerStore]`, `[human-execution-closure-review.ts:validateReview]`, `[human-execution-closure-review.ts:FileClosureReviewStore]`, `[human-execution-closure-report.ts:buildHumanExecutionClosureReport]`.
+- `GovernanceStore`, `buildGovernanceHealth`, `buildGovernanceAssessment`, `buildGovernanceDashboardReport`, `generateRecommendations`, and `createGovernanceProposal` — artifact store and read-only health, assessment, dashboard, and recommendation synthesis `[governance-store.ts:GovernanceStore]`, `[governance-health-builder.ts:buildGovernanceHealth]`, `[governance-assessment.ts:buildGovernanceAssessment]`, `[governance-dashboard.ts:buildGovernanceDashboardReport]`, `[governance-recommendation-generator.ts:generateRecommendations]`, `[governance-proposal-generator.ts:createGovernanceProposal]`.
+- `buildLineageIndex`, `buildTraceExplanation`, `renderExplanationText`, `buildCompliancePackage`, `buildSynthesisReport`, and `buildCalibrationReport` — lineage, explainability, compliance packaging, learning synthesis, and calibration reporting `[governance-lineage-builder.ts:buildLineageIndex]`, `[governance-explainability-report.ts:renderExplanationText]`, `[governance-reporting-builder.ts:buildCompliancePackage]`, `[learning-synthesis-report.ts:buildSynthesisReport]`, `[calibration-report.ts:buildCalibrationReport]`.
+- `PolicyReviewCandidate`, `DEFAULT_STORE_ROOT`, and `createPolicyReviewCandidateStore` — human-review-only policy candidates `[policy-review-candidate-types.ts:PolicyReviewCandidate]`, `[policy-review-candidate-types.ts:DEFAULT_STORE_ROOT]`, `[policy-review-candidate-store.ts:createPolicyReviewCandidateStore]`.
+- `generateInvestigations`, `InvestigationStore`, and `listCompatibleInvestigations` — investigation generation, persistence, and compatibility listing `[investigation-generator.ts:generateInvestigations]`, `[investigation-store.ts:InvestigationStore]`, `[investigation-compat.ts:listCompatibleInvestigations]`.
+- `audit/` — append-only audit persistence and read model: [./audit/README.md](./audit/README.md) `[audit-store.ts:FileAuditStore]`.
+- `policy/` — authoritative policy gate and rule evaluation: [./policy/README.md](./policy/README.md) `[policy/policy-gate.ts:PolicyGate]`.
+- `security/` — protected-state and security authorities: [./security/README.md](./security/README.md) `[security/path-assert.ts:assertSafePathComponent]`.
+- `security/audit/` — hash-chained security audit writer: [./security/audit/README.md](./security/audit/README.md) `[security/audit/audit-chain-writer.ts:AuditChainWriter]`.
+- `security/credentials/` — credential store and API-key resolution: [./security/credentials/README.md](./security/credentials/README.md) `[security/credentials/credential-store.ts:CredentialStore]`.
+- `security/evidence/` — append-only trust evidence: [./security/evidence/README.md](./security/evidence/README.md) `[security/evidence/evidence-store.ts:EvidenceStore]`.
+- `security/platform/` — platform state-directory resolution: [./security/platform/README.md](./security/platform/README.md) `[security/platform/user-state-paths.ts:getUserStatePaths]`.
+- `security/redaction/` — structural redaction policies and detector: [./security/redaction/README.md](./security/redaction/README.md) `[security/redaction/redaction-policy.ts:createRedactionPolicy]`.
+- `security/supply-chain/` — audit exceptions, dependency policy, and package verification: [./security/supply-chain/README.md](./security/supply-chain/README.md) `[security/supply-chain/security-exceptions.ts:checkExceptionsPolicy]`.
+- `approvals/` — file-backed approval queue with atomic single-execution claims: [./approvals/README.md](./approvals/README.md) `[approvals/approval-store.ts:ApprovalStore]`.
+- `replay/` — read-only counterfactual replay of governance lifecycles: [./replay/README.md](./replay/README.md).
+
+## Invariants
+- The first audit event has `previousHash: null`; every later event links to the prior event hash `[audit-chain.ts:verifyChain]`.
+- Legacy underscored audit event names normalize on read while stored bytes remain unchanged `[audit-types.ts:normalizeGovernanceEventType]`.
+- Audit reads are returned newest-first and malformed JSONL lines are skipped `[audit-store.ts:FileAuditStore]`.
+- Audit export redaction replaces sensitive metadata with `[REDACTED]` and never mutates the source events `[audit-export.ts:redactEvent]`.
+- Audited decorators write the inner store first, then emit the audit event; an audit failure is non-fatal `[audit-decorators.ts:AuditedSignalStore]`.
+- The action queue is append-only and stored proposals remain literal `pending`; terminal statuses exist only as transition records `[action-queue.ts:validateActionProposal]`, `[action-queue.ts:ActionQueueStore]`.
+- `createActionProposal` accepts only the `escalate` and `convert_to_issue` decision kinds `[action-queue.ts:createActionProposal]`.
+- Governance signals require a non-empty `evidenceRefs` array `[governance-signal.ts:validateGovernanceSignal]`.
+- Signal deduplication keys on `sourcePhase:signalType:title`; only existing `new` signals count as duplicates `[governance-signal.ts:dedupKey]`, `[governance-signal.ts:isDuplicate]`.
+- Governance policy precedence is deny > ask > allow, with a conservative approval-required fallback `[autonomous-policy.ts:evaluateGovernancePolicies]`.
+- Policy drift detection is advisory and never mutates policy, thresholds, or rankings `[policy-drift.ts:detectPolicyDrift]`, `[policy-drift-types.ts:PolicyDriftBoundaryFlags]`.
+- Remediation may move only `open -> accepted|dismissed|superseded` and `accepted -> resolved|superseded`; terminal states cannot reopen `[remediation-lifecycle.ts:transitionRemediationState]`.
+- Execution plans begin in `draft`; approval or rejection requires draft status plus a non-empty operator id and rationale `[execution-plans.ts:createExecutionPlanFromRemediation]`, `[execution-approval.ts:approveExecutionPlan]`.
+- Execution attempt recording validates correlation fields and persists or executes nothing `[execution-recorder.ts:recordExecutionAttempt]`.
+- Dry-run simulation is semantic only and sets `explicitlyNonExecuting: true` `[dry-run-simulator.ts:simulateExecutionPlan]`.
+- Readiness never grants machine execution: the gate reports `controlledExecutionAuthorization: "not_available_in_p19"` `[readiness-policy-gate.ts:evaluateReadinessGate]`.
+- Handoff packages are manual-only and require the readiness sentinel `"not_available_in_p19"` `[handoff-builder.ts:buildHandoffPackage]`, `[handoff-builder.ts:HandoffPackage]`.
+- Human execution closure acceptance and rejection are terminal; evidence and follow-up requirements are enforced on transition `[human-execution-closure-review.ts:validateTransition]`, `[human-execution-closure-review.ts:validateReview]`.
+- Dashboard aggregation is pure read-only and never writes `[governance-dashboard.ts:buildGovernanceDashboardReport]`.
+- Explainability renders text sections in a stable canonical order with no reviewer ranking or outcome prediction `[governance-explainability-report.ts:renderExplanationText]`.
+- Policy review candidates carry `noPolicyMutation`, `noThresholdChange`, `noAutoAdoption`, `noRanking`, and `requiresHumanReview` boundary flags `[policy-review-candidate-types.ts:PolicyReviewCandidate]`.
+
+## Side Effects
+- Governance artifacts append JSONL files under `.alix/governance/` `[governance-store.ts:GovernanceStore]`.
+- Audit events append to `.alix/governance/governance-audit-events.jsonl` `[audit-store.ts:FileAuditStore]`.
+- The action queue uses append-only proposal and transition JSONL files `[action-queue.ts:FileActionQueueStore]`.
+- Remediation, execution-plan, and investigation stores append JSONL under `.alix/governance/` `[remediation-store.ts:RemediationStore]`, `[execution-plan-store.ts:ExecutionPlanStore]`, `[investigation-store.ts:InvestigationStore]`.
+- Policy review candidates persist one JSON record plus an event JSONL per candidate under `.alix/governance/policy-review-candidates` `[policy-review-candidate-types.ts:DEFAULT_STORE_ROOT]`, `[policy-review-candidate-store.ts:createPolicyReviewCandidateStore]`.
+- Human execution evidence and closure reviews append to caller-provided stores `[human-execution-evidence-ledger.ts:FileEvidenceLedgerStore]`, `[human-execution-closure-review.ts:FileClosureReviewStore]`.
+- `createGovernanceProposal` writes pending adaptation proposals and never approves or applies them `[governance-proposal-generator.ts:createGovernanceProposal]`.
+- `approvalCLI` writes console output and exits non-zero on invalid policy or risk arguments `[approval-workflow.ts:approvalCLI]`.
+- Pure analysis, report, explainability, compliance, calibration, lineage, and dry-run modules perform no disk or network writes `[governance-lineage-builder.ts:buildLineageIndex]`, `[governance-reporting-builder.ts:buildCompliancePackage]`, `[calibration-report.ts:buildCalibrationReport]`, `[dry-run-simulator.ts:simulateExecutionPlan]`.
+
+## Verification
+- Run: `pnpm test`
