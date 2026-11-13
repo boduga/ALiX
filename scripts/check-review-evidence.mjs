@@ -64,39 +64,70 @@ export function evidencePathFor(pr) {
 
 /**
  * The exact git invocation whose stdout is hashed. Pinned so a reviewer and CI
- * cannot compute "the same" digest from different diffs. Command-line flags
- * cover rename detection and textconv, but git configuration still changes the
- * bytes: `diff.noprefix`, `diff.interHunkContext`, and `diff.suppressBlankEmpty`
- * each produced a different digest for the identical change, and
- * `diff.orderFile` reorders the file sections outright. The `-c` pins are
- * placed before `diff`, so they win over a user's or CI runner's config,
- * including `GIT_CONFIG_*` environment entries.
+ * cannot compute "the same" digest from different diffs.
+ *
+ * The digest is taken over `--raw` records, not patch text. A patch digest
+ * binds whatever *rendering* the local host chose, and that rendering is
+ * steered by more than command-line flags. `.git/info/attributes` and
+ * `core.attributesFile` can mark a path `-diff` (emitting `GIT binary patch`),
+ * `binary`, or bind it to a `funcname` driver that rewrites `@@` hunk headers.
+ * Both were measured on an identical change: `*.md -diff` moved a patch digest
+ * from 6db88a84… to e46c1496…, and a `funcname` driver moved it again. Neither
+ * `--text` nor any `-c` pin neutralizes the funcname case, because the driver
+ * is the renderer. A commit identity record cannot be steered that way: it
+ * names modes, full 40-hex blob ids, status letters and paths, and no attribute
+ * or diff driver can change a blob id.
+ *
+ * Sorting the NUL-delimited records also removes the ordering dependency.
+ * `diff.orderFile` reorders sections, so the previous contract pinned it with
+ * an external file — `/dev/null`, which does not exist on Windows. Sorting the
+ * records makes the digest order-independent instead of merely pinned, which is
+ * stronger and needs no file.
+ *
+ * Consequence: this digest proves "the same tree change", not "the same
+ * rendered text". Any content edit changes a blob id, including a pure
+ * whitespace or line-ending edit inside one file, so a stale review is still
+ * detectable. What is no longer bound is the arbitrary text a host's diff
+ * driver would have produced for that tree.
+ *
+ * The `-c` pins are placed before `diff`, so they win over a user's or CI
+ * runner's config, including `GIT_CONFIG_*` environment entries.
  */
 export function canonicalDiffArgs(base, head) {
   return [
     "-c", "core.quotepath=false",
+    "-c", "core.abbrev=40",
     "-c", "diff.noprefix=false",
     "-c", "diff.mnemonicPrefix=false",
-    "-c", "diff.algorithm=myers",
-    "-c", "diff.interHunkContext=0",
-    "-c", "diff.context=3",
-    "-c", "diff.indentHeuristic=true",
-    "-c", "diff.suppressBlankEmpty=false",
     "-c", "diff.relative=false",
-    "-c", "diff.wsErrorHighlight=context",
-    "-c", "diff.orderFile=/dev/null",
+    "-c", "diff.external=",
     "diff",
+    "--raw",
+    "-z",
+    "--no-abbrev",
+    "--full-index",
+    "--no-renames",
     "--no-color",
     "--no-ext-diff",
     "--no-textconv",
-    "--binary",
-    "--full-index",
-    "--no-renames",
-    "--unified=3",
     `${base}...${head}`,
     "--",
     ":(exclude)docs/reviews/**",
   ];
+}
+
+/**
+ * Canonicalize raw-diff output into a stable byte string.
+ *
+ * Git emits one NUL-terminated record per path, shaped
+ * `:<mode> <mode> <blob> <blob> <status>\0<path>` under `-z`. Records arrive in
+ * `diff.orderFile` order, which is repository-controlled, so they are sorted
+ * before hashing: the digest then describes the set of changed entries rather
+ * than the sequence a local config chose.
+ */
+export function canonicalizeRawDiff(buffer) {
+  const records = buffer.toString("utf8").split("\0").filter((record) => record.length > 0);
+  return `${records.sort().join("\0")}\0`;
 }
 
 export function diffDigest(buffer) {
@@ -108,7 +139,7 @@ function git(argv, encoding = "utf8") {
 }
 
 export function computeDiffDigest(base, head) {
-  return diffDigest(git(canonicalDiffArgs(base, head), "buffer"));
+  return diffDigest(Buffer.from(canonicalizeRawDiff(git(canonicalDiffArgs(base, head), "buffer")), "utf8"));
 }
 
 /**

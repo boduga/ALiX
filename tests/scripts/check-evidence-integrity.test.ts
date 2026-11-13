@@ -886,7 +886,12 @@ describe("check-evidence-integrity: recompute", () => {
       assert.equal(r.status, 1, r.stdout);
       assert.equal(r.parsed?.verdict, "fail");
       assert.equal(r.parsed?.ok, false);
-      assert.ok(checks(r).length > 0, "the finding must still be reported");
+      // The surviving check must be the real defect, not any finding at all:
+      // a length-only assertion passes even if the gate swapped the content
+      // drift for an unrelated finding.
+      assert.deepEqual(checks(r), ["content"]);
+      assert.match(r.stdout, /hash drifted/);
+      assert.equal(r.parsed?.recomputeSkipped, 1);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

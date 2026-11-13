@@ -28,12 +28,17 @@ derived path from the head commit.
   in between are review evidence.
 - **Evidence commits are separate.** The record must be added or updated after
   the reviewed head, in a commit that changes nothing outside `docs/reviews/`.
-- **Digest binds the diff.** The record's diff digest field is the SHA-256 of
-  the canonical `base...head` diff with `docs/reviews/**` excluded. Exclusion
-  is required —
-  the record is committed into the diff it describes. Use `--print` to produce
-  the exact value; do not compute it another way, because rename detection and
-  textconv would silently change the hash.
+- **Digest binds the change, not a rendering of it.** The record's diff digest
+  field is the SHA-256 of the sorted `--raw` commit records for `base...head`
+  with `docs/reviews/**` excluded. Exclusion is required — the record is
+  committed into the diff it describes. Raw records name modes, full blob ids
+  and paths, so host-local `.git/info/attributes`, `core.attributesFile` and
+  `funcname` drivers cannot change the value by changing how a file is
+  rendered. Sorting the records makes `diff.orderFile` irrelevant instead of
+  pinning it to a platform-specific file. Any content edit changes a blob id,
+  including a whitespace-only edit, so a stale review still fails; what the
+  digest does not bind is the text a particular diff driver would print. Use
+  `--print` to produce the exact value; do not compute it another way.
 - **Findings are closed or explained.** Every finding needs an `id`, `title`,
   `severity`, `status` (`fixed`, `accepted-risk`, `not-applicable`), and
   `resolution`. A `high`/`critical` accepted risk additionally needs an

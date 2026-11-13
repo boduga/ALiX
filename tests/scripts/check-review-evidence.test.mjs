@@ -368,12 +368,12 @@ test("rebased or non-ancestor reviewed head fails", () => {
 });
 
 test("the digest is stable under hostile diff configuration", () => {
-  // The review digest binds a reviewed head to the exact bytes a reviewer saw.
+  // The review digest binds a reviewed head to the change a reviewer saw.
   // `diff.noprefix`, `diff.interHunkContext`, and `diff.suppressBlankEmpty`
-  // each changed that digest on an identical change, so a reviewer with a
-  // personal config and CI would disagree about the same PR. canonicalDiffArgs
-  // pins them; this test proves the pins win over repository/user config
-  // rather than only describing them.
+  // each changed the old patch digest on an identical change, so a reviewer
+  // with a personal config and CI could disagree about the same PR. The digest
+  // is now taken over `--raw` records; this test proves the pins win over
+  // repository/user config rather than only describing them.
   const { root, base } = fixture();
   try {
     writeFile(root, "src/change.txt", "content line one\ncontent line two\n");
@@ -383,17 +383,40 @@ test("the digest is stable under hostile diff configuration", () => {
     const head = commit(root, "content");
     const plain = digestFor(root, base, head);
 
+    // Every knob that influenced the patch rendering, plus the abbreviation
+    // setting: `core.abbrev` and `core.fileMode` are host policy, not content.
     runGit(root, ["config", "diff.noprefix", "true"]);
     runGit(root, ["config", "diff.mnemonicPrefix", "true"]);
     runGit(root, ["config", "diff.interHunkContext", "7"]);
     runGit(root, ["config", "diff.suppressBlankEmpty", "true"]);
     runGit(root, ["config", "diff.algorithm", "patience"]);
     runGit(root, ["config", "diff.context", "9"]);
-    // orderFile reorders the per-file sections outright, so it changes the
-    // hashed bytes even when every other knob is pinned.
+    runGit(root, ["config", "diff.relative", "true"]);
+    runGit(root, ["config", "core.abbrev", "7"]);
+    runGit(root, ["config", "core.fileMode", "false"]);
+    // orderFile reorders the per-file records outright, so it moves the hashed
+    // bytes even when every rendering knob is pinned. The digest sorts the
+    // records, which is why this must not matter -- and why no platform-
+    // specific order file is needed.
     writeFile(root, "orderfile.txt", "src/zzz.txt\nsrc/change.txt\nsrc/aaa.txt\n");
     runGit(root, ["config", "diff.orderFile", join(root, "orderfile.txt")]);
+    assert.equal(digestFor(root, base, head), plain);
 
+    // Host-local attributes and diff drivers are the vector command-line flags
+    // cannot cover: `-diff`/`binary` replace the patch body with a binary
+    // stanza, and a funcname driver rewrites hunk headers. Neither can touch a
+    // blob id, so both must leave the digest alone.
+    writeFile(root, ".git/info/attributes", "*.txt -diff\n*.md binary\n*.md diff=hostile\n");
+    runGit(root, ["config", "diff.hostile.funcname", "^content"]);
+    runGit(root, ["config", "diff.hostile.binary", "true"]);
+    runGit(root, ["config", "diff.hostile.command", "/bin/echo pwned"]);
+    assert.equal(digestFor(root, base, head), plain);
+
+    // The user-level attribute file is a second source, read in addition to
+    // the repository one. It must not matter either.
+    const userAttributes = join(root, "user-attributes");
+    writeFile(root, "user-attributes", "*.txt -diff\n");
+    runGit(root, ["config", "core.attributesFile", userAttributes]);
     assert.equal(digestFor(root, base, head), plain);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -418,6 +441,33 @@ test("an absent evidence path is a verdict but an unreadable commit is an invoca
     const unreadable = checker(root, ["--pr", "1111", "--base", base, "--head", "0".repeat(40)]);
     assert.equal(unreadable.status, 2, unreadable.stdout + unreadable.stderr);
     assert.match(unreadable.stderr, /could not resolve/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("an unreadable evidence blob is an invocation error, not missing evidence", () => {
+  // `readCommittedFile` must separate "this path is absent from the commit"
+  // (real verdict, exit 1) from "git cannot answer" (invocation error, exit 2).
+  // A test only on an unresolvable HEAD stops at `rev-parse`, so it never
+  // reaches the `git show` failure this distinction exists for. Corrupting the
+  // evidence blob forces `ls-tree` to succeed and `show` to fail.
+  const { root, base } = fixture();
+  try {
+    writeFile(root, "src/change.txt", "reviewed content\n");
+    const reviewedHead = commit(root, "reviewed code");
+    const digest = digestFor(root, base, reviewedHead);
+    writeFile(root, "docs/reviews/PR-1111.json", evidenceFor(1111, reviewedHead, digest));
+    const head = commit(root, "review evidence");
+
+    const blob = runGit(root, ["rev-parse", `${head}:docs/reviews/PR-1111.json`]);
+    const objectPath = join(root, ".git", "objects", blob.slice(0, 2), blob.slice(2));
+    rmSync(objectPath, { force: true });
+
+    const result = checker(root, ["--pr", "1111", "--base", base, "--head", head]);
+    assert.equal(result.status, 2, result.stdout + result.stderr);
+    assert.match(result.stderr, /could not read docs\/reviews\/PR-1111\.json/);
+    assert.doesNotMatch(result.stderr, /missing review evidence/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

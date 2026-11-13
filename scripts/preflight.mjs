@@ -89,7 +89,18 @@ export function resolveBase(requested) {
  * uncommitted set really is the whole change set.
  */
 export function hasHistoryBeyondRoot(gitRun = git) {
-  return Number(gitRun(["rev-list", "--count", "HEAD"]).trim()) > 1;
+  // Unparseable output is not "no ancestors". `Number("")` is 0 and
+  // `Number("abc")` is NaN; both compare false against 1, which would read as a
+  // root-only repository and let the caller fall back to an uncommitted-only
+  // diff. Refuse to answer instead of guessing, so the caller records the gap.
+  const raw = gitRun(["rev-list", "--count", "HEAD"]).trim();
+  // `git rev-list --count` answers with a non-negative decimal integer. Requiring
+  // that shape rejects "", "abc", "1.5" and "-3" instead of letting Number()
+  // coerce them into 0/NaN and read as a root-only repository.
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(`git rev-list --count HEAD returned ${JSON.stringify(raw)}, which is not a commit count`);
+  }
+  return Number(raw) > 1;
 }
 
 /**

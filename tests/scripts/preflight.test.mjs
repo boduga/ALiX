@@ -192,6 +192,12 @@ test("a base-less run over committed history refuses to call its fragment the ch
   assert.equal(hasHistoryBeyondRoot(history(" 3\n")), true);
   // A root-only repository reports 1, which must not be read as "has history".
   assert.equal(hasHistoryBeyondRoot(history(" 1\n")), false);
+  // Unparseable output must not read as a root-only repository. `Number("")` is
+  // 0 and `Number("abc")` is NaN, and both compare false against 1: guessing
+  // there would silently restore the uncommitted-only fallback this fixes.
+  for (const bad of ["", "   ", "abc", "1.5", "-3"]) {
+    assert.throws(() => hasHistoryBeyondRoot(history(bad)), /not a commit count/, `output ${JSON.stringify(bad)}`);
+  }
 });
 
 test("the resolved change set exceeds uncommitted files exactly when git can see committed work", () => {
