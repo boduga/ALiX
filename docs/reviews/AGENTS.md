@@ -41,16 +41,28 @@ derived path from the head commit.
   change the value by changing how a file is rendered, and sorting the pairs
   makes `diff.orderFile` irrelevant instead of pinning it to a
   platform-specific file.
-- **Two record deletions are pinned too.** A diff can be *empty* for a real
-  change, which no amount of sorting repairs. `.gitmodules` `ignore = all`
-  (repository-controlled, and the normal state of a vendored dependency) drops
-  every gitlink record, so a post-review submodule bump hashed the same as the
-  reviewed tree; `-c diff.ignoreSubmodules=none` does **not** override it —
-  only `--ignore-submodules=none` does. `git replace` lets a ref resolve to a
-  commit nobody committed, so replacement objects are disabled with
-  `GIT_NO_REPLACE_OBJECTS=1` on every git call. Both are pinned rather than
-  assumed, and every diff invocation that decides what changed carries the
-  same `--ignore-submodules=none`.
+- **Three gates pin the same two record deletions.** A diff can be *empty*
+  for a real change, which no amount of sorting repairs. `.gitmodules`
+  `ignore = all` (repository-controlled, and the normal state of a vendored
+  dependency) drops every gitlink record, so a post-review submodule bump
+  hashed the same as the reviewed tree; `-c diff.ignoreSubmodules=none` does
+  **not** override it — only `--ignore-submodules=none` does. `git replace`
+  lets a ref resolve to a commit nobody committed, so replacement objects are
+  disabled with `GIT_NO_REPLACE_OBJECTS=1`. Both are one contract, not three
+  local habits: `scripts/check-review-evidence.mjs` computes the digest,
+  `scripts/preflight.mjs` decides whether typecheck and tests run, and
+  `.githooks/pre-push` decides whether preflight runs at all. A gate that omits
+  the flag is its own false green — preflight read a gitlink-only branch as
+  documentation-only and printed `Preflight OK`, and the pre-push hook exited 0
+  before preflight ever started.
+- **The raw record shape is checked, not assumed.** `--raw -z` emits one
+  metadata field per one path, and a rename/copy record breaks that pairing by
+  carrying a second path — an even number of them would pair a path with the
+  next record's metadata and hash two different trees identically. The
+  canonicalizer rejects any metadata field that does not begin with `:`, so the
+  shape is falsifiable rather than trusted, and `--no-renames` is pinned on
+  every invocation so dropping it fails loudly instead of quietly widening what
+  the digest covers.
 - **What the digest still does not bind.** It binds tree content, not the
   humans who saw it: it says the same bytes were reviewed, not that the
   reviewer understood them, and not that a model's blind spots are absent.

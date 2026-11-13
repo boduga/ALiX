@@ -55,7 +55,14 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   # Any change runs preflight, not only code: a docs-only push still has DOX
   # claims and staleness references that can be wrong. Preflight itself skips
   # the type checks and tests for a documentation-only diff.
-  if ! git diff --quiet "${range}"; then
+  #
+  # --ignore-submodules=none because a .gitmodules "ignore = all" entry (the
+  # usual state of a vendored dependency) hides gitlink records from this diff:
+  # a push whose only change is a submodule pointer would look empty and the
+  # gate would never run. Preflight measures the change set with the same flag,
+  # so both agree on what "changed" means. GIT_NO_REPLACE_OBJECTS=1 because a
+  # local replacement ref would make this diff describe a tree nobody pushed.
+  if ! GIT_NO_REPLACE_OBJECTS=1 git diff --quiet --ignore-submodules=none "${range}"; then
     echo "pre-push: running pnpm preflight for ${range}"
     if ! pnpm preflight --base "${base_sha}"; then
       echo ""

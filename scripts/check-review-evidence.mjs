@@ -169,7 +169,20 @@ export function canonicalizeRawDiff(buffer) {
     throw new Error(`raw diff output had ${fields.length} NUL-delimited fields, but --raw -z emits metadata/path pairs`);
   }
   const records = [];
+  const colon = 0x3a;
   for (let i = 0; i < fields.length; i += 2) {
+    // Every `--raw` metadata field begins with ":" and holds no NUL. Checking
+    // that is what makes the pair assumption falsifiable rather than assumed:
+    // rename/copy records (`-M`/`-C`) carry a second path, so an even number of
+    // them would otherwise pair a path with the next record’s metadata and
+    // hash two different trees identically. The shipped invocation pins
+    // `--no-renames`, and this rejects the shape anyway instead of trusting it.
+    if (fields[i][0] !== colon) {
+      throw new Error(
+        "raw diff metadata field did not begin with a colon \u2014 the stream does not pair as (metadata, path); " +
+          "rename/copy records need --no-renames",
+      );
+    }
     records.push(Buffer.concat([fields[i], nul, fields[i + 1], nul]));
   }
   records.sort(Buffer.compare);

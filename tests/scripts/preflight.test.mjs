@@ -282,6 +282,45 @@ test("the preflight CLI records an unparseable change set as UNKNOWN and exits 1
   }
 });
 
+test("every change-set diff sees gitlink records", () => {
+  // A .gitmodules `ignore = all` entry is repository-controlled, and it removes
+  // every submodule record from git diff output. Without --ignore-submodules=none
+  // a push whose only change is a submodule pointer looked documentation-only,
+  // so preflight skipped typecheck and tests and still exited 0. The flag has to
+  // be on each required diff, not only the committed one: a dirty or staged
+  // gitlink is the same content.
+  const seen = [];
+  const gitRun = (argv) => {
+    seen.push(argv);
+    return "";
+  };
+  changedFiles("origin/main", gitRun);
+  const diffs = seen.filter((argv) => argv[0] === "diff");
+  assert.equal(diffs.length, 3, "committed, working-tree and staged diffs are all required input");
+  for (const argv of diffs) {
+    assert.ok(
+      argv.includes("--ignore-submodules=none"),
+      `${argv.join(" ")} must not let a .gitmodules ignore rule hide a gitlink`,
+    );
+  }
+});
+
+test("a submodule-only change is not classified as documentation-only", () => {
+  // The consequence, not the flag: if the change set contains a gitlink path,
+  // preflight must run the type checks instead of skipping them.
+  const gitRun = (argv) => {
+    if (argv[0] === "diff" && argv.includes("origin/main...HEAD")) return "vendor/lib\n";
+    return "";
+  };
+  const changed = resolveChangeSet("origin/main", gitRun);
+  assert.deepEqual(changed, ["vendor/lib"]);
+  for (const file of changed) {
+    const dot = file.lastIndexOf(".");
+    const ext = dot === -1 ? "" : file.slice(dot).toLowerCase();
+    assert.ok(!DOC_EXTENSIONS.has(ext), `${file} must not be treated as documentation-only`);
+  }
+});
+
 test("a readable change set is recorded as PASS through the same wiring", () => {
   const gitRun = (argv) => {
     if (argv[0] === "rev-list") return " 1\n";

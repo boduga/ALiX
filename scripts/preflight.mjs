@@ -63,8 +63,20 @@ const full = has("--full");
 
 export const DOC_EXTENSIONS = new Set([".md", ".markdown", ".txt", ".adoc", ".rst", ".log"]);
 
+/**
+ * Every git call runs with replacement objects disabled.
+ *
+ * `git replace` makes a ref resolve to a commit nobody committed, so a local
+ * replacement ref would let the change set describe a tree that is not the one
+ * being pushed. Fail-closed means measuring real history, not the rewritten one.
+ */
 function git(argv) {
-  return execFileSync("git", argv, { cwd: ROOT, encoding: "utf8", maxBuffer: 1 << 28 }).trim();
+  return execFileSync("git", argv, {
+    cwd: ROOT,
+    encoding: "utf8",
+    maxBuffer: 1 << 28,
+    env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" },
+  }).trim();
 }
 
 function tryGit(argv) {
@@ -152,16 +164,23 @@ export function resolveChangeSetOutcome(base, gitRun = git) {
  * path can be tested without spawning git: every diff here is required input,
  * and a swallowed failure would shrink the set — possibly to nothing — and let
  * preflight pass over work it never inspected.
+ *
+ * Each diff carries `--ignore-submodules=none`. A `.gitmodules` `ignore = all`
+ * entry is repository-controlled and hides every gitlink record, so a
+ * submodule-pointer bump would vanish from the change set; a branch that is
+ * otherwise docs-only then skips typecheck and tests while reporting PASS.
+ * `-c diff.ignoreSubmodules=none` is not enough here either — `.gitmodules` is
+ * read after configuration.
  */
 export function changedFiles(base, gitRun = git) {
   const files = new Set();
   if (base) {
-    const committed = gitRun(["diff", "--name-only", "--diff-filter=ACDMRTUXB", `${base}...HEAD`]);
+    const committed = gitRun(["diff", "--name-only", "--diff-filter=ACDMRTUXB", "--ignore-submodules=none", `${base}...HEAD`]);
     for (const line of committed.split("\n")) if (line.trim()) files.add(line.trim());
   }
-  const working = gitRun(["diff", "--name-only", "--diff-filter=ACDMRTUXB", "HEAD"]);
+  const working = gitRun(["diff", "--name-only", "--diff-filter=ACDMRTUXB", "--ignore-submodules=none", "HEAD"]);
   for (const line of working.split("\n")) if (line.trim()) files.add(line.trim());
-  const staged = gitRun(["diff", "--name-only", "--cached", "--diff-filter=ACDMRTUXB"]);
+  const staged = gitRun(["diff", "--name-only", "--cached", "--diff-filter=ACDMRTUXB", "--ignore-submodules=none"]);
   for (const line of staged.split("\n")) if (line.trim()) files.add(line.trim());
   const untracked = gitRun(["ls-files", "--others", "--exclude-standard"]);
   for (const line of untracked.split("\n")) if (line.trim()) files.add(line.trim());

@@ -151,9 +151,9 @@ jobs:
           1c4fc7df2755ba6dff8570043700bded21d7bd5ea744b429c48f0b04b3582c2b  scripts/check-dox-claims.mjs
           4e070c37815eeb36cabd7c48e49093247282d3f924dad4598c13b3178296550a  scripts/check-staleness.mjs
           40653f0b76f9c0684dbab0a4878fa9b2d84c1b16628326baaf903415700f59a6  scripts/check-pr-scope.mjs
-          0c5bf420fcc5ff867469d168f63f867209b5cd8a3eb40cebca9f6878465b2afc  scripts/check-review-evidence.mjs
-          63a6f0da6ffe553b3c39483e71d168ba684ecb8fc592a1398e6d5988b977754f  scripts/preflight.mjs
-          cc75448b1135983034c296e48bc97650933ba6c3303b8751ded1b01ab05c6c62  .githooks/pre-push
+          45c6dd6da75603e5c376638fe3ee5d03e2747fc34f71b8dc11dae2352343c6ce  scripts/check-review-evidence.mjs
+          04bd54790fa7682ce8b17e9b29c9dd60880faafd56c62613d5d994ec62a5a9d5  scripts/preflight.mjs
+          bebed18395249c5922c6d28dd7b355e5b10d4abf8dbfa52e40250e5bfee2ce83  .githooks/pre-push
           PINS
       #
       # Two steps on purpose. The strict run reaches a real verdict

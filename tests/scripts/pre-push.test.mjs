@@ -127,6 +127,54 @@ test("an existing remote commit that cannot be resolved fails before preflight",
   }
 });
 
+test("a push whose only change is a submodule pointer still runs preflight", () => {
+  // A .gitmodules `ignore = all` entry (the normal state for a vendored
+  // dependency) removes gitlink records from `git diff`, so the hook used to
+  // conclude the push was empty and exit 0 without ever running the gate.
+  const { dir, binDir } = fixture();
+  const sub = mkdtempSync(join(tmpdir(), "alix-pre-push-sub-"));
+  try {
+    // A real gitlink: a commit object recorded at mode 160000.
+    git(sub, ["init", "-q", "--initial-branch=main"]);
+    git(sub, ["config", "user.email", "test@example.com"]);
+    git(sub, ["config", "user.name", "Hook Test"]);
+    git(sub, ["config", "commit.gpgsign", "false"]);
+    writeFileSync(join(sub, "README.md"), "dep\n");
+    git(sub, ["add", "-A"]);
+    git(sub, ["commit", "-q", "-m", "dep one"]);
+    const subSha = git(sub, ["rev-parse", "HEAD"]);
+
+    writeFileSync(join(dir, ".gitmodules"), `[submodule "vend"]\n\tpath = vend\n\turl = .\n\tignore = all\n`);
+    git(dir, ["-c", "protocol.file.allow=always", "submodule", "add", "-q", sub, "vend"]);
+    git(dir, ["add", ".gitmodules"]);
+    git(dir, ["commit", "-q", "-m", "add submodule"]);
+
+    // Baseline: the branch tip the remote already has.
+    const remote = git(dir, ["rev-parse", "HEAD"]);
+    writeFileSync(join(sub, "README.md"), "dep two\n");
+    git(sub, ["commit", "-q", "-am", "dep two"]);
+    git(sub, ["config", "user.email", "test@example.com"]);
+    const next = git(sub, ["rev-parse", "HEAD"]);
+    assert.notEqual(next, subSha);
+
+    git(dir, ["-c", "protocol.file.allow=always", "submodule", "update", "-q", "--remote"]);
+    git(dir, ["add", "vend"]);
+    git(dir, ["commit", "-q", "-m", "bump submodule pointer"]);
+
+    const local = git(dir, ["rev-parse", "HEAD"]);
+    // The defect: plain `git diff --quiet` sees nothing here.
+    const plain = spawnSync("git", ["diff", "--quiet", `${remote}..${local}`], { cwd: dir });
+    assert.equal(plain.status, 0, "fixture must reproduce the invisible gitlink, else it proves nothing");
+
+    const result = runHook(dir, binDir, `refs/heads/feature ${local} refs/heads/feature ${remote}\n`);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.pnpmArgs, `preflight --base ${remote}`, "the hook must run the gate for a gitlink-only push");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(sub, { recursive: true, force: true });
+  }
+});
+
 test("a failing preflight blocks the push", () => {
   const { dir, binDir } = fixture(1);
   try {

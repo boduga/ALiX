@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import {
   REVIEW_EVIDENCE_PATTERN,
+  canonicalizeRawDiff,
   validateReviewEvidence,
 } from "../../scripts/check-review-evidence.mjs";
 
@@ -432,6 +433,30 @@ test("the digest is stable under hostile diff configuration", () => {
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("a rename record is rejected, not silently mis-paired", () => {
+  // `--raw -z` emits `metadata NUL path NUL` for A/D/M/T records, but a
+  // rename under `-M` emits `metadata NUL oldpath NUL newpath NUL`. An even
+  // number of rename records therefore produced an even field count, and the
+  // pair loop paired a PATH with the NEXT record’s metadata. Two different
+  // trees could then hash the same. The shipped caller pins `--no-renames`,
+  // and the canonicalizer now rejects the shape instead of trusting that.
+  const metadata = (status, blob) => `:${"100644"} ${"100644"} ${blob} ${blob} ${status}`;
+  const nul = Buffer.from([0]);
+  const encode = (fields) => Buffer.concat(fields.flatMap((f) => [Buffer.from(f), nul]));
+
+  // Two renames: 6 fields, even, and mis-paired under a naive pair loop.
+  const twoRenames = encode([
+    metadata("R100", "1".repeat(40)), "old-a.txt", "new-a.txt",
+    metadata("R100", "2".repeat(40)), "old-b.txt", "new-b.txt",
+  ]);
+  assert.throws(() => canonicalizeRawDiff(twoRenames), /rename\/copy records need --no-renames/);
+
+  // The honest shape is still accepted, so the guard rejects the defect and
+  // not the normal path.
+  const ok = encode([metadata("A", "3".repeat(40)), "src/new.ts", metadata("D", "4".repeat(40)), "src/old.ts"]);
+  assert.equal(canonicalizeRawDiff(ok).equals(canonicalizeRawDiff(ok)), true);
 });
 
 test("the digest distinguishes two trees that swap content between files", () => {
