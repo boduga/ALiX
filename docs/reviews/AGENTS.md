@@ -31,14 +31,31 @@ derived path from the head commit.
 - **Digest binds the change, not a rendering of it.** The record's diff digest
   field is the SHA-256 of the sorted `--raw` commit records for `base...head`
   with `docs/reviews/**` excluded. Exclusion is required — the record is
-  committed into the diff it describes. Raw records name modes, full blob ids
-  and paths, so host-local `.git/info/attributes`, `core.attributesFile` and
-  `funcname` drivers cannot change the value by changing how a file is
-  rendered. Sorting the records makes `diff.orderFile` irrelevant instead of
-  pinning it to a platform-specific file. Any content edit changes a blob id,
-  including a whitespace-only edit, so a stale review still fails; what the
-  digest does not bind is the text a particular diff driver would print. Use
-  `--print` to produce the exact value; do not compute it another way.
+  committed into the diff it describes. Each record is kept whole as
+  `(metadata, path)` and sorted as a pair: sorting metadata and paths as two
+  flat fields detaches a path from its blob, and two trees that swap the same
+  blob between two paths then hash identically. Paths are hashed as raw bytes,
+  never decoded, because decoding collapses distinct non-UTF-8 names onto
+  U+FFFD. Raw records name modes, full blob ids and paths, so host-local
+  `.git/info/attributes`, `core.attributesFile` and `funcname` drivers cannot
+  change the value by changing how a file is rendered, and sorting the pairs
+  makes `diff.orderFile` irrelevant instead of pinning it to a
+  platform-specific file.
+- **Two record deletions are pinned too.** A diff can be *empty* for a real
+  change, which no amount of sorting repairs. `.gitmodules` `ignore = all`
+  (repository-controlled, and the normal state of a vendored dependency) drops
+  every gitlink record, so a post-review submodule bump hashed the same as the
+  reviewed tree; `-c diff.ignoreSubmodules=none` does **not** override it —
+  only `--ignore-submodules=none` does. `git replace` lets a ref resolve to a
+  commit nobody committed, so replacement objects are disabled with
+  `GIT_NO_REPLACE_OBJECTS=1` on every git call. Both are pinned rather than
+  assumed, and every diff invocation that decides what changed carries the
+  same `--ignore-submodules=none`.
+- **What the digest still does not bind.** It binds tree content, not the
+  humans who saw it: it says the same bytes were reviewed, not that the
+  reviewer understood them, and not that a model's blind spots are absent.
+  That is why `humanSecurityAcceptance` is always `false`. Use `--print` to
+  produce the exact value; do not compute it another way.
 - **Findings are closed or explained.** Every finding needs an `id`, `title`,
   `severity`, `status` (`fixed`, `accepted-risk`, `not-applicable`), and
   `resolution`. A `high`/`critical` accepted risk additionally needs an

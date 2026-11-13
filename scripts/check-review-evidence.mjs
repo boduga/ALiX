@@ -78,17 +78,31 @@ export function evidencePathFor(pr) {
  * names modes, full 40-hex blob ids, status letters and paths, and no attribute
  * or diff driver can change a blob id.
  *
- * Sorting the NUL-delimited records also removes the ordering dependency.
- * `diff.orderFile` reorders sections, so the previous contract pinned it with
- * an external file — `/dev/null`, which does not exist on Windows. Sorting the
- * records makes the digest order-independent instead of merely pinned, which is
- * stronger and needs no file.
+ * Sorting the records also removes the ordering dependency. `diff.orderFile`
+ * reorders sections, so the previous contract pinned it with an external file —
+ * `/dev/null`, which does not exist on Windows. Sorting the records makes the
+ * digest order-independent instead of merely pinned, which is stronger and
+ * needs no file.
+ *
+ * Two settings delete records rather than re-render them, so sorting cannot
+ * help and they are overridden here:
+ *
+ *   - `--ignore-submodules=none`. A `.gitmodules` entry with `ignore = all`
+ *     (repository-controlled, and the usual state of a vendored dependency) or
+ *     a host `diff.ignoreSubmodules=all` drops every gitlink record. Measured:
+ *     a post-review submodule bump then produced an identical digest and the
+ *     gate exited 0 over a changed tree. `-c diff.ignoreSubmodules=none` is
+ *     NOT sufficient — `.gitmodules` is read after configuration.
+ *   - `GIT_NO_REPLACE_OBJECTS=1` in the environment. `git replace` rewrites the
+ *     commit a ref resolves to, so the measured tree changes without the real
+ *     history changing. Measured: 73ee2c6d… under a replacement ref versus
+ *     f7b54658… without it, restored by the variable.
  *
  * Consequence: this digest proves "the same tree change", not "the same
- * rendered text". Any content edit changes a blob id, including a pure
- * whitespace or line-ending edit inside one file, so a stale review is still
- * detectable. What is no longer bound is the arbitrary text a host's diff
- * driver would have produced for that tree.
+ * rendered text". A content edit changes a blob id, including a pure
+ * whitespace or line-ending edit inside one file, so a stale review is
+ * detectable. What it does not bind is the arbitrary text a host's diff driver
+ * would have produced for that tree.
  *
  * The `-c` pins are placed before `diff`, so they win over a user's or CI
  * runner's config, including `GIT_CONFIG_*` environment entries.
@@ -110,6 +124,7 @@ export function canonicalDiffArgs(base, head) {
     "--no-color",
     "--no-ext-diff",
     "--no-textconv",
+    "--ignore-submodules=none",
     `${base}...${head}`,
     "--",
     ":(exclude)docs/reviews/**",
@@ -119,27 +134,75 @@ export function canonicalDiffArgs(base, head) {
 /**
  * Canonicalize raw-diff output into a stable byte string.
  *
- * Git emits one NUL-terminated record per path, shaped
- * `:<mode> <mode> <blob> <blob> <status>\0<path>` under `-z`. Records arrive in
- * `diff.orderFile` order, which is repository-controlled, so they are sorted
- * before hashing: the digest then describes the set of changed entries rather
- * than the sequence a local config chose.
+ * `--raw -z` emits, per changed path, two NUL-terminated fields:
+ *
+ *     :<oldmode> <newmode> <oldblob> <newblob> <status> NUL <path> NUL
+ *
+ * The pair is the record. Splitting the stream on NUL and sorting the bare
+ * fields separates every path from the metadata that describes it, which lets
+ * two different trees hash the same: with two files that share a base blob,
+ * swapping their contents produced identical sorted field lists and therefore
+ * an identical digest. Records are kept whole and sorted as pairs.
+ *
+ * Paths are bytes, not text. They need not be valid UTF-8, and decoding through
+ * a string maps every invalid byte sequence onto U+FFFD, so `0xfe.txt` and
+ * `0xff.txt` hashed the same. Nothing here decodes a path.
+ *
+ * @param {Buffer} buffer stdout of `canonicalDiffArgs` with `encoding: null`
+ * @returns {Buffer} sorted records, each terminated by NUL
  */
 export function canonicalizeRawDiff(buffer) {
-  const records = buffer.toString("utf8").split("\0").filter((record) => record.length > 0);
-  return `${records.sort().join("\0")}\0`;
+  if (!Buffer.isBuffer(buffer)) throw new TypeError("raw diff canonicalization requires the raw byte buffer");
+  const nul = Buffer.from([0]);
+  const fields = [];
+  let start = 0;
+  for (let i = 0; i < buffer.length; i += 1) {
+    if (buffer[i] === 0) {
+      fields.push(buffer.subarray(start, i));
+      start = i + 1;
+    }
+  }
+  if (start !== buffer.length) {
+    throw new Error("raw diff output did not end with a NUL terminator");
+  }
+  if (fields.length % 2 !== 0) {
+    throw new Error(`raw diff output had ${fields.length} NUL-delimited fields, but --raw -z emits metadata/path pairs`);
+  }
+  const records = [];
+  for (let i = 0; i < fields.length; i += 2) {
+    records.push(Buffer.concat([fields[i], nul, fields[i + 1], nul]));
+  }
+  records.sort(Buffer.compare);
+  return Buffer.concat(records);
 }
 
 export function diffDigest(buffer) {
   return createHash("sha256").update(buffer).digest("hex");
 }
 
+/**
+ * The environment every git call in this checker runs under.
+ *
+ * `git replace` makes a ref resolve to a different commit without changing the
+ * real history, so a replacement ref in a local clone would let the digest (and
+ * the ancestor/path checks) describe a tree nobody committed. Replacement
+ * objects are disabled for every invocation rather than only for the digest.
+ */
+function gitEnv() {
+  return { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" };
+}
+
 function git(argv, encoding = "utf8") {
-  return execFileSync("git", argv, { cwd: ROOT, encoding, maxBuffer: 1 << 28 });
+  return execFileSync("git", argv, {
+    cwd: ROOT,
+    encoding,
+    maxBuffer: 1 << 28,
+    env: gitEnv(),
+  });
 }
 
 export function computeDiffDigest(base, head) {
-  return diffDigest(Buffer.from(canonicalizeRawDiff(git(canonicalDiffArgs(base, head), "buffer")), "utf8"));
+  return diffDigest(canonicalizeRawDiff(git(canonicalDiffArgs(base, head), null)));
 }
 
 /**
@@ -153,6 +216,7 @@ export function isAncestor(ancestor, descendant) {
     cwd: ROOT,
     encoding: "utf8",
     maxBuffer: 1 << 28,
+    env: gitEnv(),
   });
   if (result.error) throw result.error;
   if (result.status === 0) return true;
@@ -163,7 +227,15 @@ export function isAncestor(ancestor, descendant) {
 }
 
 export function changedPathsBetween(from, to) {
-  const out = git(["-c", "core.quotepath=false", "diff", "--name-only", "--no-renames", from, to]);
+  // A `.gitmodules` `ignore = all` hides gitlink records from every diff, and
+  // `-c diff.ignoreSubmodules=none` does not override it. Without
+  // `--ignore-submodules=none` a post-review submodule bump would be absent
+  // here as well as in the digest, so the "only review evidence changed" rule
+  // would pass over real content.
+  const out = git([
+    "-c", "core.quotepath=false",
+    "diff", "--name-only", "--no-renames", "--ignore-submodules=none", from, to,
+  ]);
   return out.split("\n").map((line) => line.trim()).filter(Boolean);
 }
 
@@ -175,7 +247,8 @@ export function commitsBetween(from, to) {
 export function changedPathsInCommit(commit) {
   const out = git([
     "-c", "core.quotepath=false",
-    "diff-tree", "--no-commit-id", "--name-only", "-r", "--no-renames", commit,
+    "diff-tree", "--no-commit-id", "--name-only", "-r", "--no-renames",
+    "--ignore-submodules=none", commit,
   ]);
   return out.split("\n").map((line) => line.trim()).filter(Boolean);
 }
@@ -202,6 +275,7 @@ export function readCommittedFile(head, path) {
     cwd: ROOT,
     encoding: "utf8",
     maxBuffer: 1 << 28,
+    env: gitEnv(),
   });
   if (listed.error) throw listed.error;
   if (listed.status !== 0) {

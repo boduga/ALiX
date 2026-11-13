@@ -62,6 +62,17 @@ function writeFile(root, path, content) {
   writeFileSync(join(root, path), content);
 }
 
+/**
+ * Write a file whose name is a byte sequence, not a string.
+ *
+ * `writeFileSync` accepts a Buffer path, which is the only way to create a
+ * filename that is not valid UTF-8. Decoding such a name to test it would
+ * destroy the very bytes the test is about.
+ */
+function writeFileBytes(root, nameBytes, content) {
+  writeFileSync(Buffer.concat([Buffer.from(root + "/"), nameBytes]), content);
+}
+
 function commit(root, message) {
   runGit(root, ["add", "-A"]);
   runGit(root, ["commit", "-m", message]);
@@ -418,6 +429,117 @@ test("the digest is stable under hostile diff configuration", () => {
     writeFile(root, "user-attributes", "*.txt -diff\n");
     runGit(root, ["config", "core.attributesFile", userAttributes]);
     assert.equal(digestFor(root, base, head), plain);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("the digest distinguishes two trees that swap content between files", () => {
+  // `--raw -z` emits two NUL-terminated fields per changed path: metadata, then
+  // path. Splitting the stream on NUL and sorting the bare fields separates a
+  // path from the blob that belongs to it, so `a=X,b=Y` and `a=Y,b=X` sorted to
+  // the same bytes and the same digest. Both trees are distinct changes and a
+  // review of one must not be accepted for the other.
+  const { root, base } = fixture();
+  try {
+    // Tree A: a.txt=X, b.txt=Y. Both are additions, so both records carry the
+    // same zero old-blob id and differ only in new blob and path.
+    writeFile(root, "a.txt", "X\n");
+    writeFile(root, "b.txt", "Y\n");
+    const treeA = commit(root, "a=x b=y");
+    const digestA = digestFor(root, base, treeA);
+
+    // Tree B: a.txt=Y, b.txt=X. Same blob set, a different mapping to paths.
+    writeFile(root, "a.txt", "Y\n");
+    writeFile(root, "b.txt", "X\n");
+    const treeB = commit(root, "a=y b=x");
+    const digestB = digestFor(root, base, treeB);
+
+    assert.notEqual(digestA, digestB, "swapping which blob lives at which path is a different change");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("the digest distinguishes paths that differ only in non-UTF-8 bytes", () => {
+  // Paths are bytes. Decoding the raw stream through UTF-8 maps every invalid
+  // sequence onto U+FFFD, so two genuinely different filenames can hash the
+  // same. The canonicalizer must never decode a path.
+  const { root, base } = fixture();
+  try {
+    writeFileBytes(root, Buffer.from([0xfe, 0x2e, 0x74, 0x78, 0x74]), "payload\n");
+    const headFe = commit(root, "fe path");
+
+    // A second change from the same base, differing only in the path byte.
+    runGit(root, ["reset", "-q", "--hard", base]);
+    writeFileBytes(root, Buffer.from([0xff, 0x2e, 0x74, 0x78, 0x74]), "payload\n");
+    const headFf = commit(root, "ff path");
+
+    const digestFe = digestFor(root, base, headFe);
+    const digestFf = digestFor(root, base, headFf);
+    assert.notEqual(digestFe, digestFf, "0xfe.txt and 0xff.txt are different paths");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a submodule ignore rule cannot hide a post-review gitlink change", () => {
+  // A `.gitmodules` entry with `ignore = all` (repository-controlled, and the
+  // normal state of a vendored dependency) removes gitlink records from every
+  // diff. `-c diff.ignoreSubmodules=none` does not override it; only
+  // `--ignore-submodules=none` does. Without the flag a post-review submodule
+  // bump produced an identical digest and the gate exited 0 over a change.
+  const { root, base } = fixture();
+  try {
+    const sub = join(root, "subrepo-src");
+    mkdirSync(sub, { recursive: true });
+    runGit(sub, ["init", "-q"]);
+    runGit(sub, ["config", "user.name", "Review Evidence Test"]);
+    runGit(sub, ["config", "user.email", "review-evidence@example.invalid"]);
+    writeFile(sub, "inner.txt", "one\n");
+    const innerOne = commit(sub, "inner one");
+    writeFile(sub, "inner.txt", "two\n");
+    const innerTwo = commit(sub, "inner two");
+
+    runGit(root, ["-c", "protocol.file.allow=always", "submodule", "add", "-q", sub, "vendor/sub"]);
+    writeFile(root, ".gitmodules", '[submodule "vendor/sub"]\n\tpath = vendor/sub\n\turl = ' + sub + '\n\tignore = all\n');
+    runGit(root, ["add", ".gitmodules"]);
+
+    // Point the gitlink at the first inner commit.
+    runGit(join(root, "vendor/sub"), ["checkout", "-q", innerOne]);
+    runGit(root, ["add", "vendor/sub"]);
+    const reviewed = commit(root, "sub at inner one");
+    const reviewedDigest = digestFor(root, base, reviewed);
+
+    // Bump the gitlink without touching anything else.
+    runGit(join(root, "vendor/sub"), ["checkout", "-q", innerTwo]);
+    runGit(root, ["add", "vendor/sub"]);
+    const bumped = commit(root, "bump submodule");
+    const bumpedDigest = digestFor(root, base, bumped);
+
+    assert.notEqual(reviewedDigest, bumpedDigest, "a gitlink bump is a change even when .gitmodules ignores it");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a replacement ref cannot change the digest of a commit", () => {
+  // `git replace` makes a ref resolve to a different commit without changing
+  // the real history, so a replacement ref would let the digest describe a tree
+  // nobody committed. The checker disables replacement objects.
+  const { root, base } = fixture();
+  try {
+    writeFile(root, "src/change.txt", "real\n");
+    const real = commit(root, "real");
+    const plain = digestFor(root, base, real);
+
+    runGit(root, ["checkout", "-q", "-b", "tamper", base]);
+    writeFile(root, "src/change.txt", "tampered\n");
+    const tampered = commit(root, "tampered");
+    runGit(root, ["checkout", "-q", "-"]);
+    runGit(root, ["replace", real, tampered]);
+
+    assert.equal(digestFor(root, base, real), plain, "a replacement ref must not restate what the commit contains");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

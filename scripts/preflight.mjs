@@ -118,6 +118,36 @@ export function resolveChangeSet(base, gitRun = git) {
 }
 
 /**
+ * The `changed files` outcome for the report, or the gap.
+ *
+ * `record()` is module state, so testing the refusal through `main()` would mean
+ * running the whole script against a repository that has to be made to answer
+ * `rev-list --count` with something unparseable. This is the same decision,
+ * pure and injectable, so the caller-level wiring is testable: a `null` change
+ * set and a thrown read both become `not_checked`, never an empty PASS.
+ */
+export function resolveChangeSetOutcome(base, gitRun = git) {
+  let changed;
+  try {
+    changed = resolveChangeSet(base, gitRun);
+  } catch (error) {
+    return { changed: null, status: "not_checked", detail: `could not read the change set: ${error.message}` };
+  }
+  if (changed === null) {
+    return {
+      changed: null,
+      status: "not_checked",
+      detail: "no base ref resolved (origin/main or main); committed branch work was not inspected — pass --base <ref>",
+    };
+  }
+  return {
+    changed,
+    status: "pass",
+    detail: base ? `${changed.length} file(s) vs ${base}` : `${changed.length} uncommitted file(s); no base ref resolved`,
+  };
+}
+
+/**
  * The change set, or a thrown error. `gitRun` is injectable so the fail-closed
  * path can be tested without spawning git: every diff here is required input,
  * and a swallowed failure would shrink the set — possibly to nothing — and let
@@ -366,35 +396,16 @@ function main() {
     console.error("Refusing to fall back to an uncommitted-only diff: that would silently shrink the checks.");
     process.exit(2);
   }
-  let changed;
-  try {
-    // No `--base` and no default base ref is only tolerable in a repository
-    // whose HEAD has no ancestors. Otherwise the uncommitted set is a fragment
-    // of the branch, and treating it as the change set would report PASS over
-    // committed work that was never inspected.
-    changed = resolveChangeSet(base);
-    if (changed === null) {
-      record(
-        "changed files",
-        "not_checked",
-        "no base ref resolved (origin/main or main); committed branch work was not inspected — pass --base <ref>",
-      );
-    }
-  } catch (error) {
-    // The change set is the input to every selection decision below. Unknown
-    // is not empty: record the gap and keep the run non-green.
-    changed = null;
-    record("changed files", "not_checked", `could not read the change set: ${error.message}`);
-  }
+  // No `--base` and no default base ref is only tolerable in a repository whose
+  // HEAD has no ancestors. Otherwise the uncommitted set is a fragment of the
+  // branch, and treating it as the change set would report PASS over committed
+  // work that was never inspected. The change set is also the input to every
+  // selection decision below, so a failure to read it is a recorded gap and a
+  // non-green run — unknown is not empty.
+  const changeSet = resolveChangeSetOutcome(base);
+  const changed = changeSet.changed;
+  record("changed files", changeSet.status, changeSet.detail);
   const onlyDocs = changed !== null && changed.length > 0 && changed.every((f) => DOC_EXTENSIONS.has(extname(f).toLowerCase()));
-
-  if (changed !== null) {
-    record(
-      "changed files",
-      "pass",
-      base ? `${changed.length} file(s) vs ${base}` : `${changed.length} uncommitted file(s); no base ref resolved`,
-    );
-  }
 
   if (changed === null) {
     record("typecheck", "not_checked", "change set unknown");

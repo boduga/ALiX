@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtempSync, mkdirSync, writeFileSync, utimesSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, utimesSync, rmSync } from "node:fs";
+import { delimiter as pathDelimiter, join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import {
   DOC_EXTENSIONS,
@@ -10,6 +11,7 @@ import {
   distReadiness,
   hasHistoryBeyondRoot,
   resolveChangeSet,
+  resolveChangeSetOutcome,
   selectAffectedTests,
   tailLines,
   verdictOf,
@@ -198,6 +200,98 @@ test("a base-less run over committed history refuses to call its fragment the ch
   for (const bad of ["", "   ", "abc", "1.5", "-3"]) {
     assert.throws(() => hasHistoryBeyondRoot(history(bad)), /not a commit count/, `output ${JSON.stringify(bad)}`);
   }
+});
+
+test("an unparseable rev-list answer reaches the report as not_checked, not as an empty PASS", () => {
+  // `hasHistoryBeyondRoot` throwing is necessary but not enough: the caller has
+  // to turn that throw into a recorded gap. Asserting only the throw would pass
+  // even if the catch recorded PASS over an empty set, which is the exact
+  // false-green the helper exists to prevent.
+  for (const bad of ["", "abc", "1.5", "-3"]) {
+    const gitRun = (argv) => {
+      if (argv[0] === "rev-list") return bad;
+      return "";
+    };
+    const outcome = resolveChangeSetOutcome(null, gitRun);
+    assert.equal(outcome.changed, null, `output ${JSON.stringify(bad)} must not yield a change set`);
+    assert.equal(outcome.status, "not_checked", `output ${JSON.stringify(bad)} must be recorded as a gap`);
+    assert.match(outcome.detail, /could not read the change set|not a commit count/);
+    assert.ok(
+      verdictOf([{ name: "changed files", status: outcome.status }]).ok === false,
+      "a not_checked change set must leave the run non-green",
+    );
+  }
+
+  // The same wiring for the base-less refusal with real committed history.
+  const refused = resolveChangeSetOutcome(null, (argv) => (argv[0] === "rev-list" ? " 4\n" : ""));
+  assert.equal(refused.changed, null);
+  assert.equal(refused.status, "not_checked");
+  assert.match(refused.detail, /no base ref resolved/);
+  assert.equal(verdictOf([{ name: "changed files", status: refused.status }]).ok, false);
+});
+
+test("the preflight CLI records an unparseable change set as UNKNOWN and exits 1", () => {
+  // The helper test above proves the decision; this proves the caller acts on
+  // it, through the real CLI. `rev-list --count HEAD` only runs when no base
+  // resolves, so the fixture is a `master`-named repo with no `main` ref.
+  const realGit = spawnSync("git", ["--exec-path"], { encoding: "utf8" });
+  assert.equal(realGit.status, 0, "the test needs the real git to delegate to");
+  const gitBinary = spawnSync(process.platform === "win32" ? "where" : "which", ["git"], { encoding: "utf8" });
+  assert.equal(gitBinary.status, 0, "the test needs to locate the real git binary");
+  const realGitPath = gitBinary.stdout.split("\n")[0].trim();
+
+  const root = mkdtempSync(join(tmpdir(), "alix-preflight-cli-"));
+  try {
+    // A real repository, so `rev-parse`/`diff` answer normally and only the
+    // commit count is intercepted.
+    spawnSync("git", ["init", "-q", "-b", "master"], { cwd: root });
+    mkdirSync(join(root, "scripts"), { recursive: true });
+    writeFileSync(
+      join(root, "scripts", "preflight.mjs"),
+      readFileSync(new URL("../../scripts/preflight.mjs", import.meta.url)),
+    );
+
+    // `git` that lies only about `rev-list --count HEAD`.
+    mkdirSync(join(root, "bin"), { recursive: true });
+    const shimPath = join(root, "bin", process.platform === "win32" ? "git.cmd" : "git");
+    writeFileSync(
+      shimPath,
+      process.platform === "win32"
+        ? `@echo off\r\nif "%~1 %~2 %~3"=="rev-list --count HEAD" (\r\n  echo abc\r\n  exit /b 0\r\n)\r\n"${realGitPath}" %*\r\n`
+        : `#!/bin/sh\nif [ "$1 $2 $3" = "rev-list --count HEAD" ]; then echo abc; exit 0; fi\nexec "${realGitPath}" "$@"\n`,
+      { mode: 0o755 },
+    );
+
+    const result = spawnSync(process.execPath, [join(root, "scripts", "preflight.mjs")], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, PATH: join(root, "bin") + pathDelimiter + (process.env.PATH ?? "") },
+    });
+
+    // The load-bearing assertion is the recorded line: it is the caller turning
+    // the throw into an UNKNOWN, which is the decision the fix makes. Exit
+    // status alone is not evidence here — the fixture carries none of the other
+    // checkers, so they fail too and would keep the run red on their own.
+    assert.match(result.stdout, /UNKNOWN\s+changed files\s+—\s+could not read the change set/);
+    assert.match(result.stdout, /not a commit count/);
+    assert.doesNotMatch(result.stdout, /PASS\s+changed files/);
+    assert.doesNotMatch(result.stdout, /Preflight OK/);
+    assert.notEqual(result.status, 0, result.stdout + result.stderr);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a readable change set is recorded as PASS through the same wiring", () => {
+  const gitRun = (argv) => {
+    if (argv[0] === "rev-list") return " 1\n";
+    if (argv[0] === "diff") return "docs/readme.md\n";
+    return "";
+  };
+  const outcome = resolveChangeSetOutcome(null, gitRun);
+  assert.deepEqual(outcome.changed, ["docs/readme.md"]);
+  assert.equal(outcome.status, "pass");
+  assert.equal(verdictOf([{ name: "changed files", status: outcome.status }]).ok, true);
 });
 
 test("the resolved change set exceeds uncommitted files exactly when git can see committed work", () => {
