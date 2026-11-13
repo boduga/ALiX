@@ -56,6 +56,7 @@ subtrees below.
 | `docs/prd/` | Pre-2.0 and Master product requirements: `ALiX_MASTER_PRD_v2.9.md` (internal v2.10; the product parent), `ALiX_PRE_2_0_MASTER_PRD_v1.1.md` (live pre-2.0 variant with the LEAN and JARVIS amendments), `ALiX_PRE_2_0_MASTER_PRD_v1.0.md` (seed of v1.1, not authoritative for execution), and `ALiX_LEAN_ARCHITECTURE_BASELINE_2026-10-25.md` (pinned read-only inventory, not a completed audit). |
 | `docs/prd/archive/` | Self-declared superseded PRD drafts. Historical source only; never cite as active requirements. |
 | `docs/prd/evidence/` | Dated qualification packets backing `docs/prd/` claims, currently all under `lean-01/` (environment and startup capture, D9 phase-F slices with their review records and raw logs, approval-remediation and route-parity matrices). Evidence, not conclusions. |
+| `docs/security/` | Threat model, risk register, security architecture and operations, Inspector auth model, and the GE-04 privileged-worker qualification set (designs, boundary contracts, the G1–G9 authorization gate register, and the per-requirement acceptance ledger). Design and evidence, not acceptance: the GE-04 security hold is active. |
 | `docs/superseded/` | Relocated superseded material, subtree-intact |
 | `docs/jev/` | Jev / System One integration docs |
 | `docs/superpowers/` | Implementation specs and plans |
@@ -82,6 +83,7 @@ Docs-only; no typecheck or test applies. Run `pnpm check:dox` when `AGENTS.md` c
 
 | Path | Scope |
 |------|-------|
+| `docs/security/AGENTS.md` | Security evidence, GE-04 gate register and acceptance ledger, hold semantics |
 | `superpowers/AGENTS.md` | Implementation specs and plans |
 | `jev/AGENTS.md` | Jev / System One integration docs |
 
