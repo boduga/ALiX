@@ -98,10 +98,29 @@ const pathExists = (p) => {
     return false;
   }
 };
+// Source pathspecs for the identifier search.
+//
+// `**` needs `:(glob)` magic to mean "zero or more directories". Without it
+// git accepts the pattern but a leading `**` segment then requires at least one
+// directory, so the type path below silently skipped the four top-level
+// `src/*.ts` modules (1522 of 1526 files matched) and the script path skipped
+// all 27 top-level scripts. Those files were unreachable for every claim, so an
+// identifier defined in one of them was reported "no code" no matter what the
+// source said. `:(glob)` is the pathspec form that covers every depth.
+//
+// Line comment, not a block comment: the patterns themselves contain a glob
+// closer, so a block comment would end at the first one.
+const SOURCE_PATHSPECS = [
+  ":(glob)src/**/*.ts",
+  ":(glob)src/**/*.mts",
+  ":(glob)tests/**/*.ts",
+  ":(glob)scripts/**/*.mjs",
+];
+
 /** Source only. Never a doc: a doc mentioning a symbol proves nothing about code. */
 const codeHas = (ident) => {
   const out = sh(
-    `git grep -l -e "${ident}" ${headSha} -- 'src/**/*.ts' 'src/**/*.mts' 'tests/**/*.ts' 'scripts/**/*.mjs' 2>/dev/null || true`,
+    `git grep -l -e "${ident}" ${headSha} -- ${SOURCE_PATHSPECS.map((p) => `'${p}'`).join(" ")} 2>/dev/null || true`,
   );
   return out.trim().length > 0;
 };
