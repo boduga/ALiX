@@ -224,7 +224,20 @@ Parent Master PRD: v2.8 Stage 0, §§5–8, 10, 14, 18–19, 22, 28, 31–32, an
 for all 32 requirements. Written definitions and recommendations exist, while
 measurements, complete consumer/provenance review and independent qualification remain partial. Human acceptance is not a Harness closeout requirement; missing external authority is represented as durable `BLOCKED`. No requirement is waived by this assessment.
 
-**Gate B status: AUTHORIZED; PARTIALLY MEASURED.** The 2026-10-23 authorization record (`audits/2026-10-23-harness-authorization.md`) is treated as the existing delegated authority envelope for this closeout; agents may not broaden it. It clears permission for the recorded scope, not evidence. The four real-model delegate cases were
+**Gate B: authorization and outcome are separate facts (reconciled 2026-11-12).**
+
+*Authorization.* The 2026-10-23 authorization record (`audits/2026-10-23-harness-authorization.md`) is treated as the existing delegated authority envelope for this closeout; agents may not broaden it. It clears permission for the recorded scope, not evidence.
+
+*Current outcome.* Gate B is **not in HOLD**. Its latest authoritative disposition is
+`CLOSED-WITH-WAIVER (historical)` — 14/14 requirements dispositioned, 13 met, 1 waived
+(GB-11) — recorded in `audits/2026-10-24-pre-2.0-acceptance.md` and carried as historical
+provenance in [harness-readiness-report.md](harness-readiness-report.md). The waiver covers
+the human-attention dimension that the 2026-10-28 amendment replaced with autonomous-review
+metrics; those metrics are still unmeasured, so PRE-R015–R019 remain open and the
+document-level readiness verdict stays `PARTIAL`. Historical closure is not reopened by that
+gap, and it is not evidence for Gate E.
+
+*Measurement.* The four real-model delegate cases were
 re-measured on the historical baseline model: **10/12 verified at $0.045688 per
 verified success**, against the earlier 7/12 at $0.067149. That is not a
 like-for-like improvement — a runtime fix postdates the historical sweep, so the
@@ -234,6 +247,7 @@ obeyed it and correctly reported success, and the case scored that as failure. I
 was fixed (task now names a real escape; ownership limited to the objective path)
 and re-measured **3/3** with the boundary denying the write. An earlier reading of
 its 2/3 `success` results as false claims is withdrawn.
+
 Six strata remain n=1. Historical records otherwise cover ten strata at differing
 evidence levels; the generator's legacy schema admits cost records in 9/10.
 Four-worker coordination now has two real-model runs with `workerCount: 4`; the
@@ -280,10 +294,10 @@ Minimum content: decision or action under evaluation; impacted components and se
 **ALiX 2.0:** the Master PRD v2.8 governs any later Workbench/decision-artifact implementation. It depends on canonical evidence projections, stable approval APIs, UI threat review, independent verification and agent-review accuracy benchmarks. Existing F8b/R1 boundaries remain S0 safeguards.
 
 **Reported audit state:** the acceptance/provenance records linked above supersede
-the old 1/10 cost snapshot. They retain Gate B HOLD and distinguish recorded
-coverage from qualified evidence. Attention measures remain unmeasured; no
-ablation or presentation implementation follows from this amendment. Q13 and
-production simplification remain HOLD.
+the old 1/10 cost snapshot. Gate B is `CLOSED-WITH-WAIVER (historical)` (§11) and
+PRE-R015–R019 are open; recorded coverage stays distinct from qualified evidence.
+Attention measures remain unmeasured; no ablation or presentation implementation
+follows from this amendment. Q13 and production simplification remain HOLD.
 
 
 ## 13. Harness² research qualification (pre-2.0 amendment; proposed)
@@ -314,7 +328,7 @@ production simplification remain HOLD.
 
 Research may proceed after inventory and environment isolation are documented. Model-backed experiments depend on qualified sandbox/egress, independent grading, baseline coverage, and machine-verifiable delegated authority. Upstream Harness² explicitly reports unrestricted executor network access and disabled Codex sandboxing, with benchmark rubric exposure risk: reject those settings for ALiX and block any uncontained probe. Domain/task lessons cannot alter global guardrails or tool authority; any requested authority expansion yields durable `BLOCKED`. Preserve dirty-root changes and use isolated worktrees.
 
-**Unchanged holds:** Gate B HOLD; F1-E has a historical 8/8 qualification report (`run-79feb4e0`) with retained-input gaps recorded in the provenance assessment; Q13 publication HOLD; production simplification HOLD.
+**Unchanged holds:** Gate B `CLOSED-WITH-WAIVER (historical)` with PRE-R015–R019 open; F1-E has a historical 8/8 report (`run-79feb4e0`) that qualifies a recorded cost mechanism with retained-input gaps recorded in the provenance assessment — it does **not** qualify the full baseline and does not clear Gate E; Gate E HOLD; Q13 publication HOLD; production simplification HOLD.
 
 
 ## 14. Progressive supervision and autonomy qualification research (pre-2.0; proposed)
@@ -336,4 +350,11 @@ Research may proceed after inventory and environment isolation are documented. M
 
 Produce an authority map, qualification/evidence schema, independent evaluator/critic plan, downgrade/exception test matrix and explicit **reuse/defer/reject** recommendation. Keep this within the existing P0-C/P0-D baseline and candidate register; record coverage and unknowns rather than inventing data. Do not implement a second autonomy authority, relax authorization rules, let an agent self-promote privileges, or assert production readiness without evidence. Real-provider experiments require isolation, qualification, and machine-verifiable delegated authority.
 
-**Unchanged holds:** Gate B HOLD; F1-E QUALIFIED; Q13 publication HOLD; production simplification HOLD. Q01–Q15, existing approval authority and dirty-root preservation remain unchanged.
+**Unchanged holds:** Gate B `CLOSED-WITH-WAIVER (historical)` with PRE-R015–R019 open; F1-E historical 8/8 cost-mechanism report only, with Gate E still HOLD; Q13 publication HOLD; production simplification HOLD. Q01–Q15, existing approval authority and dirty-root preservation remain unchanged.
+
+
+## 15. Grounded reasoning and evaluator-agent research (delegated)
+
+The grounded-reasoning amendment — typed skill preconditions/effects, actionable ignorance, hypothesis/observation separation, and independent evaluator agents — is **not** a Harness requirement set. It is specified once in [ALiX Pre-2.0 Master PRD v1.1](prd/ALiX_PRE_2_0_MASTER_PRD_v1.1.md) as PM-R007–PM-R015 and experiments E1–E4, with an earlier requirement draft (PRE-R033–PRE-R041) preserved in `prd/archive/ALiX_PRE_2_0_HARNESS_PRD_v1.3_superseded-draft.md`.
+
+This PRD owns none of those identifiers. The requirements, experiments and evidence rules live in the master PRD; this section only records the delegation. Master-PRD Stage 0 research remains read-only: it authorizes no implementation, promotion or release. No requirement here or there transfers policy, approval or release authority to a skill, an evaluator or an agent. Current holds are the ones recorded in §11 and §§13.3/14.2.

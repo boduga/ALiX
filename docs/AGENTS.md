@@ -52,6 +52,10 @@ subtrees below.
 | `docs/harness-gate-c-retain-disposition.md` | Gate C decision under PRD §9's default "otherwise retain" branch: HC-01/HC-03 (and HC-02/HC-05) retained, none retired, no ablation run. Explicitly not a measured efficiency finding and not evidence of measured absence of benefit. |
 | `docs/harness-pre-r024-isolation-qualification.md` | PRE-R024 isolation qualification: 6/8 controls evidenced by adversarial test (`tests/security/pre-r024-isolation-qualification.vitest.ts`), 2 deliberately unqualified (rubric containment, replay class). Gates model-backed probes; does not clear them. |
 | `docs/harness-cutover-plan.md` | Design-only migration packages and their prerequisites; not implementation approval. |
+| `docs/harness-*.md` | The harness PRD's deliverable set (baseline report, benchmark spec, ablation report, readiness report, cutover plan, component inventory, F1-E records, decision-brief contract, gate dispositions, shrink-only invariants) plus dated investigation records in the same `harness-` namespace. Evidence for `ALiX_PRE_2_0_HARNESS_PRD_v1.1.md`; not live contracts and not release authorization. |
+| `docs/prd/` | Pre-2.0 and Master product requirements: `ALiX_MASTER_PRD_v2.9.md` (internal v2.10; the product parent), `ALiX_PRE_2_0_MASTER_PRD_v1.1.md` (live pre-2.0 variant with the LEAN and JARVIS amendments), `ALiX_PRE_2_0_MASTER_PRD_v1.0.md` (seed of v1.1, not authoritative for execution), and `ALiX_LEAN_ARCHITECTURE_BASELINE_2026-10-25.md` (pinned read-only inventory, not a completed audit). |
+| `docs/prd/archive/` | Self-declared superseded PRD drafts. Historical source only; never cite as active requirements. |
+| `docs/prd/evidence/` | Dated qualification packets backing `docs/prd/` claims, currently all under `lean-01/` (environment and startup capture, D9 phase-F slices with their review records and raw logs, approval-remediation and route-parity matrices). Evidence, not conclusions. |
 | `docs/superseded/` | Relocated superseded material, subtree-intact |
 | `docs/jev/` | Jev / System One integration docs |
 | `docs/superpowers/` | Implementation specs and plans |
@@ -61,6 +65,9 @@ subtrees below.
 - Root-level `docs/*.md` are dated hand-off records: point-in-time status, landed baselines, review findings, and next steps. They are history, not live contracts — a stale instruction inside one is not binding.
 - Live contracts belong in the owning `AGENTS.md` file or the design spec the record points to; a hand-off must not restate or override them.
 - Reference source with workspace-relative paths so claims resolve under `pnpm check:dox`.
+- **One active pre-2.0 master.** `docs/prd/ALiX_PRE_2_0_MASTER_PRD_v1.1.md` supersedes `docs/prd/ALiX_PRE_2_0_MASTER_PRD_v1.0.md` for execution; v1.0 is the seed it grew from, not a parallel design. Shared §§1–10 corrections land in v1.1 first and are reflected in v1.0 only as seed correction. Do not open a competing active pre-2.0 master.
+- **Gate status is read, not remembered.** Gate B is `CLOSED-WITH-WAIVER (historical)` with PRE-R015–R019 open; Gate E and Gate F are HOLD. Resolve status against `docs/audits/2026-10-24-pre-2.0-acceptance.md` and `docs/harness-readiness-report.md`, and keep three distinctions intact: authorization versus outcome, qualification versus full-baseline evidence, and historical disposition versus current readiness.
+- Harness PRD filename `v1.1` with internal version 1.2 is intentional; cite `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` by path and do not create a `-v1.2` file.
 
 ## Work Guidance
 
@@ -78,4 +85,4 @@ Docs-only; no typecheck or test applies. Run `pnpm check:dox` when `AGENTS.md` c
 | `superpowers/AGENTS.md` | Implementation specs and plans |
 | `jev/AGENTS.md` | Jev / System One integration docs |
 
-`agents/`, `architecture/`, and `audits/` are indexed from `agents/domain.md`, the architecture tree, and the audit artifacts respectively; none carries a child `AGENTS.md` today. `audits/` is a durable evidence and reconciliation directory: evidence-graded audits and inventories (verified claims plus explicitly provisional rows, resolved in follow-up work) that later architecture migrations reference back to. Roadmap and readiness content inside is proposal pending its own approval gates, not an approved plan. Treat it as history, not a live contract.
+`agents/`, `architecture/`, `audits/`, and `prd/` are indexed from `agents/domain.md`, the architecture tree, the audit artifacts, and the Ownership table respectively; none carries a child `AGENTS.md` today. `audits/` is a durable evidence and reconciliation directory: evidence-graded audits and inventories (verified claims plus explicitly provisional rows, resolved in follow-up work) that later architecture migrations reference back to. Roadmap and readiness content inside is proposal pending its own approval gates, not an approved plan. Treat it as history, not a live contract. `prd/` is live product requirements, not history: `archive/` and `superseded/` material is source only, and `evidence/` supplies dated proof backing claims rather than conclusions of its own.

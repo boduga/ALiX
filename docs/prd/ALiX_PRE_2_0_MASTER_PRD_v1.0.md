@@ -4,11 +4,13 @@
 **Date:** 2026-10-25  
 **Status:** DRAFT — proposed requirements; no implementation or release authorization  
 **Parent:** [ALiX Master PRD v2.9](ALiX_MASTER_PRD_v2.9.md)  
-**Predecessor:** `ALiX_PRE_2_0_HARNESS_PRD_v1.2.md` — separately owned harness-rationalization closeout; not superseded until independently closed and its evidence accepted  
-**Derived from:** `ALiX_PRE_2_0_HARNESS_PRD_v1.3.md` (superseded draft), containing Harness², progressive-supervision, and grounded-reasoning research amendments  
+**Predecessor:** [`../ALiX_PRE_2_0_HARNESS_PRD_v1.1.md`](../ALiX_PRE_2_0_HARNESS_PRD_v1.1.md) — internal version 1.2 (filename retained); separately owned harness-rationalization closeout, not superseded until independently closed and its evidence accepted  
+**Derived from:** [`archive/ALiX_PRE_2_0_HARNESS_PRD_v1.3_superseded-draft.md`](archive/ALiX_PRE_2_0_HARNESS_PRD_v1.3_superseded-draft.md) (superseded draft), containing Harness², progressive-supervision, and grounded-reasoning research amendments  
 **Repository location:** `docs/prd/ALiX_PRE_2_0_MASTER_PRD_v1.0.md`
 
 > **Decision boundary.** The operator requests an **agent-driven program without human-in-the-loop execution, grading, or routine review**. This is an operating-model requirement for delegated work, **not** a change to Q01–Q15, existing approval authority, or legally required human oversight. A task needing authority not already granted must fail closed and remain blocked; an evaluator agent cannot manufacture that authority. Human approval is not silently converted to agent approval.
+
+> **Relationship to v1.1 (resolved 2026-11-12).** This v1.0 is the **seed specification**: the agent-operated readiness program, its requirements PM-R001–PM-R022, workstreams W0–W6, experiments E1–E6 and gates PM-G0–PM-G6. [v1.1](ALiX_PRE_2_0_MASTER_PRD_v1.1.md) is the **live variant** and supersedes this document for execution. It carries §§2–10 and this document's requirement set forward, amends only the §1 sequencing to put LEAN measurement first, and adds §11 (LEAN architecture-first optimization, `LEAN-*` identifiers) and §12 (JARVIS-style intent routing and governed capability expansion). ADR-0017 and the LEAN baseline cite v1.1. Complete design work, status changes and gate decisions belong in v1.1; a shared §§1–10 correction must be applied to v1.1 first and reflected here only as a seed-level correction, so the two do not diverge into competing active designs.
 
 ## 1. Executive summary
 
@@ -145,13 +147,14 @@ These are proposed outputs, not files claimed to exist.
 3. **No automatic predecessor closure:** v1.2 remains independently controlled until closed with actual evidence.
 4. **No new authority subsystem:** reuse existing owners and require a boundary review for any new interface.
 5. **No speculative science claims:** MNLM concepts are engineering hypotheses; external benchmark gains are not ALiX results.
-6. **No release-status laundering:** Gate B HOLD, F1-E QUALIFIED (as last observed in the predecessor), Q13 publication HOLD and production simplification HOLD are historical snapshots, not assertions about future gate state. Resolve current statuses from authoritative records before each decision.
+6. **No release-status laundering:** the predecessor records Gate B as `CLOSED-WITH-WAIVER (historical)` with PRE-R015–R019 open, F1-E as a historical 8/8 cost-mechanism report (not full-baseline or Gate E qualification), and Q13 publication plus production simplification as HOLD. These are historical snapshots, not assertions about future gate state. Resolve current statuses from authoritative records before each decision. *Pending sync:* v1.1 §9 decision 6 still carries the pre-reconciliation wording (`Gate B HOLD`, `F1-E QUALIFIED`); that is a frozen-document remainder, not a differing rule. Update it in v1.1 when the freeze lifts.
 7. **No implied implementation authorization:** this PRD specifies the next program; code changes, promotions, merges, deployment and publication require separately delegated authority.
 
 ## 10. Traceability
 
 - Parent product direction: `docs/prd/ALiX_MASTER_PRD_v2.9.md`, especially §§31–33.
-- Predecessor: `ALiX_PRE_2_0_HARNESS_PRD_v1.2.md` and its audit/acceptance evidence; confirm exact canonical path during W0.
-- Prior draft: `ALiX_PRE_2_0_HARNESS_PRD_v1.3.md`, used as a source for research requirements, not as a second active PRD.
+- Predecessor: [`../ALiX_PRE_2_0_HARNESS_PRD_v1.1.md`](../ALiX_PRE_2_0_HARNESS_PRD_v1.1.md) — canonical path is settled (filename v1.1, internal version 1.2; the file's own version-identification note explains why). W0 still reconciles its acceptance evidence; the path itself is not an open question.
+- Prior draft: [`archive/ALiX_PRE_2_0_HARNESS_PRD_v1.3_superseded-draft.md`](archive/ALiX_PRE_2_0_HARNESS_PRD_v1.3_superseded-draft.md), used as a source for research requirements, not as a second active PRD.
+- Live variant: [`ALiX_PRE_2_0_MASTER_PRD_v1.1.md`](ALiX_PRE_2_0_MASTER_PRD_v1.1.md) — supersedes this seed for execution; see the relationship note above.
 - Research: Harness² (Google Research); Evan Kormos (progressive supervision); Chris Royse (grounded skills/uncertainty/hypothesis ideas). Claims from talks and external experiments require independent ALiX verification.
 - Governance: approved Q01–Q15 and existing security, policy, audit and release authorities take precedence over this draft.
