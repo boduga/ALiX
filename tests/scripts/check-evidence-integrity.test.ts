@@ -652,14 +652,19 @@ describe("check-evidence-integrity: index ordering", () => {
 });
 
 describe("check-evidence-integrity: reflexivity", () => {
-  it("fails when the checker and the manifest share a commit", () => {
+  // The rule asks a question about EDIT history: did one change alter the rule
+  // and the data it judges? Both directions matter, and the bootstrap one is
+  // what bit the repository: the checker and its manifest were necessarily
+  // added in the same commit, so the rule failed on its own creation, on `main`,
+  // before any evidence had a chance to be laundered.
+  it("passes when the checker and the manifest are created together", () => {
     const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
     withRepo(
       [
         { message: "generator", files: { [GEN]: files[GEN] } },
         { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
         {
-          message: "rule and data edited together",
+          message: "bootstrap: the rule and its first manifest",
           files: {
             "scripts/check-evidence-integrity.mjs": "// fixture copy\n",
             [MANIFEST]: manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] }),
@@ -668,10 +673,62 @@ describe("check-evidence-integrity: reflexivity", () => {
       ],
       (dir) => {
         const r = run(dir);
-        assert.equal(r.status, 1, r.stdout);
-        assert.ok(checks(r).includes("reflexivity"));
+        assert.ok(!checks(r).includes("reflexivity"), r.stdout);
       },
     );
+  });
+
+  it("fails when an existing manifest is edited in the checker's commit", () => {
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const first = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    withRepo(
+      [
+        { message: "generator", files: { [GEN]: files[GEN] } },
+        { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+        { message: "bootstrap: the rule and its first manifest", files: { "scripts/check-evidence-integrity.mjs": "// fixture copy\n", [MANIFEST]: first } },
+        {
+          message: "rule and data edited together",
+          files: {
+            "scripts/check-evidence-integrity.mjs": "// fixture copy, edited\n",
+            [MANIFEST]: JSON.stringify({ ...first, $comment: "edited" }, null, 2),
+          },
+        },
+      ],
+      (dir) => {
+        const r = run(dir);
+        assert.equal(r.status, 1, r.stdout);
+        assert.ok(checks(r).includes("reflexivity"), r.stdout);
+      },
+    );
+  });
+
+  it("fails when an artifact is re-added alongside a rule edit", () => {
+    // Deleting and re-adding a path is not a bootstrap: the delete is in its
+    // history, so the sole-commit carve-out must not cover it.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const dir = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+      {
+        message: "bootstrap: the rule and its first manifest",
+        files: {
+          "scripts/check-evidence-integrity.mjs": "// fixture copy\n",
+          [MANIFEST]: manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] }),
+        },
+      },
+    ]);
+    try {
+      git(dir, ["rm", "-q", ARTIFACT]);
+      git(dir, ["commit", "-q", "-m", "delete the artifact"]);
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, edited\n");
+      writeFileSync(join(dir, ARTIFACT), JSON.stringify({ a: 2 }, null, 2));
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "re-add the artifact while editing the rule"]);
+      const r = run(dir);
+      assert.ok(checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

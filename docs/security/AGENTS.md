@@ -76,6 +76,14 @@ describes is qualified or released.
   that matches nothing, or a count that drifts from the pin, fails the build.
   Coverage, content, reflexivity, and recompute are current-tree properties and
   cannot be excepted at all.
+- **Reflexivity is about edits, not creation.** A commit that changes the checker
+  together with an already-existing manifest (or an artifact it judges) is the
+  same failure one level up and cannot be excepted. A path whose entire history
+  is that one commit, however, is a bootstrap: there was no earlier data to
+  launder, and the rule would otherwise fail on its own creation — which is
+  exactly what happened when the checker and its first manifest landed in
+  `c8027ac7`. Deleting and re-adding a path is not a bootstrap; the delete stays
+  in its history.
 - **Order is a social control.** It removes the cheap one-commit edit and leaves
   a three-commit edit visible as a pattern in history. It says nothing about
   whether an artifact's numbers are right, and it is not independent

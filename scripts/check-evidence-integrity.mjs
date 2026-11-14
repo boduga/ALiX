@@ -197,6 +197,23 @@ function lastCommit(relPath) {
   }
 }
 
+/**
+ * True when `commit` is the ONLY commit in a path's entire history — i.e. the
+ * commit that created the file and the last that touched it.
+ *
+ * Reflexivity asks a question about edit history: did the same change alter the
+ * rule and the data it judges? At bootstrap there is no earlier data, so there
+ * is nothing to launder. Counting every commit that touches the path (not just
+ * `--diff-filter=A`) is what separates the honest first commit from
+ * delete-then-re-add: a re-add alongside a rule edit still has the delete in its
+ * history, so it is not a bootstrap and still fails.
+ */
+function isSoleCommitOf(relPath, commit) {
+  if (!commit) return false;
+  const count = Number(gitText(["rev-list", "--count", commit, "--", relPath]) || 0);
+  return count === 1;
+}
+
 /** True when `ancestor` is reachable from `descendant`. A commit is its own ancestor. */
 function isAncestor(ancestor, descendant) {
   const result = spawnSync("git", ["merge-base", "--is-ancestor", ancestor, descendant], {
@@ -649,7 +666,10 @@ for (const artifact of artifacts) {
 const selfCommit = lastCommit("scripts/check-evidence-integrity.mjs");
 if (selfCommit) {
   const manifestCommit = lastCommit(manifestRepoPath);
-  if (manifestCommit && manifestCommit === selfCommit) {
+  // Both files created together is a bootstrap, not an edit: there was no
+  // earlier manifest for the rule to launder. The rule exists to catch a change
+  // that alters the rule AND the data, which is only possible once data exists.
+  if (manifestCommit && manifestCommit === selfCommit && !isSoleCommitOf(manifestRepoPath, manifestCommit)) {
     add(
       "reflexivity",
       manifestRepoPath,
@@ -659,7 +679,7 @@ if (selfCommit) {
   }
   for (const artifact of artifacts) {
     if (!artifact || typeof artifact.path !== "string") continue;
-    if (lastCommit(artifact.path) === selfCommit) {
+    if (lastCommit(artifact.path) === selfCommit && !isSoleCommitOf(artifact.path, selfCommit)) {
       add("reflexivity", artifact.path, "shared its last commit with the checker that judges it");
     }
   }
