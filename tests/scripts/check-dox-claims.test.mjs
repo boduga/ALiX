@@ -229,6 +229,68 @@ test("a .gitmodules ignore rule cannot make the audit vacuous", () => {
   }
 });
 
+test("a gitlink-only branch is counted, not read as an unchanged range", () => {
+  // The companion test above keeps an ordinary file changed alongside the
+  // gitlink, so its verdict is green whether or not the flag is present: one
+  // visible file is still a non-empty change set. That made it a pin on the
+  // fixture, not on the checker.
+  //
+  // The flag's real effect shows on a branch whose ONLY change is a gitlink
+  // bump -- the normal shape of a dependency checkout moving. Guarded, that is
+  // "1 file(s) changed, none a contract" (a complete answer: it edits no
+  // contract). Unguarded, the change set is EMPTY while base !== head, and the
+  // audit lands on the VACUOUS refusal. Both are non-green-or-green in the wrong
+  // direction, so the assertion is the exact change-set size the checker reports.
+  const dir = mkdtempSync(join(tmpdir(), "alix-dox-gitlink-only-"));
+  const run = (...args) => {
+    const r = spawnSync("git", args, { cwd: dir, encoding: "utf8", env: GIT_ENV });
+    if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+    return r.stdout.trim();
+  };
+  try {
+    run("init", "--quiet", "--initial-branch=main");
+    write(dir, "README.md", "# fixture\n");
+    write(
+      dir,
+      ".gitmodules",
+      '[submodule "contracts"]\n\tpath = contracts\n\turl = https://example.invalid/contracts.git\n\tignore = all\n',
+    );
+    run("add", "-A");
+    run("commit", "--quiet", "-m", "base");
+    const base = run("rev-parse", "HEAD");
+    run("update-index", "--add", "--cacheinfo", `160000,${base},contracts`);
+    run("commit", "--quiet", "-m", "base with gitlink");
+    const baseWithLink = run("rev-parse", "HEAD");
+
+    // Head: NOTHING but the gitlink moves.
+    const bump = run("commit-tree", run("rev-parse", "HEAD^{tree}"), "-m", "bump");
+    run("update-index", "--add", "--cacheinfo", `160000,${bump},contracts`);
+    run("commit", "--quiet", "-m", "head");
+    const head = run("rev-parse", "HEAD");
+
+    // Fixture validity: without the flag the range really is empty, and with it
+    // the range really is one file. A red result without both proves nothing.
+    const plain = spawnSync("git", ["diff", "--name-only", `${baseWithLink}...${head}`], {
+      cwd: dir,
+      encoding: "utf8",
+      env: GIT_ENV,
+    });
+    assert.equal(plain.stdout.trim(), "", "fixture must hide the ONLY change without the flag");
+
+    const result = spawnSync(
+      process.execPath,
+      [SCRIPT, "--json", "--base", baseWithLink, "--head", head],
+      { cwd: dir, encoding: "utf8", env: GIT_ENV },
+    );
+    const report = JSON.parse(result.stdout);
+    assert.equal(result.status, 0, JSON.stringify(report));
+    assert.equal(report.vacuous, false, "a gitlink bump must count as a change");
+    assert.equal(report.exitWhy, "1 file(s) changed, none a contract", report.exitWhy);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a replacement ref cannot hide an added contract claim", () => {
   // The DOX audit's scope is "lines the branch ADDS relative to base". A
   // replacement ref rewrites the base's tree, so the range diff can drop the

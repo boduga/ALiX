@@ -9,11 +9,13 @@ import {
   changedFiles,
   classifyEvidence,
   distReadiness,
+  gitSpawnOptions,
   hasHistoryBeyondRoot,
   resolveChangeSet,
   resolveChangeSetOutcome,
   selectAffectedTests,
   stepEnv,
+  stepSpawnOptions,
   tailLines,
   verdictOf,
 } from "../../scripts/preflight.mjs";
@@ -438,4 +440,25 @@ test("spawned steps inherit the replacement guard", () => {
   // `pnpm preflight` report PASS over a claim the branch does not contain.
   const env = stepEnv();
   assert.equal(env.GIT_NO_REPLACE_OBJECTS, "1");
+
+  // Asserting the helper alone never proved the child received it: deleting
+  // `env: stepEnv()` from the spawn left all 33 tests green, so the guard could
+  // regress silently. This pins the options `runStep` actually spawns with.
+  assert.equal(
+    stepSpawnOptions().env.GIT_NO_REPLACE_OBJECTS,
+    "1",
+    "runStep must spawn children with stepEnv(), not the ambient environment",
+  );
+});
+
+test("preflight's own git reads run with replacement objects disabled", () => {
+  // These are the options `git()` executes with. Without the guard a
+  // `B...HEAD` diff against a replaced base is empty and the uncommitted diff is
+  // empty too, so changedFiles() degrades to [] -- a branch's whole change set
+  // vanishing -- while every test stayed green.
+  assert.equal(
+    gitSpawnOptions().env.GIT_NO_REPLACE_OBJECTS,
+    "1",
+    "git() must disable replacement objects, not inherit the ambient environment",
+  );
 });

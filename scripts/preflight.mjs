@@ -70,13 +70,25 @@ export const DOC_EXTENSIONS = new Set([".md", ".markdown", ".txt", ".adoc", ".rs
  * replacement ref would let the change set describe a tree that is not the one
  * being pushed. Fail-closed means measuring real history, not the rewritten one.
  */
-function git(argv) {
-  return execFileSync("git", argv, {
+/**
+ * Spawn options for preflight's own git reads.
+ *
+ * Exported because these ARE the options `git()` executes with. Asserting a
+ * separately-exported env helper proves nothing about what git receives; a copy
+ * with this guard removed still passed every test while `changedFiles()`
+ * degraded to `[]` over a replaced base.
+ */
+export function gitSpawnOptions() {
+  return {
     cwd: ROOT,
     encoding: "utf8",
     maxBuffer: 1 << 28,
     env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" },
-  }).trim();
+  };
+}
+
+function git(argv) {
+  return execFileSync("git", argv, gitSpawnOptions()).trim();
 }
 
 function tryGit(argv) {
@@ -312,9 +324,15 @@ export function stepEnv() {
   return { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1", GIT_NO_REPLACE_OBJECTS: "1" };
 }
 
-function runStep(name, command, commandArgs, options = {}) {
-  const started = Date.now();
-  const result = spawnSync(command, commandArgs, {
+/**
+ * The spawn options for one child step.
+ *
+ * Exported so the wiring `runStep` actually uses is testable. Asserting
+ * `stepEnv().GIT_NO_REPLACE_OBJECTS === "1"` alone never proved the child
+ * received it: removing `env: stepEnv()` from the spawn left all 33 tests green.
+ */
+export function stepSpawnOptions(overrides = {}) {
+  return {
     cwd: ROOT,
     encoding: "utf8",
     stdio: "pipe",
@@ -322,7 +340,13 @@ function runStep(name, command, commandArgs, options = {}) {
     // hook -- reported PASS over a claim resolved from a replacement tree.
     env: stepEnv(),
     maxBuffer: 1 << 28,
-  });
+    ...overrides,
+  };
+}
+
+function runStep(name, command, commandArgs, options = {}) {
+  const started = Date.now();
+  const result = spawnSync(command, commandArgs, stepSpawnOptions());
   const durationMs = Date.now() - started;
   const stdout = result.stdout ?? "";
   const output = `${stdout}${result.stderr ?? ""}`.trim();

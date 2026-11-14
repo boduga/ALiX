@@ -718,7 +718,19 @@ if (recompute && generatorArtifacts.length) {
       continue;
     }
     try {
-      execFileSync(command, [generator], { cwd: root, encoding: "utf8", stdio: "pipe", timeout: 120_000 });
+      // A generator is a child process, and a parent's guard does not reach a
+      // child. `recompute: true` generators read history (that is usually the
+      // point of one), so an unguarded child would recompute against a
+      // replacement tree and certify a tree nobody committed. Measured: with
+      // the ambient environment, a generator writing `HEAD^{tree}` recorded the
+      // replaced tree while the real tree differed.
+      execFileSync(command, [generator], {
+        cwd: root,
+        encoding: "utf8",
+        stdio: "pipe",
+        timeout: 120_000,
+        env: gitEnv(),
+      });
       recomputeResults.push({ generator, ok: true });
     } catch (error) {
       const detail = (error && typeof error === "object" && "stderr" in error ? String(error.stderr) : String(error))

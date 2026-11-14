@@ -13,7 +13,7 @@
 // Run: pnpm test:node (compiled to dist/tests/scripts/check-evidence-integrity.test.js)
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -910,6 +910,147 @@ describe("check-evidence-integrity: recompute", () => {
       assert.equal(r.parsed?.recomputeSkipped, 1);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not trust a merge-base answer that a replacement ref rewrote", () => {
+    // The INDEX check asks `merge-base --is-ancestor` for an artifact that is
+    // committed on a different line of history than its manifest. Measured: a
+    // replacement ref whose synthetic commit adds the artifact's commit as a
+    // second parent makes that artifact read as an ancestor of the manifest,
+    // so a real "the index records a state that is not in its history" defect
+    // is certified `pass`. The `===` same-commit branch does not fire here
+    // (different commits), so ancestry is the only thing deciding the verdict.
+    //
+    // A first attempt used the SHARED-COMMIT defect instead and pinned nothing:
+    // that branch returns before ancestry is consulted, so removing the guard
+    // from `isAncestor` left the suite green. A pin has to make the guarded call
+    // the deciding one.
+    const files: Record<string, FileContents> = { [GEN]: "console.log('census');\n", [ARTIFACT]: { a: 1 } };
+    withRepo(
+      [
+        { message: "generator", files: { [GEN]: files[GEN] } },
+        { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+      ],
+      (dir) => {
+        const gitOut = (...args: string[]): string => {
+          const r = spawnSync("git", args, { cwd: dir, encoding: "utf8", env: unguardedGitEnv() });
+          if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+          return r.stdout.trim();
+        };
+        const generator = gitOut("rev-parse", "HEAD^");
+        const artifact = gitOut("rev-parse", "HEAD");
+
+        // The manifest is committed on a SIDE BRANCH forked from the generator,
+        // so the artifact is genuinely not in its history.
+        gitOut("checkout", "-q", "-b", "side", generator);
+        const manifestFiles: Record<string, FileContents> = {
+          [GEN]: files[GEN],
+          [ARTIFACT]: files[ARTIFACT],
+          [MANIFEST]: manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] }),
+        };
+        const manifestPath = join(dir, MANIFEST);
+        writeFileSync(manifestPath, JSON.stringify(manifestFiles[MANIFEST] as object, null, 2));
+        gitOut("add", "-A");
+        gitOut("commit", "-q", "-m", "manifest on a side branch");
+        const manifest = gitOut("rev-parse", "HEAD");
+        gitOut("checkout", "-q", "main");
+        gitOut("merge", "-q", "--no-ff", "-m", "merge side", "side");
+
+        // Fixture premise: the defect is real and reported before any
+        // substitution, and ancestry really says no.
+        const honest = run(dir);
+        assert.equal(honest.status, 1, honest.stdout);
+        assert.ok(checks(honest).includes("index"), `expected an index finding, got ${JSON.stringify(honest.parsed)}`);
+        assert.notEqual(
+          spawnSync("git", ["merge-base", "--is-ancestor", artifact, manifest], {
+            cwd: dir,
+            env: unguardedGitEnv(),
+          }).status,
+          0,
+          "fixture premise: the artifact is not an ancestor of the manifest",
+        );
+
+        // Synthetic manifest commit: same tree, original parent, PLUS the
+        // artifact's commit. Nothing about the real history changes, only what a
+        // ref resolves to.
+        const tree = gitOut("rev-parse", `${manifest}^{tree}`);
+        const manifestParent = gitOut("rev-parse", `${manifest}^`);
+        const synthetic = gitOut("commit-tree", tree, "-p", manifestParent, "-p", artifact, "-m", "synthetic manifest");
+        gitOut("replace", manifest, synthetic);
+        assert.equal(
+          spawnSync("git", ["merge-base", "--is-ancestor", artifact, manifest], {
+            cwd: dir,
+            env: unguardedGitEnv(),
+          }).status,
+          0,
+          "fixture premise: an unguarded merge-base now reads the replacement as a descent",
+        );
+
+        const r = run(dir);
+        assert.equal(r.status, 1, r.stdout);
+        assert.equal(r.parsed?.verdict, "fail", r.stdout);
+        assert.ok(checks(r).includes("index"), `expected an index finding, got ${JSON.stringify(r.parsed)}`);
+      },
+    );
+  });
+
+  it("runs a recompute generator without replacement objects enabled", () => {
+    // A generator is a child process; the checker's own guard does not reach it.
+    // A `recompute: true` generator that reads history would otherwise recompute
+    // against a replaced tree and certify a tree nobody committed. The fixture
+    // generator records the tree it sees, and the fixture replaces HEAD, so a
+    // leaked replacement is observable as a mismatch with the real tree.
+    const generatorBody = [
+      "import { execFileSync } from 'node:child_process';",
+      "import { writeFileSync } from 'node:fs';",
+      "const tree = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { encoding: 'utf8' }).trim();",
+      "writeFileSync(process.env.RECOMPUTE_OUT, tree + '\\n');",
+      "",
+    ].join("\n");
+    const files: Record<string, FileContents> = { [GEN]: generatorBody, [ARTIFACT]: { a: 1 } };
+    const manifest = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] }) as {
+      generators: { recompute: boolean; reason?: string }[];
+      generatorSha256: Record<string, string>;
+    };
+    manifest.generators[0].recompute = true;
+    delete manifest.generators[0].reason;
+    manifest.generatorSha256[GEN] = sha256(generatorBody);
+    const artifactsHead = repo([
+      { message: "generator", files: { [GEN]: generatorBody } },
+      { message: "artifact", files: { [ARTIFACT]: { a: 1 } } },
+      { message: "manifest", files: { [MANIFEST]: manifest } },
+    ]);
+    try {
+      const gitOut = (...args: string[]): string => {
+        const r = spawnSync("git", args, { cwd: artifactsHead, encoding: "utf8", env: unguardedGitEnv() });
+        if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+        return r.stdout.trim();
+      };
+      const head = gitOut("rev-parse", "HEAD");
+      const realTree = gitOut("rev-parse", `${head}^{tree}`);
+      const parentTree = gitOut("rev-parse", `HEAD^^{tree}`);
+      assert.notEqual(parentTree, realTree, "fixture premise: the two trees differ");
+      // Replace HEAD with a commit carrying the parent's tree; an unguarded
+      // child then reports `parentTree`, not `realTree`.
+      const synthetic = gitOut("commit-tree", parentTree, "-p", "HEAD^", "-m", "replaced head");
+      gitOut("replace", head, synthetic);
+      assert.equal(
+        spawnSync("git", ["rev-parse", `${head}^{tree}`], { cwd: artifactsHead, encoding: "utf8", env: unguardedGitEnv() }).stdout.trim(),
+        parentTree,
+        "fixture premise: an unguarded tree read sees the replacement",
+      );
+
+      const out = join(artifactsHead, "recompute-tree.txt");
+      const r = run(artifactsHead, ["--recompute"], { ...process.env, RECOMPUTE_OUT: out });
+      assert.equal(r.status, 0, r.stdout + r.stderr);
+      assert.equal(
+        readFileSync(out, "utf8").trim(),
+        realTree,
+        "the generator must see the real tree, not the replaced one",
+      );
+    } finally {
+      rmSync(artifactsHead, { recursive: true, force: true });
     }
   });
 

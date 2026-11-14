@@ -645,6 +645,47 @@ test("a submodule ignore rule cannot hide a post-review gitlink change from the 
   }
 });
 
+test("a gitlink bump after review is attributed to its evidence commit", () => {
+  // Three diffs decide this verdict: the digest, the post-review change check,
+  // and the per-evidence-commit attribution. Only the first two were pinned;
+  // dropping `--ignore-submodules=none` from `changedPathsInCommit` left 38/38
+  // green. The gate still exits 1 through the other two, so the loss is
+  // diagnostic -- the record stops naming which commit touched reviewed
+  // content -- and an unpinned diagnostic drifts until it is wrong silently.
+  const { root, base } = fixture();
+  try {
+    const sub = join(root, "subrepo-src");
+    mkdirSync(sub, { recursive: true });
+    runGit(sub, ["init", "-q"]);
+    runGit(sub, ["config", "user.name", "Review Evidence Test"]);
+    runGit(sub, ["config", "user.email", "review-evidence@example.invalid"]);
+    writeFile(sub, "inner.txt", "one\n");
+    const innerOne = commit(sub, "inner one");
+    writeFile(sub, "inner.txt", "two\n");
+    const innerTwo = commit(sub, "inner two");
+
+    runGit(root, ["-c", "protocol.file.allow=always", "submodule", "add", "-q", sub, "vendor/sub"]);
+    writeFile(root, ".gitmodules", '[submodule "vendor/sub"]\n\tpath = vendor/sub\n\turl = ' + sub + '\n\tignore = all\n');
+    runGit(root, ["add", ".gitmodules"]);
+    runGit(join(root, "vendor/sub"), ["checkout", "-q", innerOne]);
+    runGit(root, ["add", "vendor/sub"]);
+    const reviewedHead = commit(root, "sub at inner one");
+
+    const digest = digestFor(root, base, reviewedHead);
+    writeFile(root, "docs/reviews/PR-1111.json", evidenceFor(1111, reviewedHead, digest));
+    runGit(join(root, "vendor/sub"), ["checkout", "-q", innerTwo]);
+    runGit(root, ["add", "vendor/sub"]);
+    const evidenceHead = commit(root, "bump submodule and record evidence");
+
+    const result = checker(root, ["--pr", "1111", "--base", base, "--head", evidenceHead]);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stderr, new RegExp(`evidence commit ${evidenceHead.slice(0, 12)}`));
+    assert.match(result.stderr, /also changed reviewed content: vendor\/sub/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("a replacement ref cannot change the digest of a commit", () => {
   // `git replace` makes a ref resolve to a different commit without changing
   // the real history, so a replacement ref would let the digest describe a tree

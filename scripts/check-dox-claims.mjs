@@ -69,8 +69,10 @@ const fails = (code, msg) => {
 
 const resolveRef = (ref) => {
   try {
-    // The head-tree read below resolves through this, so a replacement ref here
-    // hands the whole audit a synthetic tree. Guarded like every other read.
+    // `rev-parse <ref>^{commit}` is measured NOT replacement-sensitive, so this
+    // guard is consistency rather than protection: the substitution is caught by
+    // the guarded `ls-tree`/`show`/`grep` reads that resolve the head tree, not
+    // by the SHA lookup that names it.
     return execFileSync("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], {
       encoding: "utf8",
       env: gitEnv(),
@@ -163,20 +165,27 @@ const codeHas = (ident) => {
  * drives the scan, and the stale-HEAD file reads below are only a problem when
  * a file has uncommitted edits — see `readFile` below, which prefers the disk
  * copy for exactly that case.
+ *
+ * ONE builder for every diff this audit runs. `--ignore-submodules=none` lives
+ * here rather than at each call site so a new diff cannot be added without the
+ * guard, and so the behavioral pin in
+ * `tests/scripts/check-dox-claims.test.mjs` (a gitlink-only branch must report a
+ * one-file change set, not a vacuous pass) covers the AGENTS.md read as well as
+ * the `--name-only` read. Removing the flag from this string is the only edit
+ * that can drop it, and that edit fails the test.
  */
+const guardedDiff = (args) => `git diff --ignore-submodules=none ${args}`;
+
 let diff;
 try {
-  diff = sh(`git diff --ignore-submodules=none ${baseSha}...${headSha} -- '*AGENTS.md'`);
+  diff = sh(guardedDiff(`${baseSha}...${headSha} -- '*AGENTS.md'`));
 } catch {
   fails(2, "git diff failed between the resolved base and head");
 }
 
 let worktreeDiff = "";
 try {
-  worktreeDiff = sh(
-    `git diff --ignore-submodules=none HEAD -- '*AGENTS.md'; ` +
-      `git diff --cached --ignore-submodules=none HEAD -- '*AGENTS.md'`,
-  );
+  worktreeDiff = sh(`${guardedDiff("HEAD -- '*AGENTS.md'")}; ${guardedDiff("--cached HEAD -- '*AGENTS.md'")}`);
 } catch {
   worktreeDiff = "";
 }
@@ -197,9 +206,9 @@ diff = `${diff}\n${worktreeDiff}`;
 const anyChangedFiles = (() => {
   const names = new Set();
   for (const cmd of [
-    `git diff --name-only --ignore-submodules=none ${baseSha}...${headSha}`,
-    "git diff --name-only --ignore-submodules=none HEAD",
-    "git diff --cached --name-only --ignore-submodules=none HEAD",
+    guardedDiff(`--name-only ${baseSha}...${headSha}`),
+    guardedDiff("--name-only HEAD"),
+    guardedDiff("--cached --name-only HEAD"),
   ]) {
     try {
       for (const line of sh(cmd).split("\n")) if (line.trim()) names.add(line.trim());
@@ -221,10 +230,7 @@ const anyChangedFiles = (() => {
  * contract — the same class of bug as verifying a stash-isolated tree.
  */
 const dirtyFiles = new Set(
-  sh(
-    `git diff --name-only --ignore-submodules=none HEAD -- '*AGENTS.md'; ` +
-      `git diff --cached --name-only --ignore-submodules=none HEAD -- '*AGENTS.md'`,
-  )
+  sh(`${guardedDiff("--name-only HEAD -- '*AGENTS.md'")}; ${guardedDiff("--cached --name-only HEAD -- '*AGENTS.md'")}`)
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean),
