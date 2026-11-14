@@ -72,8 +72,23 @@ const sha256 = (contents: FileContents): string =>
     .update(typeof contents === "string" ? contents : JSON.stringify(contents, null, 2))
     .digest("hex");
 
+/**
+ * Env for fixture git calls that must OBSERVE a replacement ref.
+ *
+ * `GIT_NO_REPLACE_OBJECTS` is DELETED, not blanked: git treats an empty value as
+ * enabled, so `: ""` silently keeps the guard on (measured). The key must be
+ * absent. This matters because a parent can export the guard into every child --
+ * preflight does exactly that through `stepEnv()` -- and a fixture that cannot
+ * see its own substitution asserts nothing.
+ */
+function unguardedGitEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env, ...extra };
+  delete env.GIT_NO_REPLACE_OBJECTS;
+  return env;
+}
+
 function git(dir: string, args: string[]): void {
-  const result = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+  const result = spawnSync("git", args, { cwd: dir, encoding: "utf8", env: unguardedGitEnv() });
   if (result.status !== 0) {
     throw new Error(`git ${args.join(" ")} failed in ${dir}: ${result.stderr || result.error}`);
   }
@@ -105,9 +120,10 @@ function repo(steps: Step[]): string {
   return dir;
 }
 
-function run(dir: string, extra: string[] = []): FindResult {
+function run(dir: string, extra: string[] = [], env: NodeJS.ProcessEnv = process.env): FindResult {
   const result = spawnSync(process.execPath, [SCRIPT, "--root", dir, "--json", ...extra], {
     encoding: "utf-8",
+    env,
   });
   let parsed: FindResult["parsed"] = null;
   try {
@@ -960,6 +976,95 @@ describe("check-evidence-integrity: empty manifest", () => {
         assert.equal(r.status, 1, r.stdout);
         assert.equal(r.parsed?.verdict, "not_checked");
         assert.match(r.stdout, /order vacuous/);
+      },
+    );
+  });
+});
+
+describe("check-evidence-integrity: replacement refs", () => {
+  it("cannot certify an artifact that shares its generator's commit", () => {
+    // `git replace` makes a ref resolve to a commit nobody committed, so
+    // `lastCommit` -- the check's whole input -- can be rewritten.
+    //
+    // The substitution has to do real work to be a fixture at all: replacing a
+    // commit with one carrying the SAME tree changes no `git log -- <path>`
+    // answer, so that construction proves nothing. The defect is an artifact
+    // and its generator sharing one commit; the synthetic replacement keeps the
+    // artifact but restores the generator's previous blob. Now the generator's
+    // last commit moves back to the parent and an unguarded `lastCommit` no
+    // longer sees the pair as shared -- the exact defect this checker exists to
+    // catch, reported as `pass`. The fixture asserts the substitution is real
+    // before asserting the verdict is still `fail`.
+    const files: Record<string, FileContents> = { [GEN]: "console.log('census');\n", [ARTIFACT]: { a: 1 } };
+    const oldGenerator = "console.log('previous census');\n";
+    withRepo(
+      [
+        { message: "generator", files: { [GEN]: oldGenerator } },
+        {
+          message: "generator change and artifact together",
+          files: {
+            ...files,
+            [MANIFEST]: manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] }),
+          },
+        },
+      ],
+      (dir) => {
+        const gitOut = (...args: string[]): string => {
+          const r = spawnSync("git", args, { cwd: dir, encoding: "utf8", env: unguardedGitEnv() });
+          if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+          return r.stdout.trim();
+        };
+        const realHead = gitOut("rev-parse", "HEAD");
+        const parent = gitOut("rev-parse", "HEAD^");
+        assert.equal(
+          gitOut("log", "-1", "--format=%H", "--", ARTIFACT),
+          realHead,
+          "fixture premise: the artifact last changed at the shared commit",
+        );
+
+        // Rebuild the head's tree with the generator restored to its parent
+        // blob, then point a replacement ref at that synthetic commit. The
+        // artifact and manifest keep their real blobs, so the artifact still
+        // dates to the real head; only the generator's answer moves back.
+        //
+        // A scratch index does the rebuild: `mktree` refuses nested paths, and
+        // touching the fixture's own index would change what the checker reads.
+        const scratchIndex = join(dir, ".git", "synthetic-index");
+        const scratch = (...args: string[]) => {
+          const r = spawnSync("git", args, {
+            cwd: dir,
+            encoding: "utf8",
+            env: unguardedGitEnv({ GIT_INDEX_FILE: scratchIndex }),
+          });
+          if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+          return r.stdout.trim();
+        };
+        const oldGeneratorBlob = gitOut("rev-parse", `${parent}:${GEN}`);
+        scratch("read-tree", realHead);
+        scratch("update-index", "--cacheinfo", `100644,${oldGeneratorBlob},${GEN}`);
+        const syntheticTree = scratch("write-tree");
+        assert.notEqual(syntheticTree, gitOut("rev-parse", `${realHead}^{tree}`), "fixture must rebuild the tree");
+        const synthetic = gitOut("commit-tree", syntheticTree, "-p", parent, "-m", "synthetic");
+
+        // Fixture validity: the substitution really rewrites what an unguarded
+        // `git log -1 -- <path>` reports for the generator -- and therefore
+        // hides the shared commit -- while leaving the artifact alone.
+        gitOut("replace", realHead, synthetic);
+        assert.equal(
+          gitOut("log", "-1", "--format=%H", "--", GEN),
+          parent,
+          "fixture must move the generator's last commit back to the parent",
+        );
+        assert.equal(
+          gitOut("log", "-1", "--format=%H", "--", ARTIFACT),
+          realHead,
+          "fixture must leave the artifact's last commit at the real head",
+        );
+
+        const r = run(dir);
+        assert.equal(r.status, 1, r.stdout);
+        assert.ok(checks(r).includes("order"), `expected an order finding, got ${JSON.stringify(r.parsed)}`);
+        assert.match(r.stdout, /shared its last commit/);
       },
     );
   });

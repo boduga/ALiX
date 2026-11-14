@@ -55,10 +55,15 @@ derived path from the head commit.
   `scripts/preflight.mjs` (whether typecheck and tests run),
   `.githooks/pre-push` (whether preflight runs at all, including its
   `merge-base` base selection — guarding only the diff that follows let a
-  replacement ref hand preflight a rewritten base), and the two advisory gates
+  replacement ref hand preflight a rewritten base), `scripts/check-evidence-integrity.mjs`
+  (which commit last touched an artifact, ancestry, and commit existence — the
+  reads that decide *which history exists* at all), and the two advisory gates
   that read the change set as their whole input: `scripts/check-pr-scope.mjs`
   (which areas a PR touches) and `scripts/check-dox-claims.mjs` (lines the
-  branch adds). A gate that omits the flag is its own false green — preflight
+  branch adds). A parent guard does not reach a child: preflight exports
+  `stepEnv()` so the `check:dox` and `check:evidence` steps it spawns resolve
+  the same history it does, because a guarded `git()` in the parent made a
+  child that reads git for itself look protected when it was not. A gate that omits the flag is its own false green — preflight
   read a gitlink-only branch as documentation-only and printed `Preflight OK`,
   the pre-push hook exited 0 before preflight ever started, and both advisory
   gates reported on a substituted diff.
@@ -71,7 +76,10 @@ derived path from the head commit.
   emits with `--cc`) and rejects a rename/copy status outright. A first-byte
   check for `:` is not that test: a *path* may begin with `:` too, so two
   renames — one colon-prefixed target and one colon-prefixed source — put a path
-  in an even position and were accepted, mis-pairing two trees identically.
+  in an even position and were accepted, mis-pairing two trees identically. The
+  grammar is pinned to the exact colon and `::` arity git emits, so a
+  *near*-grammar field — right prefix, wrong field count — is rejected instead
+  of matching a looser pattern.
   `--no-renames` stays pinned on every invocation so dropping it fails loudly
   instead of quietly widening what the digest covers.
 - **What the digest still does not bind.** It binds tree content, not the

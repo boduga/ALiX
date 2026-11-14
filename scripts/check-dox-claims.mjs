@@ -23,6 +23,15 @@
  * Scope: only lines the branch ADDS relative to `--base`. Existing claims are
  * the base's responsibility — this gates what a change introduces.
  *
+ * Both change-set deletions apply to every git read here (see `gitEnv` and the
+ * `--ignore-submodules=none` on each diff): without them the audit runs over a
+ * tree nobody pushed. `.gitmodules` `ignore = all` drops the gitlink record, so
+ * a gitlink-only branch read as "files changed, none a contract" — a green that
+ * audited nothing. `git replace` rewrites the base's tree, so an added contract
+ * line vanished from the range diff. Either one turns this checker into a
+ * vacuous pass rather than a missing one, which is the failure that reads
+ * exactly like success.
+ *
  * Exit codes:
  *   0  every claim token resolves
  *   1  one or more claims are unbacked (reported)
@@ -51,7 +60,8 @@ const writeBaseline = args.includes("--write-baseline");
 // enough for anyChangedFiles to be non-empty and the run to report CLEAN. That
 // is a false pass, not a missing check, so the flag belongs on the reads and not
 // on some later guard.
-const sh = (cmd) => execSync(cmd, { encoding: "utf8", maxBuffer: 1 << 28, env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" } });
+const gitEnv = () => ({ ...process.env, GIT_NO_REPLACE_OBJECTS: "1" });
+const sh = (cmd) => execSync(cmd, { encoding: "utf8", maxBuffer: 1 << 28, env: gitEnv() });
 const fails = (code, msg) => {
   console.error(asJson ? JSON.stringify({ error: msg, exitCode: code }) : `ERROR: ${msg}`);
   process.exit(code);
@@ -59,8 +69,11 @@ const fails = (code, msg) => {
 
 const resolveRef = (ref) => {
   try {
+    // The head-tree read below resolves through this, so a replacement ref here
+    // hands the whole audit a synthetic tree. Guarded like every other read.
     return execFileSync("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], {
       encoding: "utf8",
+      env: gitEnv(),
     }).trim();
   } catch {
     return null;
@@ -100,7 +113,10 @@ const globMatch = (pattern) => {
 };
 const pathExists = (p) => {
   try {
-    execFileSync("git", ["cat-file", "-e", `${headSha}:${p}`], { stdio: "ignore" });
+    // An unguarded `cat-file -e` reports a file PRESENT when a replacement ref
+    // adds it to a synthetic head tree, so a contract naming a file the branch
+    // does not contain reported "resolve". Same guard as the diff reads.
+    execFileSync("git", ["cat-file", "-e", `${headSha}:${p}`], { stdio: "ignore", env: gitEnv() });
     return true;
   } catch {
     return false;
@@ -150,14 +166,17 @@ const codeHas = (ident) => {
  */
 let diff;
 try {
-  diff = sh(`git diff ${baseSha}...${headSha} -- '*AGENTS.md'`);
+  diff = sh(`git diff --ignore-submodules=none ${baseSha}...${headSha} -- '*AGENTS.md'`);
 } catch {
   fails(2, "git diff failed between the resolved base and head");
 }
 
 let worktreeDiff = "";
 try {
-  worktreeDiff = sh(`git diff HEAD -- '*AGENTS.md'; git diff --cached HEAD -- '*AGENTS.md'`);
+  worktreeDiff = sh(
+    `git diff --ignore-submodules=none HEAD -- '*AGENTS.md'; ` +
+      `git diff --cached --ignore-submodules=none HEAD -- '*AGENTS.md'`,
+  );
 } catch {
   worktreeDiff = "";
 }
@@ -178,9 +197,9 @@ diff = `${diff}\n${worktreeDiff}`;
 const anyChangedFiles = (() => {
   const names = new Set();
   for (const cmd of [
-    `git diff --name-only ${baseSha}...${headSha}`,
-    "git diff --name-only HEAD",
-    "git diff --cached --name-only HEAD",
+    `git diff --name-only --ignore-submodules=none ${baseSha}...${headSha}`,
+    "git diff --name-only --ignore-submodules=none HEAD",
+    "git diff --cached --name-only --ignore-submodules=none HEAD",
   ]) {
     try {
       for (const line of sh(cmd).split("\n")) if (line.trim()) names.add(line.trim());
@@ -202,7 +221,10 @@ const anyChangedFiles = (() => {
  * contract — the same class of bug as verifying a stash-isolated tree.
  */
 const dirtyFiles = new Set(
-  sh(`git diff --name-only HEAD -- '*AGENTS.md'; git diff --cached --name-only HEAD -- '*AGENTS.md'`)
+  sh(
+    `git diff --name-only --ignore-submodules=none HEAD -- '*AGENTS.md'; ` +
+      `git diff --cached --name-only --ignore-submodules=none HEAD -- '*AGENTS.md'`,
+  )
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean),

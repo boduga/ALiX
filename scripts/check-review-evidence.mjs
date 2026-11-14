@@ -145,7 +145,8 @@ export function canonicalDiffArgs(base, head) {
  * Matching the whole shape the field must have is what makes the check
  * falsifiable.
  */
-const RAW_META_RE = /^::?[0-7]{6}(?: [0-7]{6}){1,2}(?: [0-9a-f]{40,}){2,3} [A-Z]{1,3}[0-9]{0,3}$/;
+const RAW_META_RE =
+  /^(?::[0-7]{6} [0-7]{6}(?: [0-9a-f]{40,}){2}|::[0-7]{6}(?: [0-7]{6}){2}(?: [0-9a-f]{40,}){3}) [A-Z]{1,3}[0-9]{0,3}$/;
 
 /**
  * Canonicalize raw-diff output into a stable byte string.

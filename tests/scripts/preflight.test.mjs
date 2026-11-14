@@ -13,6 +13,7 @@ import {
   resolveChangeSet,
   resolveChangeSetOutcome,
   selectAffectedTests,
+  stepEnv,
   tailLines,
   verdictOf,
 } from "../../scripts/preflight.mjs";
@@ -428,4 +429,13 @@ test("the mirrored-path lookup keeps every test registered at one key", () => {
   const tests = [fixture("security/lock.test.ts"), fixture("security/lock.vitest.ts")];
   const { selected } = selectAffectedTests(["src/security/lock.ts"], tests);
   assert.deepEqual(selected, ["tests/security/lock.test.ts", "tests/security/lock.vitest.ts"]);
+});
+
+test("spawned steps inherit the replacement guard", () => {
+  // preflight's own git() is guarded, so a child that reads git for itself
+  // looked protected and was not: `check:dox` resolves the head tree and
+  // `check:evidence` reads history. Measured end-to-end, a replacement ref made
+  // `pnpm preflight` report PASS over a claim the branch does not contain.
+  const env = stepEnv();
+  assert.equal(env.GIT_NO_REPLACE_OBJECTS, "1");
 });

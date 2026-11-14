@@ -147,12 +147,12 @@ jobs:
         run: |
           set -eu
           sha256sum --check --strict <<'PINS'
-          32bc75d5e105c172a166e75505f4d5e309452ea519fab956e69284aec2e0a4d7  scripts/check-evidence-integrity.mjs
-          e2c918145e42713efdf2fc43eba34a1ba021908fc46969cbc1037ba896f7b472  scripts/check-dox-claims.mjs
+          9dd926e2497ade39819a238d87de097b3aa5ae95b84ab09be04d34eb3f81fca1  scripts/check-evidence-integrity.mjs
+          b29947041a1ea7292417cc2ec215f1f6b0342d82df16b24e72f030772e08b8e3  scripts/check-dox-claims.mjs
           4e070c37815eeb36cabd7c48e49093247282d3f924dad4598c13b3178296550a  scripts/check-staleness.mjs
-          ad9b3e549c92a15b4da7a0daa553de7de75402e87b44fbd2f568f4fa16bce343  scripts/check-pr-scope.mjs
-          8f04f0b1a6728522d2615d8b60181fa9acea2ffbbb8b8ec3cc6c1401cdab02d5  scripts/check-review-evidence.mjs
-          04bd54790fa7682ce8b17e9b29c9dd60880faafd56c62613d5d994ec62a5a9d5  scripts/preflight.mjs
+          f4969a27fe8d5154779f7878a927bbdb6fd72c01ac06f127d85f40606ffc3566  scripts/check-pr-scope.mjs
+          59b7aac8e0880bdca43f38366ce9f38d0b69023bb76782280a592344d1bbafc6  scripts/check-review-evidence.mjs
+          6eb3b0c92648e588271c3961a791cd9147d25f6658c591d40c56515345970999  scripts/preflight.mjs
           5c2b1716da58138c06d64c230f661f03506681d181500e365290171be325ab74  .githooks/pre-push
           PINS
       #

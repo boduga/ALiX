@@ -375,7 +375,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       // area while still showing one that happens to differ -- the run then
       // passes a declaration that does not cover the real change. The change set
       // is the whole input to this check, so it must not be substitutable.
-      files = execFileSync("git", ["diff", "--name-only", `${base}...HEAD`], {
+      // `--ignore-submodules=none` for the same reason the other change-set
+      // gates carry it: `.gitmodules` `ignore = all` (repository-controlled)
+      // drops gitlink records, so a docs gitlink could be missing from the
+      // scope this check judges.
+      files = execFileSync("git", ["diff", "--name-only", "--ignore-submodules=none", `${base}...HEAD`], {
         encoding: "utf8",
         env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" },
       })

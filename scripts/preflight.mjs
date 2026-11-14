@@ -300,13 +300,27 @@ export function distReadiness(selected, changed, root = ROOT) {
 
 const steps = [];
 
+/**
+ * Environment for every child step preflight spawns.
+ *
+ * Exported because the guard it carries is the thing under test: preflight's own
+ * `git()` is guarded, which makes a child that reads git for itself look
+ * protected when it is not. `check:dox` resolves the head tree and
+ * `check:evidence` reads history, so both need the flag in their environment.
+ */
+export function stepEnv() {
+  return { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1", GIT_NO_REPLACE_OBJECTS: "1" };
+}
+
 function runStep(name, command, commandArgs, options = {}) {
   const started = Date.now();
   const result = spawnSync(command, commandArgs, {
     cwd: ROOT,
     encoding: "utf8",
     stdio: "pipe",
-    env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" },
+    // Without `stepEnv()` here, `pnpm preflight` -- and therefore the pre-push
+    // hook -- reported PASS over a claim resolved from a replacement tree.
+    env: stepEnv(),
     maxBuffer: 1 << 28,
   });
   const durationMs = Date.now() - started;

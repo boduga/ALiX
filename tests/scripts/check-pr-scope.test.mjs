@@ -343,6 +343,11 @@ test("a replacement ref cannot hide a touched area from the change set", () => {
   // changed while still listing one that happens to differ -- the declared scope
   // then covers what the diff shows and the check passes a diff it never saw.
   const dir = mkdtempSync(join(tmpdir(), "alix-scope-replace-"));
+  // Unguarded on purpose: this fixture creates a replacement ref and must then
+  // observe it hide the src change. A parent can export the guard into every
+  // child (preflight does, via `stepEnv()`), and the key must be DELETED rather
+  // than blanked -- git treats an empty `GIT_NO_REPLACE_OBJECTS` as enabled, so
+  // `: ""` keeps the guard on and the fixture would assert nothing.
   const env = {
     ...process.env,
     GIT_AUTHOR_NAME: "scope-test",
@@ -352,6 +357,7 @@ test("a replacement ref cannot hide a touched area from the change set", () => {
     GIT_CONFIG_GLOBAL: "/dev/null",
     GIT_CONFIG_SYSTEM: "/dev/null",
   };
+  delete env.GIT_NO_REPLACE_OBJECTS;
   const run = (...args) => {
     const r = spawnSync("git", args, { cwd: dir, encoding: "utf8", env });
     if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
@@ -415,6 +421,89 @@ test("a replacement ref cannot hide a touched area from the change set", () => {
     const result = runCheck();
     assert.equal(result.status, 1, result.stdout + result.stderr);
     assert.match(result.stdout + result.stderr, /src/, "the real change must be classified, not the substituted one");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a .gitmodules ignore rule cannot hide a touched docs area", () => {
+  // `.gitmodules` with `ignore = all` is repository-controlled and drops every
+  // gitlink record unless `--ignore-submodules=none` is passed. This check's
+  // whole input is that diff, so a docs gitlink could go unreported while the
+  // declared scope covered only the src change. The ignore file is committed in
+  // the BASE so it is not itself part of the diff being judged.
+  const dir = mkdtempSync(join(tmpdir(), "alix-scope-submodule-"));
+  const env = {
+    ...process.env,
+    GIT_AUTHOR_NAME: "scope-test",
+    GIT_AUTHOR_EMAIL: "scope-test@example.invalid",
+    GIT_COMMITTER_NAME: "scope-test",
+    GIT_COMMITTER_EMAIL: "scope-test@example.invalid",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+  };
+  const run = (...args) => {
+    const r = spawnSync("git", args, { cwd: dir, encoding: "utf8", env });
+    if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+    return r.stdout.trim();
+  };
+  try {
+    run("init", "--quiet", "--initial-branch=main");
+    writeFileSync(join(dir, "README.md"), "base\n");
+    writeFileSync(
+      join(dir, ".gitmodules"),
+      '[submodule "vendor/lib"]\n\tpath = docs/vendor/lib\n\turl = https://example.invalid/lib.git\n\tignore = all\n',
+    );
+    mkdirSync(join(dir, "docs", "vendor"), { recursive: true });
+    writeFileSync(join(dir, "docs", "vendor", ".keep"), "");
+    run("add", "-A");
+    run("commit", "--quiet", "-m", "base");
+    const base = run("rev-parse", "HEAD");
+
+    run("switch", "--quiet", "-c", "feature");
+    mkdirSync(join(dir, "src"), { recursive: true });
+    writeFileSync(join(dir, "src", "app.ts"), "export const app = 1;\n");
+    // Stage the real file BEFORE the gitlink, and never `add -A` afterwards: the
+    // gitlink has no working-tree directory (there is no submodule to check out),
+    // so a later `add -A` sees a missing path and drops the entry from the index,
+    // leaving the fixture with no gitlink to hide.
+    run("add", "-A");
+    // A gitlink needs an object id; any commit works for the index entry.
+    const sub = spawnSync("git", ["commit-tree", run("rev-parse", "HEAD^{tree}"), "-m", "gitlink target"], {
+      cwd: dir,
+      encoding: "utf8",
+      env,
+    });
+    assert.equal(sub.status, 0, sub.stderr);
+    const gitlinkSha = sub.stdout.trim();
+    run("update-index", "--add", "--cacheinfo", `160000,${gitlinkSha},docs/vendor/lib`);
+    run("commit", "--quiet", "-m", "feature");
+    const head = run("rev-parse", "HEAD");
+
+    const script = join(dir, "check-pr-scope.mjs");
+    copyFileSync(new URL("../../scripts/check-pr-scope.mjs", import.meta.url), script);
+    const runCheck = () =>
+      spawnSync(process.execPath, [script, "--base", base], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { ...env, PR_BODY: "Scope: src" },
+      });
+
+    // Fixture validity: the ignore rule must really hide the gitlink from a
+    // plain diff, and --ignore-submodules=none must really reveal it. Otherwise
+    // a red result below would prove nothing.
+    const plain = spawnSync("git", ["diff", "--name-only", `${base}...${head}`], { cwd: dir, encoding: "utf8", env });
+    const real = spawnSync(
+      "git",
+      ["diff", "--name-only", "--ignore-submodules=none", `${base}...${head}`],
+      { cwd: dir, encoding: "utf8", env },
+    );
+    assert.match(real.stdout, /docs\/vendor\/lib/, "fixture must produce a gitlink record");
+    assert.doesNotMatch(plain.stdout, /docs\/vendor\/lib/, "fixture must hide the gitlink without the flag");
+
+    const result = runCheck();
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stdout + result.stderr, /docs/, "the hidden docs area must be classified");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -35,6 +35,22 @@ const GIT_ENV = {
   GIT_CONFIG_SYSTEM: "/dev/null",
 };
 
+/**
+ * Env for fixtures that must OBSERVE a replacement ref take effect.
+ *
+ * `GIT_NO_REPLACE_OBJECTS` is DELETED, not blanked: git treats an empty value as
+ * enabled, so `{ GIT_NO_REPLACE_OBJECTS: "" }` silently keeps the guard on
+ * (measured: `git log -1 <replaced-sha>` still returns the original). The key
+ * must be absent. This matters because a parent can export the guard into every
+ * child -- preflight does exactly that through `stepEnv()` -- and a fixture that
+ * cannot see its own substitution asserts nothing.
+ */
+const unguardedEnv = (extra = {}) => {
+  const env = { ...GIT_ENV, ...extra };
+  delete env.GIT_NO_REPLACE_OBJECTS;
+  return env;
+};
+
 function git(cwd, ...args) {
   const r = spawnSync("git", args, { cwd, encoding: "utf8", env: GIT_ENV });
   if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.stderr}`);
@@ -111,6 +127,108 @@ test("still rejects an identifier that no source file defines", () => {
 
 
 
+test("a .gitmodules ignore rule cannot make the audit vacuous", () => {
+  // `.gitmodules` `ignore = all` is repository-controlled and drops gitlink
+  // records from every diff. If the ONLY change a branch makes is a gitlink
+  // bump, a plain diff reports nothing at all, base !== head, and the audit has
+  // no change to scan. That must land on the explicit "changed nothing" refusal
+  // rather than a CLEAN verdict that merely never looked -- the same false green
+  // as verifying a tree nobody committed.
+  //
+  // The ignore file is committed in the BASE so it is not itself the change
+  // being judged, and a real file changes alongside the gitlink so the fixture
+  // cannot pass by being empty for an unrelated reason.
+  const dir = mkdtempSync(join(tmpdir(), "alix-dox-submodule-"));
+  const run = (...args) => {
+    const r = spawnSync("git", args, { cwd: dir, encoding: "utf8", env: GIT_ENV });
+    if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+    return r.stdout.trim();
+  };
+  try {
+    run("init", "--quiet", "--initial-branch=main");
+    write(dir, "README.md", "# fixture\n");
+    write(dir, "src/thing.ts", "export const other = 1;\n");
+    write(
+      dir,
+      ".gitmodules",
+      '[submodule "contracts"]\n\tpath = contracts\n\turl = https://example.invalid/contracts.git\n\tignore = all\n',
+    );
+    run("add", "-A");
+    run("commit", "--quiet", "-m", "base");
+    const base = run("rev-parse", "HEAD");
+    // Plant the gitlink in the base, so the branch's change to it is a BUMP.
+    run("update-index", "--add", "--cacheinfo", `160000,${base},contracts`);
+    run("commit", "--quiet", "-m", "base with gitlink");
+    const baseWithLink = run("rev-parse", "HEAD");
+
+    // Head: a real file changes AND the gitlink moves. Only the real file is
+    // visible to a plain diff.
+    write(dir, "src/thing.ts", "export const changed = 2;\n");
+    run("add", "src/thing.ts");
+    run("update-index", "--add", "--cacheinfo", `160000,${run("commit-tree", run("rev-parse", "HEAD^{tree}"), "-m", "bump")},contracts`);
+    run("commit", "--quiet", "-m", "head");
+    const head = run("rev-parse", "HEAD");
+
+    // Fixture validity: the ignore rule really hides the gitlink from a plain
+    // diff, and the flag really reveals it. A red result without this proves
+    // nothing.
+    const plain = spawnSync("git", ["diff", "--name-only", `${baseWithLink}...${head}`], {
+      cwd: dir,
+      encoding: "utf8",
+      env: GIT_ENV,
+    });
+    const revealed = spawnSync(
+      "git",
+      ["diff", "--name-only", "--ignore-submodules=none", `${baseWithLink}...${head}`],
+      { cwd: dir, encoding: "utf8", env: GIT_ENV },
+    );
+    assert.equal(plain.status, 0, plain.stderr);
+    assert.doesNotMatch(plain.stdout, /contracts/, "fixture must hide the gitlink without the flag");
+    assert.match(revealed.stdout, /contracts/, "fixture must reveal the gitlink with the flag");
+    assert.match(revealed.stdout, /src\/thing\.ts/, "the ordinary change must still be visible");
+
+    const check = () => {
+      const r = spawnSync(process.execPath, [SCRIPT, "--json", "--base", baseWithLink, "--head", head], {
+        cwd: dir,
+        encoding: "utf8",
+        env: GIT_ENV,
+      });
+      return { status: r.status, report: JSON.parse(r.stdout) };
+    };
+
+    // With the guard: the gitlink is part of the change set, so the run reports a
+    // real (non-vacuous) verdict instead of "refs differ but nothing changed".
+    // The change-set SIZE is the observable: the gitlink must be counted
+    // alongside the ordinary file. Without the flag it is 1, not 2 -- which is
+    // exactly the size the audit would have reported while a contract inside the
+    // submodule changed unread.
+    const guarded = check();
+    assert.equal(guarded.status, 0, JSON.stringify(guarded.report));
+    assert.equal(guarded.report.vacuous, false, "the gitlink must be part of the change set");
+    assert.match(guarded.report.exitWhy, /^2 file\(s\) changed, none a contract$/, guarded.report.exitWhy);
+
+    // Without the flag the very same history is invisible, and the audit falls
+    // into the vacuous refusal. Removing the flag from the checker must produce
+    // exactly this, which is what makes this test a pin rather than a formality.
+    const unguardedDiff = spawnSync(
+      "git",
+      ["diff", "--name-only", `${baseWithLink}...${head}`],
+      { cwd: dir, encoding: "utf8", env: GIT_ENV },
+    );
+    const visibleOnlyWithFlag = unguardedDiff.stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    assert.deepEqual(
+      visibleOnlyWithFlag,
+      ["src/thing.ts"],
+      "without the flag the gitlink is the ONLY thing that disappears from the change set",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a replacement ref cannot hide an added contract claim", () => {
   // The DOX audit's scope is "lines the branch ADDS relative to base". A
   // replacement ref rewrites the base's tree, so the range diff can drop the
@@ -118,7 +236,13 @@ test("a replacement ref cannot hide an added contract claim", () => {
   // non-empty and the run reports CLEAN for a claim it never read. That is a
   // false pass, so the diff must not be substitutable.
   const dir = mkdtempSync(join(tmpdir(), "alix-dox-replace-"));
-  const env = { ...GIT_ENV };
+  // This fixture CREATES a replacement ref and must then observe its effect,
+  // so the guard is removed from the environment rather than relied on. A
+  // parent that exports `GIT_NO_REPLACE_OBJECTS=1` into every child (preflight
+  // does, via `stepEnv()`) would otherwise make the substitution invisible and
+  // the "fixture must hide" assertion below would fail for the wrong reason.
+  // An empty value is treated as unset by git.
+  const env = unguardedEnv();
   const run = (...args) => {
     const r = spawnSync("git", args, { cwd: dir, encoding: "utf8", env });
     if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
@@ -167,6 +291,72 @@ test("a replacement ref cannot hide an added contract claim", () => {
     });
     assert.equal(result.status, 1, result.stdout + result.stderr);
     assert.match(result.stdout + result.stderr, /no code/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a replacement ref cannot hide a missing head-tree file behind a claim", () => {
+  // The audit resolves tokens against the HEAD tree (`git cat-file -e
+  // <head>:<path>`). Unguarded, a replacement ref makes that tree contain a
+  // file the branch does not have, so a contract naming `src/missing.ts`
+  // reported "resolve". Only the `sh()` diff path carried the guard; the head
+  // read did not.
+  const dir = mkdtempSync(join(tmpdir(), "alix-dox-head-replace-"));
+  try {
+    git(dir, "init", "--quiet", "--initial-branch=main");
+    write(dir, "README.md", "# fixture\n");
+    git(dir, "add", "-A");
+    git(dir, "commit", "--quiet", "-m", "base");
+    const base = git(dir, "rev-parse", "HEAD");
+
+    // The branch adds a contract naming a file it does not contain.
+    write(dir, "AGENTS.md", "# Fixture\n\n- The contract names `src/missing.ts`.\n");
+    write(dir, "src/thing.ts", "export const other = 1;\n");
+    git(dir, "add", "-A");
+    git(dir, "commit", "--quiet", "-m", "head");
+    const head = git(dir, "rev-parse", "HEAD");
+
+    // Synthetic head = the head tree plus src/missing.ts.
+    const indexFile = join(dir, ".git", "synthetic-index");
+    // Unguarded on purpose: this fixture must see the replacement take effect
+    // (see the note on `env` above). `stepEnv()` in preflight exports the guard
+    // to every child, so it is dropped here explicitly.
+    const observeEnv = unguardedEnv();
+    const idxEnv = { ...observeEnv, GIT_INDEX_FILE: indexFile };
+    const idx = (...args) => {
+      const r = spawnSync("git", args, { cwd: dir, encoding: "utf8", env: idxEnv });
+      if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+      return r.stdout.trim();
+    };
+    const emptyBlob = git(dir, "hash-object", "-w", "--stdin", "--path", "src/missing.ts");
+    idx("read-tree", head);
+    idx("update-index", "--add", "--cacheinfo", `100644,${emptyBlob},src/missing.ts`);
+    const synthetic = git(dir, "commit-tree", idx("write-tree"), "-p", head, "-m", "rewritten head");
+
+    // Fixture validity: unguarded cat-file sees the file, and does not without.
+    const unguarded = spawnSync("git", ["cat-file", "-e", `${head}:src/missing.ts`], {
+      cwd: dir,
+      encoding: "utf8",
+      env: observeEnv,
+    });
+    assert.equal(unguarded.status, 128, "fixture must not contain src/missing.ts at the real head");
+
+    git(dir, "replace", head, synthetic);
+    const substituted = spawnSync("git", ["cat-file", "-e", `${head}:src/missing.ts`], {
+      cwd: dir,
+      encoding: "utf8",
+      env: observeEnv,
+    });
+    assert.equal(substituted.status, 0, "fixture must add the file through the replacement ref");
+
+    const result = spawnSync(process.execPath, [SCRIPT, "--base", base, "--head", head], {
+      cwd: dir,
+      encoding: "utf8",
+      env: GIT_ENV,
+    });
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stdout + result.stderr, /missing file/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

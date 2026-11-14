@@ -156,8 +156,18 @@ if (allowDeclaredSkips && maxRecomputeSkippedArg === null) {
 // Git helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Every git read below decides WHAT HISTORY EXISTS: which commit last touched an
+ * artifact, whether one commit is an ancestor of another, whether a commit is
+ * present. `git replace <sha> <synthetic>` makes a ref resolve to a commit
+ * nobody committed, so `lastCommit` returned the replacement commit and this
+ * checker certified a real order defect (artifact and generator sharing a
+ * commit) as `pass`. Replacement objects are disabled for every invocation.
+ */
+const gitEnv = () => ({ ...process.env, GIT_NO_REPLACE_OBJECTS: "1" });
+
 const gitText = (args) =>
-  execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 }).trim();
+  execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28, env: gitEnv() }).trim();
 
 try {
   gitText(["rev-parse", "--git-dir"]);
@@ -192,6 +202,7 @@ function isAncestor(ancestor, descendant) {
   const result = spawnSync("git", ["merge-base", "--is-ancestor", ancestor, descendant], {
     cwd: root,
     encoding: "utf8",
+    env: gitEnv(),
   });
   if (result.error) {
     usage(`could not run git merge-base: ${result.error.message}`);
@@ -206,7 +217,11 @@ function isAncestor(ancestor, descendant) {
 }
 
 function commitExists(sha) {
-  const result = spawnSync("git", ["cat-file", "-e", `${sha}^{commit}`], { cwd: root, encoding: "utf8" });
+  const result = spawnSync("git", ["cat-file", "-e", `${sha}^{commit}`], {
+    cwd: root,
+    encoding: "utf8",
+    env: gitEnv(),
+  });
   if (result.error) usage(`could not run git cat-file: ${result.error.message}`);
   return result.status === 0;
 }

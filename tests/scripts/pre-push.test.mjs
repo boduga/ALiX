@@ -204,7 +204,18 @@ test("a replacement ref cannot hand preflight a rewritten base", () => {
     assert.equal(realBase, base);
     // The fixture must reproduce the substitution, else the assertion below
     // would pass for the wrong reason.
-    const substituted = spawnSync("git", ["merge-base", "origin/main", local], { cwd: dir, encoding: "utf8" }).stdout.trim();
+    // Unguarded on purpose. `stepEnv()` in preflight exports
+    // `GIT_NO_REPLACE_OBJECTS=1` to every child and this runner inherits it via
+    // `process.env`. The key is DELETED, not blanked: git treats an empty value
+    // as enabled (measured), so `: ""` would keep the guard on and this fixture
+    // would assert nothing.
+    const observeEnv = { ...process.env };
+    delete observeEnv.GIT_NO_REPLACE_OBJECTS;
+    const substituted = spawnSync("git", ["merge-base", "origin/main", local], {
+      cwd: dir,
+      encoding: "utf8",
+      env: observeEnv,
+    }).stdout.trim();
     assert.notEqual(substituted, realBase, "fixture must make the unguarded call return a rewritten commit");
 
     const result = runHook(dir, binDir, `refs/heads/feature ${local} refs/heads/feature ${ZERO}\n`);

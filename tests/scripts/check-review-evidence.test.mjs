@@ -492,6 +492,32 @@ test("a colon in a path cannot impersonate metadata", () => {
   assert.equal(canonicalizeRawDiff(combined).toString("utf8").includes("conflict.txt"), true);
 });
 
+test("the metadata grammar enforces the mode and id arity it documents", () => {
+  // A grammar that only checks "starts with : and has some hex" is not the
+  // grammar docs/reviews/AGENTS.md claims. These three shapes are neither the
+  // ordinary `:<mode> <mode> <sha> <sha> <status>` nor the combined
+  // `::<mode> <mode> <mode> <sha> <sha> <sha> <status>`, so accepting them
+  // would let a path-shaped field pass as metadata again.
+  const nul = Buffer.from([0]);
+  const encode = (fields) => Buffer.concat(fields.flatMap((f) => [Buffer.from(f), nul]));
+  const sha = (c) => c.repeat(40);
+  const malformed = [
+    // single colon, three modes (combined arity under an ordinary prefix)
+    `:100644 100644 100644 ${sha("1")} ${sha("2")} M`,
+    // combined prefix, only two modes
+    `::100644 100644 ${sha("1")} ${sha("2")} ${sha("3")} M`,
+    // combined prefix, three modes but only two ids
+    `::100644 100644 100644 ${sha("1")} ${sha("2")} M`,
+  ];
+  for (const field of malformed) {
+    assert.throws(
+      () => canonicalizeRawDiff(encode([field, "some/path.txt"])),
+      /is not <mode sha status>/,
+      `must reject ${field}`,
+    );
+  }
+});
+
 test("the digest distinguishes two trees that swap content between files", () => {
   // `--raw -z` emits two NUL-terminated fields per changed path: metadata, then
   // path. Splitting the stream on NUL and sorting the bare fields separates a
