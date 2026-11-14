@@ -678,6 +678,114 @@ describe("check-evidence-integrity: reflexivity", () => {
     );
   });
 
+  it("fails when a manifest is MOVED into place in the checker's commit", () => {
+    // The hole this closes: `rev-list --count` cannot tell "created here" from
+    // "moved here" -- a rename has exactly one commit in the destination path's
+    // history too. Without the plain-`A` requirement, carrying a manifest in from
+    // another path while editing the rule reads as a bootstrap, and the checker
+    // accepts a rule change that judges a file it never saw before.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const body = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    const dir = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+      { message: "checker bootstrap", files: { "scripts/check-evidence-integrity.mjs": "// fixture copy\n" } },
+      { message: "manifest parked under another name", files: { "docs/other/manifest.json": body } },
+    ]);
+    try {
+      mkdirSync(join(dir, "docs", "security"), { recursive: true });
+      git(dir, ["mv", "docs/other/manifest.json", MANIFEST]);
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, edited\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "move the manifest into place while editing the rule"]);
+      const r = run(dir);
+      assert.ok(checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails when a manifest is COPIED into place in the checker's commit", () => {
+    // Copy detection is off by default; `--find-copies-harder` is what makes an
+    // exact copy report `C100` instead of `A`. Without that flag this fixture is
+    // indistinguishable from a genuine creation.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const body = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    const dir = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+      { message: "checker bootstrap", files: { "scripts/check-evidence-integrity.mjs": "// fixture copy\n" } },
+      { message: "manifest parked under another name", files: { "docs/other/manifest.json": body } },
+    ]);
+    try {
+      mkdirSync(join(dir, "docs", "security"), { recursive: true });
+      writeFileSync(
+        join(dir, MANIFEST),
+        typeof body === "string" ? body : JSON.stringify(body, null, 2),
+      );
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, edited\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "copy the manifest into place while editing the rule"]);
+      const r = run(dir);
+      assert.ok(checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails when a merge MOVES the manifest into place alongside the rule edit", () => {
+    // A merge is diffed once per parent under `-m`, and those records can
+    // disagree: against the first parent the destination is `A`, against the
+    // second it is `R100` from the path the content actually came from.
+    // `rev-list --count` still reports 1 either way. Reading only the first
+    // record would call this a creation, so every record must be a plain `A`.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const body = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    const dir = repo([
+      {
+        message: "bootstrap: the rule, the generator, and the artifact",
+        files: {
+          [GEN]: files[GEN],
+          [ARTIFACT]: files[ARTIFACT],
+          "scripts/check-evidence-integrity.mjs": "// fixture copy\n",
+        },
+      },
+    ]);
+    try {
+      git(dir, ["switch", "-qc", "left"]);
+      writeFileSync(join(dir, "left.txt"), "left\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "left: add left.txt"]);
+
+      git(dir, ["switch", "-q", "main"]);
+      git(dir, ["switch", "-qc", "right"]);
+      mkdirSync(join(dir, "docs", "other"), { recursive: true });
+      writeFileSync(join(dir, "docs", "other", "parked.json"), JSON.stringify(body, null, 2));
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "right: park the manifest under another name"]);
+
+      git(dir, ["switch", "-q", "left"]);
+      // Merge without committing, so the resolution can relocate the file.
+      spawnSync("git", ["merge", "-q", "--no-ff", "--no-commit", "right"], {
+        cwd: dir,
+        encoding: "utf8",
+        env: unguardedGitEnv(),
+      });
+      git(dir, ["rm", "-q", "--cached", "docs/other/parked.json"]);
+      rmSync(join(dir, "docs", "other", "parked.json"), { force: true });
+      mkdirSync(join(dir, "docs", "security"), { recursive: true });
+      writeFileSync(join(dir, MANIFEST), JSON.stringify(body, null, 2));
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, edited\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "merge right, relocating the manifest while editing the rule"]);
+
+      const r = run(dir);
+      assert.ok(checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("fails when an existing manifest is edited in the checker's commit", () => {
     const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
     const first = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });

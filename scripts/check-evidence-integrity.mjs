@@ -198,20 +198,114 @@ function lastCommit(relPath) {
 }
 
 /**
- * True when `commit` is the ONLY commit in a path's entire history — i.e. the
- * commit that created the file and the last that touched it.
+ * Change records for one commit, keyed by destination path: `A`, `M`, `D`, or a
+ * rename/copy status (`R100`, `C087`) that names the source path. A path maps to
+ * a LIST because `-m` emits one record per parent, and a path can be `A` against
+ * one parent and `R100` against another.
+ *
+ * Read with NO pathspec. A pathspec narrows the diff to the named side of a
+ * rename, so `git diff-tree <commit> -- <new path>` reports the move as a plain
+ * `A` and hides the very source this exemption must see.
+ *
+ * Flags, each earning its place:
+ * - `-M -C --find-copies-harder` so a move or an exact copy is reported as such
+ *   instead of falling through to `A`.
+ * - `-l0` so a `diff.renameLimit` in the caller's config cannot silently turn
+ *   detection back into `A`. An exemption that local config can switch off is
+ *   not a guard.
+ * - `--root` so the repository's first commit is diffed against the empty tree;
+ *   without it that commit reports no records at all and would read as "nothing
+ *   here" rather than "added here".
+ * - `-m` so a merge commit is diffed against each parent. Without it a merge
+ *   reports no records, and a moved-in manifest would look like a bootstrap.
+ */
+const commitRecordsCache = new Map();
+function recordsFor(commit) {
+  const cached = commitRecordsCache.get(commit);
+  if (cached) return cached;
+  const records = new Map();
+  const record = (path, entry) => {
+    const seen = records.get(path);
+    if (seen) seen.push(entry);
+    else records.set(path, [entry]);
+  };
+  let raw = "";
+  try {
+    raw = execFileSync(
+      "git",
+      [
+        "diff-tree",
+        "-r",
+        "-m",
+        "--root",
+        "-M",
+        "-C",
+        "--find-copies-harder",
+        "-l0",
+        "--name-status",
+        "-z",
+        "--no-commit-id",
+        commit,
+      ],
+      { cwd: root, encoding: "utf8", maxBuffer: 1 << 28, env: gitEnv() },
+    );
+  } catch (error) {
+    usage(
+      `could not read the change record for ${short(commit)} (${error instanceof Error ? error.message.split("\n")[0] : String(error)}). ` +
+        "The reflexivity exemption is decided from that record, so it cannot be assumed empty.",
+    );
+  }
+  const fields = raw.split("\0");
+  for (let i = 0; i < fields.length; i++) {
+    const status = fields[i];
+    if (!status) continue;
+    if (status[0] === "R" || status[0] === "C") {
+      const source = fields[++i];
+      const target = fields[++i];
+      if (target) record(target, { status: status[0], source });
+      continue;
+    }
+    const path = fields[++i];
+    if (path) record(path, { status: status[0], source: null });
+  }
+  commitRecordsCache.set(commit, records);
+  return records;
+}
+
+/**
+ * True when `commit` is a genuine bootstrap for `relPath`: the path's entire
+ * history is that one commit, AND that commit simply CREATED the path there.
  *
  * Reflexivity asks a question about edit history: did the same change alter the
- * rule and the data it judges? At bootstrap there is no earlier data, so there
- * is nothing to launder. Counting every commit that touches the path (not just
- * `--diff-filter=A`) is what separates the honest first commit from
- * delete-then-re-add: a re-add alongside a rule edit still has the delete in its
- * history, so it is not a bootstrap and still fails.
+ * rule and the data it judges? At bootstrap there is no earlier data, so there is
+ * nothing to launder. Two things have to hold, and each rules out a different
+ * way of dressing an edit up as a creation:
+ *
+ * 1. The path name is new. Counting every commit that touches the path — not
+ *    `--diff-filter=A` — is what separates the honest first commit from
+ *    delete-then-re-add: the re-add still has the delete in its history.
+ *
+ * 2. The content is new to this path name too. `rev-list --count` alone cannot
+ *    tell "created here" from "moved here": a rename has exactly one commit in
+ *    the destination path's history as well. Content carried in from another
+ *    path was not created by this commit, it was relocated, so the file it
+ *    replaces may well have been judged by the old rule. Requiring a plain `A`
+ *    with no rename/copy source closes that.
+ *
+ * The honest limit: git's similarity threshold decides what counts as a move,
+ * so a rewrite that shares little enough with its source is reported as `A` and
+ * passes. This exemption therefore narrows the cheap edit; it does not make the
+ * order rule unbypassable.
  */
-function isSoleCommitOf(relPath, commit) {
+function isBootstrapOf(relPath, commit) {
   if (!commit) return false;
   const count = Number(gitText(["rev-list", "--count", commit, "--", relPath]) || 0);
-  return count === 1;
+  if (count !== 1) return false;
+  const seen = recordsFor(commit).get(relPath);
+  // Every record must be a plain `A`. A merge that reports `A` against one
+  // parent and `R100` against another is still a move, and a single `A` is not
+  // enough to say the content was born here.
+  return Boolean(seen) && seen.length > 0 && seen.every((entry) => entry.status === "A");
 }
 
 /** True when `ancestor` is reachable from `descendant`. A commit is its own ancestor. */
@@ -669,7 +763,7 @@ if (selfCommit) {
   // Both files created together is a bootstrap, not an edit: there was no
   // earlier manifest for the rule to launder. The rule exists to catch a change
   // that alters the rule AND the data, which is only possible once data exists.
-  if (manifestCommit && manifestCommit === selfCommit && !isSoleCommitOf(manifestRepoPath, manifestCommit)) {
+  if (manifestCommit && manifestCommit === selfCommit && !isBootstrapOf(manifestRepoPath, manifestCommit)) {
     add(
       "reflexivity",
       manifestRepoPath,
@@ -679,7 +773,7 @@ if (selfCommit) {
   }
   for (const artifact of artifacts) {
     if (!artifact || typeof artifact.path !== "string") continue;
-    if (lastCommit(artifact.path) === selfCommit && !isSoleCommitOf(artifact.path, selfCommit)) {
+    if (lastCommit(artifact.path) === selfCommit && !isBootstrapOf(artifact.path, selfCommit)) {
       add("reflexivity", artifact.path, "shared its last commit with the checker that judges it");
     }
   }

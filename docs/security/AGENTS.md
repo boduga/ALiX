@@ -78,12 +78,20 @@ describes is qualified or released.
   cannot be excepted at all.
 - **Reflexivity is about edits, not creation.** A commit that changes the checker
   together with an already-existing manifest (or an artifact it judges) is the
-  same failure one level up and cannot be excepted. A path whose entire history
-  is that one commit, however, is a bootstrap: there was no earlier data to
-  launder, and the rule would otherwise fail on its own creation — which is
-  exactly what happened when the checker and its first manifest landed in
-  `c8027ac7`. Deleting and re-adding a path is not a bootstrap; the delete stays
-  in its history.
+  same failure one level up and cannot be excepted. A bootstrap has to satisfy
+  two conditions, not one: the path's entire history is that commit, and that
+  commit created the path there rather than moving or copying content into it.
+  A rename destination also has exactly one commit in its history, so a
+  sole-commit count alone cannot distinguish creation from relocation — the
+  checker requires a plain `A` record with no rename/copy source, read from the
+  commit's full change record rather than a pathspec-narrowed view. The rule
+  would otherwise fail on its own creation — which is exactly what happened when
+  the checker and its first manifest landed in `c8027ac7`. Deleting and
+  re-adding a path is not a bootstrap; the delete stays in its history. The
+  honest limit: git's similarity threshold decides what counts as a move (roughly
+  half the content), so a rewrite that shares little with its source is reported
+  as a plain add and passes. This narrows the cheap same-commit edit; it does not
+  make the order rule unbypassable.
 - **Order is a social control.** It removes the cheap one-commit edit and leaves
   a three-commit edit visible as a pattern in history. It says nothing about
   whether an artifact's numbers are right, and it is not independent
