@@ -108,7 +108,7 @@
  * Exit codes: 0 pass, 1 findings or not-checked, 2 invocation/environment error.
  */
 
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, writeSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { join, resolve, relative } from "node:path";
@@ -137,11 +137,25 @@ const manifestPath = resolve(root, getArg("--manifest") ?? "docs/security/eviden
 
 const toRepoPath = (absolute) => relative(root, absolute).split("\\").join("/");
 
+/**
+ * Synchronous fd writes, not console.*.
+ *
+ * console.log/console.error write lazily when stdout is a pipe. Calling
+ * process.exit() right after them discards whatever the pipe had not yet
+ * drained: the checker exited 2 with a completely empty stdout AND stderr, so
+ * every consumer that ran it through spawnSync (the test suite, CI wrappers, any
+ * tool reading the JSON verdict) saw a failure with no explanation. writeSync on
+ * fd 1/2 blocks until the bytes are handed to the OS, so the exit code and the
+ * message can never disagree.
+ */
+const say = (message) => writeSync(1, String(message) + "\n");
+const sayErr = (message) => writeSync(2, String(message) + "\n");
+
 /** Invocation errors exit 2 so a misconfigured run is never read as a clean one. */
 function usage(message) {
   const payload = { ok: false, verdict: "error", error: message, exitCode: 2 };
-  if (jsonMode) console.error(JSON.stringify(payload, null, 2));
-  else console.error(`ERROR: ${message}`);
+  if (jsonMode) sayErr(JSON.stringify(payload, null, 2));
+  else sayErr(`ERROR: ${message}`);
   process.exit(2);
 }
 
@@ -343,6 +357,86 @@ function recordsFor(commit) {
   return records;
 }
 
+const commitParentsCache = new Map();
+function parentsOf(commit) {
+  const cached = commitParentsCache.get(commit);
+  if (cached) return cached;
+  const line = gitText(["rev-list", "--parents", "-n", "1", commit]);
+  const parents = line.split(" ").slice(1).filter(Boolean);
+  commitParentsCache.set(commit, parents);
+  return parents;
+}
+
+/**
+ * True when `commit` AUTHORS the version of `relPath` it carries, rather than
+ * merely propagating a version that already exists on one of its parents.
+ *
+ * `git log -1 -- path` is the wrong question. Default history simplification may
+ * answer with a side commit for a merge that carries the path, and it may skip a
+ * merge entirely when the merge is TREESAME to one parent. The reflexivity rule
+ * needs to know whether THIS commit introduced the version, not which commit a
+ * simplified walk happened to surface first.
+ *
+ * The change record already answers it exactly. `-m` emits one record per parent
+ * when the path differs from that parent, so a path that differs from every
+ * parent has one record per parent. That is the same discrimination `--cc`
+ * makes, and it does not depend on how `git log` chooses to present history.
+ * A root commit has no parents to compare against, so a blob at the path is the
+ * only possible authoring event. For the same reason every form requires a blob:
+ * a deletion differs from every parent but does not author a version of the path,
+ * and treating it as one would let a delete-and-restore pair read as an edit.
+ */
+function authoredAtCommit(relPath, commit) {
+  if (!commit) return false;
+  if (!blobAt(relPath, commit)) return false;
+  const parents = parentsOf(commit);
+  if (parents.length === 0) return true;
+  const records = recordsFor(commit).get(relPath) ?? [];
+  return records.length === parents.length;
+}
+
+/**
+ * True when `commit` changed `relPath` against at least one parent.
+ *
+ * This is the weaker, one-sided question: a merge that lands a side branch's
+ * version of a file did not AUTHOR it, but it did change the tree of the branch
+ * it landed on. Reflexivity cares about that too, because the merged-to branch
+ * had never had the file judged by the rule before the merge.
+ */
+function changedAtCommit(relPath, commit) {
+  if (!commit) return false;
+  return (recordsFor(commit).get(relPath) ?? []).length > 0;
+}
+
+/**
+ * The newest commit in HEAD's history that AUTHORED the version of `relPath`
+ * currently checked out, or null when the path is untracked.
+ *
+ * This is the question `lastCommit` cannot answer. `git log -1 -- path` applies
+ * history simplification: for a merge that carries a path unchanged from one
+ * side, it reports the side commit. So a merge that lands a side branch's data
+ * while rewriting the rule reads as "the data predates the rule edit" and the
+ * reflexivity finding disappears — that is the reported defect. Walking HEAD's
+ * own path history and testing authorship per candidate asks what actually
+ * authored what. `--full-history` keeps commits the default walk prunes;
+ * `--topo-order` keeps a parent from being offered before a descendant that may
+ * also have authored it. Merely landing a side branch's version is not
+ * authorship: `authoredAtCommit` compares against every parent, so a merge that
+ * is TREESAME to one of them is skipped in favour of the commit that really
+ * introduced the content.
+ */
+function lastAuthoredCommit(relPath) {
+  let candidates = [];
+  try {
+    candidates = gitText(["rev-list", "--full-history", "--topo-order", "HEAD", "--", relPath])
+      .split("\n")
+      .filter(Boolean);
+  } catch {
+    return null;
+  }
+  return candidates.find((commit) => authoredAtCommit(relPath, commit)) ?? null;
+}
+
 /**
  * Why `commit` is NOT a genuine bootstrap for `relPath`, or null when it is.
  *
@@ -354,6 +448,9 @@ function recordsFor(commit) {
  * 1. The path name is new. Counting every commit that touches the path — not
  *    `--diff-filter=A` — is what separates the honest first commit from
  *    delete-then-re-add: the re-add still has the delete in its history.
+ *    `--full-history` is required: the default walk can omit a commit that
+ *    added the path on a side branch before a merge carried it forward, which
+ *    would make existing data look like it was created here.
  *
  * 2. The content is new to this path name too. `rev-list --count` alone cannot
  *    tell "created here" from "moved here": a rename has exactly one commit in
@@ -385,7 +482,7 @@ function recordsFor(commit) {
  */
 function nonBootstrapReason(relPath, commit) {
   if (!commit) return "the path has no commit history";
-  const count = Number(gitText(["rev-list", "--count", commit, "--", relPath]) || 0);
+  const count = Number(gitText(["rev-list", "--count", "--full-history", commit, "--", relPath]) || 0);
   if (count !== 1) {
     return "editing the rule and the data together is the same failure one level up";
   }
@@ -851,14 +948,21 @@ for (const artifact of artifacts) {
 
 // -- 5. Reflexivity --------------------------------------------------------
 
-const selfCommit = lastCommit("scripts/check-evidence-integrity.mjs");
+const selfCommit = lastAuthoredCommit("scripts/check-evidence-integrity.mjs");
 if (selfCommit) {
-  const manifestCommit = lastCommit(manifestRepoPath);
   // Both files created together is a bootstrap, not an edit: there was no
   // earlier manifest for the rule to launder. The rule exists to catch a change
   // that alters the rule AND the data, which is only possible once data exists.
-  const manifestReason = nonBootstrapReason(manifestRepoPath, manifestCommit);
-  if (manifestCommit && manifestCommit === selfCommit && manifestReason) {
+  //
+  // The question is asked of the rule-authoring commit itself, not of whatever
+  // `git log -1` surfaces for the data. A merge can land a side branch's
+  // manifest without authoring it, and default history simplification then
+  // reports the side commit — which is exactly how a merge that both lands data
+  // and rewrites the rule used to pass. `changedAtCommit` sees the merge's own
+  // change record against the branch it landed on.
+  const manifestChanged = changedAtCommit(manifestRepoPath, selfCommit);
+  const manifestReason = manifestChanged ? nonBootstrapReason(manifestRepoPath, selfCommit) : null;
+  if (manifestReason) {
     add(
       "reflexivity",
       manifestRepoPath,
@@ -867,7 +971,7 @@ if (selfCommit) {
   }
   for (const artifact of artifacts) {
     if (!artifact || typeof artifact.path !== "string") continue;
-    if (lastCommit(artifact.path) === selfCommit) {
+    if (changedAtCommit(artifact.path, selfCommit)) {
       const reason = nonBootstrapReason(artifact.path, selfCommit);
       if (reason) add("reflexivity", artifact.path, `shared its last commit with the checker that judges it — ${reason}`);
     }
@@ -1265,55 +1369,56 @@ const payload = {
 };
 
 if (jsonMode) {
-  console.log(JSON.stringify(payload, null, 2));
+  say(JSON.stringify(payload, null, 2));
 } else {
   if (verdict === "fail") {
-    console.error(`Evidence integrity FAILED — ${blockingFindings.length} finding(s)\n`);
+    sayErr(`Evidence integrity FAILED — ${blockingFindings.length} finding(s)\n`);
     for (const finding of blockingFindings) {
-      console.error(`  [${finding.check}] ${finding.path}`);
-      console.error(`      ${finding.detail}`);
+      sayErr(`  [${finding.check}] ${finding.path}`);
+      sayErr(`      ${finding.detail}`);
     }
-    console.error("");
+    sayErr("");
   } else if (verdict === "pass") {
-    console.log("Evidence integrity OK");
+    say("Evidence integrity OK");
   } else if (verdict === "pass_with_accepted") {
-    console.log(`Evidence integrity OK (${acceptedFindings.length} accepted historical defect(s), listed below)`);
+    say(`Evidence integrity OK (${acceptedFindings.length} accepted historical defect(s), listed below)`);
   } else if (verdict === "pass_with_declared_skips") {
-    console.log(
+    say(
       `Evidence integrity OK (${declaredNotRecomputable.length} generator(s) declared not recomputable; ` +
         "their artifacts were hash-pinned and order-checked, not reproduced)",
     );
   } else {
-    console.log("Evidence integrity: NOT CHECKED (no findings, but part of the contract was not verified)");
+    say("Evidence integrity: NOT CHECKED (no findings, but part of the contract was not verified)");
   }
   for (const finding of acceptedFindings) {
-    console.log(`ACCEPTED [${finding.check}] ${finding.path} — ${finding.acceptedBy}: ${finding.acceptanceReason}`);
+    say(`ACCEPTED [${finding.check}] ${finding.path} — ${finding.acceptedBy}: ${finding.acceptanceReason}`);
   }
-  console.log(
+  say(
     `artifacts ${listedArtifactPaths.size} · generators ${generatorSet.size} · content verified ${checked} · order ${orderChecked ? "verified" : "not verified"}` +
       (maxRecomputeSkipped === null ? "" : ` · recompute skipped ${declaredNotRecomputable.length} (pinned ${maxRecomputeSkipped})`),
   );
-  for (const reason of notCheckedReasons) console.log(`NOT CHECKED: ${reason}`);
+  for (const reason of notCheckedReasons) say(`NOT CHECKED: ${reason}`);
   for (const entry of notCovered) {
     const path = typeof entry === "string" ? entry : `${entry?.path ?? "?"}: ${entry?.reason ?? "no reason"}`;
-    console.log(`NOT COVERED: ${path}`);
+    say(`NOT COVERED: ${path}`);
   }
   if (recompute && !generatorArtifacts.length) {
-    console.log("recompute: the manifest has no generator-class artifacts; nothing to recompute");
+    say("recompute: the manifest has no generator-class artifacts; nothing to recompute");
   } else if (recomputeResults.length) {
     const passed = recomputeResults.filter((r) => r.ok).length;
-    console.log(`recompute: ${passed}/${recomputeResults.length} generator(s) reported no drift`);
+    say(`recompute: ${passed}/${recomputeResults.length} generator(s) reported no drift`);
     for (const result of recomputeResults.filter((r) => !r.ok)) {
       const label = result.reason === "declared-not-recomputable" ? "DECLARED NOT RECOMPUTABLE" : result.skipped ? "SKIPPED" : "FAILED";
-      console.log(`  ${result.generator}: ${label} — ${result.detail}`);
+      say(`  ${result.generator}: ${label} — ${result.detail}`);
     }
     const declared = recomputeResults.filter((r) => r.reason === "declared-not-recomputable").length;
     if (declared) {
-      console.log(
+      say(
         `recompute: ${declared} generator(s) declared not recomputable; this run proves nothing about their artifacts`,
       );
     }
   }
 }
 
+// Output is already flushed by the synchronous writers above.
 process.exit(payload.ok ? 0 : 1);

@@ -810,6 +810,150 @@ describe("check-evidence-integrity: reflexivity", () => {
     );
   });
 
+  it("fails when a merge lands a side branch's first manifest alongside a rule edit", () => {
+    // The manifest is genuinely new content on the side branch, so every
+    // bootstrap condition holds and `nonBootstrapReason` says "bootstrap". But
+    // the merge is what brings it onto this branch, and default history
+    // simplification reports the side commit as the manifest's last change. The
+    // rule edit then looks older than the data it judges and the finding
+    // disappears. A merge that both lands data and rewrites the rule is the
+    // same edit-together shape one level up, and the change record against the
+    // first parent is what sees it.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const dir = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+    ]);
+    try {
+      git(dir, ["switch", "-qc", "side"]);
+      mkdirSync(join(dir, "docs", "security"), { recursive: true });
+      writeFileSync(
+        join(dir, MANIFEST),
+        JSON.stringify(manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] }), null, 2),
+      );
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "side: add the first manifest"]);
+
+      git(dir, ["switch", "-q", "main"]);
+      writeFileSync(join(dir, "notes.txt"), "notes\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "main: unrelated"]);
+
+      spawnSync("git", ["merge", "-q", "--no-ff", "--no-commit", "side"], {
+        cwd: dir,
+        encoding: "utf8",
+        env: unguardedGitEnv(),
+      });
+      mkdirSync(join(dir, "scripts"), { recursive: true });
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, edited\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "merge side, weakening the rule"]);
+
+      // Fixture premise: the default question would name the side commit and
+      // miss the merge entirely.
+      assert.match(
+        spawnSync("git", ["log", "-1", "--format=%s", "--", MANIFEST], {
+          cwd: dir,
+          encoding: "utf8",
+          env: unguardedGitEnv(),
+        }).stdout,
+        /^side: add the first manifest$/m,
+        "fixture must leave `git log -1` reporting the side commit",
+      );
+
+      const r = run(dir);
+      assert.equal(r.status, 1, r.stdout);
+      assert.ok(checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("passes when a merge merely carries a genuine bootstrap authored on a side branch", () => {
+    // A merge is not reflexive just because it is a merge. When the side branch
+    // authored the rule and its very first manifest together, there was no
+    // earlier data for the rule to launder, and landing that commit on `main`
+    // changes nothing about the edit order.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const dir = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+    ]);
+    try {
+      git(dir, ["switch", "-qc", "boot"]);
+      mkdirSync(join(dir, "docs", "security"), { recursive: true });
+      mkdirSync(join(dir, "scripts"), { recursive: true });
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy\n");
+      writeFileSync(
+        join(dir, MANIFEST),
+        JSON.stringify(manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] }), null, 2),
+      );
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "bootstrap: the rule and its first manifest"]);
+
+      git(dir, ["switch", "-q", "main"]);
+      writeFileSync(join(dir, "notes.txt"), "notes\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "main: unrelated"]);
+
+      const merge = spawnSync("git", ["merge", "-q", "--no-ff", "-m", "merge the bootstrap branch", "boot"], {
+        cwd: dir,
+        encoding: "utf8",
+        env: unguardedGitEnv(),
+      });
+      assert.equal(merge.status, 0, merge.stderr);
+
+      const r = run(dir);
+      assert.ok(!checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails when a merge authors a third manifest version while editing the rule", () => {
+    // Both parents already carry a manifest, and the merge resolves to a version
+    // neither parent has. This is authoring, not propagation: it differs from
+    // every parent, so the `-m` record has one entry per parent. The rule is
+    // changed in that same commit, which is precisely the edit-together shape.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const base = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    const dir = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+      {
+        message: "bootstrap: the rule and its first manifest",
+        files: { "scripts/check-evidence-integrity.mjs": "// fixture copy\n", [MANIFEST]: base },
+      },
+    ]);
+    try {
+      git(dir, ["switch", "-qc", "side"]);
+      writeFileSync(join(dir, MANIFEST), JSON.stringify({ ...base, $comment: "side" }, null, 2));
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "side: edit the manifest"]);
+
+      git(dir, ["switch", "-q", "main"]);
+      writeFileSync(join(dir, MANIFEST), JSON.stringify({ ...base, $comment: "main" }, null, 2));
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "main: edit the manifest"]);
+
+      spawnSync("git", ["merge", "-q", "--no-ff", "--no-commit", "side"], {
+        cwd: dir,
+        encoding: "utf8",
+        env: unguardedGitEnv(),
+      });
+      writeFileSync(join(dir, MANIFEST), JSON.stringify({ ...base, $comment: "authored at the merge" }, null, 2));
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, edited\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "merge: author a third manifest version and edit the rule"]);
+
+      const r = run(dir);
+      assert.equal(r.status, 1, r.stdout);
+      assert.ok(checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("fails when an artifact is re-added alongside a rule edit", () => {
     // Deleting and re-adding a path is not a bootstrap: the delete is in its
     // history, so the sole-commit carve-out must not cover it.

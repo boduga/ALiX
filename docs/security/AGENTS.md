@@ -78,8 +78,16 @@ describes is qualified or released.
   cannot be excepted at all.
 - **Reflexivity is about edits, not creation.** A commit that changes the checker
   together with an already-existing manifest (or an artifact it judges) is the
-  same failure one level up and cannot be excepted. A bootstrap has to satisfy
-  three conditions, not one: the path's entire history is that commit, that
+  same failure one level up and cannot be excepted. The commit that counts is
+  the one that AUTHORED the checker, and it is compared against that commit's
+  own full change record, not against `git log -1` for the data: default
+  history simplification names a side commit for a merge that carries a path
+  unchanged, so a merge that lands a first manifest while rewriting the rule
+  used to read as data older than the rule. A commit authors a path only when
+  the path differs from every parent (one `-m` record per parent) and a blob
+  exists at that path; a merge propagating one parent's version authors
+  nothing, and a deletion authors nothing. A bootstrap has to satisfy three
+  conditions, not one: the path's entire history is that commit, that
   commit created the path there rather than moving or copying content into it,
   and that content did not already exist anywhere in the commit's reachable
   ancestry. A rename destination also has exactly one commit in its history, so
