@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "pr": 1111,
+  "reviewedHeadSha": "519490c300bacb0bf8dfb354bf32613669145eb0",
+  "diffSha256": "90e6ea45ebbc1a970b6d8e1dd5c475056566f0f8a75c9b23b4f2035493484d92",
+  "author": {
+    "agentId": "01a1d169-af1b-7482-8ba8-0680d45b3504"
+  },
+  "reviewer": {
+    "kind": "agent",
+    "context": "fresh",
+    "agentId": "01a1d835-77f5-74f3-8a67-6bc24e534526",
+    "model": "deepseek-v4.1-flash",
+    "modelProvenance": "Copied from the reviewer thread's own turn_context records (16/16 records in rollout-2026-11-13T21-59-05-01a1d835-77f5-74f3-8a67-6bc24e534526.jsonl, model_provider hive_ai). The reviewer declined to self-certify a model string and asked that this value be recorded as harness metadata, not as their own assertion. ~/.codex/config.toml declares model = \"gpt-6.1-sol\", which disagrees; the turn_context record is the per-agent serving record, so it is recorded here and the disagreement is disclosed rather than resolved.",
+    "cliVersion": "0.169.0",
+    "reviewedHeads": [
+      "33e33f87",
+      "6ff90be0",
+      "b71940bd",
+      "519490c3"
+    ]
+  },
+  "humanSecurityAcceptance": false,
+  "verdict": "approve",
+  "findings": [
+    {
+      "id": "F1",
+      "title": "check-evidence-integrity git reads unguarded (gitText/lastCommit/isAncestor/commitExists)",
+      "severity": "high",
+      "status": "fixed",
+      "resolution": "Every evidence-integrity git read now runs through gitEnv() with GIT_NO_REPLACE_OBJECTS=1, so a replacement ref cannot rewrite which commit last touched an artifact, ancestry, or commit existence.",
+      "location": "scripts/check-evidence-integrity.mjs",
+      "fixedIn": "e9e25af5"
+    },
+    {
+      "id": "F2",
+      "title": "check-dox-claims resolveRef/pathExists unguarded",
+      "severity": "high",
+      "status": "fixed",
+      "resolution": "The DOX audit's ref resolution and path existence checks are guarded, and path existence is decided by a stat rather than a string test, so a replaced head tree can no longer make a missing-file claim pass.",
+      "location": "scripts/check-dox-claims.mjs",
+      "fixedIn": "e9e25af5"
+    },
+    {
+      "id": "F3",
+      "title": "preflight runStep env lacked the guard and leaked it to spawned children",
+      "severity": "high",
+      "status": "fixed",
+      "resolution": "stepEnv() exports the guard to every child preflight spawns, because a guarded parent did not protect a child that reads git for itself.",
+      "location": "scripts/preflight.mjs",
+      "fixedIn": "e9e25af5"
+    },
+    {
+      "id": "F4",
+      "title": "check-pr-scope missing --ignore-submodules=none on its diff, untested",
+      "severity": "medium",
+      "status": "fixed",
+      "resolution": "The scope diff now passes --ignore-submodules=none, so a .gitmodules ignore=all entry cannot drop gitlinks from the area list; a real gitlink fixture pins it.",
+      "location": "scripts/check-pr-scope.mjs",
+      "fixedIn": "e9e25af5"
+    },
+    {
+      "id": "F5",
+      "title": "check-review-evidence RAW_META_RE arity; colon-in-path case passed for the wrong reason",
+      "severity": "medium",
+      "status": "fixed",
+      "resolution": "Metadata is parsed against the exact colon and :: arity git emits, and rename/copy statuses are rejected, so a colon-prefixed path can no longer be mistaken for metadata and mis-pair two trees identically.",
+      "location": "scripts/check-review-evidence.mjs",
+      "fixedIn": "e9e25af5"
+    },
+    {
+      "id": "F6",
+      "title": "check-dox-claims diffs missing --ignore-submodules=none",
+      "severity": "info",
+      "status": "fixed",
+      "resolution": "Every DOX audit diff goes through one guarded builder, so a gitlink-only branch reports one changed file instead of an unchanged range.",
+      "location": "scripts/check-dox-claims.mjs",
+      "fixedIn": "e9e25af5"
+    },
+    {
+      "id": "N1",
+      "title": "Stale sha256 checker pins after the final script edits",
+      "severity": "high",
+      "status": "fixed",
+      "resolution": "All 7 pins were recomputed from the head blobs and the workflow block runs clean under sha256sum --check --strict, exit 0. The reviewer reproduced this independently.",
+      "location": ".github/workflows/ci.yml",
+      "fixedIn": "6ff90be0"
+    },
+    {
+      "id": "N2",
+      "title": "Guard pins asserted a helper return value, not the spawn call site (runGit/runStepProcess)",
+      "severity": "medium",
+      "status": "fixed",
+      "resolution": "preflight routes git reads through runGit and child steps through runStepProcess; tests assert those call sites. Bypassing either with {...process.env} fails exactly one named test each.",
+      "location": "scripts/preflight.mjs",
+      "fixedIn": "6ff90be0"
+    },
+    {
+      "id": "N3",
+      "title": "check-evidence-integrity tests depended on the inherited GIT_NO_REPLACE_OBJECTS",
+      "severity": "low",
+      "status": "fixed",
+      "resolution": "run() now defaults to an environment with the key DELETED, so the checker's own gitEnv() is the only guard in play. With the checker gutted and the guard exported, three named tests flip.",
+      "location": "tests/scripts/check-evidence-integrity.test.ts",
+      "fixedIn": "6ff90be0"
+    },
+    {
+      "id": "N4",
+      "title": "Dead override hatch in stepSpawnOptions(overrides)",
+      "severity": "info",
+      "status": "fixed",
+      "resolution": "The unused parameter and ...overrides spread were removed; stepSpawnOptions() takes no argument.",
+      "location": "scripts/preflight.mjs",
+      "fixedIn": "6ff90be0"
+    },
+    {
+      "id": "N5",
+      "title": "DOX claim suite ran in no CI lane, and its replacement pin was vacuous under preflight's ambient guard",
+      "severity": "medium",
+      "status": "fixed",
+      "resolution": "tests/scripts/check-dox-claims.test.mjs was added to the ci.yml scripts lane, and the shared GIT_ENV now deletes the key rather than spreading the ambient value. Gutting the checker under ambient 1 fails both replacement tests (5/7).",
+      "location": "tests/scripts/check-dox-claims.test.mjs",
+      "fixedIn": "b71940bd"
+    },
+    {
+      "id": "N6",
+      "title": "Review-evidence pin vacuous locally because checker() spread process.env",
+      "severity": "low",
+      "status": "fixed",
+      "resolution": "checker() deletes GIT_NO_REPLACE_OBJECTS from the child environment. Gutting the checker under ambient 1 now fails a named digest test (38/39) instead of staying green.",
+      "location": "tests/scripts/check-review-evidence.test.mjs",
+      "fixedIn": "b71940bd"
+    },
+    {
+      "id": "N7",
+      "title": "118/118 was a manual aggregate, not CI-enforced coverage",
+      "severity": "info",
+      "status": "not-applicable",
+      "resolution": "No code change was warranted: the 118/118 figure was accurate as run. The gap it exposed was coverage accounting, and that is now closed separately \u2014 the DOX claim suite joined the ci.yml scripts lane (N5) and the lane carries 120 tests.",
+      "location": "tests/scripts/",
+      "fixedIn": "b71940bd"
+    },
+    {
+      "id": "N8",
+      "title": "Inverted GIT_NO_REPLACE_OBJECTS semantics comment",
+      "severity": "low",
+      "status": "fixed",
+      "resolution": "The comment now states that only an ABSENT key honours replacements and that empty, \"0\", and \"1\" all enable the guard. Measured in a four-state probe (absent -> ALT, empty/0/1 -> base).",
+      "location": "tests/scripts/check-dox-claims.test.mjs",
+      "fixedIn": "519490c3"
+    }
+  ],
+  "notes": "Review history: REQUEST-CHANGES at 33e33f87 (N1-N4), REQUEST-CHANGES at 6ff90be0 (N5-N7 open), REQUEST-CHANGES at b71940bd (N5-N7 open; N8 introduced), APPROVE at 519490c3. Every finding was closed by measurement, not by prose: each fix includes a mutation probe that reproduces the original defect and flips a named test. N7 is an acknowledged coverage note with no code change.",
+  "acceptanceScope": "This record is agent review evidence only. It does not discharge human security acceptance, GB-12 authority, or the GE-04 hold; fresh context removes contamination, not correlated model blind spots."
+}
