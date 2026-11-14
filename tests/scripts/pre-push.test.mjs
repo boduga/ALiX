@@ -167,7 +167,20 @@ test("a push whose only change is a submodule pointer still runs preflight", () 
     assert.notEqual(next, subSha);
 
     git(dir, ["-c", "protocol.file.allow=always", "submodule", "update", "-q", "--remote"]);
-    git(dir, ["add", "vend"]);
+    // Stage the gitlink through the index, not `git add vend`.
+    //
+    // On git 2.56.1 (the CI runner) `git add` honours `.gitmodules` `ignore =
+    // all` for an already-tracked gitlink and leaves it unchanged, so the
+    // commit below failed with "nothing to commit" and the fixture never built
+    // the pointer bump the test is about. `update-index --cacheinfo` writes the
+    // index entry directly, and the assertion keeps the fixture's premise from
+    // depending on `git add` semantics.
+    git(dir, ["update-index", "--cacheinfo", `160000,${next},vend`]);
+    assert.equal(
+      git(dir, ["ls-files", "-s", "--", "vend"]).split(/\s+/)[1],
+      next,
+      "fixture must stage the gitlink at the new pointer",
+    );
     git(dir, ["commit", "-q", "-m", "bump submodule pointer"]);
 
     const local = git(dir, ["rev-parse", "HEAD"]);
