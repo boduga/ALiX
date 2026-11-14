@@ -312,7 +312,8 @@ test("a replacement ref cannot hide an added contract claim", () => {
   // parent that exports `GIT_NO_REPLACE_OBJECTS=1` into every child (preflight
   // does, via `stepEnv()`) would otherwise make the substitution invisible and
   // the "fixture must hide" assertion below would fail for the wrong reason.
-  // An empty value is treated as unset by git.
+  // Only an ABSENT key honours replacements: empty, "0", and "1" all ENABLE
+  // the guard, so `unguardedEnv()` deletes the key rather than blanking it.
   const env = unguardedEnv();
   const run = (...args) => {
     const r = spawnSync("git", args, { cwd: dir, encoding: "utf8", env });
