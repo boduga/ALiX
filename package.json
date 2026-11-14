@@ -87,7 +87,7 @@
     "vitest": "5.0.5"
   },
   "dependencies": {
-    "@langfuse/otel": "6.0.2",
+    "@langfuse/otel": "6.1.1",
     "@langfuse/tracing": "6.0.2",
     "@napi-rs/keyring": "2.1.2",
     "@node-rs/argon2": "2.2.2",
