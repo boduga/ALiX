@@ -91,11 +91,23 @@ function fixture() {
   return { root, base };
 }
 
+/**
+ * Invoke the checker with the replacement guard ABSENT from its environment.
+ *
+ * Same reasoning as check-dox-claims.test.mjs: the checker sets the guard on its
+ * own git reads, so an ambient GIT_NO_REPLACE_OBJECTS=1 -- which preflight
+ * injects into every child through stepEnv() -- would stand in for that and let
+ * the digest test pass with the guard removed. Deleting the key leaves the code
+ * under test as the only guard. Blanking it is not equivalent: git treats an
+ * empty value as ENABLED.
+ */
 function checker(root, args, env = {}) {
-  return spawnSync(process.execPath, [join(root, "scripts/check-review-evidence.mjs"), ...args], {
+  const childEnv = { ...process.env, ...env };
+  delete childEnv.GIT_NO_REPLACE_OBJECTS;
+  return spawnSync(process.execPath, [join(root, "scripts", "check-review-evidence.mjs"), ...args], {
     cwd: root,
     encoding: "utf8",
-    env: { ...process.env, ...env },
+    env: childEnv,
   });
 }
 

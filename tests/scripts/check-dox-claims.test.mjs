@@ -34,6 +34,15 @@ const GIT_ENV = {
   GIT_CONFIG_GLOBAL: "/dev/null",
   GIT_CONFIG_SYSTEM: "/dev/null",
 };
+// The key is DELETED from the shared env, not just from the observation
+// helpers: every checker invocation in this file must be indifferent to what
+// the runner exported. `pnpm preflight` spawns its children with
+// `GIT_NO_REPLACE_OBJECTS=1` (`stepEnv()`), and `GIT_ENV` spreading
+// `process.env` inherited it -- so under the one runner that executed this
+// suite, the replacement-ref test was vacuous: with the checker's guard gutted
+// it still passed. An empty string is not a substitute; it also ENABLES the
+// guard.
+delete GIT_ENV.GIT_NO_REPLACE_OBJECTS;
 
 /**
  * Env for fixtures that must OBSERVE a replacement ref take effect.

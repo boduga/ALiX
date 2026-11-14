@@ -195,8 +195,8 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: "26.11.0"
-      - name: Verify preflight selection and scope verdicts
-        run: node --test tests/scripts/preflight.test.mjs tests/scripts/check-pr-scope.test.mjs tests/scripts/check-review-evidence.test.mjs tests/scripts/pre-push.test.mjs
+      - name: Verify preflight selection, scope, and claim verdicts
+        run: node --test tests/scripts/preflight.test.mjs tests/scripts/check-pr-scope.test.mjs tests/scripts/check-review-evidence.test.mjs tests/scripts/check-dox-claims.test.mjs tests/scripts/pre-push.test.mjs
 
   # ─── Lane 2: Unit tests (vitest) ──────────────────────────────────────────
   unit:
