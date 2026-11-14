@@ -1,0 +1,80 @@
+#!/bin/sh
+# Pre-push evidence gate.
+#
+# Blocks a push whose branch would not survive CI: typecheck, the unused-code
+# gate, the tests that this branch's changes actually reach, DOX claims,
+# staleness, and evidence provenance.
+#
+# This is a convenience, not a control. It runs locally and can be skipped with
+# `git push --no-verify`; CI is the authority. Its value is that a red push is
+# caught in seconds instead of after a round trip.
+#
+# Install with `pnpm hooks:install`.
+set -eu
+
+if [ "${ALIX_SKIP_PREFLIGHT:-}" = "1" ]; then
+  echo "pre-push: skipped (ALIX_SKIP_PREFLIGHT=1)"
+  exit 0
+fi
+
+# Pushing tags or deleting remote branches has no diff to check.
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+    continue
+  fi
+  case "${remote_ref}" in
+    refs/heads/*) ;;
+    *) continue ;;   # tags and other refs carry no branch diff
+  esac
+  # A new branch has no remote commit. Falling back to `continue` here skipped
+  # the gate on exactly the push that matters most: the first push of a branch,
+  # where every commit is unreviewed. Diff against the merge base with main
+  # instead. An *existing* remote commit that cannot be resolved is a broken
+  # local state, not a new branch, and must fail rather than be skipped.
+  if [ "${remote_sha}" = "0000000000000000000000000000000000000000" ] \
+     || ! git rev-parse --verify --quiet "${remote_sha}^{commit}" >/dev/null 2>&1; then
+    if [ "${remote_sha}" != "0000000000000000000000000000000000000000" ]; then
+      echo "pre-push: cannot resolve remote commit ${remote_sha} for ${remote_ref}."
+      echo "          Fetch it, or push with --no-verify if you are certain CI will pass."
+      exit 1
+    fi
+    # GIT_NO_REPLACE_OBJECTS=1 for the same reason the emptiness test below
+    # uses it: a replacement ref can make `origin/main` resolve through a commit
+    # nobody pushed, and base selection is part of deciding what changed. An
+    # unguarded merge-base returned a rewritten ancestor, so the range described
+    # a different history than the one being pushed.
+    base_sha="$(GIT_NO_REPLACE_OBJECTS=1 git merge-base origin/main "${local_sha}" 2>/dev/null || true)"
+    if [ -z "${base_sha}" ]; then
+      echo "pre-push: new branch ${remote_ref} and no merge base with origin/main."
+      echo "          Fetch origin, or push with --no-verify if you are certain CI will pass."
+      exit 1
+    fi
+  else
+    if [ "${local_sha}" = "${remote_sha}" ]; then
+      continue
+    fi
+    base_sha="${remote_sha}"
+  fi
+
+  range="${base_sha}..${local_sha}"
+  # Any change runs preflight, not only code: a docs-only push still has DOX
+  # claims and staleness references that can be wrong. Preflight itself skips
+  # the type checks and tests for a documentation-only diff.
+  #
+  # --ignore-submodules=none because a .gitmodules "ignore = all" entry (the
+  # usual state of a vendored dependency) hides gitlink records from this diff:
+  # a push whose only change is a submodule pointer would look empty and the
+  # gate would never run. Preflight measures the change set with the same flag,
+  # so both agree on what "changed" means. GIT_NO_REPLACE_OBJECTS=1 because a
+  # local replacement ref would make this diff describe a tree nobody pushed.
+  if ! GIT_NO_REPLACE_OBJECTS=1 git diff --quiet --ignore-submodules=none "${range}"; then
+    echo "pre-push: running pnpm preflight for ${range}"
+    if ! pnpm preflight --base "${base_sha}"; then
+      echo ""
+      echo "pre-push: preflight failed. Fix the findings above, or push with --no-verify"
+      echo "          if you are certain CI will pass."
+      exit 1
+    fi
+  fi
+done
+exit 0

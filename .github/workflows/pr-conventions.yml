@@ -9,7 +9,11 @@ jobs:
     name: pr-conventions
     runs-on: ubuntu-latest
     steps:
+      # The scope check diffs `origin/<base>...HEAD`. A shallow clone can miss
+      # the merge base and turn a resolvable comparison into a spurious error.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "26.11.0"
@@ -22,3 +26,25 @@ jobs:
         run: node scripts/check-pr-conventions.mjs
       - name: Verify validator regression tests
         run: node --test tests/scripts/check-pr-conventions.test.mjs
+      # Scope as a verdict, not a habit: the diff must name its areas and stay
+      # within them. A PR that declared `scripts` and also edited `src/agents`
+      # fails here instead of passing as "small cleanup".
+      - name: Validate PR diff scope
+        env:
+          PR_BASE_REF: ${{ github.base_ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/check-pr-scope.mjs --base "origin/$PR_BASE_REF"
+      - name: Verify scope validator regression tests
+        run: node --test tests/scripts/check-pr-scope.test.mjs
+      # Review as a verdict, not a PR-body checkbox. The evidence file is read
+      # from the head commit (a working-tree copy is not evidence), must record
+      # a reviewed ancestor, and may only be followed by evidence-only commits.
+      # It cannot claim human security acceptance; that remains a human gate.
+      - name: Validate review evidence
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/check-review-evidence.mjs
+      - name: Verify review evidence regression tests
+        run: node --test tests/scripts/check-review-evidence.test.mjs

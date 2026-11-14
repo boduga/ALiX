@@ -132,6 +132,71 @@ jobs:
       # supply-chain gate, not here.
       - name: Staleness audit (references still resolve)
         run: node scripts/check-staleness.mjs
+      # Evidence provenance: an artifact must postdate the thing it describes,
+      # and must not move in the same commit as its own generator. The failure
+      # this catches is edit-generator-edit-artifact-commit-both, which makes
+      # every content comparison agree with itself.
+      #
+      # Pins first. Every gate below is only as trustworthy as the script that
+      # computes it, and a script can be edited to pass in the same commit as the
+      # thing it judges. These hashes make that edit a visible workflow change
+      # instead of a one-line tweak hidden inside a diff. The limit is stated
+      # plainly: a commit author can edit the script and this pin together, so
+      # this is a cost and a review signal, not cryptographic independence.
+      - name: Checker script pins (sha256)
+        run: |
+          set -eu
+          sha256sum --check --strict <<'PINS'
+          2471e35691923c834a52e067f5c5da963207c96c9ac0fb2f699f35235c93a025  scripts/check-evidence-integrity.mjs
+          6db1f8e40313214574e0f666076b91fcbf5c3697a470ee8f4d3d88c801a58dbc  scripts/check-dox-claims.mjs
+          4e070c37815eeb36cabd7c48e49093247282d3f924dad4598c13b3178296550a  scripts/check-staleness.mjs
+          f4969a27fe8d5154779f7878a927bbdb6fd72c01ac06f127d85f40606ffc3566  scripts/check-pr-scope.mjs
+          59b7aac8e0880bdca43f38366ce9f38d0b69023bb76782280a592344d1bbafc6  scripts/check-review-evidence.mjs
+          17b590e865309a26c55fc609ff57fc1fe2cb607fbb0546963d457e828c622eb8  scripts/preflight.mjs
+          5c2b1716da58138c06d64c230f661f03506681d181500e365290171be325ab74  .githooks/pre-push
+          PINS
+      #
+      # Two steps on purpose. The strict run reaches a real verdict
+      # (`pass_with_accepted`), so a green check means something. The second
+      # step reports `pass_with_declared_skips` rather than an unqualified pass,
+      # so the declared-non-reproducible set stays visible in the run's verdict
+      # instead of being absorbed into "OK".
+      - name: Evidence provenance (order, markers, coverage)
+        run: node scripts/check-evidence-integrity.mjs --max-accepted 2
+      # Gating on what it can actually prove. A generator that declares itself
+      # reproducible is re-run and drift fails the build. The four current
+      # generators declare `recompute: false` (each records a machine state or a
+      # paid model run that no longer exists), so their artifacts are hash-pinned
+      # and order-checked but not regenerated.
+      #
+      # `not_checked` exits 1 on its own. `--max-recompute-skipped 4` bounds the
+      # exemption set shrink-only, and `--allow-declared-skips` is the explicit
+      # acknowledgement of exactly that bounded set: it turns the run into
+      # `pass_with_declared_skips`, never an unqualified `pass`. The flag is
+      # narrower than an acknowledgement of the run: it applies only when every
+      # unchecked reason is a declared skip AND the run recorded zero blocking
+      # findings, so it can never upgrade a verdict that already failed. Any
+      # other unchecked reason — pending commits, an empty manifest — still fails.
+      # When a generator becomes reproducible, this step starts reproducing it
+      # and the pin must drop.
+      - name: Evidence recompute (4 acknowledged declared-non-reproducible generators)
+        run: node scripts/check-evidence-integrity.mjs --max-accepted 2 --recompute --max-recompute-skipped 4 --allow-declared-skips
+
+  # ─── Lane 1c: preflight regression tests ─────────────────────────────────
+  # `pnpm preflight` is what the pre-push hook runs, so its own verdicts need
+  # parity coverage. The suite is plain node:test with no install, and it
+  # builds throwaway fixtures instead of asserting on this checkout.
+  preflight-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: "26.11.0"
+      - name: Verify preflight selection, scope, and claim verdicts
+        run: node --test tests/scripts/preflight.test.mjs tests/scripts/check-pr-scope.test.mjs tests/scripts/check-review-evidence.test.mjs tests/scripts/check-dox-claims.test.mjs tests/scripts/pre-push.test.mjs
 
   # ─── Lane 2: Unit tests (vitest) ──────────────────────────────────────────
   unit:

@@ -3,15 +3,17 @@
 <!-- Refs #123 for partial work. Closes #123 only when all acceptance criteria are satisfied. -->
 Refs #
 
-**Change scope:** <!-- exact affected subsystem/files -->
+**Scope:** <!-- comma-separated top-level areas: e.g. scripts, tests, .github -->
 **Risk:** <!-- low / medium / high / critical; justify -->
+**Broad-scope:** <!-- required only when the diff spans more than three areas: why this is one change -->
+**Areas:** <!-- optional detail: exact affected subsystem/files -->
 **Agent/worktree:** <!-- agent/session and isolated worktree or N/A -->
 **Dependencies:** <!-- other PRs, or none -->
 
 ## Review and authorization
 
 - [ ] Complete diff against current main inspected
-- [ ] Independent agent review recorded (or reason N/A)
+- [ ] Fresh-context agent review recorded in `docs/reviews/PR-<n>.json`; `check:review` passes at the PR head
 - [ ] CI evidence linked and applicable checks pass
 - [ ] Human authorization recorded if security/release sensitive
 - [ ] Existing security holds unchanged (or explicit release evidence attached)

@@ -23,6 +23,15 @@
  * Scope: only lines the branch ADDS relative to `--base`. Existing claims are
  * the base's responsibility — this gates what a change introduces.
  *
+ * Both change-set deletions apply to every git read here (see `gitEnv` and the
+ * `--ignore-submodules=none` on each diff): without them the audit runs over a
+ * tree nobody pushed. `.gitmodules` `ignore = all` drops the gitlink record, so
+ * a gitlink-only branch read as "files changed, none a contract" — a green that
+ * audited nothing. `git replace` rewrites the base's tree, so an added contract
+ * line vanished from the range diff. Either one turns this checker into a
+ * vacuous pass rather than a missing one, which is the failure that reads
+ * exactly like success.
+ *
  * Exit codes:
  *   0  every claim token resolves
  *   1  one or more claims are unbacked (reported)
@@ -43,7 +52,16 @@ const head = getArg("--head") ?? "HEAD";
 const asJson = args.includes("--json");
 const writeBaseline = args.includes("--write-baseline");
 
-const sh = (cmd) => execSync(cmd, { encoding: "utf8", maxBuffer: 1 << 28 });
+// GIT_NO_REPLACE_OBJECTS=1 because every call below is a git read that decides
+// WHAT CHANGED. A local replacement ref (`git replace <base> <other>`) makes
+// those reads describe a history nobody pushed: the base's tree becomes the
+// substituted commit's tree, so a contract line the branch really added can
+// disappear from the range diff while an unrelated file still shows a change --
+// enough for anyChangedFiles to be non-empty and the run to report CLEAN. That
+// is a false pass, not a missing check, so the flag belongs on the reads and not
+// on some later guard.
+const gitEnv = () => ({ ...process.env, GIT_NO_REPLACE_OBJECTS: "1" });
+const sh = (cmd) => execSync(cmd, { encoding: "utf8", maxBuffer: 1 << 28, env: gitEnv() });
 const fails = (code, msg) => {
   console.error(asJson ? JSON.stringify({ error: msg, exitCode: code }) : `ERROR: ${msg}`);
   process.exit(code);
@@ -51,8 +69,13 @@ const fails = (code, msg) => {
 
 const resolveRef = (ref) => {
   try {
+    // `rev-parse <ref>^{commit}` is measured NOT replacement-sensitive, so this
+    // guard is consistency rather than protection: the substitution is caught by
+    // the guarded `ls-tree`/`show`/`grep` reads that resolve the head tree, not
+    // by the SHA lookup that names it.
     return execFileSync("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], {
       encoding: "utf8",
+      env: gitEnv(),
     }).trim();
   } catch {
     return null;
@@ -92,16 +115,38 @@ const globMatch = (pattern) => {
 };
 const pathExists = (p) => {
   try {
-    execFileSync("git", ["cat-file", "-e", `${headSha}:${p}`], { stdio: "ignore" });
+    // An unguarded `cat-file -e` reports a file PRESENT when a replacement ref
+    // adds it to a synthetic head tree, so a contract naming a file the branch
+    // does not contain reported "resolve". Same guard as the diff reads.
+    execFileSync("git", ["cat-file", "-e", `${headSha}:${p}`], { stdio: "ignore", env: gitEnv() });
     return true;
   } catch {
     return false;
   }
 };
+// Source pathspecs for the identifier search.
+//
+// `**` needs `:(glob)` magic to mean "zero or more directories". Without it
+// git accepts the pattern but a leading `**` segment then requires at least one
+// directory, so the type path below silently skipped the four top-level
+// `src/*.ts` modules (1522 of 1526 files matched) and the script path skipped
+// all 27 top-level scripts. Those files were unreachable for every claim, so an
+// identifier defined in one of them was reported "no code" no matter what the
+// source said. `:(glob)` is the pathspec form that covers every depth.
+//
+// Line comment, not a block comment: the patterns themselves contain a glob
+// closer, so a block comment would end at the first one.
+const SOURCE_PATHSPECS = [
+  ":(glob)src/**/*.ts",
+  ":(glob)src/**/*.mts",
+  ":(glob)tests/**/*.ts",
+  ":(glob)scripts/**/*.mjs",
+];
+
 /** Source only. Never a doc: a doc mentioning a symbol proves nothing about code. */
 const codeHas = (ident) => {
   const out = sh(
-    `git grep -l -e "${ident}" ${headSha} -- 'src/**/*.ts' 'src/**/*.mts' 'tests/**/*.ts' 'scripts/**/*.mjs' 2>/dev/null || true`,
+    `git grep -l -e "${ident}" ${headSha} -- ${SOURCE_PATHSPECS.map((p) => `'${p}'`).join(" ")} 2>/dev/null || true`,
   );
   return out.trim().length > 0;
 };
@@ -120,17 +165,27 @@ const codeHas = (ident) => {
  * drives the scan, and the stale-HEAD file reads below are only a problem when
  * a file has uncommitted edits — see `readFile` below, which prefers the disk
  * copy for exactly that case.
+ *
+ * ONE builder for every diff this audit runs. `--ignore-submodules=none` lives
+ * here rather than at each call site so a new diff cannot be added without the
+ * guard, and so the behavioral pin in
+ * `tests/scripts/check-dox-claims.test.mjs` (a gitlink-only branch must report a
+ * one-file change set, not a vacuous pass) covers the AGENTS.md read as well as
+ * the `--name-only` read. Removing the flag from this string is the only edit
+ * that can drop it, and that edit fails the test.
  */
+const guardedDiff = (args) => `git diff --ignore-submodules=none ${args}`;
+
 let diff;
 try {
-  diff = sh(`git diff ${baseSha}...${headSha} -- '*AGENTS.md'`);
+  diff = sh(guardedDiff(`${baseSha}...${headSha} -- '*AGENTS.md'`));
 } catch {
   fails(2, "git diff failed between the resolved base and head");
 }
 
 let worktreeDiff = "";
 try {
-  worktreeDiff = sh(`git diff HEAD -- '*AGENTS.md'; git diff --cached HEAD -- '*AGENTS.md'`);
+  worktreeDiff = sh(`${guardedDiff("HEAD -- '*AGENTS.md'")}; ${guardedDiff("--cached HEAD -- '*AGENTS.md'")}`);
 } catch {
   worktreeDiff = "";
 }
@@ -151,9 +206,9 @@ diff = `${diff}\n${worktreeDiff}`;
 const anyChangedFiles = (() => {
   const names = new Set();
   for (const cmd of [
-    `git diff --name-only ${baseSha}...${headSha}`,
-    "git diff --name-only HEAD",
-    "git diff --cached --name-only HEAD",
+    guardedDiff(`--name-only ${baseSha}...${headSha}`),
+    guardedDiff("--name-only HEAD"),
+    guardedDiff("--cached --name-only HEAD"),
   ]) {
     try {
       for (const line of sh(cmd).split("\n")) if (line.trim()) names.add(line.trim());
@@ -175,7 +230,7 @@ const anyChangedFiles = (() => {
  * contract — the same class of bug as verifying a stash-isolated tree.
  */
 const dirtyFiles = new Set(
-  sh(`git diff --name-only HEAD -- '*AGENTS.md'; git diff --cached --name-only HEAD -- '*AGENTS.md'`)
+  sh(`${guardedDiff("--name-only HEAD -- '*AGENTS.md'")}; ${guardedDiff("--cached --name-only HEAD -- '*AGENTS.md'")}`)
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean),
