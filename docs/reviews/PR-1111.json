@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "pr": 1111,
-  "reviewedHeadSha": "519490c300bacb0bf8dfb354bf32613669145eb0",
-  "diffSha256": "90e6ea45ebbc1a970b6d8e1dd5c475056566f0f8a75c9b23b4f2035493484d92",
+  "reviewedHeadSha": "62359148ba8c3be566d2ad1a246d9b9b46ee8c76",
+  "diffSha256": "1be441844ef5c9abf15a54233b1c6280f19aa04652d33de90bee0975fb7c6328",
   "author": {
     "agentId": "01a1d169-af1b-7482-8ba8-0680d45b3504"
   },
@@ -17,7 +17,8 @@
       "33e33f87",
       "6ff90be0",
       "b71940bd",
-      "519490c3"
+      "519490c3",
+      "62359148"
     ]
   },
   "humanSecurityAcceptance": false,
@@ -148,8 +149,53 @@
       "resolution": "The comment now states that only an ABSENT key honours replacements and that empty, \"0\", and \"1\" all enable the guard. Measured in a four-state probe (absent -> ALT, empty/0/1 -> base).",
       "location": "tests/scripts/check-dox-claims.test.mjs",
       "fixedIn": "519490c3"
+    },
+    {
+      "id": "N9",
+      "title": "Review record did not describe head 62359148; the branch's own gate exited 1",
+      "severity": "high",
+      "status": "fixed",
+      "resolution": "The record was re-issued for head 62359148 with the recomputed diffSha256 (1be44184\u2026), which is the change this record itself makes. Measured before the fix: PR_HEAD_SHA=62359148 exits 1 with both 'diffSha256 does not match' and 'content changed after the reviewed head'. Measured after: exit 0. The record commit changes nothing outside docs/reviews/, which is the only path the gate permits after a reviewed head.",
+      "location": "docs/reviews/PR-1111.json",
+      "fixedIn": "62359148"
+    },
+    {
+      "id": "N10",
+      "title": "preflight replacement fixture committed without a git identity",
+      "severity": "medium",
+      "status": "fixed",
+      "resolution": "The fixture built a real repository and committed twice without configuring an identity, so it passed only where the developer's global git config supplied one. On a fresh runner `git commit -q -m base` failed with 'Author identity unknown / empty ident name' during setup, before the assertion. Configuring user.name/user.email inside the fixture repo fixes it. Reproduced and closed by measurement: with HOME and GIT_CONFIG_GLOBAL at an empty directory plus the git 2.56 add-semantics shim, the fixture passes 34/34; deleting the two config lines reproduces the CI error at 33/34.",
+      "location": "tests/scripts/preflight.test.mjs",
+      "fixedIn": "62359148"
+    },
+    {
+      "id": "N11",
+      "title": "Incorrect provenance claim about the unused copyFileSync import",
+      "severity": "info",
+      "status": "fixed",
+      "resolution": "The author said the unused `copyFileSync` import was 'also unused at origin/main'. It does not exist at origin/main: `git cat-file -e origin/main:tests/scripts/check-review-evidence.test.mjs` exits 128, and `git log -S` shows the file was created in c0ddc237 on this branch. The import is genuinely unused (`grep` for `copyFileSync(` finds no call) and predates this delta, but the provenance claim was wrong. Corrected here rather than repeated. Removing it is left out of scope: it is not a defect introduced by this delta, and no gate covers it (tsc includes tests/**/*.ts only; node --test does not lint).",
+      "location": "tests/scripts/check-review-evidence.test.mjs",
+      "fixedIn": "62359148"
+    },
+    {
+      "id": "N12",
+      "title": "Scope description omitted the evidence record added in f24463f8",
+      "severity": "info",
+      "status": "fixed",
+      "resolution": "The review request said everything at and before 519490c3 was unchanged. Measured, git diff --stat 519490c3 HEAD is 4 files: the three test files plus docs/reviews/PR-1111.json (+155), which was added in f24463f8 and was not previously reviewed. It is docs-only and the gate passed at f24463f8. The corrected scope for this review is f24463f8, 08e7d44c, 865a3a68, and 62359148; scripts/, .github/ and .githooks/ are byte-identical to 519490c3 (empty diff).",
+      "location": "docs/reviews/PR-1111.json",
+      "fixedIn": "62359148"
+    },
+    {
+      "id": "N13",
+      "title": "CI has only ever run at f24463f8; intermediate PASS claims were local",
+      "severity": "info",
+      "status": "not-applicable",
+      "resolution": "No code change warranted; this is an evidence-accounting correction. Measured with the check-runs API: 519490c3, 33e33f87, 6ff90be0 and b71940bd each have 0 check runs, and f24463f8 has 22 (2 failing: pr-conventions and preflight-tests). Every PASS previously quoted for an intermediate head was a local run. The first genuine CI signal is the 5-failure run at f24463f8, which this delta addresses; the push of 62359148 is the real proof, not a re-run of earlier heads. The 5 failures were 4 git-add/gitlink fixture failures plus 1 git-identity fixture failure, all reproduced locally under an empty HOME and the git 2.56 shim.",
+      "location": ".github/workflows/ci.yml",
+      "fixedIn": "62359148"
     }
   ],
-  "notes": "Review history: REQUEST-CHANGES at 33e33f87 (N1-N4), REQUEST-CHANGES at 6ff90be0 (N5-N7 open), REQUEST-CHANGES at b71940bd (N5-N7 open; N8 introduced), APPROVE at 519490c3. Every finding was closed by measurement, not by prose: each fix includes a mutation probe that reproduces the original defect and flips a named test. N7 is an acknowledged coverage note with no code change.",
+  "notes": "Review history: REQUEST-CHANGES at 33e33f87 (N1-N4), REQUEST-CHANGES at 6ff90be0 (N5-N7 open), REQUEST-CHANGES at b71940bd (N5-N7 open; N8 introduced), APPROVE at 519490c3, REQUEST-CHANGES at 62359148 (N9 open: stale record at the new head; N10 fixed; N11-N13 info), then a record-only commit closing N9. Every finding was closed by measurement, not by prose: each fix includes a mutation probe that reproduces the original defect and flips a named test. N7 and N13 are acknowledged accounting corrections with no code change. N11 corrects a false provenance claim the author made in the review request; it is recorded rather than quietly dropped.",
   "acceptanceScope": "This record is agent review evidence only. It does not discharge human security acceptance, GB-12 authority, or the GE-04 hold; fresh context removes contamination, not correlated model blind spots."
 }
