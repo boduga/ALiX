@@ -488,6 +488,12 @@ test("preflight's own git reads run with replacement objects disabled and observ
       return r.stdout.trim();
     };
     spawnSync("git", ["init", "-q", "-b", "main"], { cwd: root });
+    // A fresh runner has no ambient git identity, so `git commit` there fails
+    // with "Author identity unknown" (empty ident name). Set it in the fixture
+    // repository; relying on the developer's global config makes the test pass
+    // locally and fail in CI.
+    setup("config", "user.name", "Preflight Test");
+    setup("config", "user.email", "preflight@example.invalid");
     writeFileSync(join(root, "README.md"), "base\n");
     setup("add", "-A");
     setup("commit", "-q", "-m", "base");
