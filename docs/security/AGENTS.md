@@ -76,6 +76,27 @@ describes is qualified or released.
   that matches nothing, or a count that drifts from the pin, fails the build.
   Coverage, content, reflexivity, and recompute are current-tree properties and
   cannot be excepted at all.
+- **Reflexivity is about edits, not creation.** A commit that changes the checker
+  together with an already-existing manifest (or an artifact it judges) is the
+  same failure one level up and cannot be excepted. A bootstrap has to satisfy
+  three conditions, not one: the path's entire history is that commit, that
+  commit created the path there rather than moving or copying content into it,
+  and that content did not already exist anywhere in the commit's reachable
+  ancestry. A rename destination also has exactly one commit in its history, so
+  a sole-commit count alone cannot distinguish creation from relocation — the
+  checker requires a plain `A` record with no rename/copy source, read from the
+  commit's full change record rather than a pathspec-narrowed view. Rename and
+  copy detection only read a parent TREE, so parking byte-identical content at a
+  scratch path and deleting it in an earlier commit still reports `A` + `M` with
+  a one-commit path history; the ancestry blob-identity probe is what sees the
+  earlier content, and it fails closed on a shallow clone. The rule would
+  otherwise fail on its own creation — which is exactly what happened when the
+  checker and its first manifest landed in `c8027ac7`. Deleting and re-adding a
+  path is not a bootstrap; the delete stays in its history. The honest limit:
+  content that was never committed anywhere in reachable history is
+  indistinguishable from a genuine first manifest, which is the point of the
+  carve-out. This narrows the cheap same-commit edit; it does not make the order
+  rule unbypassable.
 - **Order is a social control.** It removes the cheap one-commit edit and leaves
   a three-commit edit visible as a pattern in history. It says nothing about
   whether an artifact's numbers are right, and it is not independent

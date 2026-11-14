@@ -75,7 +75,6 @@ export const AREAS = [
   "skills",
   "stories",
   "security",
-  "alix-saas-site",
   "bin",
   ".github",
   ".agents",
@@ -83,6 +82,26 @@ export const AREAS = [
   ".opensrc",
   ".tmp",
 ];
+
+/**
+ * Areas that no longer exist in the tree but still name real history.
+ *
+ * Deleting the last file of an area is the honest way to retire it, but the
+ * check then classified the deleted path `unclassified` — the PR that removed
+ * the area could not pass the very gate that noticed it was gone. Removing the
+ * entry outright is the other half of the trap: an old branch, a stale
+ * declaration, or a reverted merge would resolve to nothing.
+ *
+ * A retired area is therefore explicit: it classifies paths (so a deletion PR
+ * has a name to declare) and is declared like any other area, but it must own
+ * no tracked path. Re-adding a file there fails
+ * `tests/scripts/check-pr-scope.test.mjs` until the area is promoted back into
+ * AREAS.
+ */
+export const RETIRED_AREAS = ["alix-saas-site"];
+
+/** Every area a path or a declaration may legitimately name. */
+const ALL_AREAS = [...AREAS, ...RETIRED_AREAS];
 
 /**
  * Root files that any single area is allowed to touch as supporting metadata.
@@ -197,7 +216,7 @@ export function areaFor(path) {
   for (const [prefix, area] of Object.entries(AREA_ALIASES)) {
     if (normalized === prefix || normalized.startsWith(`${prefix}/`)) return area;
   }
-  const match = AREAS.find((area) => normalized === area || normalized.startsWith(`${area}/`));
+  const match = ALL_AREAS.find((area) => normalized === area || normalized.startsWith(`${area}/`));
   return match ?? "unclassified";
 }
 
@@ -331,7 +350,7 @@ export function validatePrScope({ base = "main", files = [], body = "", declared
     for (const d of declaredSet) {
       const resolved = areaFor(d);
       if (resolved === "unclassified") {
-        const suggestion = AREAS.filter((area) => area.startsWith(`${d}/`));
+        const suggestion = ALL_AREAS.filter((area) => area.startsWith(`${d}/`));
         errors.push(
           `\`${d}\` is not a declared area — ` +
             (suggestion.length

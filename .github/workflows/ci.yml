@@ -147,10 +147,10 @@ jobs:
         run: |
           set -eu
           sha256sum --check --strict <<'PINS'
-          2471e35691923c834a52e067f5c5da963207c96c9ac0fb2f699f35235c93a025  scripts/check-evidence-integrity.mjs
+          7193f4ba115bd9a1d5904f94a01d43a57df3493f91662f0f30ed2403fbdaa114  scripts/check-evidence-integrity.mjs
           6db1f8e40313214574e0f666076b91fcbf5c3697a470ee8f4d3d88c801a58dbc  scripts/check-dox-claims.mjs
           4e070c37815eeb36cabd7c48e49093247282d3f924dad4598c13b3178296550a  scripts/check-staleness.mjs
-          f4969a27fe8d5154779f7878a927bbdb6fd72c01ac06f127d85f40606ffc3566  scripts/check-pr-scope.mjs
+          b9c058fd6955600152524f40217aa1d2b292ee180510dba7af0e29322e8a5120  scripts/check-pr-scope.mjs
           59b7aac8e0880bdca43f38366ce9f38d0b69023bb76782280a592344d1bbafc6  scripts/check-review-evidence.mjs
           17b590e865309a26c55fc609ff57fc1fe2cb607fbb0546963d457e828c622eb8  scripts/preflight.mjs
           5c2b1716da58138c06d64c230f661f03506681d181500e365290171be325ab74  .githooks/pre-push
