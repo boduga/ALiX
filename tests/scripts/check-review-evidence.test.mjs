@@ -80,6 +80,66 @@ function commit(root, message) {
   return runGit(root, ["rev-parse", "HEAD"]);
 }
 
+/**
+ * Commit with a gitlink staged directly in the index.
+ *
+ * `git add` and `git add -A` honour `.gitmodules` `ignore = all` for an
+ * ALREADY TRACKED gitlink on git 2.56.1 (the CI runner) and silently leave it
+ * unchanged, so `git commit` reported "nothing to commit, working tree clean"
+ * and the fixture built no bump at all. The same fixture passed on git 2.43.0,
+ * which staged it. A branch that only exists on one git version is not a
+ * regression test, so the index entry is written and asserted directly: that
+ * the gitlink moved is the fixture's premise, not something to inherit from
+ * `git add`.
+ */
+function commitWithGitlink(root, message, path, sha) {
+  runGit(root, ["add", "-A"]);
+  runGit(root, ["update-index", "--cacheinfo", `160000,${sha},${path}`]);
+  assert.equal(
+    runGit(root, ["ls-files", "-s", "--", path]).split(/\s+/)[1],
+    sha,
+    `fixture must stage ${path} at ${sha}`,
+  );
+  runGit(root, ["commit", "-m", message]);
+  return runGit(root, ["rev-parse", "HEAD"]);
+}
+
+/**
+ * Assert the fixture really moved the gitlink, and that `ignore = all` really
+ * hides it. A red gate result below proves nothing unless the bump exists and
+ * is invisible to a plain diff.
+ */
+function assertGitlinkMoved(root, from, to, path) {
+  const escaped = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const revealed = runGit(root, ["diff", "--name-only", "--ignore-submodules=none", from, to]);
+  assert.match(revealed, new RegExp(`^${escaped}$`, "m"), "fixture must actually move the gitlink");
+  const hidden = runGit(root, ["diff", "--name-only", from, to]);
+  assert.doesNotMatch(hidden, new RegExp(`^${escaped}$`, "m"), "ignore = all must hide the gitlink without the flag");
+}
+
+/**
+ * Build a real submodule under `vendor/sub` with two inner commits.
+ *
+ * `submodule add` stages the initial gitlink itself; nothing after it may rely
+ * on `git add` to move that gitlink again.
+ */
+function submoduleFixture(root) {
+  const sub = join(root, "subrepo-src");
+  mkdirSync(sub, { recursive: true });
+  runGit(sub, ["init", "-q"]);
+  runGit(sub, ["config", "user.name", "Review Evidence Test"]);
+  runGit(sub, ["config", "user.email", "review-evidence@example.invalid"]);
+  writeFile(sub, "inner.txt", "one\n");
+  const innerOne = commit(sub, "inner one");
+  writeFile(sub, "inner.txt", "two\n");
+  const innerTwo = commit(sub, "inner two");
+
+  runGit(root, ["-c", "protocol.file.allow=always", "submodule", "add", "-q", sub, "vendor/sub"]);
+  writeFile(root, ".gitmodules", '[submodule "vendor/sub"]\n\tpath = vendor/sub\n\turl = ' + sub + '\n\tignore = all\n');
+  runGit(root, ["add", ".gitmodules"]);
+  return { innerOne, innerTwo };
+}
+
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "alix-review-evidence-"));
   runGit(root, ["init", "-q"]);
@@ -587,32 +647,19 @@ test("a submodule ignore rule cannot hide a post-review gitlink change", () => {
   // bump produced an identical digest and the gate exited 0 over a change.
   const { root, base } = fixture();
   try {
-    const sub = join(root, "subrepo-src");
-    mkdirSync(sub, { recursive: true });
-    runGit(sub, ["init", "-q"]);
-    runGit(sub, ["config", "user.name", "Review Evidence Test"]);
-    runGit(sub, ["config", "user.email", "review-evidence@example.invalid"]);
-    writeFile(sub, "inner.txt", "one\n");
-    const innerOne = commit(sub, "inner one");
-    writeFile(sub, "inner.txt", "two\n");
-    const innerTwo = commit(sub, "inner two");
-
-    runGit(root, ["-c", "protocol.file.allow=always", "submodule", "add", "-q", sub, "vendor/sub"]);
-    writeFile(root, ".gitmodules", '[submodule "vendor/sub"]\n\tpath = vendor/sub\n\turl = ' + sub + '\n\tignore = all\n');
-    runGit(root, ["add", ".gitmodules"]);
+    const { innerOne, innerTwo } = submoduleFixture(root);
 
     // Point the gitlink at the first inner commit.
     runGit(join(root, "vendor/sub"), ["checkout", "-q", innerOne]);
-    runGit(root, ["add", "vendor/sub"]);
-    const reviewed = commit(root, "sub at inner one");
+    const reviewed = commitWithGitlink(root, "sub at inner one", "vendor/sub", innerOne);
     const reviewedDigest = digestFor(root, base, reviewed);
 
     // Bump the gitlink without touching anything else.
     runGit(join(root, "vendor/sub"), ["checkout", "-q", innerTwo]);
-    runGit(root, ["add", "vendor/sub"]);
-    const bumped = commit(root, "bump submodule");
+    const bumped = commitWithGitlink(root, "bump submodule", "vendor/sub", innerTwo);
     const bumpedDigest = digestFor(root, base, bumped);
 
+    assertGitlinkMoved(root, reviewed, bumped, "vendor/sub");
     assert.notEqual(reviewedDigest, bumpedDigest, "a gitlink bump is a change even when .gitmodules ignores it");
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -626,28 +673,15 @@ test("a submodule ignore rule cannot hide a post-review gitlink change from the 
   // reported "only review evidence changed" for a diff it could not see.
   const { root, base } = fixture();
   try {
-    const sub = join(root, "subrepo-src");
-    mkdirSync(sub, { recursive: true });
-    runGit(sub, ["init", "-q"]);
-    runGit(sub, ["config", "user.name", "Review Evidence Test"]);
-    runGit(sub, ["config", "user.email", "review-evidence@example.invalid"]);
-    writeFile(sub, "inner.txt", "one\n");
-    const innerOne = commit(sub, "inner one");
-    writeFile(sub, "inner.txt", "two\n");
-    const innerTwo = commit(sub, "inner two");
-
-    runGit(root, ["-c", "protocol.file.allow=always", "submodule", "add", "-q", sub, "vendor/sub"]);
-    writeFile(root, ".gitmodules", '[submodule "vendor/sub"]\n\tpath = vendor/sub\n\turl = ' + sub + '\n\tignore = all\n');
-    runGit(root, ["add", ".gitmodules"]);
+    const { innerOne, innerTwo } = submoduleFixture(root);
     runGit(join(root, "vendor/sub"), ["checkout", "-q", innerOne]);
-    runGit(root, ["add", "vendor/sub"]);
-    const reviewedHead = commit(root, "sub at inner one");
+    const reviewedHead = commitWithGitlink(root, "sub at inner one", "vendor/sub", innerOne);
 
     const digest = digestFor(root, base, reviewedHead);
     writeFile(root, "docs/reviews/PR-1111.json", evidenceFor(1111, reviewedHead, digest));
     runGit(join(root, "vendor/sub"), ["checkout", "-q", innerTwo]);
-    runGit(root, ["add", "vendor/sub"]);
-    const bumpedHead = commit(root, "bump submodule after review");
+    const bumpedHead = commitWithGitlink(root, "bump submodule after review", "vendor/sub", innerTwo);
+    assertGitlinkMoved(root, reviewedHead, bumpedHead, "vendor/sub");
 
     const result = checker(root, ["--pr", "1111", "--base", base, "--head", bumpedHead]);
     assert.equal(result.status, 1, result.stdout + result.stderr);
@@ -666,28 +700,15 @@ test("a gitlink bump after review is attributed to its evidence commit", () => {
   // content -- and an unpinned diagnostic drifts until it is wrong silently.
   const { root, base } = fixture();
   try {
-    const sub = join(root, "subrepo-src");
-    mkdirSync(sub, { recursive: true });
-    runGit(sub, ["init", "-q"]);
-    runGit(sub, ["config", "user.name", "Review Evidence Test"]);
-    runGit(sub, ["config", "user.email", "review-evidence@example.invalid"]);
-    writeFile(sub, "inner.txt", "one\n");
-    const innerOne = commit(sub, "inner one");
-    writeFile(sub, "inner.txt", "two\n");
-    const innerTwo = commit(sub, "inner two");
-
-    runGit(root, ["-c", "protocol.file.allow=always", "submodule", "add", "-q", sub, "vendor/sub"]);
-    writeFile(root, ".gitmodules", '[submodule "vendor/sub"]\n\tpath = vendor/sub\n\turl = ' + sub + '\n\tignore = all\n');
-    runGit(root, ["add", ".gitmodules"]);
+    const { innerOne, innerTwo } = submoduleFixture(root);
     runGit(join(root, "vendor/sub"), ["checkout", "-q", innerOne]);
-    runGit(root, ["add", "vendor/sub"]);
-    const reviewedHead = commit(root, "sub at inner one");
+    const reviewedHead = commitWithGitlink(root, "sub at inner one", "vendor/sub", innerOne);
 
     const digest = digestFor(root, base, reviewedHead);
     writeFile(root, "docs/reviews/PR-1111.json", evidenceFor(1111, reviewedHead, digest));
     runGit(join(root, "vendor/sub"), ["checkout", "-q", innerTwo]);
-    runGit(root, ["add", "vendor/sub"]);
-    const evidenceHead = commit(root, "bump submodule and record evidence");
+    const evidenceHead = commitWithGitlink(root, "bump submodule and record evidence", "vendor/sub", innerTwo);
+    assertGitlinkMoved(root, reviewedHead, evidenceHead, "vendor/sub");
 
     const result = checker(root, ["--pr", "1111", "--base", base, "--head", evidenceHead]);
     assert.equal(result.status, 1, result.stdout + result.stderr);
