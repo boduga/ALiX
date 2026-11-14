@@ -219,6 +219,77 @@ function lastCommit(relPath) {
  * - `-m` so a merge commit is diffed against each parent. Without it a merge
  *   reports no records, and a moved-in manifest would look like a bootstrap.
  */
+/**
+ * True when the repository is shallow, in which case "reachable ancestry" is a
+ * truncation of the real history and a negative content answer proves nothing.
+ * Read once; a shallow clone cannot become deep mid-run.
+ */
+let shallowRepository = null;
+function isShallowRepository() {
+  if (shallowRepository === null) {
+    const result = spawnSync("git", ["rev-parse", "--is-shallow-repository"], {
+      cwd: root,
+      encoding: "utf8",
+      env: gitEnv(),
+    });
+    if (result.error) usage(`could not run git rev-parse: ${result.error.message}`);
+    if (result.status !== 0) {
+      usage(`could not determine whether the repository is shallow: ${(result.stderr ?? "").trim()}`);
+    }
+    shallowRepository = result.stdout.trim() === "true";
+  }
+  return shallowRepository;
+}
+
+/** The blob a path resolves to in a commit, or null when it does not exist there. */
+function blobAt(relPath, commit) {
+  try {
+    return gitText(["rev-parse", "--verify", "--end-of-options", `${commit}:${relPath}`]) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Every object id reachable from a commit's parents, or null when it has none.
+ *
+ * `rev-list --objects` walks trees and blobs reachable from the given commits, so
+ * a blob that only ever existed at a path since deleted is still listed: the
+ * commit that held it is an ancestor, and reachability does not care that no
+ * ref names the path today. That is precisely what rename detection cannot see.
+ */
+const ancestryObjectCache = new Map();
+function ancestryObjectIds(commit) {
+  if (ancestryObjectCache.has(commit)) return ancestryObjectCache.get(commit);
+  const line = gitText(["rev-list", "--parents", "-n", "1", commit]);
+  const parents = line.split(" ").slice(1).filter(Boolean);
+  let ids = null;
+  if (parents.length) {
+    const raw = gitText(["rev-list", "--objects", "--no-object-names", ...parents]);
+    ids = new Set(raw ? raw.split("\n").filter(Boolean) : []);
+  }
+  ancestryObjectCache.set(commit, ids);
+  return ids;
+}
+
+/**
+ * True when the bytes at `relPath` in `commit` already existed anywhere in that
+ * commit's ancestry — at any path, in any earlier state of the tree.
+ *
+ * Fails closed (returns true) when the question cannot be answered: a shallow
+ * clone has no reachable ancestry to search, and a path that does not resolve to
+ * a blob at `commit` cannot have its content vouched for. Treating either as
+ * "new content" would let the very absence of evidence pass the gate.
+ */
+function contentPredates(relPath, commit) {
+  const blob = blobAt(relPath, commit);
+  if (!blob) return true;
+  if (isShallowRepository()) return true;
+  const ids = ancestryObjectIds(commit);
+  if (!ids) return false;
+  return ids.has(blob);
+}
+
 const commitRecordsCache = new Map();
 function recordsFor(commit) {
   const cached = commitRecordsCache.get(commit);
@@ -273,12 +344,11 @@ function recordsFor(commit) {
 }
 
 /**
- * True when `commit` is a genuine bootstrap for `relPath`: the path's entire
- * history is that one commit, AND that commit simply CREATED the path there.
+ * Why `commit` is NOT a genuine bootstrap for `relPath`, or null when it is.
  *
  * Reflexivity asks a question about edit history: did the same change alter the
  * rule and the data it judges? At bootstrap there is no earlier data, so there is
- * nothing to launder. Two things have to hold, and each rules out a different
+ * nothing to launder. Three things have to hold, and each rules out a different
  * way of dressing an edit up as a creation:
  *
  * 1. The path name is new. Counting every commit that touches the path — not
@@ -290,22 +360,46 @@ function recordsFor(commit) {
  *    the destination path's history as well. Content carried in from another
  *    path was not created by this commit, it was relocated, so the file it
  *    replaces may well have been judged by the old rule. Requiring a plain `A`
- *    with no rename/copy source closes that.
+ *    with no rename/copy source closes the same-commit shape.
  *
- * The honest limit: git's similarity threshold decides what counts as a move,
- * so a rewrite that shares little enough with its source is reported as `A` and
- * passes. This exemption therefore narrows the cheap edit; it does not make the
- * order rule unbypassable.
+ * 3. The content is new to the commit's ANCIENT history as well. Rename
+ *    detection only inspects the parent tree, so parking a byte-identical file
+ *    at a scratch path and DELETING it in an earlier commit hides the source:
+ *    the re-add then reads as a plain `A`, and the path's history is still one
+ *    commit. The probe is blob identity over the reachable ancestry, which is
+ *    what "this content already existed" actually means; it costs one
+ *    `rev-list --objects` walk, and only when the record already looks like a
+ *    bootstrap. A shallow clone cannot answer the question, so it fails closed.
+ *
+ * The honest limit: content that was never committed anywhere in reachable
+ * history, or a genuine first manifest, is indistinguishable from a crafted
+ * one — that is the point of the carve-out. This exemption narrows the cheap
+ * edit; it does not make the order rule unbypassable.
+ *
+ * The reason is returned rather than a bare boolean because the three ways a
+ * bootstrap fails need different fixes: a path with earlier history needs its
+ * data and rule split across commits, a relocation needs the content created
+ * rather than carried in, and a same-commit edit needs the rule change to land
+ * first. A single "shared its commit" message sends an author looking in the
+ * wrong place.
  */
-function isBootstrapOf(relPath, commit) {
-  if (!commit) return false;
+function nonBootstrapReason(relPath, commit) {
+  if (!commit) return "the path has no commit history";
   const count = Number(gitText(["rev-list", "--count", commit, "--", relPath]) || 0);
-  if (count !== 1) return false;
+  if (count !== 1) {
+    return "editing the rule and the data together is the same failure one level up";
+  }
   const seen = recordsFor(commit).get(relPath);
   // Every record must be a plain `A`. A merge that reports `A` against one
   // parent and `R100` against another is still a move, and a single `A` is not
   // enough to say the content was born here.
-  return Boolean(seen) && seen.length > 0 && seen.every((entry) => entry.status === "A");
+  if (!seen || seen.length === 0 || !seen.every((entry) => entry.status === "A")) {
+    return "it was renamed or copied into place alongside the rule edit, so the rule never saw this data";
+  }
+  if (contentPredates(relPath, commit)) {
+    return "its content already existed elsewhere in this history, so it was relocated rather than created";
+  }
+  return null;
 }
 
 /** True when `ancestor` is reachable from `descendant`. A commit is its own ancestor. */
@@ -763,18 +857,19 @@ if (selfCommit) {
   // Both files created together is a bootstrap, not an edit: there was no
   // earlier manifest for the rule to launder. The rule exists to catch a change
   // that alters the rule AND the data, which is only possible once data exists.
-  if (manifestCommit && manifestCommit === selfCommit && !isBootstrapOf(manifestRepoPath, manifestCommit)) {
+  const manifestReason = nonBootstrapReason(manifestRepoPath, manifestCommit);
+  if (manifestCommit && manifestCommit === selfCommit && manifestReason) {
     add(
       "reflexivity",
       manifestRepoPath,
-      `shared its last commit with the checker (${short(selfCommit)}) — ` +
-        "editing the rule and the data together is the same failure one level up",
+      `shared its last commit with the checker (${short(selfCommit)}) — ${manifestReason}`,
     );
   }
   for (const artifact of artifacts) {
     if (!artifact || typeof artifact.path !== "string") continue;
-    if (lastCommit(artifact.path) === selfCommit && !isBootstrapOf(artifact.path, selfCommit)) {
-      add("reflexivity", artifact.path, "shared its last commit with the checker that judges it");
+    if (lastCommit(artifact.path) === selfCommit) {
+      const reason = nonBootstrapReason(artifact.path, selfCommit);
+      if (reason) add("reflexivity", artifact.path, `shared its last commit with the checker that judges it — ${reason}`);
     }
   }
 }

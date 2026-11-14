@@ -147,7 +147,7 @@ jobs:
         run: |
           set -eu
           sha256sum --check --strict <<'PINS'
-          ba2f22e874e0a2fe95c182b77afaaaa3978f3d4a74f31aa1f56c151cd9f8b81f  scripts/check-evidence-integrity.mjs
+          7193f4ba115bd9a1d5904f94a01d43a57df3493f91662f0f30ed2403fbdaa114  scripts/check-evidence-integrity.mjs
           6db1f8e40313214574e0f666076b91fcbf5c3697a470ee8f4d3d88c801a58dbc  scripts/check-dox-claims.mjs
           4e070c37815eeb36cabd7c48e49093247282d3f924dad4598c13b3178296550a  scripts/check-staleness.mjs
           b9c058fd6955600152524f40217aa1d2b292ee180510dba7af0e29322e8a5120  scripts/check-pr-scope.mjs

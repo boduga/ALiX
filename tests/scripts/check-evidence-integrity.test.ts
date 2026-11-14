@@ -838,6 +838,165 @@ describe("check-evidence-integrity: reflexivity", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("fails when byte-identical content is parked, deleted, then added at the canonical path in the checker's commit", () => {
+    // Rename detection reads the PARENT tree, so a source that was deleted in an
+    // earlier commit is invisible to `-M -C --find-copies-harder`: the re-add
+    // reads as a plain `A`, and the destination path's history is one commit.
+    // Content identity over reachable ancestry is the only thing that sees it.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const body = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    const dir = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+      {
+        message: "bootstrap: the rule and a parked manifest",
+        files: {
+          "scripts/check-evidence-integrity.mjs": "// fixture copy\n",
+          "docs/other/parked.json": body,
+        },
+      },
+    ]);
+    try {
+      git(dir, ["rm", "-q", "docs/other/parked.json"]);
+      git(dir, ["commit", "-q", "-m", "remove the parked manifest"]);
+      mkdirSync(join(dir, "docs", "security"), { recursive: true });
+      writeFileSync(join(dir, MANIFEST), JSON.stringify(body, null, 2));
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, edited\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "add the manifest at its canonical path while editing the rule"]);
+      const r = run(dir);
+      assert.ok(checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails when parked content is relocated through a third path before the canonical add", () => {
+    // The detection cannot be a single-hop parent lookup: content can be moved
+    // to a second scratch path, then to the canonical one, with a delete in
+    // between. Ancestry reachability follows the whole chain, not one parent.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const body = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    const dir = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+      {
+        message: "bootstrap: the rule and a parked manifest",
+        files: {
+          "scripts/check-evidence-integrity.mjs": "// fixture copy\n",
+          "docs/other/parked.json": body,
+        },
+      },
+    ]);
+    try {
+      git(dir, ["mv", "docs/other/parked.json", "docs/other/second.json"]);
+      git(dir, ["commit", "-q", "-m", "hop the parked manifest to a second path"]);
+      git(dir, ["rm", "-q", "docs/other/second.json"]);
+      git(dir, ["commit", "-q", "-m", "delete the second path"]);
+      mkdirSync(join(dir, "docs", "security"), { recursive: true });
+      writeFileSync(join(dir, MANIFEST), JSON.stringify(body, null, 2));
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, edited\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "add the manifest at its canonical path while editing the rule"]);
+      const r = run(dir);
+      assert.ok(checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails when a merge brings in ancestry that holds the content but neither parent's tree does", () => {
+    // Copy detection only reads a parent's TREE. When the parked bytes were
+    // deleted on the merged branch before the merge, no parent tree contains
+    // them, so every record is a plain `A` and the shape is indistinguishable
+    // from a creation. The blob is only reachable through the second parent's
+    // ancestry, which is why the search spans every parent and not just the
+    // first.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const body = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    const dir = repo([
+      {
+        message: "bootstrap: the rule, the generator, and the artifact",
+        files: {
+          [GEN]: files[GEN],
+          [ARTIFACT]: files[ARTIFACT],
+          "scripts/check-evidence-integrity.mjs": "// fixture copy\n",
+        },
+      },
+    ]);
+    try {
+      git(dir, ["switch", "-qc", "right"]);
+      mkdirSync(join(dir, "docs", "other"), { recursive: true });
+      writeFileSync(join(dir, "docs", "other", "parked.json"), JSON.stringify(body, null, 2));
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "right: park the manifest under another name"]);
+      git(dir, ["rm", "-q", "docs/other/parked.json"]);
+      git(dir, ["commit", "-q", "-m", "right: delete the parked manifest"]);
+
+      git(dir, ["switch", "-q", "main"]);
+      git(dir, ["switch", "-qc", "left"]);
+      writeFileSync(join(dir, "left.txt"), "left\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "left: add left.txt"]);
+
+      spawnSync("git", ["merge", "-q", "--no-ff", "--no-commit", "right"], {
+        cwd: dir,
+        encoding: "utf8",
+        env: unguardedGitEnv(),
+      });
+      mkdirSync(join(dir, "docs", "security"), { recursive: true });
+      writeFileSync(join(dir, MANIFEST), JSON.stringify(body, null, 2));
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, edited\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "merge right, adding the manifest while editing the rule"]);
+
+      const r = run(dir);
+      assert.ok(checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when a shallow clone cannot answer whether the content predates the commit", () => {
+    // The ancestry walk is the evidence. With truncated history a negative
+    // answer means "I did not see it", not "it was never there", so the
+    // exemption must not be granted on the strength of a truncated search.
+    // Depth 2 keeps the delete commit but drops the commit that parked the
+    // bytes, so the clone looks exactly like an honest creation.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const body = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    const source = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+      {
+        message: "bootstrap: the rule and a parked manifest",
+        files: {
+          "scripts/check-evidence-integrity.mjs": "// fixture copy\n",
+          "docs/other/parked.json": body,
+        },
+      },
+    ]);
+    const dir = mkdtempSync(join(tmpdir(), "alix-evidence-shallow-"));
+    try {
+      git(source, ["rm", "-q", "docs/other/parked.json"]);
+      git(source, ["commit", "-q", "-m", "delete the parked manifest"]);
+      mkdirSync(join(source, "docs", "security"), { recursive: true });
+      writeFileSync(join(source, MANIFEST), JSON.stringify(body, null, 2));
+      writeFileSync(join(source, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, edited\n");
+      git(source, ["add", "-A"]);
+      git(source, ["commit", "-q", "-m", "add the manifest at its canonical path while editing the rule"]);
+      git(dir, ["clone", "-q", "--depth", "2", `file://${source}`, "."]);
+      git(dir, ["config", "user.email", "test@example.com"]);
+      git(dir, ["config", "user.name", "Evidence Test"]);
+      git(dir, ["config", "commit.gpgsign", "false"]);
+      const r = run(dir);
+      assert.ok(checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(source, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("check-evidence-integrity: exceptions", () => {
