@@ -87,6 +87,14 @@ function unguardedGitEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return env;
 }
 
+function gitOut(dir: string, args: string[]): string {
+  const result = spawnSync("git", args, { cwd: dir, encoding: "utf8", env: unguardedGitEnv() });
+  if (result.status !== 0) {
+    throw new Error(`git ${args.join(" ")} failed in ${dir}: ${result.stderr || result.error}`);
+  }
+  return (result.stdout ?? "").trim();
+}
+
 function git(dir: string, args: string[]): void {
   const result = spawnSync("git", args, { cwd: dir, encoding: "utf8", env: unguardedGitEnv() });
   if (result.status !== 0) {
@@ -949,6 +957,158 @@ describe("check-evidence-integrity: reflexivity", () => {
       const r = run(dir);
       assert.equal(r.status, 1, r.stdout);
       assert.ok(checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails when a later checker-only commit sits on top of a rule+data edit", () => {
+    // Laundering hole: examining only the NEWEST commit that changed the rule
+    // selects the harmless follow-up, so the violation underneath it is never
+    // asked about. The contract is that the paired edit is split across commits,
+    // which is a statement about every commit that touched the rule.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const first = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    withRepo(
+      [
+        { message: "generator", files: { [GEN]: files[GEN] } },
+        { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+        {
+          message: "boot: the rule and its first manifest",
+          files: { "scripts/check-evidence-integrity.mjs": "// fixture copy\n", [MANIFEST]: first },
+        },
+        {
+          message: "rule and data edited together",
+          files: {
+            "scripts/check-evidence-integrity.mjs": "// fixture copy, edited\n",
+            [MANIFEST]: JSON.stringify({ ...first, $comment: "edited with the rule" }, null, 2),
+          },
+        },
+        {
+          message: "later checker-only change",
+          files: { "scripts/check-evidence-integrity.mjs": "// fixture copy, edited again\n" },
+        },
+      ],
+      (dir) => {
+        const r = run(dir);
+        assert.equal(r.status, 1, r.stdout);
+        assert.ok(checks(r).includes("reflexivity"), r.stdout);
+      },
+    );
+  });
+
+  it("fails when a checker-only side commit is landed by a merge that authors the manifest", () => {
+    // Bypass shape, and the reason the rule cannot ask a single commit.
+    //
+    //   side: edit the rule            (no manifest record at all)
+    //   main: manifest M
+    //   side: manifest B
+    //   merge: authors a THIRD manifest, carrying the side's rule forward
+    //
+    // The merge authored the data but not the rule `-m` record, so a
+    // latest-rule-authoring-commit rule selects the SIDE commit — whose change
+    // record is the checker alone. Asked there, the manifest question is "did
+    // this commit change the manifest?" and the honest answer is no, so the pair
+    // that actually met at the merge is never examined. Every commit that
+    // changed the rule is examined here instead, and the merge is one of them
+    // because it moved the rule onto a branch that did not have it.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const base = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    const dir = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+    ]);
+    try {
+      git(dir, ["switch", "-qc", "side"]);
+      mkdirSync(join(dir, "docs", "security"), { recursive: true });
+      mkdirSync(join(dir, "scripts"), { recursive: true });
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "side: the rule"]);
+      const ruleCommit = gitOut(dir, ["rev-parse", "HEAD"]);
+
+      git(dir, ["switch", "-q", "main"]);
+      mkdirSync(join(dir, "docs", "security"), { recursive: true });
+      writeFileSync(join(dir, MANIFEST), JSON.stringify({ ...base, $comment: "main" }, null, 2));
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "main: manifest M"]);
+
+      git(dir, ["switch", "-q", "side"]);
+      writeFileSync(join(dir, MANIFEST), JSON.stringify({ ...base, $comment: "side" }, null, 2));
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "side: manifest B"]);
+
+      git(dir, ["switch", "-q", "main"]);
+      spawnSync("git", ["merge", "-q", "--no-ff", "--no-commit", "side"], {
+        cwd: dir,
+        encoding: "utf8",
+        env: unguardedGitEnv(),
+      });
+      // A version neither parent carries, with the side's rule kept.
+      writeFileSync(join(dir, MANIFEST), JSON.stringify({ ...base, $comment: "authored at the merge" }, null, 2));
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "merge: author a third manifest, carry the side's rule"]);
+
+      // Fixture premise: the rule commit itself carries no manifest record. Pin
+      // the commit, not the branch tip — the tip has manifest B, and asking the
+      // branch would answer a different question.
+      assert.ok(
+        !gitOut(dir, ["show", "--pretty=format:", "--name-only", ruleCommit])
+          .split("\n")
+          .includes(MANIFEST),
+        "fixture premise: the rule commit must carry no manifest record",
+      );
+
+      const r = run(dir);
+      assert.equal(r.status, 1, r.stdout);
+      assert.ok(checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("passes when a merge keeps the first parent's manifest while editing the rule", () => {
+    // False positive that made the rule hostile to ordinary work: resolving a
+    // conflict in favour of trunk leaves the data byte-identical to the first
+    // parent, but the merge still has a record for the path against the second
+    // parent. Counting ANY parent's record reads "resolved to trunk" as an edit.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const base = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    const dir = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+      {
+        message: "bootstrap: the rule and its first manifest",
+        files: { "scripts/check-evidence-integrity.mjs": "// fixture copy\n", [MANIFEST]: base },
+      },
+    ]);
+    try {
+      git(dir, ["switch", "-qc", "side"]);
+      writeFileSync(join(dir, MANIFEST), JSON.stringify({ ...base, $comment: "side" }, null, 2));
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "side: edit the manifest"]);
+
+      git(dir, ["switch", "-q", "main"]);
+      spawnSync("git", ["merge", "-q", "--no-ff", "--no-commit", "side"], {
+        cwd: dir,
+        encoding: "utf8",
+        env: unguardedGitEnv(),
+      });
+      // Keep trunk's manifest exactly as it is; only the rule changes.
+      writeFileSync(join(dir, MANIFEST), JSON.stringify(base, null, 2));
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, tightened\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "merge side, keep parent-1 manifest, edit the rule"]);
+
+      assert.equal(
+        gitOut(dir, ["rev-parse", `HEAD:${MANIFEST}`]),
+        gitOut(dir, ["rev-parse", `HEAD^1:${MANIFEST}`]),
+        "fixture premise: the merge must keep the first parent's manifest byte for byte",
+      );
+
+      const r = run(dir);
+      assert.equal(r.status, 0, r.stdout);
+      assert.ok(!checks(r).includes("reflexivity"), r.stdout);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

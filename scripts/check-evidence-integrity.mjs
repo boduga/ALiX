@@ -148,8 +148,25 @@ const toRepoPath = (absolute) => relative(root, absolute).split("\\").join("/");
  * fd 1/2 blocks until the bytes are handed to the OS, so the exit code and the
  * message can never disagree.
  */
-const say = (message) => writeSync(1, String(message) + "\n");
-const sayErr = (message) => writeSync(2, String(message) + "\n");
+function writeAll(fd, text) {
+  // EPIPE is not a defect in this checker.
+  //
+  // A consumer that stops reading early — `| head -1`, `| true`, a parent that
+  // closed the pipe — makes writeSync throw. Letting that escape turns an
+  // ordinary pipeline into a stack trace and an exit 1, which reads as "the gate
+  // failed" when the gate never reached a verdict. Dropping the remaining bytes
+  // is the honest outcome: nobody is listening. Every other write error is still
+  // a real error and propagates.
+  try {
+    writeSync(fd, text);
+  } catch (error) {
+    if (error && error.code === "EPIPE") return;
+    throw error;
+  }
+}
+
+const say = (message) => writeAll(1, String(message) + "\n");
+const sayErr = (message) => writeAll(2, String(message) + "\n");
 
 /** Invocation errors exit 2 so a misconfigured run is never read as a clean one. */
 function usage(message) {
@@ -257,11 +274,22 @@ function isShallowRepository() {
 
 /** The blob a path resolves to in a commit, or null when it does not exist there. */
 function blobAt(relPath, commit) {
-  try {
-    return gitText(["rev-parse", "--verify", "--end-of-options", `${commit}:${relPath}`]) || null;
-  } catch {
-    return null;
-  }
+  // stderr is captured and discarded here, unlike the other git reads.
+  //
+  // A missing path is an EXPECTED answer, not an error: "this commit does not
+  // carry that file" is a real state (before a manifest exists, after it is
+  // deleted). `rev-parse --verify` reports it as a fatal on stderr, and
+  // execFileSync inherits stderr, so probing history printed a stream of
+  // "fatal: Needed a single revision" over a run that was working correctly.
+  // The exit status carries the answer; the diagnostic does not.
+  const result = spawnSync("git", ["rev-parse", "--verify", "--end-of-options", `${commit}:${relPath}`], {
+    cwd: root,
+    encoding: "utf8",
+    env: gitEnv(),
+  });
+  if (result.error) usage(`could not run git rev-parse: ${result.error.message}`);
+  if (result.status !== 0) return null;
+  return (result.stdout ?? "").trim() || null;
 }
 
 /**
@@ -396,45 +424,95 @@ function authoredAtCommit(relPath, commit) {
 }
 
 /**
- * True when `commit` changed `relPath` against at least one parent.
+ * True when `commit` changed `relPath` against its FIRST parent.
  *
- * This is the weaker, one-sided question: a merge that lands a side branch's
- * version of a file did not AUTHOR it, but it did change the tree of the branch
- * it landed on. Reflexivity cares about that too, because the merged-to branch
- * had never had the file judged by the rule before the merge.
+ * Reflexivity asks whether a change to the branch under test altered the rule and
+ * the data together. For an ordinary commit the first parent is the only parent,
+ * so this is the ordinary question. For a merge the choice matters and both
+ * consequences are wanted:
+ *
+ * - A merge that keeps the trunk's copy of the data while editing the rule is NOT
+ *   a finding. Its only record for the data may be against the side branch (it
+ *   rejected that side's version), so comparing against any parent would flag the
+ *   routine "resolve in favour of trunk" resolution.
+ * - A merge that lands a side branch's version DOES differ from the first parent,
+ *   and the branch under test had never had that data judged.
+ *
+ * Comparing across the two sides of a merge instead would move the blame: a side
+ * branch's own first manifest would be judged at the merge that carried it, where
+ * the side commit's plain `A` looks like a rename because the merge has no record
+ * for the path against that side at all.
  */
-function changedAtCommit(relPath, commit) {
+function changedAgainstFirstParent(relPath, commit) {
   if (!commit) return false;
-  return (recordsFor(commit).get(relPath) ?? []).length > 0;
+  const parents = parentsOf(commit);
+  if (parents.length === 0) return blobAt(relPath, commit) !== null;
+  return blobAt(relPath, commit) !== blobAt(relPath, parents[0]);
 }
 
 /**
- * The newest commit in HEAD's history that AUTHORED the version of `relPath`
- * currently checked out, or null when the path is untracked.
+ * Every `[commit, pathSet]` whose change touched the checker, newest first.
  *
- * This is the question `lastCommit` cannot answer. `git log -1 -- path` applies
- * history simplification: for a merge that carries a path unchanged from one
- * side, it reports the side commit. So a merge that lands a side branch's data
- * while rewriting the rule reads as "the data predates the rule edit" and the
- * reflexivity finding disappears — that is the reported defect. Walking HEAD's
- * own path history and testing authorship per candidate asks what actually
- * authored what. `--full-history` keeps commits the default walk prunes;
- * `--topo-order` keeps a parent from being offered before a descendant that may
- * also have authored it. Merely landing a side branch's version is not
- * authorship: `authoredAtCommit` compares against every parent, so a merge that
- * is TREESAME to one of them is skipped in favour of the commit that really
- * introduced the content.
+ * `reflexivityFindings` asks the question of ALL of them, not just the newest.
+ * Examining only the newest is a laundering hole: a violation at commit N (rule
+ * and data edited together) followed by a harmless checker-only commit N+1 would
+ * make N+1 the selected author and leave N unexamined. The whole point of the
+ * rule is that the pair must be split across commits, so every commit that
+ * changed the rule is a place the question has to be asked.
+ *
+ * `--full-history` keeps commits the default walk prunes; `--topo-order` keeps a
+ * parent from being offered before a descendant that may also have authored it.
  */
-function lastAuthoredCommit(relPath) {
+function commitsTouching(relPath) {
+  let commits = [];
+  try {
+    commits = gitText(["rev-list", "--full-history", "--topo-order", "HEAD", "--", relPath])
+      .split("\n")
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+  // A commit that only appears because a SIDECAR path matched (not possible with
+  // a single pathspec, kept explicit for symmetry) is filtered by asking the
+  // change record directly.
+  return commits.filter((commit) => (recordsFor(commit).get(relPath) ?? []).length > 0);
+}
+
+/**
+ * True when `commit` changed the checker in a way that could launder data.
+ *
+ * A commit that only DELETED the checker has no rule to weaken, and a root commit
+ * has no earlier data for a rule to launder, so neither is a place to ask. Every
+ * other commit that carries a checker record is.
+ */
+function changesRuleAt(commit, checkerPath) {
+  if (!commit) return false;
+  if (!blobAt(checkerPath, commit)) return false;
+  return (recordsFor(commit).get(checkerPath) ?? []).length > 0;
+}
+
+/**
+ * The commit in `commit`'s own history that AUTHORED the version of `relPath`
+ * that `commit` carries, or null when no commit authored it.
+ *
+ * This is what separates "this commit wrote the data" from "this commit carried
+ * data written elsewhere". A merge that lands a side branch's manifest did not
+ * author it; the side commit did, and that is the commit whose edit history the
+ * bootstrap question has to be asked about. Asking it of the merge instead would
+ * read the side commit's plain `A` as a rename, because a merge that is TREESAME
+ * to that side has no record for the path at all.
+ */
+function authoringCommitOf(relPath, commit) {
+  if (!commit) return null;
   let candidates = [];
   try {
-    candidates = gitText(["rev-list", "--full-history", "--topo-order", "HEAD", "--", relPath])
+    candidates = gitText(["rev-list", "--full-history", "--topo-order", commit, "--", relPath])
       .split("\n")
       .filter(Boolean);
   } catch {
     return null;
   }
-  return candidates.find((commit) => authoredAtCommit(relPath, commit)) ?? null;
+  return candidates.find((candidate) => authoredAtCommit(relPath, candidate)) ?? null;
 }
 
 /**
@@ -948,32 +1026,55 @@ for (const artifact of artifacts) {
 
 // -- 5. Reflexivity --------------------------------------------------------
 
-const selfCommit = lastAuthoredCommit("scripts/check-evidence-integrity.mjs");
-if (selfCommit) {
-  // Both files created together is a bootstrap, not an edit: there was no
-  // earlier manifest for the rule to launder. The rule exists to catch a change
-  // that alters the rule AND the data, which is only possible once data exists.
+const checkerPath = "scripts/check-evidence-integrity.mjs";
+const ruleCommits = commitsTouching(checkerPath).filter((commit) => changesRuleAt(commit, checkerPath));
+if (ruleCommits.length) {
+  // Every commit that changed the checker gets asked, oldest or newest alike.
   //
-  // The question is asked of the rule-authoring commit itself, not of whatever
-  // `git log -1` surfaces for the data. A merge can land a side branch's
-  // manifest without authoring it, and default history simplification then
-  // reports the side commit — which is exactly how a merge that both lands data
-  // and rewrites the rule used to pass. `changedAtCommit` sees the merge's own
-  // change record against the branch it landed on.
-  const manifestChanged = changedAtCommit(manifestRepoPath, selfCommit);
-  const manifestReason = manifestChanged ? nonBootstrapReason(manifestRepoPath, selfCommit) : null;
-  if (manifestReason) {
-    add(
-      "reflexivity",
-      manifestRepoPath,
-      `shared its last commit with the checker (${short(selfCommit)}) — ${manifestReason}`,
-    );
-  }
-  for (const artifact of artifacts) {
-    if (!artifact || typeof artifact.path !== "string") continue;
-    if (changedAtCommit(artifact.path, selfCommit)) {
-      const reason = nonBootstrapReason(artifact.path, selfCommit);
-      if (reason) add("reflexivity", artifact.path, `shared its last commit with the checker that judges it — ${reason}`);
+  // Asking only the newest was a laundering hole: a violation at commit N
+  // (rule and data edited together) followed by a harmless checker-only commit
+  // N+1 selected N+1, and N was never examined. The rule is that the paired edit
+  // must be SPLIT across commits, so the question has to be asked at every commit
+  // that altered the rule.
+  //
+  // "Changed" is measured against the FIRST parent. That is what makes merges
+  // come out right without a special case for each shape:
+  //
+  // - Resolving a conflict in favour of trunk leaves the data byte-identical to
+  //   the first parent, so an honest merge is not a finding even though it has a
+  //   record for the path against the second parent.
+  // - Landing a side branch's version DOES differ from the first parent: the
+  //   branch under test never had that data judged by the old rule, so the merge
+  //   is where rule and data met. That is a finding unless the data's own author
+  //   commit is a genuine joint bootstrap, below.
+  // - A merge that authors a third version differs from the first parent too.
+  for (const selfCommit of ruleCommits) {
+    const judge = (subjectPath) => {
+      if (!changedAgainstFirstParent(subjectPath, selfCommit)) return;
+      const author = authoringCommitOf(subjectPath, selfCommit) ?? selfCommit;
+      // Both born together on a side branch, then landed by this merge: there was
+      // no earlier data for the rule to launder, so nothing was hidden. The
+      // question was never "which commit carried it", it was "did a rule change
+      // quietly re-bless data an older rule had already judged".
+      if (author !== selfCommit && changesRuleAt(author, checkerPath) && nonBootstrapReason(subjectPath, author) === null) {
+        return;
+      }
+      const reason =
+        author === selfCommit
+          ? nonBootstrapReason(subjectPath, selfCommit)
+          : "the rule edit landed on the same branch as data it had never judged, so the old rule never saw it";
+      if (reason) {
+        add(
+          "reflexivity",
+          subjectPath,
+          `shared its last commit with the checker (${short(selfCommit)}) — ${reason}`,
+        );
+      }
+    };
+    judge(manifestRepoPath);
+    for (const artifact of artifacts) {
+      if (!artifact || typeof artifact.path !== "string") continue;
+      judge(artifact.path);
     }
   }
 }

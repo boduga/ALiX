@@ -78,15 +78,24 @@ describes is qualified or released.
   cannot be excepted at all.
 - **Reflexivity is about edits, not creation.** A commit that changes the checker
   together with an already-existing manifest (or an artifact it judges) is the
-  same failure one level up and cannot be excepted. The commit that counts is
-  the one that AUTHORED the checker, and it is compared against that commit's
-  own full change record, not against `git log -1` for the data: default
-  history simplification names a side commit for a merge that carries a path
-  unchanged, so a merge that lands a first manifest while rewriting the rule
-  used to read as data older than the rule. A commit authors a path only when
-  the path differs from every parent (one `-m` record per parent) and a blob
-  exists at that path; a merge propagating one parent's version authors
-  nothing, and a deletion authors nothing. A bootstrap has to satisfy three
+  same failure one level up and cannot be excepted. EVERY commit that changed the
+  checker is asked, not only the newest: selecting the latest rule-authoring
+  commit let a violation at commit N hide behind a harmless checker-only commit
+  N+1. Each such commit is compared against its own full change record, not
+  against `git log -1` for the data: default history simplification names a side
+  commit for a merge that carries a path unchanged, so a merge that lands a first
+  manifest while rewriting the rule used to read as data older than the rule.
+  Data counts as changed at a merge only when it differs from the FIRST parent:
+  resolving in favour of trunk leaves the data byte-identical to the first parent
+  and is not a finding, while landing a side branch's version (or authoring a
+  third version) does differ and is. A commit authors a path only when the path
+  differs from every parent (one `-m` record per parent) and a blob exists at
+  that path; a merge propagating one parent's version authors nothing, and a
+  deletion authors nothing. When the version a rule-changing merge carries was
+  authored elsewhere by the same joint side commit that also changed the rule,
+  there was never an older rule to launder data from, so that pair is not a
+  finding; any other carried version is, because the old rule had never judged
+  it. A bootstrap has to satisfy three
   conditions, not one: the path's entire history is that commit, that
   commit created the path there rather than moving or copying content into it,
   and that content did not already exist anywhere in the commit's reachable
