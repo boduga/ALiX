@@ -9,13 +9,12 @@ import {
   changedFiles,
   classifyEvidence,
   distReadiness,
-  gitSpawnOptions,
   hasHistoryBeyondRoot,
   resolveChangeSet,
   resolveChangeSetOutcome,
   selectAffectedTests,
-  stepEnv,
-  stepSpawnOptions,
+  runGit,
+  runStepProcess,
   tailLines,
   verdictOf,
 } from "../../scripts/preflight.mjs";
@@ -433,32 +432,100 @@ test("the mirrored-path lookup keeps every test registered at one key", () => {
   assert.deepEqual(selected, ["tests/security/lock.test.ts", "tests/security/lock.vitest.ts"]);
 });
 
-test("spawned steps inherit the replacement guard", () => {
+test("runStep spawns children with the replacement guard, not the ambient environment", () => {
   // preflight's own git() is guarded, so a child that reads git for itself
   // looked protected and was not: `check:dox` resolves the head tree and
   // `check:evidence` reads history. Measured end-to-end, a replacement ref made
   // `pnpm preflight` report PASS over a claim the branch does not contain.
-  const env = stepEnv();
-  assert.equal(env.GIT_NO_REPLACE_OBJECTS, "1");
-
-  // Asserting the helper alone never proved the child received it: deleting
-  // `env: stepEnv()` from the spawn left all 33 tests green, so the guard could
-  // regress silently. This pins the options `runStep` actually spawns with.
-  assert.equal(
-    stepSpawnOptions().env.GIT_NO_REPLACE_OBJECTS,
-    "1",
-    "runStep must spawn children with stepEnv(), not the ambient environment",
-  );
+  //
+  // Asserting `stepEnv()` alone never proved the child received it. Nor does
+  // `stepSpawnOptions()`: `spawnSync(..., { ...process.env })` inside runStep
+  // bypassed the helper with 34/34 still green. So this calls the delegate
+  // `runStep` calls and asserts the guard is the RESULT's, independent of what
+  // the caller exported.
+  const previous = process.env.GIT_NO_REPLACE_OBJECTS;
+  try {
+    for (const ambient of [undefined, "0"]) {
+      if (ambient === undefined) delete process.env.GIT_NO_REPLACE_OBJECTS;
+      else process.env.GIT_NO_REPLACE_OBJECTS = ambient;
+      const result = runStepProcess(process.execPath, ["-p", "process.env.GIT_NO_REPLACE_OBJECTS"]);
+      assert.equal(result.status, 0, String(result.stderr));
+      assert.equal(
+        String(result.stdout).trim(),
+        "1",
+        `a child must run guarded even when the caller exported ${JSON.stringify(ambient)}`,
+      );
+    }
+  } finally {
+    if (previous === undefined) delete process.env.GIT_NO_REPLACE_OBJECTS;
+    else process.env.GIT_NO_REPLACE_OBJECTS = previous;
+  }
 });
 
-test("preflight's own git reads run with replacement objects disabled", () => {
-  // These are the options `git()` executes with. Without the guard a
-  // `B...HEAD` diff against a replaced base is empty and the uncommitted diff is
-  // empty too, so changedFiles() degrades to [] -- a branch's whole change set
-  // vanishing -- while every test stayed green.
-  assert.equal(
-    gitSpawnOptions().env.GIT_NO_REPLACE_OBJECTS,
-    "1",
-    "git() must disable replacement objects, not inherit the ambient environment",
-  );
+test("preflight's own git reads run with replacement objects disabled and observe the real tree", () => {
+  // This is `git()` itself (now `runGit`), not a helper beside it. A git()
+  // spawning `{ ...process.env }` left `changedFiles()` reporting a subset of a
+  // replaced base with every test green: the branch looked documentation-only,
+  // so typecheck and tests were skipped. The fixture is a real repository whose
+  // HEAD is replaced by a tree that drops the source change; a guarded read
+  // still sees the real file, an unguarded one does not.
+  const realGit = spawnSync("git", ["--exec-path"], { encoding: "utf8" });
+  assert.equal(realGit.status, 0, "the test needs the real git");
+  const root = mkdtempSync(join(tmpdir(), "alix-preflight-replace-"));
+  const previous = process.env.GIT_NO_REPLACE_OBJECTS;
+  // An EMPTY `GIT_NO_REPLACE_OBJECTS` still ENABLES the guard, so "unguarded"
+  // means the key is absent, not set to "". Deleting it is the only way to ask
+  // git to honour a replacement ref.
+  const unguardedEnv = () => {
+    const env = { ...process.env };
+    delete env.GIT_NO_REPLACE_OBJECTS;
+    return env;
+  };
+  try {
+    const setup = (...args) => {
+      const r = spawnSync("git", args, { cwd: root, encoding: "utf8", env: unguardedEnv() });
+      if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+      return r.stdout.trim();
+    };
+    spawnSync("git", ["init", "-q", "-b", "main"], { cwd: root });
+    writeFileSync(join(root, "README.md"), "base\n");
+    setup("add", "-A");
+    setup("commit", "-q", "-m", "base");
+    const base = setup("rev-parse", "HEAD");
+    writeFileSync(join(root, "README.md"), "changed\n");
+    setup("add", "-A");
+    setup("commit", "-q", "-m", "real change");
+    const head = setup("rev-parse", "HEAD");
+
+    // Synthetic commit: the base tree, i.e. a substitution that hides the change.
+    const baseTree = setup("rev-parse", `${base}^{tree}`);
+    const synthetic = setup("commit-tree", baseTree, "-p", base, "-m", "replaced head");
+    setup("replace", head, synthetic);
+
+    // Premise: the substitution is live for an unguarded read.
+    const replaced = spawnSync("git", ["replace", "-l"], { cwd: root, encoding: "utf8", env: unguardedEnv() });
+    assert.match(replaced.stdout, new RegExp(head), "fixture premise: the replacement ref exists");
+    const unguarded = spawnSync("git", ["diff", "--name-only", `${base}...${head}`], {
+      cwd: root,
+      encoding: "utf8",
+      env: unguardedEnv(),
+    });
+    assert.equal(unguarded.stdout.trim(), "", "fixture premise: the replacement hides the change");
+    // The adversarial ambient state is the variable being ABSENT: git honours a
+    // replacement whenever the key is missing. Any value -- including "0" and
+    // the empty string -- disables replacements (measured), so exporting one
+    // would make the guarded and unguarded reads agree and pin nothing.
+    delete process.env.GIT_NO_REPLACE_OBJECTS;
+    // `runGit` runs in preflight's own root, so this repo is addressed with
+    // `git -C` rather than an override that could also drop the guard.
+    assert.equal(
+      runGit(["-C", root, "diff", "--name-only", "--ignore-submodules=none", `${base}...${head}`]),
+      "README.md",
+      "git() must measure real history even when the caller left the guard unset",
+    );
+  } finally {
+    if (previous === undefined) delete process.env.GIT_NO_REPLACE_OBJECTS;
+    else process.env.GIT_NO_REPLACE_OBJECTS = previous;
+    rmSync(root, { recursive: true, force: true });
+  }
 });

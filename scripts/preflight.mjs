@@ -69,27 +69,35 @@ export const DOC_EXTENSIONS = new Set([".md", ".markdown", ".txt", ".adoc", ".rs
  * `git replace` makes a ref resolve to a commit nobody committed, so a local
  * replacement ref would let the change set describe a tree that is not the one
  * being pushed. Fail-closed means measuring real history, not the rewritten one.
- */
-/**
- * Spawn options for preflight's own git reads.
  *
- * Exported because these ARE the options `git()` executes with. Asserting a
- * separately-exported env helper proves nothing about what git receives; a copy
- * with this guard removed still passed every test while `changedFiles()`
- * degraded to `[]` over a replaced base.
+ * The CLI and the tests route every read through `runGit`, so a test can
+ * observe the options `git()` actually spawns with instead of trusting a helper
+ * it calls separately. Asserting a helper's output is not the same test.
  */
 export function gitSpawnOptions() {
   return {
     cwd: ROOT,
     encoding: "utf8",
     maxBuffer: 1 << 28,
-    env: { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" },
+    env: guardedEnv(),
   };
 }
 
-function git(argv) {
+/**
+ * Delegate for preflight's own git reads.
+ *
+ * The CLI and the tests route every read through this, so a test can observe
+ * the options `git()` actually spawns with instead of trusting a helper it
+ * calls separately. Asserting a helper's output is not the same test: with
+ * `git()` spawning `{ ...process.env }` directly, the helper still returned the
+ * guard and all 34 tests stayed green while `changedFiles()` degraded to a
+ * subset over a replaced base.
+ */
+export function runGit(argv) {
   return execFileSync("git", argv, gitSpawnOptions()).trim();
 }
+
+const git = runGit;
 
 function tryGit(argv) {
   try {
@@ -321,17 +329,28 @@ const steps = [];
  * `check:evidence` reads history, so both need the flag in their environment.
  */
 export function stepEnv() {
-  return { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1", GIT_NO_REPLACE_OBJECTS: "1" };
+  return { ...guardedEnv(), FORCE_COLOR: "0", NO_COLOR: "1" };
+}
+
+/**
+ * Ambient environment with replacement objects disabled.
+ *
+ * The key is SET, not inherited: a caller that exports
+ * `GIT_NO_REPLACE_OBJECTS=0` (or omits it) must not decide whether this module's
+ * reads see real history.
+ */
+export function guardedEnv() {
+  return { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" };
 }
 
 /**
  * The spawn options for one child step.
  *
- * Exported so the wiring `runStep` actually uses is testable. Asserting
- * `stepEnv().GIT_NO_REPLACE_OBJECTS === "1"` alone never proved the child
- * received it: removing `env: stepEnv()` from the spawn left all 33 tests green.
+ * A helper's output is not proof of its use: asserting
+ * `stepEnv().GIT_NO_REPLACE_OBJECTS === "1"` alone left the spawn free to pass
+ * `{ ...process.env }` with every test green.
  */
-export function stepSpawnOptions(overrides = {}) {
+export function stepSpawnOptions() {
   return {
     cwd: ROOT,
     encoding: "utf8",
@@ -340,13 +359,23 @@ export function stepSpawnOptions(overrides = {}) {
     // hook -- reported PASS over a claim resolved from a replacement tree.
     env: stepEnv(),
     maxBuffer: 1 << 28,
-    ...overrides,
   };
+}
+
+/**
+ * Delegate for child steps.
+ *
+ * Exported so a test can observe the options `runStep` actually spawns with:
+ * `spawnSync(..., { ...process.env })` bypassed the helper while every test
+ * passed. `runStep` calls this, so the assertion covers the real call site.
+ */
+export function runStepProcess(command, commandArgs) {
+  return spawnSync(command, commandArgs, stepSpawnOptions());
 }
 
 function runStep(name, command, commandArgs, options = {}) {
   const started = Date.now();
-  const result = spawnSync(command, commandArgs, stepSpawnOptions());
+  const result = runStepProcess(command, commandArgs);
   const durationMs = Date.now() - started;
   const stdout = result.stdout ?? "";
   const output = `${stdout}${result.stderr ?? ""}`.trim();

@@ -120,7 +120,16 @@ function repo(steps: Step[]): string {
   return dir;
 }
 
-function run(dir: string, extra: string[] = [], env: NodeJS.ProcessEnv = process.env): FindResult {
+/**
+ * Invoke the checker with the replacement guard ABSENT from its environment.
+ *
+ * The checker sets the guard on its own git reads. Passing `{ ...process.env }`
+ * let an ambient `GIT_NO_REPLACE_OBJECTS=1` stand in for that: deleting the
+ * checker's `gitEnv()` left every replacement-ref test green, because the
+ * caller had already handed the child the flag the code was supposed to add.
+ * The key must be absent here so the code under test is the only guard.
+ */
+function run(dir: string, extra: string[] = [], env: NodeJS.ProcessEnv = unguardedGitEnv()): FindResult {
   const result = spawnSync(process.execPath, [SCRIPT, "--root", dir, "--json", ...extra], {
     encoding: "utf-8",
     env,
@@ -1042,7 +1051,7 @@ describe("check-evidence-integrity: recompute", () => {
       );
 
       const out = join(artifactsHead, "recompute-tree.txt");
-      const r = run(artifactsHead, ["--recompute"], { ...process.env, RECOMPUTE_OUT: out });
+      const r = run(artifactsHead, ["--recompute"], unguardedGitEnv({ RECOMPUTE_OUT: out }));
       assert.equal(r.status, 0, r.stdout + r.stderr);
       assert.equal(
         readFileSync(out, "utf8").trim(),
