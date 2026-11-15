@@ -479,19 +479,6 @@ function commitsTouching(relPath) {
 }
 
 /**
- * True when `commit` changed the checker in a way that could launder data.
- *
- * A commit that only DELETED the checker has no rule to weaken, and a root commit
- * has no earlier data for a rule to launder, so neither is a place to ask. Every
- * other commit that carries a checker record is.
- */
-function changesRuleAt(commit, checkerPath) {
-  if (!commit) return false;
-  if (!blobAt(checkerPath, commit)) return false;
-  return (recordsFor(commit).get(checkerPath) ?? []).length > 0;
-}
-
-/**
  * The commit in `commit`'s own history that AUTHORED the version of `relPath`
  * that `commit` carries, or null when no commit authored it.
  *
@@ -1027,47 +1014,128 @@ for (const artifact of artifacts) {
 // -- 5. Reflexivity --------------------------------------------------------
 
 const checkerPath = "scripts/check-evidence-integrity.mjs";
-const ruleCommits = commitsTouching(checkerPath).filter((commit) => changesRuleAt(commit, checkerPath));
+
+/**
+ * The commit that authored the rule version `commit` carries.
+ *
+ * Same question as `authoringCommitOf`, asked of the checker. A merge that only
+ * carries a rule written on a side branch does not author it, and using
+ * `commit` itself would read that propagation as a rule change.
+ */
+function ruleAuthorOf(commit) {
+  return authoringCommitOf(checkerPath, commit) ?? commit;
+}
+
+/**
+ * Why a commit that lands `relPath` is NOT a bootstrap, or null when it is.
+ *
+ * `nonBootstrapReason` asks whether the path's history under THIS commit is one
+ * commit. That is right for a linear commit and wrong on its own for a merge: a
+ * side branch can create a brand-new manifest path whose own history is a single
+ * commit while the first-parent side already had a judged manifest at that path.
+ * The merge then replaces judged trunk data with the side's "first" version and
+ * the sole-commit count never sees it. Checking every parent closes that shape:
+ * if a parent already carried a version of the path, this is a replacement. When
+ * the path IS new to every parent, the authoring commit still has to pass the
+ * ordinary bootstrap test.
+ */
+function bootstrapReason(relPath, commit) {
+  const own = blobAt(relPath, commit);
+  for (const parent of parentsOf(commit)) {
+    const parentBlob = blobAt(relPath, parent);
+    // A parent carrying THIS commit's bytes is the merge propagating them, not a
+    // competing version: the joint bootstrap arrives through that side intact.
+    if (parentBlob !== null && parentBlob !== own) {
+      return "it replaced a version of the path that a parent branch already had, so the older rule had already judged that data";
+    }
+    const parentAuthor = authoringCommitOf(relPath, parent);
+    if (!parentAuthor) continue;
+    const parentReason = nonBootstrapReason(relPath, parentAuthor);
+    if (parentReason) return parentReason;
+  }
+  const author = authoringCommitOf(relPath, commit);
+  return author ? nonBootstrapReason(relPath, author) : "the path has no commit history";
+}
+
+/**
+ * Why `selfCommit` is NOT an honest rule/data split for `relPath`, or null.
+ *
+ * Reflexivity asks whether this change re-blessed data no older rule had judged.
+ * Only a change that alters the rule against its FIRST parent is asked; a merge
+ * that keeps the first parent's rule changed nothing about the rule.
+ *
+ * "Split across commits" counts only in the direction that matters: the rule
+ * version must be authored at or before the data version ON THE BRANCH THE DATA
+ * CAME FROM. Two shapes are therefore not findings:
+ *
+ * 1. This commit authored the data AND the rule it carries, and the path is a
+ *    genuine joint creation on every parent's side. There was no earlier data.
+ *
+ * 2. This commit carries data authored elsewhere, and the rule author is at or
+ *    before the data author — the ordinary split branch, where data was written
+ *    after the rule that judges it. A merge that lands such a pair is likewise
+ *    not a finding: the merge launders nothing.
+ *
+ * Everything else is a finding. That includes a merge that replaces a parent's
+ * judged data with a side branch's "first" version (the bootstrap claim is false
+ * once the parent's history is considered) and a merge that authors data while
+ * landing a rule authored somewhere else.
+ */
+function reflexivityReason(relPath, selfCommit) {
+  if (!changedAgainstFirstParent(relPath, selfCommit)) return null;
+
+  const dataAuthor = authoringCommitOf(relPath, selfCommit) ?? selfCommit;
+  const ruleAuthor = ruleAuthorOf(selfCommit);
+
+  if (dataAuthor !== selfCommit) {
+    // The commit carries data authored elsewhere. It is excused when that data's
+    // branch already carried the rule version this commit enforces, i.e. the
+    // rule author is at or before the data author.
+    if (ruleAuthor === dataAuthor) {
+      // Rule and data share an author commit: a joint creation only if the path
+      // was new to every parent of this commit.
+      return bootstrapReason(relPath, selfCommit);
+    }
+    if (isAncestor(ruleAuthor, dataAuthor)) return null;
+    return "the rule edit landed on a branch the data never had, so the older rule never judged it";
+  }
+
+  // This commit authored the data.
+  if (ruleAuthor === selfCommit) {
+    // Rule and data authored together here. Only a genuine creation excuses it.
+    return bootstrapReason(relPath, selfCommit);
+  }
+  // Data authored while landing a rule written elsewhere: the older rule never
+  // judged this data, and the rule did not reach the data's own branch either.
+  return "it authored data in the same commit that landed a rule change authored elsewhere";
+}
+
+const ruleCommits = commitsTouching(checkerPath).filter(
+  (commit) => blobAt(checkerPath, commit) !== null && changedAgainstFirstParent(checkerPath, commit),
+);
 if (ruleCommits.length) {
-  // Every commit that changed the checker gets asked, oldest or newest alike.
+  // EVERY commit whose rule differs from its first parent is asked, oldest or
+  // newest alike. Asking only the newest was a laundering hole: a violation at
+  // commit N (rule and data edited together) followed by a harmless checker-only
+  // commit N+1 selected N+1, and N was never examined.
   //
-  // Asking only the newest was a laundering hole: a violation at commit N
-  // (rule and data edited together) followed by a harmless checker-only commit
-  // N+1 selected N+1, and N was never examined. The rule is that the paired edit
-  // must be SPLIT across commits, so the question has to be asked at every commit
-  // that altered the rule.
-  //
-  // "Changed" is measured against the FIRST parent. That is what makes merges
-  // come out right without a special case for each shape:
-  //
-  // - Resolving a conflict in favour of trunk leaves the data byte-identical to
-  //   the first parent, so an honest merge is not a finding even though it has a
-  //   record for the path against the second parent.
-  // - Landing a side branch's version DOES differ from the first parent: the
-  //   branch under test never had that data judged by the old rule, so the merge
-  //   is where rule and data met. That is a finding unless the data's own author
-  //   commit is a genuine joint bootstrap, below.
-  // - A merge that authors a third version differs from the first parent too.
+  // The set is "changed against the first parent", not "authored the rule". A
+  // merge that lands a side branch's rule has not authored it, but it is the
+  // commit where that rule meets the branch — and a merge that adopts a side
+  // branch's fresh manifest over trunk's judged one is exactly the laundering
+  // shape the bootstrap carve-out must not excuse. "Changed against the first
+  // parent" also keeps the honest shapes out: a merge that keeps trunk's rule
+  // does not appear, and a merge that resolves in favour of trunk's data is not
+  // a data finding.
   for (const selfCommit of ruleCommits) {
     const judge = (subjectPath) => {
-      if (!changedAgainstFirstParent(subjectPath, selfCommit)) return;
-      const author = authoringCommitOf(subjectPath, selfCommit) ?? selfCommit;
-      // Both born together on a side branch, then landed by this merge: there was
-      // no earlier data for the rule to launder, so nothing was hidden. The
-      // question was never "which commit carried it", it was "did a rule change
-      // quietly re-bless data an older rule had already judged".
-      if (author !== selfCommit && changesRuleAt(author, checkerPath) && nonBootstrapReason(subjectPath, author) === null) {
-        return;
-      }
-      const reason =
-        author === selfCommit
-          ? nonBootstrapReason(subjectPath, selfCommit)
-          : "the rule edit landed on the same branch as data it had never judged, so the old rule never saw it";
+      const reason = reflexivityReason(subjectPath, selfCommit);
       if (reason) {
         add(
           "reflexivity",
           subjectPath,
           `shared its last commit with the checker (${short(selfCommit)}) — ${reason}`,
+          { relation: "checker", subject: checkerPath, artifactCommit: selfCommit, subjectCommit: selfCommit, markerValue: null },
         );
       }
     };

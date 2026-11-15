@@ -1114,6 +1114,118 @@ describe("check-evidence-integrity: reflexivity", () => {
     }
   });
 
+  it("fails when a merge replaces trunk's judged manifest with a side bootstrap", () => {
+    // The side branch's manifest is a genuine bootstrap ON THAT BRANCH: first
+    // commit for the path, plain `A`, content this history has never held. Asked
+    // only of the side commit, every carve-out condition holds. But trunk
+    // already had its own manifest, judged by the rule trunk carries, and the
+    // merge throws it away in favour of the side's "first" version. The
+    // bootstrap claim is false relative to trunk, so the carve-out must consult
+    // the parents before granting it.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const dir = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+    ]);
+    try {
+      git(dir, ["switch", "-qc", "side"]);
+      mkdirSync(join(dir, "docs", "security"), { recursive: true });
+      mkdirSync(join(dir, "scripts"), { recursive: true });
+      const sideManifest = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+      writeFileSync(join(dir, MANIFEST), JSON.stringify({ ...sideManifest, $comment: "side boot" }, null, 2));
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "side: bootstrap the rule and its first manifest"]);
+
+      git(dir, ["switch", "-q", "main"]);
+      mkdirSync(join(dir, "docs", "security"), { recursive: true });
+      mkdirSync(join(dir, "scripts"), { recursive: true });
+      const trunkManifest = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+      writeFileSync(join(dir, MANIFEST), JSON.stringify({ ...trunkManifest, $comment: "trunk" }, null, 2));
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, trunk\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "main: bootstrap the rule and its first manifest"]);
+
+      spawnSync("git", ["merge", "-q", "--no-ff", "--no-commit", "side"], {
+        cwd: dir,
+        encoding: "utf8",
+        env: unguardedGitEnv(),
+      });
+      // Keep the side's rule AND the side's manifest: trunk's judged data is
+      // replaced by a version that trunk's rule never saw.
+      writeFileSync(join(dir, MANIFEST), JSON.stringify({ ...sideManifest, $comment: "side boot" }, null, 2));
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "merge side, take its rule and its first manifest"]);
+
+      const r = run(dir);
+      assert.equal(r.status, 1, r.stdout);
+      assert.ok(checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("passes when a merge keeps the first parent's rule but lands a side branch's data", () => {
+    // Reflexivity is about a change that alters the rule and judges data in the
+    // same commit. The merge below touches the rule path only to DISCARD the
+    // side's version, so its rule is byte-identical to the first parent and it
+    // altered nothing. Its only rule record is against the second parent, which
+    // is the parent whose version it rejected.
+    //
+    // Reading ANY record as "this commit changed the rule" made this ordinary
+    // conflict resolution a finding: the data came from a commit that had not
+    // touched the checker, so the old code called it data the rule never judged.
+    // Nothing was laundered — the rule did not move.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const base = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    const dir = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+      {
+        message: "bootstrap: the rule and its first manifest",
+        files: { "scripts/check-evidence-integrity.mjs": "// fixture copy\n", [MANIFEST]: base },
+      },
+    ]);
+    try {
+      git(dir, ["switch", "-qc", "side"]);
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, side rule\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "side: edit the rule"]);
+      writeFileSync(join(dir, MANIFEST), JSON.stringify({ ...base, $comment: "side data" }, null, 2));
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "side: update the manifest"]);
+
+      git(dir, ["switch", "-q", "main"]);
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, trunk rule\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "main: edit the rule"]);
+
+      spawnSync("git", ["merge", "-q", "--no-ff", "--no-commit", "side"], {
+        cwd: dir,
+        encoding: "utf8",
+        env: unguardedGitEnv(),
+      });
+      // Resolve the rule in favour of trunk and take the side's manifest.
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, trunk rule\n");
+      writeFileSync(join(dir, MANIFEST), JSON.stringify({ ...base, $comment: "side data" }, null, 2));
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "merge side, keep trunk's rule, take the side's manifest"]);
+
+      assert.equal(
+        gitOut(dir, ["rev-parse", `HEAD:scripts/check-evidence-integrity.mjs`]),
+        gitOut(dir, ["rev-parse", `HEAD^1:scripts/check-evidence-integrity.mjs`]),
+        "fixture premise: the merge must keep the first parent's rule byte for byte",
+      );
+
+      const r = run(dir);
+      assert.equal(r.status, 0, r.stdout);
+      assert.ok(!checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("fails when an artifact is re-added alongside a rule edit", () => {
     // Deleting and re-adding a path is not a bootstrap: the delete is in its
     // history, so the sole-commit carve-out must not cover it.
