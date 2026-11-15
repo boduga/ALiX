@@ -1336,6 +1336,98 @@ describe("check-evidence-integrity: reflexivity", () => {
     }
   });
 
+  it("does not excuse an octopus by a third parent that authored a DIFFERENT rule version", () => {
+    // Topological order is not authorship. A third parent can rewrite the rule
+    // while inheriting the kept manifest, and `rev-list --full-history` lists it
+    // before the branch whose rule the merge actually lands. Asking only "who
+    // ever authored this path" then attributes the adoption to the wrong commit:
+    // that commit happens to carry the same data, so the merge reads as honest
+    // even though the rule it lands was written on a branch cut before the data
+    // existed. The authoring question has to be about THIS version's blob.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const base = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    const CHECKER = "scripts/check-evidence-integrity.mjs";
+    const dir = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+      { message: "rule v1", files: { [CHECKER]: "// v1\n" } },
+    ]);
+    try {
+      // `ruleonly` is cut from v1: it rewrites the rule and never carries a
+      // manifest, so it has no way to have judged this data.
+      git(dir, ["switch", "-qc", "ruleonly"]);
+      writeFileSync(join(dir, CHECKER), "// vB: adopted by the merge, never saw the data\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "ruleonly: the rule the merge adopts"]);
+
+      // main lands the manifest while keeping rule v1.
+      git(dir, ["switch", "-q", "main"]);
+      mkdirSync(join(dir, "docs", "security"), { recursive: true });
+      writeFileSync(join(dir, MANIFEST), JSON.stringify({ ...base, $comment: "m0" }, null, 2));
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "main: rule v1 keeps company with the manifest"]);
+
+      // `decoy` is cut from that commit: it carries m0 and authors a THIRD rule
+      // version the merge never adopts, so topo order offers it first.
+      git(dir, ["switch", "-qc", "decoy"]);
+      writeFileSync(join(dir, CHECKER), "// vC: decoy rule, not the one landed\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "decoy: another rule, inheriting m0"]);
+
+      // Build the octopus by hand: parent 1's tree, with ruleonly's rule blob.
+      // Git's own merge driver would refuse to pick a winner for the rule.
+      const mainTip = gitOut(dir, ["rev-parse", "main"]);
+      const ruleonly = gitOut(dir, ["rev-parse", "ruleonly"]);
+      const decoy = gitOut(dir, ["rev-parse", "decoy"]);
+      git(dir, ["reset", "-q", "--hard", mainTip]);
+      git(dir, ["read-tree", mainTip]);
+      const ruleBlob = gitOut(dir, ["rev-parse", `${ruleonly}:${CHECKER}`]);
+      git(dir, ["update-index", "--add", "--cacheinfo", `100644,${ruleBlob},${CHECKER}`]);
+      const tree = gitOut(dir, ["write-tree"]);
+      const merge = gitOut(dir, [
+        "commit-tree",
+        tree,
+        "-p",
+        mainTip,
+        "-p",
+        ruleonly,
+        "-p",
+        decoy,
+        "-m",
+        "octopus: keep m0, adopt ruleonly's rule",
+      ]);
+      git(dir, ["reset", "-q", "--hard", merge]);
+
+      assert.equal(
+        gitOut(dir, ["rev-list", "--parents", "-n", "1", "HEAD"]).split(" ").length,
+        4,
+        "fixture premise: three parents",
+      );
+      assert.equal(
+        gitOut(dir, ["rev-parse", `HEAD:${MANIFEST}`]),
+        gitOut(dir, ["rev-parse", `HEAD^1:${MANIFEST}`]),
+        "fixture premise: the octopus must keep parent 1's manifest byte for byte",
+      );
+      assert.equal(
+        gitOut(dir, ["rev-parse", `HEAD:${CHECKER}`]),
+        gitOut(dir, ["rev-parse", `${ruleonly}:${CHECKER}`]),
+        "fixture premise: the octopus must land ruleonly's rule",
+      );
+      const candidates = gitOut(dir, ["rev-list", "--full-history", "--topo-order", "HEAD", "--", CHECKER]).split("\n");
+      assert.equal(
+        candidates.indexOf(decoy) > candidates.indexOf(ruleonly),
+        false,
+        "fixture premise: the decoy must sort ahead of the rule the merge lands",
+      );
+
+      const r = run(dir);
+      assert.equal(r.status, 1, r.stdout);
+      assert.ok(checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("passes when a merge keeps the first parent's data and adopts a rule authored against that same data", () => {
     // The counterpart the fix must not over-block: the side branch tightened the
     // rule AFTER the identical manifest already existed, so that rule was written

@@ -96,7 +96,13 @@ describes is qualified or released.
   a finding even though the data did not move. A commit authors a path only when
   the path differs from every parent (one `-m` record per parent) and a blob
   exists at that path; a merge propagating one parent's version authors nothing,
-  and a deletion authors nothing. When the version a rule-changing merge carries
+  and a deletion authors nothing. "Who authored this" is asked of the VERSION,
+  not the path: the authoring commit must itself carry the identical blob. On a
+  three-parent merge, topological order can list a side branch that rewrote the
+  rule while inheriting the data ahead of the branch whose rule the merge actually
+  lands. Accepting that branch as the author would compare the wrong commit's
+  data and excuse the adoption; requiring blob identity at the candidate commit
+  makes authorship answer "who wrote the rule being judged". When the version a rule-changing merge carries
   was authored elsewhere by the same joint side commit that also changed the
   rule, there was never an older rule to launder data from, so that pair is not a
   finding; any other carried version is, because the old rule had never judged

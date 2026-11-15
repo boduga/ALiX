@@ -488,6 +488,14 @@ function commitsTouching(relPath) {
  * bootstrap question has to be asked about. Asking it of the merge instead would
  * read the side commit's plain `A` as a rename, because a merge that is TREESAME
  * to that side has no record for the path at all.
+ *
+ * The candidate must also carry the SAME VERSION as `commit`. Topological order
+ * can put a commit that authored a different version first — a side branch that
+ * rewrote the rule while inheriting the data, on a merge that actually adopts a
+ * third parent's rule. Returning that commit would let a later question compare
+ * an unrelated author's data against the merge's and excuse the adoption, so
+ * "who wrote THIS version" is asked as a blob identity, not merely "who ever
+ * wrote this path". Candidates carrying a different version are skipped.
  */
 function authoringCommitOf(relPath, commit) {
   if (!commit) return null;
@@ -499,7 +507,12 @@ function authoringCommitOf(relPath, commit) {
   } catch {
     return null;
   }
-  return candidates.find((candidate) => authoredAtCommit(relPath, candidate)) ?? null;
+  const wanted = blobAt(relPath, commit);
+  return (
+    candidates.find(
+      (candidate) => blobAt(relPath, candidate) === wanted && authoredAtCommit(relPath, candidate),
+    ) ?? null
+  );
 }
 
 /**
@@ -523,6 +536,11 @@ function authoringCommitOf(relPath, commit) {
  *    path was not created by this commit, it was relocated, so the file it
  *    replaces may well have been judged by the old rule. Requiring a plain `A`
  *    with no rename/copy source closes the same-commit shape.
+ *
+ * 3. The path was new to every parent of the commit that authored it, so the
+ *    carve-out cannot replace a version a parent branch already had. This one is
+ *    asked in `bootstrapReason`, which has the parents; the history questions
+ *    below are asked here, against the authoring commit.
  *
  * 4. The content is new to the commit's ANCIENT history as well. Rename
  *    detection only inspects the parent tree, so parking a byte-identical file
@@ -1066,7 +1084,7 @@ function bootstrapReason(relPath, commit) {
  *
  * "Split across commits" counts only in the direction that matters: the rule
  * version must be authored at or before the data version ON THE BRANCH THE DATA
- * CAME FROM. Two shapes are therefore not findings:
+ * CAME FROM. Three shapes are therefore not findings:
  *
  * 1. This commit authored the data AND the rule it carries, and the path is a
  *    genuine joint creation on every parent's side. There was no earlier data.
