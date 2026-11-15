@@ -98,9 +98,11 @@ describes is qualified or released.
   not a changed data set, while landing a side branch's version (or authoring a
   third version) does differ and is. A merge that keeps the first parent's data
   still has to answer for the RULE it lands: that rule must have been authored by
-  the merge, or already have existed on the first parent's lineage — the branch
-  the data lives on. A rule adopted from a branch that never carried that data is
-  a finding even though the data did not move. A commit authors a path only when
+  the merge, or its own author commit must carry the identical data blob — the
+  question is whether that rule version ever saw this data version, not which
+  branch it came from. A rule adopted from a commit that never carried that blob
+  is a finding even though the data did not move, and a rule authored on a side
+  branch that already held those exact bytes is honest. A commit authors a path only when
   the path differs from every parent (one `-m` record per parent) and a blob
   exists at that path; a merge propagating one parent's version authors nothing,
   and a deletion authors nothing. "Who authored this" is asked of the VERSION,
