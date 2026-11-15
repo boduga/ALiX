@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "pr": 1112,
+  "reviewedHeadSha": "9ba5c8b9380769dc0654e652b70a64073d59d6f0",
+  "diffSha256": "800f74332d3905c36c01869eeb6570dd809aecafcb36fcd36c4fce0ab5c97310",
+  "author": {
+    "agentId": "01a1d169-af1b-7482-8ba8-0680d45b3504"
+  },
+  "reviewer": {
+    "kind": "agent",
+    "context": "fresh",
+    "agentId": "01a1dd5c-cfe3-79c3-b1bf-4558362aac40",
+    "model": "deepseek-v4.1-flash",
+    "modelProvenance": "Copied from the reviewer thread's own turn_context records (14 model fields across 7 turn_context records in rollout-2026-11-14T22-00-09-01a1dd5c-cfe3-79c3-b1bf-4558362aac40.jsonl, all deepseek-v4.1-flash). The reviewer did not self-certify a model string; this is harness metadata, not the reviewer's own assertion. ~/.codex/config.toml declares model = \"gpt-6.1-sol\", which disagrees; the per-agent turn_context record is the serving record, so it is recorded here and the disagreement is disclosed rather than resolved.",
+    "cliVersion": "0.169.0",
+    "reviewedHeads": [
+      "0783a806",
+      "d7f7e747",
+      "97d14c05",
+      "4fc09115",
+      "7dc8d62e",
+      "74ee73d9",
+      "9ba5c8b9"
+    ]
+  },
+  "humanSecurityAcceptance": false,
+  "verdict": "approve",
+  "findings": [
+    {
+      "id": "F1",
+      "title": "Octopus merge false pass: rule author resolved by path, not by version",
+      "severity": "high",
+      "status": "fixed",
+      "resolution": "authoringCommitOf now requires the candidate's own blob to equal the landed rule blob, so a three-parent merge can no longer attribute the rule to a side branch that merely rewrote it. Measured before: /tmp/alix-review/repro-octopus.mjs exited 0 over parents [M0, B, C] where the merge kept P1's manifest byte for byte but adopted B's rule. Measured after: exit 1 with `the rule landed on a branch the data never had`. Discriminated in-repo by reverting authoringCommitOf to 7dc8d62e^ in a /tmp copy, which makes the octopus test fail at tests/scripts/check-evidence-integrity.test.ts:1457 with actual 0, expected 1.",
+      "location": "scripts/check-evidence-integrity.mjs",
+      "fixedIn": "7dc8d62e"
+    },
+    {
+      "id": "F2",
+      "title": "Documented contract said lineage; the implementation tests blob identity",
+      "severity": "medium",
+      "status": "fixed",
+      "resolution": "AGENTS.md and docs/security/AGENTS.md said the carried rule's author commit must have 'already existed on the first parent's lineage'. The checker deliberately asks a different and better-posed question: blobAt(path, ruleAuthor) === blobAt(path, selfCommit), i.e. whether that rule version ever saw this data version. Prose now states the blob test and explicitly rejects lineage, so a rule authored on a side branch that already held those exact bytes is documented as honest, and an adopted rule whose author never carried the blob is documented as a finding. Prose only; no checker bytes changed, so the CI pin is unaffected.",
+      "location": "AGENTS.md",
+      "fixedIn": "9ba5c8b9"
+    },
+    {
+      "id": "F3",
+      "title": "Laundering hole: only the newest rule-authoring commit was judged",
+      "severity": "high",
+      "status": "fixed",
+      "resolution": "Every commit whose checker blob differs from its first parent is now asked, oldest and newest alike, instead of selecting the latest rule-authoring commit. A violation at commit N followed by a harmless checker-only commit N+1 no longer hides N. Mill's F1 fixture produces a reflexivity finding at HEAD where it previously exited 0; the in-repo regression test 'fails when a later checker-only commit sits on top of a rule+data edit' fails against the pre-fix checker in a mutation probe.",
+      "location": "scripts/check-evidence-integrity.mjs",
+      "fixedIn": "d7f7e747"
+    },
+    {
+      "id": "F4",
+      "title": "Merge bypass: data counted as changed against any parent, missing a side-branch land",
+      "severity": "high",
+      "status": "fixed",
+      "resolution": "changedAgainstFirstParent compares data against the first parent only, so a merge that lands a side branch's version is a changed data set even when default history simplification reports the side commit for the path. Mill's F2 fixture (side commit carried no manifest record) now yields a finding at the merge commit where it previously passed. This is also the change that removed Dirac N1's false positive: the ordinary split-branch PR merge now exits 0 with no findings (verified on a fresh fixture: rule commit then manifest commit on a feature branch, main advanced, --no-ff merge back).",
+      "location": "scripts/check-evidence-integrity.mjs",
+      "fixedIn": "4fc09115"
+    },
+    {
+      "id": "F5",
+      "title": "False positive: honest merge resolving in favour of the first parent",
+      "severity": "medium",
+      "status": "fixed",
+      "resolution": "Keeping the first parent's data no longer excuses or condemns by itself; that branch of reflexivityReason now asks only whether the merged rule's own author commit carried the identical data blob. Measured before: a merge whose manifest was byte-identical to HEAD^1 and differed from HEAD^2 exited 1 with a reflexivity finding. Measured after: exit 0. The guard that a merge adopting a rule whose author never carried the blob is still a finding is pinned by the in-repo octopus and decoy tests.",
+      "location": "scripts/check-evidence-integrity.mjs",
+      "fixedIn": "4fc09115"
+    },
+    {
+      "id": "F6",
+      "title": "Carried-rule merge excused before the rule's own data was ever examined",
+      "severity": "medium",
+      "status": "fixed",
+      "resolution": "Plato's F1: reflexivityReason returned null on `!changedAgainstFirstParent` before reaching the rule author, so a merge keeping trunk's data while adopting a rule written on a branch that never had it read as clean. The excuse is now conditional on the rule being authored by the merge or its author commit having carried this exact data blob. Re-verified at HEAD with /tmp/plato-f1.mjs in both shapes: the two-commit carried-rule probe and the three-parent octopus probe each exit 1 with a reflexivity finding.",
+      "location": "scripts/check-evidence-integrity.mjs",
+      "fixedIn": "7dc8d62e"
+    },
+    {
+      "id": "F7",
+      "title": "Uncaught EPIPE crashed the gate when a consumer closed the pipe",
+      "severity": "low",
+      "status": "fixed",
+      "resolution": "Mill's F4: `node scripts/check-evidence-integrity.mjs --json | true` exited 1 with a 478-byte node:fs:1237 stack trace, a regression against origin/main's exit 0. writeAll now swallows EPIPE and rethrows every other error. Pinned by a deterministic test that spawns the checker with stdio [ignore, pipe, pipe] and destroys the child's stdout, asserting status 0 and empty stderr — chosen because a `| head` race was measured to pass and fail on the same fixture. Discrimination: deleting the try/catch in a /tmp copy fails 59/60 with this test as the single failure.",
+      "location": "scripts/check-evidence-integrity.mjs",
+      "fixedIn": "74ee73d9"
+    },
+    {
+      "id": "F8",
+      "title": "Bootstrap condition count was inconsistent between code, docs, and the root contract",
+      "severity": "low",
+      "status": "fixed",
+      "resolution": "Plato's F2: docs/security/AGENTS.md said three conditions while nonBootstrapReason plus bootstrapReason enforce four, and the root contract enumerated four but called the ancestry probe 'the third'. Docs now state four conditions in both places and number the ancestry probe as the fourth. Verified: `grep -n 'four conditions' docs/security/AGENTS.md` hits line 118, and no 'three conditions' phrasing remains in the AGENTS files.",
+      "location": "docs/security/AGENTS.md",
+      "fixedIn": "9ba5c8b9"
+    },
+    {
+      "id": "F9",
+      "title": "First-parent prose equated 'first parent' with 'trunk' and left the side-data claim unscoped",
+      "severity": "low",
+      "status": "fixed",
+      "resolution": "Plato's F3: 'resolving in favour of trunk' only holds when trunk is parent 1, and the side-landing sentence was stated unconditionally even though a merge that lands side data without changing the rule is never asked. Prose now says 'the parent the merge was performed on, not necessarily the trunk', and confines the side-landing statement to rule-changing merges.",
+      "location": "AGENTS.md",
+      "fixedIn": "9ba5c8b9"
+    },
+    {
+      "id": "F10",
+      "title": "Side-branch 'bootstrap' manifest could replace a parent's already-judged manifest",
+      "severity": "high",
+      "status": "fixed",
+      "resolution": "Dirac's N2. A merge landing a side branch's fresh manifest over a parent's already-judged one now exits 1 with a reflexivity finding, in both the resolution shape (manifest identical to the side, differing from HEAD^1) and the no-conflict shape where trunk also had its own version. bootstrapReason additionally requires the path to be new to EVERY parent, so a sole-commit history on the side is not sufficient.",
+      "location": "scripts/check-evidence-integrity.mjs",
+      "fixedIn": "4fc09115"
+    },
+    {
+      "id": "F11",
+      "title": "Reflexivity tests assert the finding category but not the violating commit",
+      "severity": "medium",
+      "status": "accepted-risk",
+      "resolution": "Dirac's N4, partially closed and recorded as accepted rather than fixed. Every reflexivity assertion in tests/scripts/check-evidence-integrity.test.ts still asserts membership (`checks(r).includes(\"reflexivity\")`) rather than pinning artifactCommit, unlike the accepted-defect tests at :1720 which do pin exact commits. The gap in consequence is narrower than when reported: each shape now has its own fixture, and discrimination was proven by mutation probe against the pre-fix checker (three named tests fail; the rest pass), plus structural assertions in several fixtures (parent counts, decoy sort order, mDataEqualsP1). Accepted rather than fixed because the risk is a future regression being detected late — a test that still passes for the wrong reason would need the fixture shape to change as well as the assertion — and because tightening every assertion to a pinned commit is a mechanical follow-up with no effect on this PR's behavior. Not a basis for merge: it changes no gate outcome today.",
+      "location": "tests/scripts/check-evidence-integrity.test.ts"
+    },
+    {
+      "id": "N1",
+      "title": "Claimed regression: ordinary split-branch PR merge failed as a reflexivity violation",
+      "severity": "high",
+      "status": "not-applicable",
+      "resolution": "Dirac N1, reviewed at d7f7e747, does not reproduce at HEAD. Rebuilt the shape on/off --max-accepted: feature branch authors the rule then the manifest, main advances with an unrelated commit, --no-ff merge back, checker run without the ratchet flag because that fixture has zero historic defects. Result: exit 0, verdict pass, findings []. Dirac's own A6m/A9 probes were also re-run at HEAD: the false positive it reported is gone, and the shapes it reported as passing (A7, A8) now exit 1. An earlier run in this session showed exit 1 on this shape only because --max-accepted 2 was applied to a fixture with 0 accepted defects, which is the ratchet tightening correctly — a harness error on my side, not checker behavior.",
+      "location": "scripts/check-evidence-integrity.mjs"
+    },
+    {
+      "id": "N2",
+      "title": "Stale-head findings: Mill F1/F2/F3, Plato F1/F2/F3, Dirac N3",
+      "severity": "info",
+      "status": "not-applicable",
+      "resolution": "These six were filed against 0783a806 and d7f7e747 and are closed by later commits rather than by argument. Mill F1/F2 are recorded here as F3/F4 (fixed d7f7e747, 4fc09115); Mill F3 and Plato F1 as F5/F6 (fixed 4fc09115, 7dc8d62e); Mill F5 and Plato F2/F3 and Dirac N3 as F8/F9 (docs, fixed 9ba5c8b9). Re-verified at HEAD by measurement: Mill's /tmp/alix-rv-sTFshC and /tmp/alix-rv2-K0q2CQ fixtures now produce findings, /tmp/alix-rv5-sAfTfT now passes, and /tmp/plato-f1.mjs fails correctly in both k-shape and octopus. Feynman re-derived the whole set at 9ba5c8b9 and reproduced neither the false passes nor the false positives.",
+      "location": "scripts/check-evidence-integrity.mjs"
+    },
+    {
+      "id": "N3",
+      "title": "Two /tmp matrix shapes pass, adjudicated as correct rather than defects",
+      "severity": "info",
+      "status": "not-applicable",
+      "resolution": "The 9-shape matrix at /tmp/matrix.mjs passes on two shapes that were initially read as misses. (1) Data-then-rule in linear history: a rule arriving after the data is the honest direction — reflexivity is about editing a rule together with data it had already judged, and this ordering has the rule judging data that already existed. (2) A manifest `git mv`'d into place in a commit that changes no rule: ruleCommits only contains commits whose checker blob differs from the first parent, so a pure relocation is never asked. Feynman independently reached the same conclusion at HEAD.",
+      "location": "scripts/check-evidence-integrity.mjs"
+    },
+    {
+      "id": "N4",
+      "title": "CI sha256 pins and the repo gate at the reviewed head",
+      "severity": "info",
+      "status": "not-applicable",
+      "resolution": "Verified, not a finding. sha256 of scripts/check-evidence-integrity.mjs is 6efa5f22f2a798710de46775ac9195e5cb59ec84559304bf5d38c5bfb8c8fdf8 at HEAD and matches the pin at .github/workflows/ci.yml:150; no pin update was needed because the checker's bytes have not changed since 7dc8d62e. `node scripts/check-evidence-integrity.mjs --max-accepted 2` exits 0 with 11 artifacts / 4 generators / 15 content checks / order verified and 2 accepted historic order defects. `node --test tests/scripts/check-evidence-integrity.test.ts` is 60/60; `node --test tests/scripts/check-pr-scope.test.mjs` is 36/36; `node scripts/check-dox-claims.mjs` is OK over 36 claim tokens in 4 AGENTS.md files.",
+      "location": ".github/workflows/ci.yml"
+    }
+  ],
+  "notes": "Four fresh-context reviewers ran against this branch: Feynman (01a1dd5c), Mill (01a1dc4a), Plato (01a1dcd1) and Dirac (01a1dc7d). Feynman was the only one that found a bug nobody else did (F1, octopus version-blind authoring) and it re-derived the full finding set at the final head, 9ba5c8b9, reproducing neither a false pass nor a false positive; its verdict there is approve. Mill and Plato reviewed 0783a806; Dirac reviewed d7f7e747. Their findings are closed by later commits and re-measured at HEAD rather than argued away (N2), and two of Dirac's shapes were already correct at HEAD (N1). Every fix in this record was closed by a mutation probe that reproduces the original defect and flips a named test, not by prose. Two items are recorded without a code change: F11 (test assertions pin the category, not the commit) is an accepted risk with its reasoning stated, and N3 records two matrix shapes that are correct behavior rather than defects. One earlier verdict of my own in this session was wrong and is corrected in N1: I applied --max-accepted 2 to a fixture with zero accepted defects and read the resulting ratchet failure as a checker defect.",
+  "acceptanceScope": "This record is agent review evidence only. It does not discharge human security acceptance, GB-12 authority, or the GE-04 hold; fresh context removes contamination, not correlated model blind spots."
+}
