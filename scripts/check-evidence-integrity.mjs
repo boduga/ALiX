@@ -108,7 +108,7 @@
  * Exit codes: 0 pass, 1 findings or not-checked, 2 invocation/environment error.
  */
 
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, writeSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { join, resolve, relative } from "node:path";
@@ -137,11 +137,42 @@ const manifestPath = resolve(root, getArg("--manifest") ?? "docs/security/eviden
 
 const toRepoPath = (absolute) => relative(root, absolute).split("\\").join("/");
 
+/**
+ * Synchronous fd writes, not console.*.
+ *
+ * console.log/console.error write lazily when stdout is a pipe. Calling
+ * process.exit() right after them discards whatever the pipe had not yet
+ * drained: the checker exited 2 with a completely empty stdout AND stderr, so
+ * every consumer that ran it through spawnSync (the test suite, CI wrappers, any
+ * tool reading the JSON verdict) saw a failure with no explanation. writeSync on
+ * fd 1/2 blocks until the bytes are handed to the OS, so the exit code and the
+ * message can never disagree.
+ */
+function writeAll(fd, text) {
+  // EPIPE is not a defect in this checker.
+  //
+  // A consumer that stops reading early — `| head -1`, `| true`, a parent that
+  // closed the pipe — makes writeSync throw. Letting that escape turns an
+  // ordinary pipeline into a stack trace and an exit 1, which reads as "the gate
+  // failed" when the gate never reached a verdict. Dropping the remaining bytes
+  // is the honest outcome: nobody is listening. Every other write error is still
+  // a real error and propagates.
+  try {
+    writeSync(fd, text);
+  } catch (error) {
+    if (error && error.code === "EPIPE") return;
+    throw error;
+  }
+}
+
+const say = (message) => writeAll(1, String(message) + "\n");
+const sayErr = (message) => writeAll(2, String(message) + "\n");
+
 /** Invocation errors exit 2 so a misconfigured run is never read as a clean one. */
 function usage(message) {
   const payload = { ok: false, verdict: "error", error: message, exitCode: 2 };
-  if (jsonMode) console.error(JSON.stringify(payload, null, 2));
-  else console.error(`ERROR: ${message}`);
+  if (jsonMode) sayErr(JSON.stringify(payload, null, 2));
+  else sayErr(`ERROR: ${message}`);
   process.exit(2);
 }
 
@@ -195,6 +226,360 @@ function lastCommit(relPath) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Change records for one commit, keyed by destination path: `A`, `M`, `D`, or a
+ * rename/copy status (`R100`, `C087`) that names the source path. A path maps to
+ * a LIST because `-m` emits one record per parent, and a path can be `A` against
+ * one parent and `R100` against another.
+ *
+ * Read with NO pathspec. A pathspec narrows the diff to the named side of a
+ * rename, so `git diff-tree <commit> -- <new path>` reports the move as a plain
+ * `A` and hides the very source this exemption must see.
+ *
+ * Flags, each earning its place:
+ * - `-M -C --find-copies-harder` so a move or an exact copy is reported as such
+ *   instead of falling through to `A`.
+ * - `-l0` so a `diff.renameLimit` in the caller's config cannot silently turn
+ *   detection back into `A`. An exemption that local config can switch off is
+ *   not a guard.
+ * - `--root` so the repository's first commit is diffed against the empty tree;
+ *   without it that commit reports no records at all and would read as "nothing
+ *   here" rather than "added here".
+ * - `-m` so a merge commit is diffed against each parent. Without it a merge
+ *   reports no records, and a moved-in manifest would look like a bootstrap.
+ */
+/**
+ * True when the repository is shallow, in which case "reachable ancestry" is a
+ * truncation of the real history and a negative content answer proves nothing.
+ * Read once; a shallow clone cannot become deep mid-run.
+ */
+let shallowRepository = null;
+function isShallowRepository() {
+  if (shallowRepository === null) {
+    const result = spawnSync("git", ["rev-parse", "--is-shallow-repository"], {
+      cwd: root,
+      encoding: "utf8",
+      env: gitEnv(),
+    });
+    if (result.error) usage(`could not run git rev-parse: ${result.error.message}`);
+    if (result.status !== 0) {
+      usage(`could not determine whether the repository is shallow: ${(result.stderr ?? "").trim()}`);
+    }
+    shallowRepository = result.stdout.trim() === "true";
+  }
+  return shallowRepository;
+}
+
+/** The blob a path resolves to in a commit, or null when it does not exist there. */
+function blobAt(relPath, commit) {
+  // stderr is captured and discarded here, unlike the other git reads.
+  //
+  // A missing path is an EXPECTED answer, not an error: "this commit does not
+  // carry that file" is a real state (before a manifest exists, after it is
+  // deleted). `rev-parse --verify` reports it as a fatal on stderr, and
+  // execFileSync inherits stderr, so probing history printed a stream of
+  // "fatal: Needed a single revision" over a run that was working correctly.
+  // The exit status carries the answer; the diagnostic does not.
+  const result = spawnSync("git", ["rev-parse", "--verify", "--end-of-options", `${commit}:${relPath}`], {
+    cwd: root,
+    encoding: "utf8",
+    env: gitEnv(),
+  });
+  if (result.error) usage(`could not run git rev-parse: ${result.error.message}`);
+  if (result.status !== 0) return null;
+  return (result.stdout ?? "").trim() || null;
+}
+
+/**
+ * Every object id reachable from a commit's parents, or null when it has none.
+ *
+ * `rev-list --objects` walks trees and blobs reachable from the given commits, so
+ * a blob that only ever existed at a path since deleted is still listed: the
+ * commit that held it is an ancestor, and reachability does not care that no
+ * ref names the path today. That is precisely what rename detection cannot see.
+ */
+const ancestryObjectCache = new Map();
+function ancestryObjectIds(commit) {
+  if (ancestryObjectCache.has(commit)) return ancestryObjectCache.get(commit);
+  const line = gitText(["rev-list", "--parents", "-n", "1", commit]);
+  const parents = line.split(" ").slice(1).filter(Boolean);
+  let ids = null;
+  if (parents.length) {
+    const raw = gitText(["rev-list", "--objects", "--no-object-names", ...parents]);
+    ids = new Set(raw ? raw.split("\n").filter(Boolean) : []);
+  }
+  ancestryObjectCache.set(commit, ids);
+  return ids;
+}
+
+/**
+ * True when the bytes at `relPath` in `commit` already existed anywhere in that
+ * commit's ancestry — at any path, in any earlier state of the tree.
+ *
+ * Fails closed (returns true) when the question cannot be answered: a shallow
+ * clone has no reachable ancestry to search, and a path that does not resolve to
+ * a blob at `commit` cannot have its content vouched for. Treating either as
+ * "new content" would let the very absence of evidence pass the gate.
+ */
+function contentPredates(relPath, commit) {
+  const blob = blobAt(relPath, commit);
+  if (!blob) return true;
+  if (isShallowRepository()) return true;
+  const ids = ancestryObjectIds(commit);
+  if (!ids) return false;
+  return ids.has(blob);
+}
+
+const commitRecordsCache = new Map();
+function recordsFor(commit) {
+  const cached = commitRecordsCache.get(commit);
+  if (cached) return cached;
+  const records = new Map();
+  const record = (path, entry) => {
+    const seen = records.get(path);
+    if (seen) seen.push(entry);
+    else records.set(path, [entry]);
+  };
+  let raw = "";
+  try {
+    raw = execFileSync(
+      "git",
+      [
+        "diff-tree",
+        "-r",
+        "-m",
+        "--root",
+        "-M",
+        "-C",
+        "--find-copies-harder",
+        "-l0",
+        "--name-status",
+        "-z",
+        "--no-commit-id",
+        commit,
+      ],
+      { cwd: root, encoding: "utf8", maxBuffer: 1 << 28, env: gitEnv() },
+    );
+  } catch (error) {
+    usage(
+      `could not read the change record for ${short(commit)} (${error instanceof Error ? error.message.split("\n")[0] : String(error)}). ` +
+        "The reflexivity exemption is decided from that record, so it cannot be assumed empty.",
+    );
+  }
+  const fields = raw.split("\0");
+  for (let i = 0; i < fields.length; i++) {
+    const status = fields[i];
+    if (!status) continue;
+    if (status[0] === "R" || status[0] === "C") {
+      const source = fields[++i];
+      const target = fields[++i];
+      if (target) record(target, { status: status[0], source });
+      continue;
+    }
+    const path = fields[++i];
+    if (path) record(path, { status: status[0], source: null });
+  }
+  commitRecordsCache.set(commit, records);
+  return records;
+}
+
+const commitParentsCache = new Map();
+function parentsOf(commit) {
+  const cached = commitParentsCache.get(commit);
+  if (cached) return cached;
+  const line = gitText(["rev-list", "--parents", "-n", "1", commit]);
+  const parents = line.split(" ").slice(1).filter(Boolean);
+  commitParentsCache.set(commit, parents);
+  return parents;
+}
+
+/**
+ * True when `commit` AUTHORS the version of `relPath` it carries, rather than
+ * merely propagating a version that already exists on one of its parents.
+ *
+ * `git log -1 -- path` is the wrong question. Default history simplification may
+ * answer with a side commit for a merge that carries the path, and it may skip a
+ * merge entirely when the merge is TREESAME to one parent. The reflexivity rule
+ * needs to know whether THIS commit introduced the version, not which commit a
+ * simplified walk happened to surface first.
+ *
+ * The change record already answers it exactly. `-m` emits one record per parent
+ * when the path differs from that parent, so a path that differs from every
+ * parent has one record per parent. That is the same discrimination `--cc`
+ * makes, and it does not depend on how `git log` chooses to present history.
+ * A root commit has no parents to compare against, so a blob at the path is the
+ * only possible authoring event. For the same reason every form requires a blob:
+ * a deletion differs from every parent but does not author a version of the path,
+ * and treating it as one would let a delete-and-restore pair read as an edit.
+ */
+function authoredAtCommit(relPath, commit) {
+  if (!commit) return false;
+  if (!blobAt(relPath, commit)) return false;
+  const parents = parentsOf(commit);
+  if (parents.length === 0) return true;
+  const records = recordsFor(commit).get(relPath) ?? [];
+  return records.length === parents.length;
+}
+
+/**
+ * True when `commit` changed `relPath` against its FIRST parent.
+ *
+ * Reflexivity asks whether a change to the branch under test altered the rule and
+ * the data together. For an ordinary commit the first parent is the only parent,
+ * so this is the ordinary question. For a merge the choice matters and both
+ * consequences are wanted:
+ *
+ * - A merge that keeps the trunk's copy of the data while editing the rule is NOT
+ *   a finding. Its only record for the data may be against the side branch (it
+ *   rejected that side's version), so comparing against any parent would flag the
+ *   routine "resolve in favour of trunk" resolution.
+ * - A merge that lands a side branch's version DOES differ from the first parent,
+ *   and the branch under test had never had that data judged.
+ *
+ * Comparing across the two sides of a merge instead would move the blame: a side
+ * branch's own first manifest would be judged at the merge that carried it, where
+ * the side commit's plain `A` looks like a rename because the merge has no record
+ * for the path against that side at all.
+ */
+function changedAgainstFirstParent(relPath, commit) {
+  if (!commit) return false;
+  const parents = parentsOf(commit);
+  if (parents.length === 0) return blobAt(relPath, commit) !== null;
+  return blobAt(relPath, commit) !== blobAt(relPath, parents[0]);
+}
+
+/**
+ * Every `[commit, pathSet]` whose change touched the checker, newest first.
+ *
+ * `reflexivityFindings` asks the question of ALL of them, not just the newest.
+ * Examining only the newest is a laundering hole: a violation at commit N (rule
+ * and data edited together) followed by a harmless checker-only commit N+1 would
+ * make N+1 the selected author and leave N unexamined. The whole point of the
+ * rule is that the pair must be split across commits, so every commit that
+ * changed the rule is a place the question has to be asked.
+ *
+ * `--full-history` keeps commits the default walk prunes; `--topo-order` keeps a
+ * parent from being offered before a descendant that may also have authored it.
+ */
+function commitsTouching(relPath) {
+  let commits = [];
+  try {
+    commits = gitText(["rev-list", "--full-history", "--topo-order", "HEAD", "--", relPath])
+      .split("\n")
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+  // A commit that only appears because a SIDECAR path matched (not possible with
+  // a single pathspec, kept explicit for symmetry) is filtered by asking the
+  // change record directly.
+  return commits.filter((commit) => (recordsFor(commit).get(relPath) ?? []).length > 0);
+}
+
+/**
+ * The commit in `commit`'s own history that AUTHORED the version of `relPath`
+ * that `commit` carries, or null when no commit authored it.
+ *
+ * This is what separates "this commit wrote the data" from "this commit carried
+ * data written elsewhere". A merge that lands a side branch's manifest did not
+ * author it; the side commit did, and that is the commit whose edit history the
+ * bootstrap question has to be asked about. Asking it of the merge instead would
+ * read the side commit's plain `A` as a rename, because a merge that is TREESAME
+ * to that side has no record for the path at all.
+ *
+ * The candidate must also carry the SAME VERSION as `commit`. Topological order
+ * can put a commit that authored a different version first — a side branch that
+ * rewrote the rule while inheriting the data, on a merge that actually adopts a
+ * third parent's rule. Returning that commit would let a later question compare
+ * an unrelated author's data against the merge's and excuse the adoption, so
+ * "who wrote THIS version" is asked as a blob identity, not merely "who ever
+ * wrote this path". Candidates carrying a different version are skipped.
+ */
+function authoringCommitOf(relPath, commit) {
+  if (!commit) return null;
+  let candidates = [];
+  try {
+    candidates = gitText(["rev-list", "--full-history", "--topo-order", commit, "--", relPath])
+      .split("\n")
+      .filter(Boolean);
+  } catch {
+    return null;
+  }
+  const wanted = blobAt(relPath, commit);
+  return (
+    candidates.find(
+      (candidate) => blobAt(relPath, candidate) === wanted && authoredAtCommit(relPath, candidate),
+    ) ?? null
+  );
+}
+
+/**
+ * Why `commit` is NOT a genuine bootstrap for `relPath`, or null when it is.
+ *
+ * Reflexivity asks a question about edit history: did the same change alter the
+ * rule and the data it judges? At bootstrap there is no earlier data, so there is
+ * nothing to launder. Four things have to hold, and each rules out a different
+ * way of dressing an edit up as a creation:
+ *
+ * 1. The path name is new. Counting every commit that touches the path — not
+ *    `--diff-filter=A` — is what separates the honest first commit from
+ *    delete-then-re-add: the re-add still has the delete in its history.
+ *    `--full-history` is required: the default walk can omit a commit that
+ *    added the path on a side branch before a merge carried it forward, which
+ *    would make existing data look like it was created here.
+ *
+ * 2. The content is new to this path name too. `rev-list --count` alone cannot
+ *    tell "created here" from "moved here": a rename has exactly one commit in
+ *    the destination path's history as well. Content carried in from another
+ *    path was not created by this commit, it was relocated, so the file it
+ *    replaces may well have been judged by the old rule. Requiring a plain `A`
+ *    with no rename/copy source closes the same-commit shape.
+ *
+ * 3. The path was new to every parent of the commit that authored it, so the
+ *    carve-out cannot replace a version a parent branch already had. This one is
+ *    asked in `bootstrapReason`, which has the parents; the history questions
+ *    below are asked here, against the authoring commit.
+ *
+ * 4. The content is new to the commit's ANCIENT history as well. Rename
+ *    detection only inspects the parent tree, so parking a byte-identical file
+ *    at a scratch path and DELETING it in an earlier commit hides the source:
+ *    the re-add then reads as a plain `A`, and the path's history is still one
+ *    commit. The probe is blob identity over the reachable ancestry, which is
+ *    what "this content already existed" actually means; it costs one
+ *    `rev-list --objects` walk, and only when the record already looks like a
+ *    bootstrap. A shallow clone cannot answer the question, so it fails closed.
+ *
+ * The honest limit: content that was never committed anywhere in reachable
+ * history, or a genuine first manifest, is indistinguishable from a crafted
+ * one — that is the point of the carve-out. This exemption narrows the cheap
+ * edit; it does not make the order rule unbypassable.
+ *
+ * The reason is returned rather than a bare boolean because the four ways a
+ * bootstrap fails need different fixes: a path with earlier history needs its
+ * data and rule split across commits, a relocation needs the content created
+ * rather than carried in, and a same-commit edit needs the rule change to land
+ * first. A single "shared its commit" message sends an author looking in the
+ * wrong place.
+ */
+function nonBootstrapReason(relPath, commit) {
+  if (!commit) return "the path has no commit history";
+  const count = Number(gitText(["rev-list", "--count", "--full-history", commit, "--", relPath]) || 0);
+  if (count !== 1) {
+    return "editing the rule and the data together is the same failure one level up";
+  }
+  const seen = recordsFor(commit).get(relPath);
+  // Every record must be a plain `A`. A merge that reports `A` against one
+  // parent and `R100` against another is still a move, and a single `A` is not
+  // enough to say the content was born here.
+  if (!seen || seen.length === 0 || !seen.every((entry) => entry.status === "A")) {
+    return "it was renamed or copied into place alongside the rule edit, so the rule never saw this data";
+  }
+  if (contentPredates(relPath, commit)) {
+    return "its content already existed elsewhere in this history, so it was relocated rather than created";
+  }
+  return null;
 }
 
 /** True when `ancestor` is reachable from `descendant`. A commit is its own ancestor. */
@@ -646,21 +1031,163 @@ for (const artifact of artifacts) {
 
 // -- 5. Reflexivity --------------------------------------------------------
 
-const selfCommit = lastCommit("scripts/check-evidence-integrity.mjs");
-if (selfCommit) {
-  const manifestCommit = lastCommit(manifestRepoPath);
-  if (manifestCommit && manifestCommit === selfCommit) {
-    add(
-      "reflexivity",
-      manifestRepoPath,
-      `shared its last commit with the checker (${short(selfCommit)}) — ` +
-        "editing the rule and the data together is the same failure one level up",
-    );
+const checkerPath = "scripts/check-evidence-integrity.mjs";
+
+/**
+ * The commit that authored the rule version `commit` carries.
+ *
+ * Same question as `authoringCommitOf`, asked of the checker. A merge that only
+ * carries a rule written on a side branch does not author it, and using
+ * `commit` itself would read that propagation as a rule change.
+ */
+function ruleAuthorOf(commit) {
+  return authoringCommitOf(checkerPath, commit) ?? commit;
+}
+
+/**
+ * Why a commit that lands `relPath` is NOT a bootstrap, or null when it is.
+ *
+ * `nonBootstrapReason` asks whether the path's history under THIS commit is one
+ * commit. That is right for a linear commit and wrong on its own for a merge: a
+ * side branch can create a brand-new manifest path whose own history is a single
+ * commit while the first-parent side already had a judged manifest at that path.
+ * The merge then replaces judged trunk data with the side's "first" version and
+ * the sole-commit count never sees it. Checking every parent closes that shape:
+ * if a parent already carried a version of the path, this is a replacement. When
+ * the path IS new to every parent, the authoring commit still has to pass the
+ * ordinary bootstrap test.
+ */
+function bootstrapReason(relPath, commit) {
+  const own = blobAt(relPath, commit);
+  for (const parent of parentsOf(commit)) {
+    const parentBlob = blobAt(relPath, parent);
+    // A parent carrying THIS commit's bytes is the merge propagating them, not a
+    // competing version: the joint bootstrap arrives through that side intact.
+    if (parentBlob !== null && parentBlob !== own) {
+      return "it replaced a version of the path that a parent branch already had, so the older rule had already judged that data";
+    }
+    const parentAuthor = authoringCommitOf(relPath, parent);
+    if (!parentAuthor) continue;
+    const parentReason = nonBootstrapReason(relPath, parentAuthor);
+    if (parentReason) return parentReason;
   }
-  for (const artifact of artifacts) {
-    if (!artifact || typeof artifact.path !== "string") continue;
-    if (lastCommit(artifact.path) === selfCommit) {
-      add("reflexivity", artifact.path, "shared its last commit with the checker that judges it");
+  const author = authoringCommitOf(relPath, commit);
+  return author ? nonBootstrapReason(relPath, author) : "the path has no commit history";
+}
+
+/**
+ * Why `selfCommit` is NOT an honest rule/data split for `relPath`, or null.
+ *
+ * Reflexivity asks whether this change re-blessed data no older rule had judged.
+ * Only a change that alters the rule against its FIRST parent is asked; a merge
+ * that keeps the first parent's rule changed nothing about the rule.
+ *
+ * "Split across commits" counts only in the direction that matters: the rule
+ * version must be authored at or before the data version ON THE BRANCH THE DATA
+ * CAME FROM. Three shapes are therefore not findings:
+ *
+ * 1. This commit authored the data AND the rule it carries, and the path is a
+ *    genuine joint creation on every parent's side. There was no earlier data.
+ *
+ * 2. This commit carries data authored elsewhere, and the rule author is at or
+ *    before the data author — the ordinary split branch, where data was written
+ *    after the rule that judges it. A merge that lands such a pair is likewise
+ *    not a finding: the merge launders nothing.
+ *
+ * 3. This commit keeps the first parent's data AND carried the rule it lands
+ *    from a commit that already carried that very data version. The merge
+ *    changed the data not at all, and the rule it adopts had been written with
+ *    that data in view on its own branch.
+ *
+ * Everything else is a finding. That includes a merge that replaces a parent's
+ * judged data with a side branch's "first" version (the bootstrap claim is false
+ * once the parent's history is considered), a merge that authors data while
+ * landing a rule authored somewhere else, and — the case an early "data is
+ * unchanged" return missed — a merge that keeps the first parent's data while
+ * landing a rule from a branch that never held that data. Keeping the data does
+ * not excuse the rule: that rule was written without the data in view, so the
+ * branch's older rule is still the one that judged it.
+ */
+function reflexivityReason(relPath, selfCommit) {
+  const ruleAuthor = ruleAuthorOf(selfCommit);
+
+  if (!changedAgainstFirstParent(relPath, selfCommit)) {
+    // The data is the first parent's, byte for byte. That says nothing about the
+    // rule: a merge can keep trunk's manifest and still adopt a rule written on
+    // a branch that never carried it. Excuse the merge only when it authored the
+    // rule (a rule-only change, no different from an ordinary rule commit), or
+    // when the rule's author commit already carried THIS data version: then the
+    // rule was written with the data in view on its own branch, and the merge
+    // only reunites two things the same lineage already had.
+    //
+    // Ancestry alone is not the question, and neither is the first parent's tip:
+    // a rule written after the data on that lineage is honest, and a rule written
+    // on a branch cut before the data existed is not. Blob identity answers the
+    // question the rule actually asks — had this rule seen this data? — without
+    // guessing which branch either came from.
+    if (ruleAuthor === selfCommit) return null;
+    if (blobAt(relPath, ruleAuthor) === blobAt(relPath, selfCommit)) return null;
+    return "the rule landed on a branch the data never had, so the older rule never judged it";
+  }
+
+  const dataAuthor = authoringCommitOf(relPath, selfCommit) ?? selfCommit;
+
+  if (dataAuthor !== selfCommit) {
+    // The commit carries data authored elsewhere. It is excused when that data's
+    // branch already carried the rule version this commit enforces, i.e. the
+    // rule author is at or before the data author.
+    if (ruleAuthor === dataAuthor) {
+      // Rule and data share an author commit: a joint creation only if the path
+      // was new to every parent of this commit.
+      return bootstrapReason(relPath, selfCommit);
+    }
+    if (isAncestor(ruleAuthor, dataAuthor)) return null;
+    return "the rule edit landed on a branch the data never had, so the older rule never judged it";
+  }
+
+  // This commit authored the data.
+  if (ruleAuthor === selfCommit) {
+    // Rule and data authored together here. Only a genuine creation excuses it.
+    return bootstrapReason(relPath, selfCommit);
+  }
+  // Data authored while landing a rule written elsewhere: the older rule never
+  // judged this data, and the rule did not reach the data's own branch either.
+  return "it authored data in the same commit that landed a rule change authored elsewhere";
+}
+
+const ruleCommits = commitsTouching(checkerPath).filter(
+  (commit) => blobAt(checkerPath, commit) !== null && changedAgainstFirstParent(checkerPath, commit),
+);
+if (ruleCommits.length) {
+  // EVERY commit whose rule differs from its first parent is asked, oldest or
+  // newest alike. Asking only the newest was a laundering hole: a violation at
+  // commit N (rule and data edited together) followed by a harmless checker-only
+  // commit N+1 selected N+1, and N was never examined.
+  //
+  // The set is "changed against the first parent", not "authored the rule". A
+  // merge that lands a side branch's rule has not authored it, but it is the
+  // commit where that rule meets the branch — and a merge that adopts a side
+  // branch's fresh manifest over trunk's judged one is exactly the laundering
+  // shape the bootstrap carve-out must not excuse. "Changed against the first
+  // parent" also keeps the honest shapes out: a merge that keeps trunk's rule
+  // does not appear, and a merge that resolves in favour of trunk's data is not
+  // a data finding.
+  for (const selfCommit of ruleCommits) {
+    const judge = (subjectPath) => {
+      const reason = reflexivityReason(subjectPath, selfCommit);
+      if (reason) {
+        add(
+          "reflexivity",
+          subjectPath,
+          `shared its last commit with the checker (${short(selfCommit)}) — ${reason}`,
+          { relation: "checker", subject: checkerPath, artifactCommit: selfCommit, subjectCommit: selfCommit, markerValue: null },
+        );
+      }
+    };
+    judge(manifestRepoPath);
+    for (const artifact of artifacts) {
+      if (!artifact || typeof artifact.path !== "string") continue;
+      judge(artifact.path);
     }
   }
 }
@@ -1056,55 +1583,56 @@ const payload = {
 };
 
 if (jsonMode) {
-  console.log(JSON.stringify(payload, null, 2));
+  say(JSON.stringify(payload, null, 2));
 } else {
   if (verdict === "fail") {
-    console.error(`Evidence integrity FAILED — ${blockingFindings.length} finding(s)\n`);
+    sayErr(`Evidence integrity FAILED — ${blockingFindings.length} finding(s)\n`);
     for (const finding of blockingFindings) {
-      console.error(`  [${finding.check}] ${finding.path}`);
-      console.error(`      ${finding.detail}`);
+      sayErr(`  [${finding.check}] ${finding.path}`);
+      sayErr(`      ${finding.detail}`);
     }
-    console.error("");
+    sayErr("");
   } else if (verdict === "pass") {
-    console.log("Evidence integrity OK");
+    say("Evidence integrity OK");
   } else if (verdict === "pass_with_accepted") {
-    console.log(`Evidence integrity OK (${acceptedFindings.length} accepted historical defect(s), listed below)`);
+    say(`Evidence integrity OK (${acceptedFindings.length} accepted historical defect(s), listed below)`);
   } else if (verdict === "pass_with_declared_skips") {
-    console.log(
+    say(
       `Evidence integrity OK (${declaredNotRecomputable.length} generator(s) declared not recomputable; ` +
         "their artifacts were hash-pinned and order-checked, not reproduced)",
     );
   } else {
-    console.log("Evidence integrity: NOT CHECKED (no findings, but part of the contract was not verified)");
+    say("Evidence integrity: NOT CHECKED (no findings, but part of the contract was not verified)");
   }
   for (const finding of acceptedFindings) {
-    console.log(`ACCEPTED [${finding.check}] ${finding.path} — ${finding.acceptedBy}: ${finding.acceptanceReason}`);
+    say(`ACCEPTED [${finding.check}] ${finding.path} — ${finding.acceptedBy}: ${finding.acceptanceReason}`);
   }
-  console.log(
+  say(
     `artifacts ${listedArtifactPaths.size} · generators ${generatorSet.size} · content verified ${checked} · order ${orderChecked ? "verified" : "not verified"}` +
       (maxRecomputeSkipped === null ? "" : ` · recompute skipped ${declaredNotRecomputable.length} (pinned ${maxRecomputeSkipped})`),
   );
-  for (const reason of notCheckedReasons) console.log(`NOT CHECKED: ${reason}`);
+  for (const reason of notCheckedReasons) say(`NOT CHECKED: ${reason}`);
   for (const entry of notCovered) {
     const path = typeof entry === "string" ? entry : `${entry?.path ?? "?"}: ${entry?.reason ?? "no reason"}`;
-    console.log(`NOT COVERED: ${path}`);
+    say(`NOT COVERED: ${path}`);
   }
   if (recompute && !generatorArtifacts.length) {
-    console.log("recompute: the manifest has no generator-class artifacts; nothing to recompute");
+    say("recompute: the manifest has no generator-class artifacts; nothing to recompute");
   } else if (recomputeResults.length) {
     const passed = recomputeResults.filter((r) => r.ok).length;
-    console.log(`recompute: ${passed}/${recomputeResults.length} generator(s) reported no drift`);
+    say(`recompute: ${passed}/${recomputeResults.length} generator(s) reported no drift`);
     for (const result of recomputeResults.filter((r) => !r.ok)) {
       const label = result.reason === "declared-not-recomputable" ? "DECLARED NOT RECOMPUTABLE" : result.skipped ? "SKIPPED" : "FAILED";
-      console.log(`  ${result.generator}: ${label} — ${result.detail}`);
+      say(`  ${result.generator}: ${label} — ${result.detail}`);
     }
     const declared = recomputeResults.filter((r) => r.reason === "declared-not-recomputable").length;
     if (declared) {
-      console.log(
+      say(
         `recompute: ${declared} generator(s) declared not recomputable; this run proves nothing about their artifacts`,
       );
     }
   }
 }
 
+// Output is already flushed by the synchronous writers above.
 process.exit(payload.ok ? 0 : 1);

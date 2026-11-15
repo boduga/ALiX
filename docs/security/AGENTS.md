@@ -70,12 +70,71 @@ describes is qualified or released.
   for the artifact and a later commit for its index entry. The manifest must also
   descend from the artifact's last commit, so an artifact that moved without
   being re-indexed fails.
+- **A closed stdout is not a verdict.** The checker writes through `writeSync` so
+  the exit code and the emitted JSON can never disagree, and it swallows `EPIPE`:
+  a consumer that stops reading early (`| head -1`, `| true`) drops the remaining
+  bytes instead of turning into a stack trace with exit 1. Every other write
+  error still propagates. `tests/scripts/check-evidence-integrity.test.ts` pins
+  this by destroying the child's stdout, which is deterministic; a `| head` race
+  is not and was measured to pass and fail on the same fixture.
 - **Historic order defects are a shrink-only ledger, never a waiver.** An
   exception must pin the full 40-character artifact commit and the exact subject
   commit or marker value it covers, and CI pins `--max-accepted`. An exception
   that matches nothing, or a count that drifts from the pin, fails the build.
   Coverage, content, reflexivity, and recompute are current-tree properties and
   cannot be excepted at all.
+- **Reflexivity is about edits, not creation.** A commit that changes the checker
+  together with an already-existing manifest (or an artifact it judges) is the
+  same failure one level up and cannot be excepted. EVERY commit that changed the
+  checker is asked, not only the newest: selecting the latest rule-authoring
+  commit let a violation at commit N hide behind a harmless checker-only commit
+  N+1. Each such commit is compared against its own full change record, not
+  against `git log -1` for the data: default history simplification names a side
+  commit for a merge that carries a path unchanged, so a merge that lands a first
+  manifest while rewriting the rule used to read as data older than the rule.
+  Data counts as changed at a merge only when it differs from the FIRST parent —
+  the parent the merge was performed on, which is not necessarily the trunk.
+  Resolving in favour of that parent leaves the data byte-identical to it and is
+  not a changed data set, while landing a side branch's version (or authoring a
+  third version) does differ and is. A merge that keeps the first parent's data
+  still has to answer for the RULE it lands: that rule must have been authored by
+  the merge, or its own author commit must carry the identical data blob — the
+  question is whether that rule version ever saw this data version, not which
+  branch it came from. A rule adopted from a commit that never carried that blob
+  is a finding even though the data did not move, and a rule authored on a side
+  branch that already held those exact bytes is honest. A commit authors a path only when
+  the path differs from every parent (one `-m` record per parent) and a blob
+  exists at that path; a merge propagating one parent's version authors nothing,
+  and a deletion authors nothing. "Who authored this" is asked of the VERSION,
+  not the path: the authoring commit must itself carry the identical blob. On a
+  three-parent merge, topological order can list a side branch that rewrote the
+  rule while inheriting the data ahead of the branch whose rule the merge actually
+  lands. Accepting that branch as the author would compare the wrong commit's
+  data and excuse the adoption; requiring blob identity at the candidate commit
+  makes authorship answer "who wrote the rule being judged". When the version a rule-changing merge carries
+  was authored elsewhere by the same joint side commit that also changed the
+  rule, there was never an older rule to launder data from, so that pair is not a
+  finding; any other carried version is, because the old rule had never judged
+  it. A bootstrap has to satisfy four conditions, not one: the path's entire
+  history is that commit; the path was new to every parent of that commit, so the
+  carve-out cannot replace a version a parent branch already had; that commit
+  created the path there rather than moving or copying content into it; and that
+  content did not already exist anywhere in the commit's reachable ancestry. A
+  rename destination also has exactly one commit in its history, so
+  a sole-commit count alone cannot distinguish creation from relocation — the
+  checker requires a plain `A` record with no rename/copy source, read from the
+  commit's full change record rather than a pathspec-narrowed view. Rename and
+  copy detection only read a parent TREE, so parking byte-identical content at a
+  scratch path and deleting it in an earlier commit still reports `A` + `M` with
+  a one-commit path history; the ancestry blob-identity probe is what sees the
+  earlier content, and it fails closed on a shallow clone. The rule would
+  otherwise fail on its own creation — which is exactly what happened when the
+  checker and its first manifest landed in `c8027ac7`. Deleting and re-adding a
+  path is not a bootstrap; the delete stays in its history. The honest limit:
+  content that was never committed anywhere in reachable history is
+  indistinguishable from a genuine first manifest, which is the point of the
+  carve-out. This narrows the cheap same-commit edit; it does not make the order
+  rule unbypassable.
 - **Order is a social control.** It removes the cheap one-commit edit and leaves
   a three-commit edit visible as a pattern in history. It says nothing about
   whether an artifact's numbers are right, and it is not independent

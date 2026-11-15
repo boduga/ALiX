@@ -4,7 +4,16 @@ import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { AREAS, SHARED_PATHS, areaFor, baseBranchOf, declaredAreas, scopeRationale, validatePrScope } from "../../scripts/check-pr-scope.mjs";
+import {
+  AREAS,
+  RETIRED_AREAS,
+  SHARED_PATHS,
+  areaFor,
+  baseBranchOf,
+  declaredAreas,
+  scopeRationale,
+  validatePrScope,
+} from "../../scripts/check-pr-scope.mjs";
 
 /** Tracked paths from git, or `[]` when the checkout has no repository metadata. */
 function trackedPaths() {
@@ -311,6 +320,41 @@ test("area list entries name real content", (t) => {
   for (const file of SHARED_PATHS) {
     assert.ok(tracked.includes(file), `SHARED_PATHS entry \`${file}\` is not tracked`);
   }
+});
+
+
+test("retired areas own no tracked path", (t) => {
+  const tracked = trackedPaths();
+  if (!requireTrackedTree(t, tracked.length)) return;
+  // A retired area is a name kept for deletions and stale references, not a
+  // place content may still live. If a file reappears there, the area is live
+  // again and must move back into AREAS instead of passing as "retired".
+  for (const area of RETIRED_AREAS) {
+    const live = tracked.filter((file) => file === area || file.startsWith(`${area}/`));
+    assert.deepEqual(
+      live.slice(0, 5),
+      [],
+      `RETIRED_AREAS entry \`${area}\` still owns ${live.length} tracked path(s); move it back into AREAS`,
+    );
+  }
+});
+
+test("a retired area still classifies its own deleted path", () => {
+  // The PR that deletes the last file of an area must be able to declare the
+  // area it is deleting. Classifying the path `unclassified` made the removal
+  // PR fail the gate that was meant to record the removal.
+  assert.deepEqual(RETIRED_AREAS, ["alix-saas-site"]);
+  assert.equal(areaFor("alix-saas-site/index.html"), "alix-saas-site");
+  assert.equal(areaFor("alix-saas-site"), "alix-saas-site");
+  assert.equal(areaFor("alix-saas-site-old/index.html"), "unclassified");
+});
+
+test("a retired area is a valid declaration and covers its deletion", () => {
+  const errors = validatePrScope({
+    files: ["alix-saas-site/index.html"],
+    body: "Scope: alix-saas-site",
+  });
+  assert.deepEqual(errors, []);
 });
 
 test("the CLI entrypoint runs from a path that needs percent-encoding", () => {
