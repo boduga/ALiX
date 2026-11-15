@@ -507,7 +507,7 @@ function authoringCommitOf(relPath, commit) {
  *
  * Reflexivity asks a question about edit history: did the same change alter the
  * rule and the data it judges? At bootstrap there is no earlier data, so there is
- * nothing to launder. Three things have to hold, and each rules out a different
+ * nothing to launder. Four things have to hold, and each rules out a different
  * way of dressing an edit up as a creation:
  *
  * 1. The path name is new. Counting every commit that touches the path — not
@@ -524,7 +524,7 @@ function authoringCommitOf(relPath, commit) {
  *    replaces may well have been judged by the old rule. Requiring a plain `A`
  *    with no rename/copy source closes the same-commit shape.
  *
- * 3. The content is new to the commit's ANCIENT history as well. Rename
+ * 4. The content is new to the commit's ANCIENT history as well. Rename
  *    detection only inspects the parent tree, so parking a byte-identical file
  *    at a scratch path and DELETING it in an earlier commit hides the source:
  *    the re-add then reads as a plain `A`, and the path's history is still one
@@ -538,7 +538,7 @@ function authoringCommitOf(relPath, commit) {
  * one — that is the point of the carve-out. This exemption narrows the cheap
  * edit; it does not make the order rule unbypassable.
  *
- * The reason is returned rather than a bare boolean because the three ways a
+ * The reason is returned rather than a bare boolean because the four ways a
  * bootstrap fails need different fixes: a path with earlier history needs its
  * data and rule split across commits, a relocation needs the content created
  * rather than carried in, and a same-commit edit needs the rule change to land
@@ -1076,16 +1076,43 @@ function bootstrapReason(relPath, commit) {
  *    after the rule that judges it. A merge that lands such a pair is likewise
  *    not a finding: the merge launders nothing.
  *
+ * 3. This commit keeps the first parent's data AND carried the rule it lands
+ *    from a commit that already carried that very data version. The merge
+ *    changed the data not at all, and the rule it adopts had been written with
+ *    that data in view on its own branch.
+ *
  * Everything else is a finding. That includes a merge that replaces a parent's
  * judged data with a side branch's "first" version (the bootstrap claim is false
- * once the parent's history is considered) and a merge that authors data while
- * landing a rule authored somewhere else.
+ * once the parent's history is considered), a merge that authors data while
+ * landing a rule authored somewhere else, and — the case an early "data is
+ * unchanged" return missed — a merge that keeps the first parent's data while
+ * landing a rule from a branch that never held that data. Keeping the data does
+ * not excuse the rule: that rule was written without the data in view, so the
+ * branch's older rule is still the one that judged it.
  */
 function reflexivityReason(relPath, selfCommit) {
-  if (!changedAgainstFirstParent(relPath, selfCommit)) return null;
+  const ruleAuthor = ruleAuthorOf(selfCommit);
+
+  if (!changedAgainstFirstParent(relPath, selfCommit)) {
+    // The data is the first parent's, byte for byte. That says nothing about the
+    // rule: a merge can keep trunk's manifest and still adopt a rule written on
+    // a branch that never carried it. Excuse the merge only when it authored the
+    // rule (a rule-only change, no different from an ordinary rule commit), or
+    // when the rule's author commit already carried THIS data version: then the
+    // rule was written with the data in view on its own branch, and the merge
+    // only reunites two things the same lineage already had.
+    //
+    // Ancestry alone is not the question, and neither is the first parent's tip:
+    // a rule written after the data on that lineage is honest, and a rule written
+    // on a branch cut before the data existed is not. Blob identity answers the
+    // question the rule actually asks — had this rule seen this data? — without
+    // guessing which branch either came from.
+    if (ruleAuthor === selfCommit) return null;
+    if (blobAt(relPath, ruleAuthor) === blobAt(relPath, selfCommit)) return null;
+    return "the rule landed on a branch the data never had, so the older rule never judged it";
+  }
 
   const dataAuthor = authoringCommitOf(relPath, selfCommit) ?? selfCommit;
-  const ruleAuthor = ruleAuthorOf(selfCommit);
 
   if (dataAuthor !== selfCommit) {
     // The commit carries data authored elsewhere. It is excused when that data's

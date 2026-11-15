@@ -1226,6 +1226,170 @@ describe("check-evidence-integrity: reflexivity", () => {
     }
   });
 
+  it("fails when a merge keeps the first parent's manifest but lands a rule from a branch that never had it", () => {
+    // The carried-rule escape must not fire on "the data did not move". Here the
+    // merge keeps main's manifest byte for byte — so an early `if (data
+    // unchanged) return null` reports clean — while adopting a rule written on a
+    // branch cut before that manifest existed. That branch's history never held
+    // the data, so no rule had judged it; landing the rule here would bless it
+    // retroactively, which is exactly the order failure the split rule prevents.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const base = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    const dir = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+    ]);
+    try {
+      git(dir, ["switch", "-qc", "ruleonly"]);
+      mkdirSync(join(dir, "scripts"), { recursive: true });
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, side rule\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "side: the rule, before any manifest exists"]);
+
+      git(dir, ["switch", "-q", "main"]);
+      mkdirSync(join(dir, "docs", "security"), { recursive: true });
+      writeFileSync(join(dir, MANIFEST), JSON.stringify({ ...base, $comment: "main data" }, null, 2));
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "main: the manifest, with no rule yet"]);
+
+      const merge = spawnSync("git", ["merge", "-q", "--no-ff", "-m", "merge the rule-only branch", "ruleonly"], {
+        cwd: dir,
+        encoding: "utf8",
+        env: unguardedGitEnv(),
+      });
+      assert.equal(merge.status, 0, merge.stderr);
+
+      assert.equal(
+        gitOut(dir, ["rev-parse", `HEAD:${MANIFEST}`]),
+        gitOut(dir, ["rev-parse", `HEAD^1:${MANIFEST}`]),
+        "fixture premise: the merge must keep the first parent's manifest byte for byte",
+      );
+      // Parent 1 has no rule at all; the merge introduces one onto main. That is
+      // the "changed against the first parent" shape even though it is an add.
+      const firstParentRule = spawnSync(
+        "git",
+        ["rev-parse", "--verify", "--end-of-options", "HEAD^1:scripts/check-evidence-integrity.mjs"],
+        { cwd: dir, encoding: "utf8", env: unguardedGitEnv() },
+      );
+      assert.notEqual(firstParentRule.status, 0, "fixture premise: parent 1 must carry no rule");
+      assert.ok(
+        gitOut(dir, ["rev-parse", "HEAD:scripts/check-evidence-integrity.mjs"]),
+        "fixture premise: the merge must land a rule",
+      );
+
+      const r = run(dir);
+      assert.equal(r.status, 1, r.stdout);
+      assert.ok(checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails the same way for an octopus merge that keeps parent 1's manifest and lands another parent's rule", () => {
+    // A merge may have more than two parents. The rule came from a second side
+    // branch cut before the manifest existed, while parent 1 (main) holds the
+    // data. If the check only reasoned about the two-parent shape, an octopus
+    // would be a way to land an unqualified rule beside kept data.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const base = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    const dir = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+    ]);
+    try {
+      git(dir, ["switch", "-qc", "ruleonly"]);
+      mkdirSync(join(dir, "scripts"), { recursive: true });
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, side rule\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "side: the rule, before any manifest exists"]);
+
+      git(dir, ["switch", "-q", "-c", "unrelated", "main"]);
+      writeFileSync(join(dir, "notes.txt"), "notes\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "third branch: unrelated content"]);
+
+      git(dir, ["switch", "-q", "main"]);
+      mkdirSync(join(dir, "docs", "security"), { recursive: true });
+      writeFileSync(join(dir, MANIFEST), JSON.stringify({ ...base, $comment: "main data" }, null, 2));
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "main: the manifest, with no rule yet"]);
+
+      const merge = spawnSync(
+        "git",
+        ["merge", "-q", "--no-ff", "-m", "octopus: rule and unrelated content", "ruleonly", "unrelated"],
+        { cwd: dir, encoding: "utf8", env: unguardedGitEnv() },
+      );
+      assert.equal(merge.status, 0, merge.stderr);
+      assert.equal(gitOut(dir, ["rev-list", "--parents", "-n", "1", "HEAD"]).split(" ").length, 4, "fixture premise: three parents");
+
+      assert.equal(
+        gitOut(dir, ["rev-parse", `HEAD:${MANIFEST}`]),
+        gitOut(dir, ["rev-parse", `HEAD^1:${MANIFEST}`]),
+        "fixture premise: the octopus must keep parent 1's manifest byte for byte",
+      );
+
+      const r = run(dir);
+      assert.equal(r.status, 1, r.stdout);
+      assert.ok(checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("passes when a merge keeps the first parent's data and adopts a rule authored against that same data", () => {
+    // The counterpart the fix must not over-block: the side branch tightened the
+    // rule AFTER the identical manifest already existed, so that rule was written
+    // with this data in view. Reuniting the two at a merge re-judges nothing. The
+    // excuse is blob identity at the rule's own author commit, not ancestry — a
+    // rule written after the data on any lineage is honest, and only a rule whose
+    // author never carried the kept data is not.
+    const files: Record<string, FileContents> = { [GEN]: "x\n", [ARTIFACT]: { a: 1 } };
+    const base = manifestFor(files, { artifacts: [{ path: ARTIFACT, producedBy: GEN }] });
+    const dir = repo([
+      { message: "generator", files: { [GEN]: files[GEN] } },
+      { message: "artifact", files: { [ARTIFACT]: files[ARTIFACT] } },
+      {
+        message: "bootstrap: the rule and its first manifest",
+        files: { "scripts/check-evidence-integrity.mjs": "// fixture copy\n", [MANIFEST]: base },
+      },
+    ]);
+    try {
+      git(dir, ["switch", "-qc", "side"]);
+      writeFileSync(join(dir, "scripts", "check-evidence-integrity.mjs"), "// fixture copy, tightened\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "side: tighten the rule, with the manifest already in view"]);
+
+      git(dir, ["switch", "-q", "main"]);
+      writeFileSync(join(dir, "notes.txt"), "notes\n");
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-q", "-m", "main: unrelated content"]);
+
+      const merge = spawnSync("git", ["merge", "-q", "--no-ff", "-m", "merge the tightened rule", "side"], {
+        cwd: dir,
+        encoding: "utf8",
+        env: unguardedGitEnv(),
+      });
+      assert.equal(merge.status, 0, merge.stderr);
+
+      assert.equal(
+        gitOut(dir, ["rev-parse", `HEAD:${MANIFEST}`]),
+        gitOut(dir, ["rev-parse", `HEAD^1:${MANIFEST}`]),
+        "fixture premise: the merge must keep the first parent's manifest byte for byte",
+      );
+      assert.equal(
+        gitOut(dir, ["rev-parse", `HEAD^2:${MANIFEST}`]),
+        gitOut(dir, ["rev-parse", `HEAD:${MANIFEST}`]),
+        "fixture premise: the rule's author commit carried this exact manifest",
+      );
+
+      const r = run(dir);
+      assert.equal(r.status, 0, r.stdout);
+      assert.ok(!checks(r).includes("reflexivity"), r.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("fails when an artifact is re-added alongside a rule edit", () => {
     // Deleting and re-adding a path is not a bootstrap: the delete is in its
     // history, so the sole-commit carve-out must not cover it.
