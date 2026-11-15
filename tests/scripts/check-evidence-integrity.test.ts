@@ -14,7 +14,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -264,6 +264,39 @@ describe("check-evidence-integrity: invocation errors", () => {
     withRepo([{ message: "broken", files: { [MANIFEST]: "{ not json" } }], (dir) => {
       assert.equal(run(dir).status, 2);
     });
+  });
+
+  it("keeps the intended exit code when the consumer closes stdout early", async () => {
+    // A gate that prints through a pipe must not turn a closed reader into a
+    // failure verdict. `console.log`/`process.exit` used to make this exit 2 with
+    // NO output (the byte was still buffered); switching to `writeSync` fixed
+    // that but made an early-closing consumer throw EPIPE, which exited 1 with a
+    // stack trace that reads as "the gate failed". Neither code is a verdict.
+    // Destroying the child's stdout is a deterministic close; a `| head` race is
+    // not (measured: the same fixture passed and failed across runs).
+    const dir = healthyRepo();
+    try {
+      const child = spawn(process.execPath, [SCRIPT, "--root", dir, "--json"], {
+        stdio: ["ignore", "pipe", "pipe"],
+        env: unguardedGitEnv(),
+      });
+      child.stdout.destroy();
+      let stderr = "";
+      child.stderr.setEncoding("utf8");
+      child.stderr.on("data", (chunk: string) => {
+        stderr += chunk;
+      });
+      const status: number | null = await new Promise((resolve, reject) => {
+        child.on("error", reject);
+        child.on("close", resolve);
+      });
+      // The healthy fixture's own verdict is 0; what matters is that a closed
+      // pipe never changes it and never prints a crash.
+      assert.equal(status, 0, stderr);
+      assert.equal(stderr, "", `a closed pipe must not produce a stack trace: ${stderr}`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

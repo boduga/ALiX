@@ -70,6 +70,13 @@ describes is qualified or released.
   for the artifact and a later commit for its index entry. The manifest must also
   descend from the artifact's last commit, so an artifact that moved without
   being re-indexed fails.
+- **A closed stdout is not a verdict.** The checker writes through `writeSync` so
+  the exit code and the emitted JSON can never disagree, and it swallows `EPIPE`:
+  a consumer that stops reading early (`| head -1`, `| true`) drops the remaining
+  bytes instead of turning into a stack trace with exit 1. Every other write
+  error still propagates. `tests/scripts/check-evidence-integrity.test.ts` pins
+  this by destroying the child's stdout, which is deterministic; a `| head` race
+  is not and was measured to pass and fail on the same fixture.
 - **Historic order defects are a shrink-only ledger, never a waiver.** An
   exception must pin the full 40-character artifact commit and the exact subject
   commit or marker value it covers, and CI pins `--max-accepted`. An exception
