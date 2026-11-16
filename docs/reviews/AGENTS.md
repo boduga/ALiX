@@ -28,6 +28,13 @@ derived path from the head commit.
   in between are review evidence.
 - **Evidence commits are separate.** The record must be added or updated after
   the reviewed head, in a commit that changes nothing outside `docs/reviews/`.
+- **Review is a checked verdict, not a PR-body checkbox.** `docs/reviews/` holds
+  one committed record per PR, read from the head commit by
+  `scripts/check-review-evidence.mjs`. The verdict is `approve` only with every
+  finding closed, and the record must state `humanSecurityAcceptance: false`:
+  fresh context removes contamination, not correlated model blind spots, and
+  never discharges the GE-04 hold. A rebase or force-push invalidates review
+  until the new head is reviewed.
 - **Digest binds the change, not a rendering of it.** The record's diff digest
   field is the SHA-256 of the sorted `--raw` commit records for `base...head`
   with `docs/reviews/**` excluded. Exclusion is required — the record is

@@ -101,7 +101,70 @@ reason about.
   may only delete inside its own scope. Requests with no declared ownership
   (operator context) are unchanged and governed by the gate.
 - Sensitive-path denials are hard, non-retryable, and are never escalated to an
-  approval request — see the root `AGENTS.md`.
+  approval request: an approval prompt lets untrusted content (fetched pages,
+  dependency docs, fixtures) turn a boundary into a negotiation, and approvals
+  are durable and reusable per key. Widening what the agent may ever read is a
+  config/policy decision, not a per-call consent.
+- **First-party state reads use tools, never protected paths.** ALiX's own run
+  state is read through the read-only tools —
+  `alix_coordination_status`/`alix_coordination_list`/`alix_coordination_results`
+  (capability `coordination.read`) and `alix_state_query` (capability
+  `state.read`) — both allow-listed by default in
+  `DEFAULT_CONFIG.permissions.tools` because they read state that raw
+  `alix_file_read`/`alix_shell_run` cannot open (`.alix/**` is a sensitive path).
+  `alix_coordination_status` answers the per-worker identity questions callers
+  ask by name (worker id, task id, agent, attempt, dependencies, owned scope,
+  result reference).
+- **Workspace containment applies to approval-free shell reads.** Safe-shell
+  admission only classifies command shape; it never grants path authority.
+  Every filesystem operand accepted by the safe-shell grammar must pass
+  `WorkspacePathResolver`, including lexical traversal, absolute paths,
+  protected paths, and symlink targets. A failed safe-shell process is a failed
+  tool result, not successful output. Tool-result failure detection must use the
+  result envelope/prefix, never keywords found anywhere in successful file
+  content.
+- **Shell exclusion predicates are not path access.** A static, quoted
+  `find -not -path`/`find ! -path` predicate may name a protected path solely to
+  exclude it from traversal and must not be rejected as an access attempt.
+  Positive predicates, dynamic/expanded exclusions, and any additional
+  sensitive-path reference remain fail-closed.
+- **Network policy applies to shell clients.** `alix_shell_run` must enforce the
+  same domain allowlist, DNS resolution, and private/link-local destination
+  rejection as `alix_web_fetch` for explicit URLs and known network clients. A
+  model may not bypass SSRF controls by falling back to `curl`, `wget`, `nc`,
+  SSH-family tools, `telnet`, or `ping`; destinations that cannot be validated
+  fail closed.
+- **Read-only search is first-class and approval-free.** `alix_grep_search`
+  (content, regex) and `alix_glob_match` (filenames) are model tools that must
+  not require `alix_shell_run` approval. They resolve to the `file.search`
+  capability, which is allow-listed in `DEFAULT_CONFIG.permissions.tools`. All
+  workspace walks (content, filename, RepoMap) share
+  `src/capabilities/tools/ignore.ts` (`IGNORED_DIRS` + root `.gitignore`) and
+  `src/capabilities/tools/file-tools.ts` `walkWorkspaceFiles` (workspace-rooted,
+  never follows symlinks, bounded by `headLimit`). Search output is bounded and
+  streams files; never read whole files into memory on a hot path.
+- **Tool-result rendering.** All result consumers, including executor
+  size/preview telemetry and model messages, use `toolResultText` in
+  `src/capabilities/tools/result-text.ts`. Preserve family-specific payloads:
+  content, output, matches, and existence. Empty results render the exact
+  `[no output]` marker.
+- **Failed MCP registration owns cleanup.** `McpToolRegistry.registerServer`
+  closes its client when initialization or tool discovery fails, preserves the
+  original error, and publishes no partial client or tools. A failed client is
+  not yet reachable by manager cleanup.
+- **Patch syntax is authoritative.** `alix_patch_apply` must normalize
+  unmistakable patch syntax before selecting its parser. In particular,
+  simplified Aider/Codex `*** Begin Patch` update hunks with bare `@@` markers
+  are applied as exact search/replace blocks even when the model labels them
+  `search_replace` or `unified_diff`; numbered unified diffs retain the unified
+  parser. Never report a patch as changed when it contained no applicable hunks.
+  A parse yielding ZERO hunks is a rejection, not a valid empty patch:
+  `patch-engine.ts` marks it `validationFailed` and emits `patch.rejected` with
+  syntax guidance instead of a `validated:true` / `files:[]` proposal followed
+  by a bare `No patch changes found` (session `1791853059081` — a
+  `search_replace` block whose `path=` sat on its own line parsed to zero hunks,
+  reported valid, then failed non-retryably and sank the worker).
+
 - **`alix_web_fetch` recovers JSON-LD article content before stripping scripts.** Many
   article/list pages serve their body as `application/ld+json` (schema.org
   `Article`/`NewsArticle`), so removing every `<script>` deleted the real content
