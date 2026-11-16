@@ -7,7 +7,7 @@
  * Default: inspect every on-disk AGENTS.md chain. --path inspects specified
  * workspace targets, including not-yet-created files.
  */
-import { readFileSync, existsSync, realpathSync, statSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, realpathSync, statSync, lstatSync, readdirSync } from "node:fs";
 import { resolve, relative, dirname, join, isAbsolute, sep } from "node:path";
 import { homedir } from "node:os";
 
@@ -68,8 +68,17 @@ if (!values.length) {
     // Reject symlinked ancestors, including a target which does not exist yet.
     let current = p;
     while (inside(current) && current !== root) {
-      if (existsSync(current) && !inside(realpathSync(current))) {
-        findings.push({ type: "symlink_escape", path: input }); break;
+      // The lexical chain is valid only when it is also the real DOX chain.
+      // Internal symlinks can silently hide the target's parent AGENTS.md,
+      // while broken symlinks are missed by existsSync. Fail closed on both.
+      try {
+        if (lstatSync(current).isSymbolicLink() || !inside(realpathSync(current))) {
+          findings.push({ type: "symlink_escape", path: input }); break;
+        }
+      } catch (error) {
+        if (error.code !== "ENOENT") {
+          findings.push({ type: "unverified_path", path: input }); break;
+        }
       }
       current = dirname(current);
     }

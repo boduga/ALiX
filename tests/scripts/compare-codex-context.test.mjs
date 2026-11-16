@@ -81,3 +81,21 @@ test("works when comparator and auditor live in a directory containing spaces",(
   assert.equal(JSON.parse(p.stdout).status,"paired_observation");
  }finally{rmSync(root,{recursive:true,force:true});}
 });
+
+test("refuses incomplete cumulative usage instead of reporting phantom savings",()=>{
+ const root=mkdtempSync(join(tmpdir(),"alix-paired-"));
+ try{
+  const a=sample(root,"baseline","same-model",100,20),b=sample(root,"guided","same-model",80,10);
+  const records=readFileSync(b,"utf8").trim().split("\n").map(JSON.parse);
+  records[2].payload.thread_token_usage={input_tokens:80};
+  writeFileSync(b,records.map(JSON.stringify).join("\n")+"\n");
+  const p=spawnSync(process.execPath,[cli,"--baseline",a,"--guided",b,"--json"],{encoding:"utf8"});
+  assert.equal(p.status,1,p.stderr);
+  const result=JSON.parse(p.stdout);
+  assert.equal(result.checks.bothMeasured,false);
+  assert.equal(result.status,"incomparable");
+  assert.equal(result.usage.total.guided,null);
+  assert.equal(result.usage.total.difference,null);
+  assert.equal(result.usage.total.pctChange,null);
+ }finally{rmSync(root,{recursive:true,force:true});}
+});

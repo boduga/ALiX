@@ -24,12 +24,15 @@ function audit(file){
 }
 let a,b;try{a=audit(baseline);b=audit(guided);}catch(e){console.error(String(e.message));process.exit(2);}
 const sameModel=Boolean(!a.mixedModels&&!b.mixedModels&&a.modelHistory?.length===1&&b.modelHistory?.length===1&&a.model===b.model);
-const bothMeasured=a.tokenUsageRecords>0&&b.tokenUsageRecords>0&&a.tokenUsage.input_tokens>0&&b.tokenUsage.input_tokens>0;
+const requiredCounters=["input_tokens","cached_input_tokens","output_tokens","total_tokens"];
+const complete=entry=>requiredCounters.every(k=>Number.isFinite(entry.tokenUsage[k]));
+const bothMeasured=a.tokenUsageRecords>0&&b.tokenUsageRecords>0&&complete(a)&&complete(b)&&a.tokenUsage.input_tokens>0&&b.tokenUsage.input_tokens>0;
 const checks={sameModel,bothMeasured,distinctSessions: Boolean(a.sessionId&&b.sessionId&&a.sessionId!==b.sessionId)};
 const eligible=Object.values(checks).every(Boolean);
 const metric=name=>{
  const before=a.tokenUsage[name],after=b.tokenUsage[name];
- return {baseline:before,guided:after,difference:after-before,pctChange:before?Number(((after-before)/before*100).toFixed(2)):null};
+ const measured=Number.isFinite(before)&&Number.isFinite(after);
+ return {baseline:before,guided:after,difference:measured?after-before:null,pctChange:measured&&before?Number(((after-before)/before*100).toFixed(2)):null};
 };
 const report={
  status:eligible?"paired_observation":"incomparable",

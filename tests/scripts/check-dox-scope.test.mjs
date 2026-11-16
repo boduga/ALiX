@@ -71,3 +71,24 @@ test("read-only verdict: no claim that Codex actually read documents", () => {
     assert.match(r.data.note, /does not establish that Codex read/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test("fails closed for in-workspace symlink aliases that would hide owning DOX",()=>{
+ const root=fixture({"AGENTS.md":"root","src/AGENTS.md":"s".repeat(2000),"src/nested/AGENTS.md":"nested"});
+ try {
+  symlinkSync("src/nested",join(root,"alias"),"dir");
+  const result=run(root,"--budget","1024","--path","alias/future.ts");
+  assert.equal(result.status,1);
+  assert.equal(result.data.ok,false);
+  assert(result.data.findings.some(f=>f.type==="symlink_escape"));
+  assert.equal(result.data.checked,0);
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
+test("rejects a dangling symlink ancestor rather than accepting its lexical chain",()=>{
+ const root=fixture({"AGENTS.md":"root"});
+ try {
+  symlinkSync("missing-target",join(root,"dangling"));
+  const result=run(root,"--path","dangling/file.ts");
+  assert.equal(result.status,1);
+  assert(result.data.findings.some(f=>f.type==="symlink_escape"));
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
