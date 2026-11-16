@@ -130,6 +130,38 @@ barrel preserving public import paths.
   cancels the requirement; a later affirmative overrides negation. Do not OR
   those clauses or require a mutation verb. See
   `tests/run/verification-detection.test.ts`.
+- **Durable progress survives failed retries.** Once a mutation tool succeeds,
+  a later failed retry may be reported but must not erase the successful
+  changed-file evidence or replace the final result with a bare tool error.
+- **Automatic verification is bounded and change-aware.** Repository verification
+  discovery may auto-run only the explicit non-interactive
+  `typecheck`/`type-check`/`lint`, `build`/`compile`, and
+  `test`/`test:unit`/`test:integration` package scripts. Never infer arbitrary
+  scripts as tests or auto-run manual, eval, soak, benchmark, helper, or
+  aggregate scripts. Pure documentation/plain-text mutations (`.adoc`, `.log`,
+  `.markdown`, `.md`, `.rst`, `.txt`) may complete from successful mutation plus
+  read-back evidence without launching repository-wide checks unless the current
+  objective explicitly requires post-change verification; code, configuration,
+  fixtures/data, assets, mixed changes, unknown extensions, and explicit
+  verification requirements still require normal verification. A successful
+  model-invoked verification command satisfies the explicit requirement and must
+  not trigger a duplicate automatic run.
+- **Iteration accounting.** `extractSessionOutcome` prefers positive
+  `contextPressure.totalIterations` from the completed loop, falling back to
+  assistant-message counts only when absent or non-positive. A resumed loop count
+  is a lower bound against session-wide counts.
+  `scripts/measure-iteration-accounting.mjs` is diagnostic evidence, not a gate.
+- **Claim substantiation.** Match only literal first-person claims with an
+  entry's verb and object vocabulary, supporting ASCII and typographic
+  apostrophes. Exclude third-person descriptions and denied claims. `usedTools`
+  and `CLAIM_TOOL_MAP.excusedBy` both use exact model-facing tool names;
+  substantiate by direct membership without executor translation.
+- **Completion requires executed evidence.** For current-turn objectives that
+  explicitly require workspace mutation or post-change verification, model prose
+  and `alix_done` calls are insufficient. Only successful mutation tool results
+  count as mutation evidence, and verification must succeed after the mutation.
+  Missing evidence yields `completed_unverified` with the exact gap instead of a
+  false completion claim.
 - Objective requirement detection normalizes model-facing tool names before
   matching action words. `alix_verify_claim` counts as verification after
   mutation, as does a shell command matching `VERIFICATION_COMMAND_RE`.

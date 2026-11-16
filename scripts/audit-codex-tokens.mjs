@@ -1,0 +1,69 @@
+#!/usr/bin/env node
+/**
+ * Read-only Codex token observability. Report only measured counters;
+ * RTK and TokenEconomizer totals are separate, non-additive measurements.
+ * Do not infer causal context-planner savings from a session snapshot.
+ */
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { homedir } from "node:os";
+const args=process.argv.slice(2);
+let file=null, sessionsDir=join(homedir(),".codex","sessions"), json=false;
+for(let i=0;i<args.length;i++){
+ const a=args[i],v=args[i+1];
+ if(a==="--file"&&v){file=resolve(v);i++;}
+ else if(a==="--sessions-dir"&&v){sessionsDir=resolve(v);i++;}
+ else if(a==="--json")json=true;
+ else {console.error("usage: audit-codex-tokens.mjs [--file JSONL] [--sessions-dir DIR] [--json]");process.exit(2);}
+}
+function recent(dir) {
+ let best=null;
+ function walk(p,depth){
+  if(depth>5||!existsSync(p))return;
+  for(const e of readdirSync(p,{withFileTypes:true})){
+   const q=join(p,e.name);
+   if(e.isSymbolicLink())continue;
+   if(e.isDirectory())walk(q,depth+1);
+   else if(e.isFile()&&e.name.endsWith(".jsonl")&&(!best||statSync(q).mtimeMs>statSync(best).mtimeMs))best=q;
+  }
+ }
+ walk(dir,0);return best;
+}
+file??=recent(sessionsDir);
+if(!file||!existsSync(file)){console.error("no Codex JSONL session found");process.exit(2);}
+const totals={input_tokens:0,cached_input_tokens:0,cache_write_input_tokens:0,output_tokens:0,reasoning_output_tokens:0,total_tokens:0};
+const keys=Object.keys(totals);
+let samples=0,compactions=0,toolCalls=0,toolOutputs=0,turns=0,model=null,sessionId=null;
+let invalid=0;
+for(const line of readFileSync(file,"utf8").split(/\r?\n/)){
+ if(!line.trim())continue;
+ let x;try{x=JSON.parse(line);}catch{invalid++;continue;}
+ const p=x.payload??{};
+ if(x.type==="session_meta")sessionId=p.id??null;
+ if(x.type==="turn_context"){turns++;model=p.model??model;}
+ if(x.type==="compacted")compactions++;
+ if(x.type==="response_item"){
+  if(p.type==="function_call")toolCalls++;
+  if(p.type==="function_call_output")toolOutputs++;
+ }
+ if(x.type==="token_usage_record"){
+  const u=p.thread_token_usage??p.usage;
+  if(!u)continue;
+  samples++;
+  // Last thread-level total is cumulative; never sum successive records.
+  for(const k of keys)if(Number.isFinite(u[k]))totals[k]=u[k];
+ }
+}
+const report={source:file,sessionId,model,turns,tokenUsageRecords:samples,tokenUsage:totals,compactions,toolCalls,toolOutputs,invalidLines:invalid,attribution:{
+ codex:"Recorded cumulative session counters (not a controlled baseline)",
+ rtk:"Inspect 'rtk gain -p --format json' separately; its estimated savings are not additive with Codex billed usage",
+ tokenEconomizer:"Configured hooks may affect context; no per-hook savings attributed from Codex JSONL",
+ contextPlanner:"No causal savings measured; requires matched tasks, models, and toggled retrieval experiments"
+}};
+if(json)console.log(JSON.stringify(report,null,2));
+else{
+ console.log("Codex session: "+(sessionId??"unknown")+" model: "+(model??"unknown"));
+ console.log("Recorded tokens: input "+totals.input_tokens+", cached input "+totals.cached_input_tokens+", output "+totals.output_tokens+", total "+totals.total_tokens);
+ console.log("Turns "+turns+"; tool calls "+toolCalls+"; tool outputs "+toolOutputs+"; compactions "+compactions+"; records "+samples);
+ console.log("Attribution: RTK, TokenEconomizer and planner effects NOT separable from this session log.");
+}

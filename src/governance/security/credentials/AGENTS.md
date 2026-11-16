@@ -22,6 +22,21 @@ No other subsystem owns a secret store.
 ## Local Contracts
 
 - **Store-only resolution.** Secrets resolve from `~/.config/alix/config.json` `apiKeys` (literals or `cred://` refs) and this store; environment variables are never a fallback at any resolution site.
+- **Store-only keys at every resolution site.** `getApiKey`
+  (`src/governance/security/credentials/api-keys.ts`), `agent.ts apiKeyFor`,
+  `src/capabilities/skills/factory.ts`,
+  `src/capabilities/tools/web-search.ts` (Brave), and
+  `src/interfaces/cli/commands/tui.ts` all resolve here. The config loader still
+  injects resolved store secrets into `process.env` at load time (ephemeral,
+  in-memory only) so provider SDKs keep working — that is injection, not
+  env-first resolution. Credential tests use user-config fixtures through
+  `writeApiKeyConfig`, not environment keys.
+- **Spawned coordination workers inherit resolved credentials privately.** A
+  parent that already resolved store-backed `apiKeys` passes that resolved
+  snapshot to its coordination child over an anonymous pipe, never argv or
+  ambient environment. The child supplies it only to `loadConfig`'s trusted
+  `resolvedApiKeys` option, avoiding a second flaky keychain lookup while
+  preserving store-only resolution semantics.
 - **No secret values leave the store** except through `get` to trusted code. `list()` returns metadata only.
 - **Atomic, restrictive writes.** Temp-file + rename; `0o600`; symlink-rejected.
 - **`srap-evidence` namespace for versioned HMAC keys (SRAP-1).** Approval decision evidence uses the canonical serialization `credentialRef = hmac-sha256:v<N>:<base64url(HMAC(key_vN, credentialRecordId))>` — the key version is always an explicit `v<N>` marker, never a bare number. Keys live under provider namespace `srap-evidence` with the version encoded in the label (`hmac-key:v<N>`), because the store has no native per-entry version field; old versions coexist as ordinary entries.
