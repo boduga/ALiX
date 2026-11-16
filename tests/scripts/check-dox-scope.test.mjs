@@ -230,3 +230,31 @@ test("rejects linked fallback instructions rather than reading outside workspace
     }
   } finally { rmSync(root, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); }
 });
+
+test("quoted TOML fallback key participates in instruction selection", () => {
+  const root = fixture({ "AGENTS.md": "root", "src/TEAM_GUIDE.md": "x".repeat(1800) });
+  try {
+    const conf = join(root, "codex.toml");
+    for (const name of ['"project_doc_fallback_filenames"', "'project_doc_fallback_filenames'"]) {
+      writeFileSync(conf, `${name} = ["TEAM_GUIDE.md"]\n`);
+      const r = run(root, "--config", conf, "--budget", "1024", "--path", "src/future.ts");
+      assert.equal(r.status, 1);
+      assert(r.data.records[0].chain.includes("src/TEAM_GUIDE.md"));
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("malformed content after fallback array is not accepted as a valid config", () => {
+  const root = fixture({ "AGENTS.md": "root" });
+  try {
+    const conf = join(root, "codex.toml");
+    for (const suffix of [" garbage", " 123"]) {
+      writeFileSync(conf, `project_doc_fallback_filenames = ["TEAM_GUIDE.md"]${suffix}\n`);
+      const p = spawnSync(process.execPath, [script, "--root", root, "--config", conf, "--path", "future.ts"], { encoding: "utf8" });
+      assert.equal(p.status, 2);
+      assert.match(p.stderr, /invalid project_doc_fallback_filenames/);
+    }
+    writeFileSync(conf, 'project_doc_fallback_filenames = ["TEAM_GUIDE.md"] # accepted comment\n');
+    assert.equal(run(root, "--config", conf, "--path", "future.ts").status, 0);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

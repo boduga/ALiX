@@ -48,6 +48,11 @@ function parseStringArray(text) {
     if (index >= text.length) throw new Error("unterminated fallback filename array");
   }
   index++;
+  // Anything remaining before the next line must be whitespace or a TOML
+  // comment. An invalid suffix must not be accepted as a valid configuration.
+  const suffix = text.slice(index).split("\n", 1)[0];
+  if (!/^\s*(?:#.*)?$/.test(suffix))
+    throw new Error("unexpected text after fallback filename array");
   // This parser intentionally handles only this one config key. It never
   // pretends to validate the rest of Codex's TOML file.
   return names;
@@ -59,8 +64,10 @@ export function loadFallbackFilenames(config) {
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index];
     if (/^\s*\[/.test(line)) break; // root-level Codex setting only
-    if (!/^\s*project_doc_fallback_filenames\s*=/.test(line)) continue;
-    const value = line.replace(/^\s*project_doc_fallback_filenames\s*=/, "");
+    // TOML permits bare, single-quoted, and double-quoted keys.
+    const assignment = /^\s*(?:project_doc_fallback_filenames|"project_doc_fallback_filenames"|'project_doc_fallback_filenames')\s*=/.exec(line);
+    if (!assignment) continue;
+    const value = line.slice(assignment[0].length);
     const names = parseStringArray([value, ...lines.slice(index + 1)].join("\n"));
     const filtered = [];
     for (const name of names) {
