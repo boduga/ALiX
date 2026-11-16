@@ -341,8 +341,13 @@ export class OwnershipRegistry {
 
     const now = new Date().toISOString();
     const ttl = req.ttlMs ?? DEFAULT_TTL_MS;
+    // Preserve the public short ID format while guaranteeing no ID reuse,
+    // including against historic released records.
+    let leaseId: string;
+    do { leaseId = `own_${randomUUID().slice(0, 8)}`; }
+    while (this.records.some(record => record.id === leaseId));
     const record: OwnershipRecord = {
-      id: `own_${randomUUID()}`,
+      id: leaseId,
       agentId: req.agentId,
       taskId: req.taskId,
       sessionId: req.sessionId ?? this.sessionId,
