@@ -718,6 +718,27 @@ export class CoordinationScheduler {
     return false;
   }
 
+  /** Retry a compare-and-commit terminal status, never overwrite cancelled
+   * or reclaimed workers across a delayed retry. */
+  private async commitWorkerTerminalWithRetry(
+    runId: string, workerId: string, expectedAttempt: number,
+    patch: Record<string, unknown>,
+    attempts = 5,
+  ): Promise<boolean> {
+    const delays = [50, 100, 200, 400];
+    for (let i = 0; i < attempts; i++) {
+      try {
+        if (await this.deps.store.commitRunningWorkerTerminal(runId, workerId, expectedAttempt, patch)) return true;
+      } catch (err) {
+        if (i === attempts - 1) {
+          console.error(`coordination: terminal commit failed for worker ${workerId}:`, err);
+        }
+      }
+      if (i < attempts - 1) await new Promise(resolve => setTimeout(resolve, delays[Math.min(i, delays.length - 1)]));
+    }
+    return false;
+  }
+
   /**
    * Report the terminal outcome of capability approvals atomically consumed by
    * dispatch authorization. A host crash before this point deliberately leaves
@@ -813,7 +834,7 @@ export class CoordinationScheduler {
 
       if (result.outcome === "success") {
         const resultRef = await this.resultStore.persist(worker, runId, result);
-        const committed = await this.patchWorkerWithRetry(runId, workerId, {
+        const committed = await this.commitWorkerTerminalWithRetry(runId, workerId, worker.attempt, {
           status: "completed", completedAt: new Date().toISOString(), resultRef,
         });
         // A result file is not an authoritative worker transition. An
@@ -858,7 +879,7 @@ export class CoordinationScheduler {
               error: result.error,
               failureKind: result.failureKind ?? "execution_error",
             });
-            failureCommitted = await this.patchWorkerWithRetry(runId, workerId, {
+            failureCommitted = await this.commitWorkerTerminalWithRetry(runId, workerId, worker.attempt, {
               status: "failed", blockReason: "execution_failed", failureKind: result.failureKind ?? "execution_error",
               error: result.error ?? "Execution failed",
               resultRef: failureRef,
@@ -867,7 +888,7 @@ export class CoordinationScheduler {
           } catch { /* best-effort */ }
 
           // Attempt replan for exhausted-retries failure
-          if (this.deps.replanner && this.options.enableMidExecutionReplanning) {
+          if (failureCommitted && this.deps.replanner && this.options.enableMidExecutionReplanning) {
             await this.maybeReplanAfterWorkerCompletion(runId, workerId, "failure");
           }
 
@@ -922,7 +943,7 @@ export class CoordinationScheduler {
             resultRef: failureRef,
           });
         } else {
-          failureCommitted = await this.patchWorkerWithRetry(runId, workerId, {
+          failureCommitted = await this.commitWorkerTerminalWithRetry(runId, workerId, worker.attempt, {
             status: "failed", blockReason: "execution_failed", failureKind: "execution_error",
             error: errorMsg,
             resultRef: failureRef,
@@ -932,7 +953,7 @@ export class CoordinationScheduler {
       } catch { /* best-effort */ }
       if (!isRetryable) {
         // Attempt replan for exhausted-retries failure in catch path
-        if (this.deps.replanner && this.options.enableMidExecutionReplanning) {
+        if (failureCommitted && this.deps.replanner && this.options.enableMidExecutionReplanning) {
           await this.maybeReplanAfterWorkerCompletion(runId, workerId, "failure");
         }
         if (failureCommitted) {

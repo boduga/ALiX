@@ -15,14 +15,11 @@ test(`does not emit ${outcome} when durable terminal worker status cannot be per
   mkdirSync(parent, { recursive: true });
   const cwd = mkdtempSync(join(parent, 'fixture-'));
   const store = new CoordinationStore(cwd);
-  const originalPatch = store.patchWorker.bind(store);
   let failures = 0;
-  store.patchWorker = async (runId, workerId, patch) => {
-    if (patch.status === (outcome === 'success' ? 'completed' : 'failed')) { failures++; return null; }
-    return originalPatch(runId, workerId, patch);
-  };
+  store.commitRunningWorkerTerminal = async () => { failures++; return false; };
   const events: string[] = [];
   let executed = 0;
+  let replans = 0;
   const scheduler = new CoordinationScheduler({
     cwd, daemonInstanceId: 'terminal-event-test', store,
     configProvider: async () => ({ permissions: { sessionMode: 'bypass' } }) as any,
@@ -30,7 +27,8 @@ test(`does not emit ${outcome} when durable terminal worker status cannot be per
     ownershipRegistry: { acquireMany: async () => [], release: async () => true, renew: async () => true } as any,
     executor: { execute: async () => { executed++; if (outcome === 'throw') throw new Error('deliberate exception'); return { outcome, summary: 'ok', failureKind: outcome === 'failure' ? 'execution_error' : undefined, error: outcome === 'failure' ? 'deliberate failure' : undefined }; } } as any,
     eventLog: { append: async (event: any) => { events.push(event.type); return event; } } as any,
-  }, { maxConcurrency: 1, enableConflictDetection: false, enableMidExecutionReplanning: false });
+    replanner: { replan: async () => { replans++; throw new Error('replan after failed commit'); } } as any,
+  }, { maxConcurrency: 1, enableConflictDetection: false, enableMidExecutionReplanning: true });
   try {
     const run = createCoordinationRun({ sessionId: 'audit', rootGoal: 'no terminal event before durable status', coordinatorAgentId: 'alix' });
     await store.save(run);
@@ -44,6 +42,7 @@ test(`does not emit ${outcome} when durable terminal worker status cannot be per
     await scheduler.shutdown();
     assert.equal(executed, 1);
     assert.equal(failures, 5);
+    assert.equal(replans, 0, 'must not replan from an uncommitted failure');
     const persisted = await store.load(run.id);
     assert.equal(persisted?.workers[0]?.status, 'running');
     assert.equal(events.filter(x => x === (outcome === 'success' ? 'coordination.worker.completed' : 'coordination.worker.failed')).length, 0);
@@ -56,3 +55,46 @@ test(`does not emit ${outcome} when durable terminal worker status cannot be per
   }
 });
 }
+
+test('cancellation between terminal retry attempts rejects stale completion', { timeout: 30_000 }, async () => {
+  const parent = join(process.cwd(), 'tmp', 'scheduler-terminal-event-tests');
+  mkdirSync(parent, { recursive: true });
+  const cwd = mkdtempSync(join(parent, 'cancel-fixture-'));
+  const store = new CoordinationStore(cwd);
+  const original = store.commitRunningWorkerTerminal.bind(store);
+  let attempts = 0;
+  const events: string[] = [];
+  store.commitRunningWorkerTerminal = async (runId, workerId, attempt, patch) => {
+    attempts++;
+    if (attempts === 1) {
+      await store.patchWorker(runId, workerId, { status: 'cancelled', blockReason: 'cancelled', failureKind: 'cancelled' });
+      return false; // Cancellation becomes durable before the second retry.
+    }
+    return original(runId, workerId, attempt, patch);
+  };
+  const scheduler = new CoordinationScheduler({
+    cwd, daemonInstanceId: 'cancel-race-test', store,
+    configProvider: async () => ({ permissions: { sessionMode: 'bypass' } }) as any,
+    authorization: { evaluate: async () => ({ status: 'allowed' }) } as any,
+    ownershipRegistry: { acquireMany: async () => [], release: async () => true, renew: async () => true } as any,
+    executor: { execute: async () => ({ outcome: 'success', summary: 'ok' }) } as any,
+    eventLog: { append: async (event: any) => { events.push(event.type); return event; } } as any,
+  }, { maxConcurrency: 1, enableConflictDetection: false, enableMidExecutionReplanning: false });
+  try {
+    const run = createCoordinationRun({ sessionId: 'race', rootGoal: 'cancellation overrides late success', coordinatorAgentId: 'alix' });
+    await store.save(run);
+    const worker = createWorkerAssignment({ coordinationRunId: run.id, agentId: 'worker', taskLabel: 'race', goalPrompt: 'test', requiredCapabilities: ['task.do'], attempt: 0, maxAttempts: 2 });
+    await store.addWorker(run.id, worker);
+    await scheduler.tick(run.id);
+    for (let i = 0; i < 100 && attempts < 5; i++) await sleep(100);
+    await scheduler.shutdown();
+    assert.equal(attempts, 5);
+    const persisted = await store.load(run.id);
+    assert.equal(persisted?.workers[0]?.status, 'cancelled');
+    assert.equal(events.filter(event => event === 'coordination.worker.completed').length, 0);
+  } finally {
+    await scheduler.shutdown();
+    closeSharedLedger(cwd);
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
