@@ -521,6 +521,7 @@ export class CoordinationScheduler {
       // Ownership acquisition
       const ownResult = await acquireWorkerOwnership(
         this.deps.ownershipRegistry, run, worker, this.deps.cwd, this.options.ownershipTtlMs,
+        true, // Never reuse a lease ID across separately dispatched attempts.
       );
       if (!ownResult.acquired) {
         ownershipConflicts.push(worker.id);

@@ -41,6 +41,7 @@ plus the path-scope arithmetic both enforcement points share.
   A broader capability permission never widens the grant: for a write that
   declares owned paths, the gate's owned-path rule decides (allow inside the
   scope, deny outside it) and the router's create/delete backstops mirror it.
+- **Scheduler attempts require distinct lease identities.** Ordinary same-agent/same-scope acquisitions renew an existing record. A scheduler-dispatched worker passes `freshLease: true`, creating a distinct lease ID for each execution attempt even when agent, scope and mode match. This prevents a finishing stale attempt from releasing a successor's renewed lease. Keep ordinary renewal behavior unchanged and pin both cases in ownership tests.
 - **One durable registry, no ephemeral twins (R3.2).** `ownership-registry.ts`
   is the only live claim store. `SubagentManager` acquires its chat-delegate
   write leases on it at spawn (scope reduced with `resolveOwnedScopePrefix`,

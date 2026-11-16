@@ -7,6 +7,7 @@ import { CoordinationStore } from '../../src/coordination/kernel/coordination-st
 import { CoordinationScheduler } from '../../src/coordination/kernel/coordination-scheduler.js';
 import { createCoordinationRun, createWorkerAssignment } from '../../src/coordination/kernel/coordination-types.js';
 import { closeSharedLedger } from '../../src/runtime-state/storage/runtime-ledger.js';
+import { OwnershipRegistry } from '../../src/coordination/ownership/ownership-registry.js';
 import { buildCoordinationRunView } from '../../src/coordination/kernel/coordination-view.js';
 
 for (const outcome of ['success', 'failure', 'throw'] as const) {
@@ -109,17 +110,13 @@ test('stale attempt cleanup never releases or clears successor leases', { timeou
   let executionStarted!: () => void;
   const gate = new Promise<void>(resolve => { releaseExecution = resolve; });
   const started = new Promise<void>(resolve => { executionStarted = resolve; });
-  const released: string[] = [];
+  const registry = new OwnershipRegistry(cwd);
   const events: string[] = [];
   const scheduler = new CoordinationScheduler({
     cwd, daemonInstanceId: 'supersession-test', store,
     configProvider: async () => ({ permissions: { sessionMode: 'bypass' } }) as any,
     authorization: { evaluate: async () => ({ status: 'allowed' }) } as any,
-    ownershipRegistry: {
-      acquireMany: async () => [{ acquired: true, record: { id: 'old-attempt-lease' } }],
-      release: async (id: string) => { released.push(id); return true; },
-      renew: async () => true,
-    } as any,
+    ownershipRegistry: registry,
     executor: { execute: async () => { executionStarted(); await gate; return { outcome: 'success', summary: 'late success' }; } } as any,
     eventLog: { append: async (event: any) => { events.push(event.type); return event; } } as any,
   }, { maxConcurrency: 1, enableConflictDetection: false, enableMidExecutionReplanning: false });
@@ -136,20 +133,36 @@ test('stale attempt cleanup never releases or clears successor leases', { timeou
     await Promise.race([started, sleep(5000).then(() => { throw new Error('executor never started'); })]);
     const original = (await store.load(run.id))!.workers[0]!;
     assert.equal(original.attempt, 1);
-    assert.deepEqual(original.leaseIds, ['old-attempt-lease']);
+    assert.equal(original.leaseIds?.length, 1);
+    const oldLeaseId = original.leaseIds![0]!;
+    // The same agent and same scope must get a NEW lease identity.
+    const acquired = await registry.acquire({
+      agentId: worker.agentId,
+      taskId: worker.id,
+      scope: { kind: 'path', root: join(cwd, 'owned.txt'), recursive: false },
+      mode: 'exclusive-write',
+      freshLease: true,
+    });
+    assert.equal(acquired.acquired, true);
+    const newLeaseId = acquired.record!.id;
+    assert.notEqual(newLeaseId, oldLeaseId);
     await store.patchWorker(run.id, worker.id, {
-      status: 'running', attempt: 2, leaseIds: ['new-attempt-lease'],
+      status: 'running', attempt: 2, leaseIds: [newLeaseId],
     });
     releaseExecution();
-    // Wait for the stale attempt's finally cleanup before shutdown; shutdown
-    // aborts still-active executions and would create a different cancel race.
-    for (let i = 0; i < 100 && !released.includes('old-attempt-lease'); i++) await sleep(25);
-    assert.ok(released.includes('old-attempt-lease'), 'old attempt must release its own lease');
+    // Await the old attempt's cleanup, which releases its own registry lease.
+    for (let i = 0; i < 100; i++) {
+      const active = await registry.listActive();
+      if (!active.some(record => record.id === oldLeaseId)) break;
+      await sleep(25);
+    }
     const persisted = (await store.load(run.id))!.workers[0]!;
     assert.equal(persisted.status, 'running');
     assert.equal(persisted.attempt, 2);
-    assert.deepEqual(persisted.leaseIds, ['new-attempt-lease']);
-    assert.equal(released.includes('new-attempt-lease'), false);
+    assert.deepEqual(persisted.leaseIds, [newLeaseId]);
+    const remaining = await registry.listActive();
+    assert.equal(remaining.some(record => record.id === oldLeaseId), false);
+    assert.equal(remaining.some(record => record.id === newLeaseId), true);
     assert.equal(events.includes('coordination.worker.completed'), false);
   } finally {
     releaseExecution();

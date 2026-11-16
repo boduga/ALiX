@@ -53,6 +53,7 @@ export async function acquireWorkerOwnership(
   worker: WorkerAssignment,
   cwd: string,
   ttlMs: number,
+  freshLease = false,
 ): Promise<WorkerOwnershipAcquireResult> {
   // Read-only workers skip ownership entirely
   if (!worker.ownershipClaims || worker.ownershipClaims.length === 0) {
@@ -75,6 +76,7 @@ export async function acquireWorkerOwnership(
       scope,
       mode: "exclusive-write",
       taskId: worker.id,
+      freshLease,
       sessionId: run.sessionId,
       ttlMs,
       reason: `Worker ${worker.id} (${worker.taskLabel})`,

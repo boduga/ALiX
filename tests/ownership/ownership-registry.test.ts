@@ -35,6 +35,19 @@ describe("OwnershipRegistry", () => {
     assert.equal(result.record!.status, "active");
   });
 
+  it("freshLease does not alias same-agent existing lease", async () => {
+    const scope = { kind: "path" as const, root: join(dir, "src/runtime"), recursive: true };
+    const request = { agentId: "worker", scope, mode: "exclusive-write" as const, taskId: "worker" };
+    const first = await reg.acquire({ ...request, freshLease: true });
+    const second = await reg.acquire({ ...request, freshLease: true });
+    assert.equal(first.acquired, true);
+    assert.equal(second.acquired, true);
+    assert.notEqual(first.record!.id, second.record!.id);
+    assert.equal(await reg.release(first.record!.id), true);
+    const remaining = await reg.listActive();
+    assert.ok(remaining.some(record => record.id === second.record!.id));
+  });
+
   it("acquire with same scope+mode returns existing (renew)", async () => {
     const scope = { kind: "path" as const, root: join(dir, "src/runtime"), recursive: true };
     const r1 = await reg.acquire({ agentId: "agent-1", scope, mode: "exclusive-write" });
