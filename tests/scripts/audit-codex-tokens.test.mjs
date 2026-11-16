@@ -103,3 +103,19 @@ test("missing cumulative counters remain unknown, not fabricated zero",()=>{
   assert(r.result.missingCounters.includes("total_tokens"));
  }finally{rmSync(root,{recursive:true,force:true});}
 });
+
+test("does not use per-response usage as cumulative thread totals",()=>{
+ const content=record("session_meta",{id:"response-only"})+
+ record("turn_context",{model:"same"})+
+ record("token_usage_record",{usage:usage(100,20,10)})+
+ record("token_usage_record",{usage:usage(20,0,1)});
+ const {root,file}=fixture(content);
+ try{
+  const r=run("--file",file);
+  assert.equal(r.status,0,r.stderr);
+  assert.equal(r.result.tokenUsageRecords,0);
+  assert.equal(r.result.responseUsageRecords,2);
+  assert.equal(r.result.tokenUsage.total_tokens,null);
+  assert(r.result.missingCounters.includes("input_tokens"));
+ }finally{rmSync(root,{recursive:true,force:true});}
+});

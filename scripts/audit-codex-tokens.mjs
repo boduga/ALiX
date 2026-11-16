@@ -33,7 +33,7 @@ file??=recent(sessionsDir);
 if(!file||!existsSync(file)){console.error("no Codex JSONL session found");process.exit(2);}
 const totals={input_tokens:null,cached_input_tokens:null,cache_write_input_tokens:null,output_tokens:null,reasoning_output_tokens:null,total_tokens:null};
 const keys=Object.keys(totals);
-let samples=0,compactions=0,toolCalls=0,toolOutputs=0,turns=0,model=null,sessionId=null;
+let samples=0,responseUsageRecords=0,compactions=0,toolCalls=0,toolOutputs=0,turns=0,model=null,sessionId=null;
 const modelsSeen=new Set();
 let invalid=0;
 for(const line of readFileSync(file,"utf8").split(/\r?\n/)){
@@ -48,8 +48,13 @@ for(const line of readFileSync(file,"utf8").split(/\r?\n/)){
   if(p.type==="function_call_output"||p.type==="custom_tool_call_output")toolOutputs++;
  }
  if(x.type==="token_usage_record"){
-  const u=p.thread_token_usage??p.usage;
-  if(!u)continue;
+  // Response-level usage is not a cumulative session snapshot. Mixing it
+  // with thread totals would invent a complete session from a final response.
+  const u=p.thread_token_usage;
+  if(!u||typeof u!=="object"){
+    if(p.usage)responseUsageRecords++;
+    continue;
+  }
   samples++;
   // Last thread-level total is cumulative; never sum successive records.
   for(const k of keys)totals[k]=Number.isFinite(u[k])?u[k]:null;
@@ -57,7 +62,7 @@ for(const line of readFileSync(file,"utf8").split(/\r?\n/)){
 }
 const modelHistory=[...modelsSeen];
 const missingCounters=keys.filter(k=>totals[k]===null);
-const report={source:file,sessionId,model,modelHistory,mixedModels:modelHistory.length>1,missingCounters,turns,tokenUsageRecords:samples,tokenUsage:totals,compactions,toolCalls,toolOutputs,invalidLines:invalid,attribution:{
+const report={source:file,sessionId,model,modelHistory,mixedModels:modelHistory.length>1,missingCounters,turns,tokenUsageRecords:samples,responseUsageRecords,tokenUsage:totals,compactions,toolCalls,toolOutputs,invalidLines:invalid,attribution:{
  codex:"Recorded cumulative session counters (not a controlled baseline)",
  rtk:"Inspect 'rtk gain -p --format json' separately; its estimated savings are not additive with Codex billed usage",
  tokenEconomizer:"Configured hooks may affect context; no per-hook savings attributed from Codex JSONL",

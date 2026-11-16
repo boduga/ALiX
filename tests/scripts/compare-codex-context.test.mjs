@@ -99,3 +99,18 @@ test("refuses incomplete cumulative usage instead of reporting phantom savings",
   assert.equal(result.usage.total.pctChange,null);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
+
+test("does not classify response-only usage as measured cumulative sessions",()=>{
+ const root=mkdtempSync(join(tmpdir(),"alix-paired-"));
+ try{
+  const a=sample(root,"baseline","same-model",100,20),b=sample(root,"guided","same-model",80,10);
+  const entries=readFileSync(b,"utf8").trim().split("\n").map(JSON.parse);
+  entries[2].payload={usage:entries[2].payload.thread_token_usage};
+  writeFileSync(b,entries.map(JSON.stringify).join("\n")+"\n");
+  const p=spawnSync(process.execPath,[cli,"--baseline",a,"--guided",b,"--json"],{encoding:"utf8"});
+  assert.equal(p.status,1,p.stderr);
+  const result=JSON.parse(p.stdout);
+  assert.equal(result.checks.bothMeasured,false);
+  assert.equal(result.usage.total.guided,null);
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
