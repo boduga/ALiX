@@ -86,6 +86,7 @@
   the run, and persisted TaskGraph cancelled and releases ownership leases.
   Set run status explicitly; do not re-derive an idle cancelled run as blocked.
   Scheduler `tick` and `runUntilIdle` treat cancelled runs as final.
+- **Worker terminal lifecycle events follow the durable worker state.** After a worker result is persisted, the scheduler may emit worker completed/failed and project terminal agent state only if the matching terminal status commit succeeded. Exhausted persistence retries leave a nonterminal worker for recovery; executor return or result file does not substitute for the authoritative ledger transition. Pinned by tests/kernel/coordination-scheduler-terminal-event-durability.test.ts (success, failure, and exception fault injection).
 - **`coordination.tick.completed` records a MEANINGFUL transition, not a poll
   cycle.** `tick` emits it only when a dispatch happened, reconciliation
   orphaned/blocked a worker, or a worker entered approval/denial/ownership

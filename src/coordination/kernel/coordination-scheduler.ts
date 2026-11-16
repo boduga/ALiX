@@ -813,9 +813,12 @@ export class CoordinationScheduler {
 
       if (result.outcome === "success") {
         const resultRef = await this.resultStore.persist(worker, runId, result);
-        await this.patchWorkerWithRetry(runId, workerId, {
+        const committed = await this.patchWorkerWithRetry(runId, workerId, {
           status: "completed", completedAt: new Date().toISOString(), resultRef,
         });
+        // A result file is not an authoritative worker transition. An
+        // uncommitted status must not produce a terminal lifecycle event.
+        if (!committed) return;
         this.emit("coordination.worker.completed", {
           coordinationRunId: runId,
           workerId: worker.id,
@@ -827,6 +830,8 @@ export class CoordinationScheduler {
         });
         await this.emitAgentState(run, worker, "completed");
       } else {
+        // A terminal failure event also requires a durable worker transition.
+        let failureCommitted = false;
         // Retryable failure check
         const isRetryable = result.failureKind === "timeout" || result.failureKind === "transient_provider" || result.failureKind === "execution_error";
         const currentRun = await this.deps.store.load(runId);
@@ -853,7 +858,7 @@ export class CoordinationScheduler {
               error: result.error,
               failureKind: result.failureKind ?? "execution_error",
             });
-            await this.patchWorkerWithRetry(runId, workerId, {
+            failureCommitted = await this.patchWorkerWithRetry(runId, workerId, {
               status: "failed", blockReason: "execution_failed", failureKind: result.failureKind ?? "execution_error",
               error: result.error ?? "Execution failed",
               resultRef: failureRef,
@@ -866,18 +871,20 @@ export class CoordinationScheduler {
             await this.maybeReplanAfterWorkerCompletion(runId, workerId, "failure");
           }
 
-          this.emit("coordination.worker.failed", {
-            coordinationRunId: runId,
-            workerId: worker.id,
-            agentId: worker.agentId,
-            sessionId: run.sessionId,
-            taskGraphId: run.taskGraphId,
-            outcome: "failed",
-            failureKind: result.failureKind ?? "execution_error",
-            error: result.error ?? "Execution failed",
-            timestamp: new Date().toISOString(),
-          });
-          await this.emitAgentState(run, worker, "failed", "execution_failed", result.error ?? "Execution failed");
+          if (failureCommitted) {
+            this.emit("coordination.worker.failed", {
+              coordinationRunId: runId,
+              workerId: worker.id,
+              agentId: worker.agentId,
+              sessionId: run.sessionId,
+              taskGraphId: run.taskGraphId,
+              outcome: "failed",
+              failureKind: result.failureKind ?? "execution_error",
+              error: result.error ?? "Execution failed",
+              timestamp: new Date().toISOString(),
+            });
+            await this.emitAgentState(run, worker, "failed", "execution_failed", result.error ?? "Execution failed");
+          }
         }
       }
     } catch (error) {
@@ -895,6 +902,7 @@ export class CoordinationScheduler {
         return;
       }
       // Check retry budget for catch-path failures (executor threw rather than returning a result)
+      let failureCommitted = false;
       const currentRun = await this.deps.store.load(runId);
       const currentAttempt = currentRun?.workers.find(w => w.id === workerId)?.attempt ?? worker.attempt;
       const isRetryable = currentAttempt < (worker.maxAttempts ?? 3);
@@ -914,7 +922,7 @@ export class CoordinationScheduler {
             resultRef: failureRef,
           });
         } else {
-          await this.patchWorkerWithRetry(runId, workerId, {
+          failureCommitted = await this.patchWorkerWithRetry(runId, workerId, {
             status: "failed", blockReason: "execution_failed", failureKind: "execution_error",
             error: errorMsg,
             resultRef: failureRef,
@@ -927,18 +935,20 @@ export class CoordinationScheduler {
         if (this.deps.replanner && this.options.enableMidExecutionReplanning) {
           await this.maybeReplanAfterWorkerCompletion(runId, workerId, "failure");
         }
-        this.emit("coordination.worker.failed", {
-          coordinationRunId: runId,
-          workerId,
-          agentId: worker.agentId,
-          sessionId: run.sessionId,
-          taskGraphId: run.taskGraphId,
-          outcome: "failed",
-          failureKind: "execution_error",
-          error: errorMsg,
-          timestamp: new Date().toISOString(),
-        });
-        await this.emitAgentState(run, worker, "failed", "execution_failed", errorMsg);
+        if (failureCommitted) {
+          this.emit("coordination.worker.failed", {
+            coordinationRunId: runId,
+            workerId,
+            agentId: worker.agentId,
+            sessionId: run.sessionId,
+            taskGraphId: run.taskGraphId,
+            outcome: "failed",
+            failureKind: "execution_error",
+            error: errorMsg,
+            timestamp: new Date().toISOString(),
+          });
+          await this.emitAgentState(run, worker, "failed", "execution_failed", errorMsg);
+        }
       }
     } finally {
       const finalRun = await this.deps.store.load(runId);
