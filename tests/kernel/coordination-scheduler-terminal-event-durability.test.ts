@@ -98,3 +98,63 @@ test('cancellation between terminal retry attempts rejects stale completion', { 
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+
+test('stale attempt cleanup never releases or clears successor leases', { timeout: 30_000 }, async () => {
+  const parent = join(process.cwd(), 'tmp', 'scheduler-terminal-event-tests');
+  mkdirSync(parent, { recursive: true });
+  const cwd = mkdtempSync(join(parent, 'superseded-fixture-'));
+  const store = new CoordinationStore(cwd);
+  let releaseExecution!: () => void;
+  let executionStarted!: () => void;
+  const gate = new Promise<void>(resolve => { releaseExecution = resolve; });
+  const started = new Promise<void>(resolve => { executionStarted = resolve; });
+  const released: string[] = [];
+  const events: string[] = [];
+  const scheduler = new CoordinationScheduler({
+    cwd, daemonInstanceId: 'supersession-test', store,
+    configProvider: async () => ({ permissions: { sessionMode: 'bypass' } }) as any,
+    authorization: { evaluate: async () => ({ status: 'allowed' }) } as any,
+    ownershipRegistry: {
+      acquireMany: async () => [{ acquired: true, record: { id: 'old-attempt-lease' } }],
+      release: async (id: string) => { released.push(id); return true; },
+      renew: async () => true,
+    } as any,
+    executor: { execute: async () => { executionStarted(); await gate; return { outcome: 'success', summary: 'late success' }; } } as any,
+    eventLog: { append: async (event: any) => { events.push(event.type); return event; } } as any,
+  }, { maxConcurrency: 1, enableConflictDetection: false, enableMidExecutionReplanning: false });
+  try {
+    const run = createCoordinationRun({ sessionId: 'superseded', rootGoal: 'successor ownership', coordinatorAgentId: 'alix' });
+    await store.save(run);
+    const worker = createWorkerAssignment({
+      coordinationRunId: run.id, agentId: 'worker', taskLabel: 'superseded',
+      goalPrompt: 'test', requiredCapabilities: ['task.do'], attempt: 0, maxAttempts: 3,
+      ownershipClaims: [{ path: 'owned.txt', recursive: false }],
+    });
+    await store.addWorker(run.id, worker);
+    await scheduler.tick(run.id);
+    await Promise.race([started, sleep(5000).then(() => { throw new Error('executor never started'); })]);
+    const original = (await store.load(run.id))!.workers[0]!;
+    assert.equal(original.attempt, 1);
+    assert.deepEqual(original.leaseIds, ['old-attempt-lease']);
+    await store.patchWorker(run.id, worker.id, {
+      status: 'running', attempt: 2, leaseIds: ['new-attempt-lease'],
+    });
+    releaseExecution();
+    // Wait for the stale attempt's finally cleanup before shutdown; shutdown
+    // aborts still-active executions and would create a different cancel race.
+    for (let i = 0; i < 100 && !released.includes('old-attempt-lease'); i++) await sleep(25);
+    assert.ok(released.includes('old-attempt-lease'), 'old attempt must release its own lease');
+    const persisted = (await store.load(run.id))!.workers[0]!;
+    assert.equal(persisted.status, 'running');
+    assert.equal(persisted.attempt, 2);
+    assert.deepEqual(persisted.leaseIds, ['new-attempt-lease']);
+    assert.equal(released.includes('new-attempt-lease'), false);
+    assert.equal(events.includes('coordination.worker.completed'), false);
+  } finally {
+    releaseExecution();
+    await scheduler.shutdown();
+    closeSharedLedger(cwd);
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});

@@ -974,7 +974,7 @@ export class CoordinationScheduler {
     } finally {
       const finalRun = await this.deps.store.load(runId);
       const finalWorker = finalRun?.workers.find(w => w.id === workerId);
-      if (finalWorker) {
+      if (finalWorker?.attempt === worker.attempt) {
         const receiptOutcome = finalWorker.status === "completed"
           ? "succeeded" as const
           : (finalWorker.status === "cancelled" || finalWorker.failureKind === "cancelled" || finalWorker.blockReason === "cancelled")
@@ -984,9 +984,16 @@ export class CoordinationScheduler {
               : undefined;
         if (receiptOutcome) await this.recordDispatchApprovalOutcome(worker, receiptOutcome);
       }
-      if (finalWorker?.leaseIds && finalWorker.leaseIds.length > 0) {
-        await releaseWorkerLeases(this.deps.ownershipRegistry, finalWorker);
-        await this.patchWorkerWithRetry(runId, workerId, { leaseIds: [] });
+      // Release only the leases captured by THIS executing attempt. Reloaded
+      // finalWorker may already belong to another attempt after reclamation.
+      const executingLeaseIds = [...(worker.leaseIds ?? [])];
+      if (executingLeaseIds.length > 0) {
+        const release = await releaseWorkerLeases(this.deps.ownershipRegistry, { leaseIds: executingLeaseIds });
+        // Do not overwrite a successor's leases. Failed releases remain
+        // durable for later reconciliation when this attempt is still current.
+        await this.deps.store.reconcileWorkerLeasesForAttempt(
+          runId, workerId, worker.attempt, executingLeaseIds, release.failed,
+        );
       }
       // Check if run is now terminal
       if (finalRun?.status === "completed" || finalRun?.status === "failed") {

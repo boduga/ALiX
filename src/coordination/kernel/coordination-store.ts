@@ -525,6 +525,34 @@ export class CoordinationStore {
     });
   }
 
+  /**
+   * Record the outcome of releasing one execution attempt's captured leases.
+   * Never clear a successor attempt's lease IDs after stale cleanup.
+   */
+  async reconcileWorkerLeasesForAttempt(
+    runId: string, workerId: string, expectedAttempt: number,
+    observedLeaseIds: string[], failedLeaseIds: string[],
+  ): Promise<boolean> {
+    return this.serializeRunMutation<boolean>(runId, false, async () => {
+      const lock = new CoordinationRunLock(this.cwd, runId);
+      if (!(await lock.acquire())) return false;
+      try {
+        const run = await this.loadWithRetry(runId);
+        if (!run) return false;
+        const worker = run.workers.find(w => w.id === workerId);
+        if (!worker || worker.attempt !== expectedAttempt ||
+            JSON.stringify(worker.leaseIds ?? []) !== JSON.stringify(observedLeaseIds)) return false;
+        worker.leaseIds = failedLeaseIds;
+        run.updatedAt = new Date().toISOString();
+        this.commitToLedger(runId, "snapshot", runLedgerPayload(run), run.updatedAt);
+        await this.projectJson(runId, run);
+        return true;
+      } finally {
+        lock.release();
+      }
+    });
+  }
+
   /** Update specific fields on a worker within a run. Uses lock-safe updateRun. */
   async patchWorker(
     runId: string,
