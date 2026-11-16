@@ -74,13 +74,13 @@ function parseBudget() {
   for (const line of readFileSync(config, "utf8").split(/\r?\n/)) {
     if (/^\s*\[/.test(line)) inRoot = false;
     if (inRoot) {
-      const m = /^\s*project_doc_max_bytes\s*=\s*([^\s#]+)\s*(?:#.*)?$/.exec(line);
+      const m = /^\s*(?:project_doc_max_bytes|"project_doc_max_bytes"|'project_doc_max_bytes')\s*=\s*([^\s#]+)\s*(?:#.*)?$/.exec(line);
       if (m) {
         const value=tomlInteger(m[1]);
         if(value===null)usage("invalid project_doc_max_bytes in config");
         return value;
       }
-      if(/^\s*project_doc_max_bytes\s*=/.test(line))
+      if(/^\s*(?:project_doc_max_bytes|"project_doc_max_bytes"|'project_doc_max_bytes')\s*=/.test(line))
         usage("invalid project_doc_max_bytes in config");
     }
   }

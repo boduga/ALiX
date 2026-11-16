@@ -258,3 +258,17 @@ test("malformed content after fallback array is not accepted as a valid config",
     assert.equal(run(root, "--config", conf, "--path", "future.ts").status, 0);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test("quoted TOML budget keys are honored rather than silently defaulting", () => {
+  const root = fixture({ "AGENTS.md": "root", "src/AGENTS.md": "x".repeat(1800) });
+  try {
+    const conf = join(root, "codex.toml");
+    for (const key of ['"project_doc_max_bytes"', "'project_doc_max_bytes'"]) {
+      writeFileSync(conf, `${key} = 1_024\n`);
+      const r = run(root, "--config", conf, "--path", "src/future.ts");
+      assert.equal(r.status, 1);
+      assert.equal(r.data.budget, 1024);
+      assert(r.data.findings.some((finding) => finding.type === "budget_overflow"));
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
