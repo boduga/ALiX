@@ -10,6 +10,7 @@
 import { readFileSync, existsSync, realpathSync, statSync, lstatSync, readdirSync } from "node:fs";
 import { resolve, relative, dirname, join, isAbsolute, sep } from "node:path";
 import { homedir } from "node:os";
+import { effectiveInstruction, instructionNames, loadFallbackFilenames } from "./codex-instruction-files.mjs";
 
 const args = process.argv.slice(2);
 const values = [];
@@ -33,21 +34,13 @@ if (all && values.length) usage("choose either --all or --path");
 root = realpathSync(root);
 const inside = (p) => p === root || p.startsWith(root + sep);
 if (!existsSync(join(root, "AGENTS.md"))) usage("root AGENTS.md does not exist");
-// Use lstat, not existsSync: a dangling or external instruction symlink must
-// block the chain, never disappear or silently fall back to shadowed AGENTS.md.
-const entryPresent = (file) => {
-  try { lstatSync(file); return true; }
-  catch (error) {
-    if (error.code === "ENOENT") return false;
-    throw error;
-  }
-};
-const instructionFor = (dir) => {
-  const override = join(dir, "AGENTS.override.md");
-  if (entryPresent(override)) return override;
-  const standard = join(dir, "AGENTS.md");
-  return entryPresent(standard) ? standard : null;
-};
+// Share actual instruction-file selection with the overlap audit. The
+// caller validates each selected path with lstat before counting its bytes.
+let fallbackNames;
+try { fallbackNames = loadFallbackFilenames(config); }
+catch (error) { usage("invalid project_doc_fallback_filenames: " + error.message); }
+const instructionFor = (dir) => effectiveInstruction(dir, fallbackNames);
+const relevantNames = new Set(instructionNames(fallbackNames));
 function tomlInteger(value) {
   // TOML integers permit digit separators and base-prefixed values. Reject
   // malformed configured values; a silent default can approve excess DOX.
@@ -105,13 +98,13 @@ if (!values.length) {
       if (e.isSymbolicLink()) {
         // Do not traverse directory aliases, but inspect symlinked DOX entries
         // so --all reports their invalid instruction source rather than skipping it.
-        if (e.name === "AGENTS.md" || e.name === "AGENTS.override.md") addTarget(dir);
+        if (relevantNames.has(e.name)) addTarget(dir);
         continue;
       }
       if (e.isDirectory()) {
         if (new Set([".git", "node_modules", "dist", "coverage", ".alix", ".gitnexus", ".opensrc"]).has(e.name)) continue;
         walk(join(dir, e.name));
-      } else if (e.isFile() && (e.name === "AGENTS.md" || e.name === "AGENTS.override.md")) {
+      } else if (e.isFile() && (relevantNames.has(e.name))) {
         addTarget(dir);
       }
     }

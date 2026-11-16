@@ -170,3 +170,63 @@ test("rejects signed base-prefixed TOML budgets rather than accepting invalid in
     }
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test("configured fallback file participates in --path and --all instruction budgets", () => {
+  const root = fixture({
+    "AGENTS.md": "root",
+    "src/TEAM_GUIDE.md": "x".repeat(1800),
+    "codex.toml": 'project_doc_fallback_filenames = ["TEAM_GUIDE.md"]\nproject_doc_max_bytes = 1_024\n',
+  });
+  try {
+    for (const targets of [["--path", "src/future.ts"], ["--all"]]) {
+      const result = run(root, "--config", join(root, "codex.toml"), ...targets);
+      assert.equal(result.status, 1);
+      assert(result.data.findings.some((f) => f.type === "budget_overflow"));
+      assert(result.data.records.some((r) => r.chain.includes("src/TEAM_GUIDE.md")));
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("empty override still shadows standard and fallback files, matching Codex selection", () => {
+  const root = fixture({
+    "AGENTS.md": "root",
+    "src/AGENTS.md": "x".repeat(2000),
+    "src/AGENTS.override.md": "",
+    "src/TEAM_GUIDE.md": "x".repeat(2000),
+    "codex.toml": 'project_doc_fallback_filenames = ["TEAM_GUIDE.md"]\n',
+  });
+  try {
+    const r = run(root, "--config", join(root, "codex.toml"), "--budget", "1024", "--path", "src/future.ts");
+    assert.equal(r.status, 0);
+    assert.deepEqual(r.data.records[0].chain, ["AGENTS.md", "src/AGENTS.override.md"]);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("multiline TOML literal-string fallback arrays are supported, malformed entries rejected", () => {
+  const root = fixture({ "AGENTS.md": "root", "src/TEAM_GUIDE.md": "x".repeat(1800) });
+  try {
+    const conf = join(root, "codex.toml");
+    writeFileSync(conf, "project_doc_fallback_filenames = [\n  'TEAM_GUIDE.md', # owner docs\n]\n");
+    const accepted = run(root, "--config", conf, "--budget", "1024", "--path", "src/future.ts");
+    assert.equal(accepted.status, 1);
+    assert(accepted.data.records[0].chain.includes("src/TEAM_GUIDE.md"));
+    writeFileSync(conf, 'project_doc_fallback_filenames = ["TEAM_GUIDE.md", 123]\n');
+    const rejected = spawnSync(process.execPath, [script, "--root", root, "--config", conf, "--path", "src/future.ts"], { encoding: "utf8" });
+    assert.equal(rejected.status, 2);
+    assert.match(rejected.stderr, /invalid project_doc_fallback_filenames/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("rejects linked fallback instructions rather than reading outside workspace", { skip: process.platform === "win32" }, () => {
+  const root = fixture({ "AGENTS.md": "root", "codex.toml": 'project_doc_fallback_filenames = ["TEAM_GUIDE.md"]\n' });
+  const outside = fixture({ "secret.md": "outside" });
+  try {
+    mkdirSync(join(root, "src"), { recursive: true });
+    symlinkSync(join(outside, "secret.md"), join(root, "src/TEAM_GUIDE.md"));
+    for (const args of [["--path", "src/future.ts"], ["--all"]]) {
+      const r = run(root, "--config", join(root, "codex.toml"), ...args);
+      assert.equal(r.status, 1);
+      assert(r.data.findings.some((f) => f.type === "unverified_instruction" && f.path === "src/TEAM_GUIDE.md"));
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); }
+});

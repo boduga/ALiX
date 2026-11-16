@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -62,4 +62,50 @@ test("does not merge adjacent separate bullets into a single contract",()=>{
  "src/AGENTS.md":long+"\n"});
  try{const r=run(root);assert.equal(r.status,0);assert.equal(r.data.exactAncestorBullets,1);}
  finally{rmSync(root,{recursive:true,force:true});}
+});
+
+test("compares effective overrides, not shadowed ancestor AGENTS.md", () => {
+  const root = fixture({
+    "AGENTS.md": long,
+    "AGENTS.override.md": "# Different effective root rules",
+    "src/AGENTS.md": long,
+  });
+  try {
+    const r = run(root);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.data.exactAncestorBullets, 0);
+    assert.equal(r.data.filesScanned, 2);
+    writeFileSync(join(root, "AGENTS.override.md"), long);
+    const matching = run(root);
+    assert.equal(matching.status, 0, matching.stderr);
+    assert.equal(matching.data.exactAncestorBullets, 1);
+    assert.equal(matching.data.exact[0].parent, "AGENTS.override.md");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("uses configured fallback documents in effective ancestor overlap comparisons", () => {
+  const root = fixture({
+    "AGENTS.md": "# root",
+    "src/TEAM_GUIDE.md": long,
+    "src/nested/AGENTS.md": long,
+    "codex.toml": 'project_doc_fallback_filenames = ["TEAM_GUIDE.md"]\n',
+  });
+  try {
+    const r = run(root, "--config", join(root, "codex.toml"));
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.data.exactAncestorBullets, 1);
+    assert.equal(r.data.exact[0].parent, "src/TEAM_GUIDE.md");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("refuses symlinked configured fallback instructions", { skip: process.platform === "win32" }, () => {
+  const root = fixture({ "AGENTS.md": long, "codex.toml": 'project_doc_fallback_filenames = ["TEAM_GUIDE.md"]\n' });
+  try {
+    mkdirSync(join(root, "src"), { recursive: true });
+    // A dangling symlink is not a reason to fall back to a clean result.
+    symlinkSync("missing.md", join(root, "src/TEAM_GUIDE.md"));
+    const r = run(root, "--config", join(root, "codex.toml"));
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /unverified instruction source/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

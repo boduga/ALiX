@@ -5,31 +5,53 @@
  * along ancestor chains. Similarity never authorizes automatic deletion.
  * This complements check-dox-scope; it is not an ownership validator.
  */
-import { readFileSync, readdirSync, statSync, existsSync, realpathSync } from "node:fs";
+import { readFileSync, readdirSync, lstatSync, existsSync, realpathSync } from "node:fs";
 import { join, resolve, relative, dirname, sep } from "node:path";
+import { homedir } from "node:os";
+import { effectiveInstruction, instructionNames, loadFallbackFilenames } from "./codex-instruction-files.mjs";
 
 const argv = process.argv.slice(2);
-let root = process.cwd(), json = false, threshold = 0.72;
+let root = process.cwd(), config = join(homedir(), ".codex/config.toml"), json = false, threshold = 0.72;
 for (let i=0;i<argv.length;i++) {
   if (argv[i] === "--root" && argv[i+1]) root = argv[++i];
+  else if (argv[i] === "--config" && argv[i+1]) config = argv[++i];
   else if (argv[i] === "--threshold" && argv[i+1]) threshold = Number(argv[++i]);
   else if (argv[i] === "--json") json=true;
-  else { console.error("usage: audit-dox-overlap.mjs [--root DIR] [--threshold 0..1] [--json]");process.exit(2); }
+  else { console.error("usage: audit-dox-overlap.mjs [--root DIR] [--config FILE] [--threshold 0..1] [--json]");process.exit(2); }
 }
 if (!Number.isFinite(threshold) || threshold<=0 || threshold>1) {console.error("invalid threshold");process.exit(2);}
 root=realpathSync(root);
 if (!existsSync(join(root,"AGENTS.md"))) {console.error("missing root AGENTS.md");process.exit(2);}
+let fallbackNames;
+try { fallbackNames = loadFallbackFilenames(resolve(config)); }
+catch (error) { console.error("invalid project_doc_fallback_filenames: " + error.message); process.exit(2); }
+const relevantNames = new Set(instructionNames(fallbackNames));
 const skip = new Set(["node_modules","dist",".git","coverage",".opensrc",".gitnexus",".alix"]);
-const docs=[];
+const docs = [];
 function walk(dir) {
- for(const e of readdirSync(dir,{withFileTypes:true})) {
-  if(e.isSymbolicLink()) continue;
-  const full=join(dir,e.name);
-  if(e.isDirectory() && !skip.has(e.name)) walk(full);
-  else if(e.isFile() && e.name==="AGENTS.md") docs.push(full);
- }
+  let hasInstruction = false;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (relevantNames.has(entry.name) && (entry.isFile() || entry.isSymbolicLink()))
+      hasInstruction = true;
+    if (entry.isDirectory() && !skip.has(entry.name)) walk(full);
+    // Directory symlinks are never traversed: the lexical ancestors would
+    // misrepresent the effective instruction chain.
+  }
+  if (hasInstruction) {
+    const file = effectiveInstruction(dir, fallbackNames);
+    if (file) {
+      // Advisory verdict cannot claim clean coverage over a linked instruction
+      // file. Do not dereference a potentially external source.
+      if (!lstatSync(file).isFile()) {
+        console.error("unverified instruction source: " + relative(root, file));
+        process.exit(2);
+      }
+      docs.push(file);
+    }
+  }
 }
-walk(root);docs.sort();
+walk(root); docs.sort();
 function tokenize(s) {
  return new Set((s.toLowerCase().match(/[a-z][a-z0-9_-]{3,}/g)||[])
   .filter(w=>!new Set(["must","should","when","with","from","that","this","only","never","which","their","there","file","files","agent","agents","contract","contracts"]).has(w)));
@@ -60,7 +82,7 @@ const exact=[],possible=[];
 for (const file of docs) {
  let ancestor=dirname(file);
  while(ancestor===root || ancestor.startsWith(root+sep)) {
-  const other=join(ancestor,"AGENTS.md");
+  const other=effectiveInstruction(ancestor, fallbackNames);
   if(other!==file && lookup.has(other)) {
    for(const child of lookup.get(file)) for(const parent of lookup.get(other)) {
     const overlap=[...child.tokens].filter(t=>parent.tokens.has(t)).length;
