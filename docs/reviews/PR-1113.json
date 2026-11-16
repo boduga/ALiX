@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "pr": 1113,
+  "reviewedHeadSha": "0849888bf7e5660a66d5e6d04f7d70525dd33c8d",
+  "diffSha256": "148e5e145c2d0cbf9733c707b929547ce730c74c48804cf5675a1f4b16c8722c",
+  "author": {
+    "agentId": "github:boduga",
+    "attribution": "All eight commits in origin/main..reviewedHeadSha identify Babasola (GitHub boduga) as Git author. This is the verifiable operator/committer identity, not an invented Codex agent UUID; authorship was ChatGPT/Codex-assisted."
+  },
+  "reviewer": {
+    "kind": "agent",
+    "context": "fresh",
+    "agentId": "01a1e5f7-4d53-7c70-8239-da8c559846a4",
+    "model": "gpt-6.1-sol",
+    "cliVersion": "0.169.0",
+    "reviewedHeads": [
+      "0849888b"
+    ],
+    "modelProvenance": "Codex read-only original review session 01a1e5f7-4d53-7c70-8239-da8c559846a4 (turn_context model gpt-6.1-sol, 2 records), resumed same independent session to inspect remaining DOX/test diff. Initial verdict UNKNOWN for missing coverage; final continuation explicitly COMPLETE_PR_REVIEW_APPROVE. Logs: /tmp/alix-pr1113-full-final-review.log and /tmp/alix-pr1113-resumed-review.log on reviewer host. Reviewer did not execute tests or perform modifications."
+  },
+  "humanSecurityAcceptance": false,
+  "verdict": "approve",
+  "findings": [
+    {
+      "id": "F1",
+      "title": "In-workspace symlink aliases and linked instruction files could hide owning DOX",
+      "severity": "medium",
+      "status": "fixed",
+      "resolution": "Reject symlinked path ancestors and linked effective instruction sources, including dangling links; dedicated scope/planner regressions verify fail-closed behavior.",
+      "location": "scripts/check-dox-scope.mjs",
+      "fixedIn": "935933cc"
+    },
+    {
+      "id": "F2",
+      "title": "Codex override/fallback instruction precedence and TOML numeric forms not reflected in scope accounting",
+      "severity": "medium",
+      "status": "fixed",
+      "resolution": "Use shared effective instruction selection, handle override/fallback files and TOML integer syntax with fail-closed invalid configurations, and test shadowing and overflow.",
+      "location": "scripts/codex-instruction-files.mjs",
+      "fixedIn": "a48475d6"
+    },
+    {
+      "id": "F3",
+      "title": "Response-only and partial token counters could be reported as complete cumulative session usage",
+      "severity": "medium",
+      "status": "fixed",
+      "resolution": "Read cumulative thread_token_usage only, retain missing counters as unknown, and reject incomplete/mixed-model paired comparisons with regression tests.",
+      "location": "scripts/audit-codex-tokens.mjs",
+      "fixedIn": "9b9f59ad"
+    },
+    {
+      "id": "F4",
+      "title": "Valid quoted project_doc_max_bytes TOML keys silently fell back to default budget",
+      "severity": "medium",
+      "status": "fixed",
+      "resolution": "Accept both single- and double-quoted keys and fail closed for malformed values; overflow regression covers both quoted forms. Reviewed the exact final delta separately and again within the final complete review session.",
+      "location": "scripts/check-dox-scope.mjs",
+      "fixedIn": "0849888b"
+    }
+  ]
+}
