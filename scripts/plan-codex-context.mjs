@@ -128,7 +128,28 @@ if(result.status!=="blocked"){
       add({path:def.filePath,reason:"GitNexus candidate (verify directly)",symbol:def.name??null,startLine:def.startLine??null},4);
     }
     result.files=ranked.sort((a,b)=>a.priority-b.priority||a.path.localeCompare(b.path)).slice(0,maxFiles);
-    result.status=result.files.length?"candidates":"unknown";
+    // Discovery may add files outside the operator's initial --path scopes.
+    // Recheck the *final* candidate paths, since every returned source must
+    // carry its owning DOX chain and must fit the instruction budget.
+    if(result.files.length){
+      try{
+        const candidateArgs=[scope,"--json",...result.files.flatMap(f=>["--path",f.path])];
+        const scoped=JSON.parse(run(process.execPath,candidateArgs));
+        if(!scoped.ok){
+          result.status="blocked";
+          result.warnings.push("Candidate DOX scope failed; no shortlist can be trusted");
+          result.files=[];
+        }else{
+          result.requiredDOX=[...new Set([...result.requiredDOX,...scoped.records.flatMap(r=>r.chain)])];
+          result.instructionBytes=Math.max(result.instructionBytes??0,scoped.maxBytes??0);
+        }
+      }catch(e){
+        result.status="blocked";
+        result.files=[];
+        result.warnings.push("Cannot verify candidate DOX chains: "+String(e.message).slice(0,150));
+      }
+    }
+    if(result.status!=="blocked")result.status=result.files.length?"candidates":"unknown";
     if(!result.files.length)result.warnings.push("Graph returned no usable candidate files. This is UNKNOWN, not low risk; use direct source search");
   }
   }catch(e){result.warnings.push("GitNexus unavailable/unverified: "+String(e.message).slice(0,160));}

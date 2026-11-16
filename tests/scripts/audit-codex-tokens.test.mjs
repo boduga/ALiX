@@ -70,3 +70,20 @@ test("report explicitly disclaims RTK and TokenEconomizer attribution",()=>{
   assert.match(r.result.attribution.contextPlanner,/No causal savings/);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
+
+test("counts custom tool calls and outputs alongside function calls",()=>{
+ const content=record("turn_context",{model:"same"})+
+  record("response_item",{type:"function_call"})+
+  record("response_item",{type:"custom_tool_call"})+
+  record("response_item",{type:"function_call_output"})+
+  record("response_item",{type:"custom_tool_call_output"});
+ const {root,file}=fixture(content);
+ try{const r=run("--file",file);assert.equal(r.status,0);assert.equal(r.result.toolCalls,2);assert.equal(r.result.toolOutputs,2);}
+ finally{rmSync(root,{recursive:true,force:true});}
+});
+test("reports every observed model rather than hiding a mid-session model switch",()=>{
+ const {root,file}=fixture(record("turn_context",{model:"model-a"})+record("turn_context",{model:"model-b"})+
+  record("token_usage_record",{thread_token_usage:usage(80,20,5)}));
+ try{const r=run("--file",file);assert.equal(r.status,0);assert.equal(r.result.model,"model-b");assert.deepEqual(r.result.modelHistory,["model-a","model-b"]);assert.equal(r.result.mixedModels,true);}
+ finally{rmSync(root,{recursive:true,force:true});}
+});

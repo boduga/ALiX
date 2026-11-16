@@ -34,17 +34,18 @@ if(!file||!existsSync(file)){console.error("no Codex JSONL session found");proce
 const totals={input_tokens:0,cached_input_tokens:0,cache_write_input_tokens:0,output_tokens:0,reasoning_output_tokens:0,total_tokens:0};
 const keys=Object.keys(totals);
 let samples=0,compactions=0,toolCalls=0,toolOutputs=0,turns=0,model=null,sessionId=null;
+const modelsSeen=new Set();
 let invalid=0;
 for(const line of readFileSync(file,"utf8").split(/\r?\n/)){
  if(!line.trim())continue;
  let x;try{x=JSON.parse(line);}catch{invalid++;continue;}
  const p=x.payload??{};
  if(x.type==="session_meta")sessionId=p.id??null;
- if(x.type==="turn_context"){turns++;model=p.model??model;}
+ if(x.type==="turn_context"){turns++;if(typeof p.model==="string" && p.model.trim()){model=p.model;modelsSeen.add(p.model);}}
  if(x.type==="compacted")compactions++;
  if(x.type==="response_item"){
-  if(p.type==="function_call")toolCalls++;
-  if(p.type==="function_call_output")toolOutputs++;
+  if(p.type==="function_call"||p.type==="custom_tool_call")toolCalls++;
+  if(p.type==="function_call_output"||p.type==="custom_tool_call_output")toolOutputs++;
  }
  if(x.type==="token_usage_record"){
   const u=p.thread_token_usage??p.usage;
@@ -54,7 +55,8 @@ for(const line of readFileSync(file,"utf8").split(/\r?\n/)){
   for(const k of keys)if(Number.isFinite(u[k]))totals[k]=u[k];
  }
 }
-const report={source:file,sessionId,model,turns,tokenUsageRecords:samples,tokenUsage:totals,compactions,toolCalls,toolOutputs,invalidLines:invalid,attribution:{
+const modelHistory=[...modelsSeen];
+const report={source:file,sessionId,model,modelHistory,mixedModels:modelHistory.length>1,turns,tokenUsageRecords:samples,tokenUsage:totals,compactions,toolCalls,toolOutputs,invalidLines:invalid,attribution:{
  codex:"Recorded cumulative session counters (not a controlled baseline)",
  rtk:"Inspect 'rtk gain -p --format json' separately; its estimated savings are not additive with Codex billed usage",
  tokenEconomizer:"Configured hooks may affect context; no per-hook savings attributed from Codex JSONL",

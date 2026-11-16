@@ -83,3 +83,25 @@ test("stale graph never runs local prioritization even if local matches exist",(
   assert.deepEqual(result.files,[]);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
+
+test("includes owning DOX for discovered candidates outside initial --path",()=>{
+ const root=setup("current");
+ try{
+  write(root,"tests/AGENTS.md","# Tests owned DOX\n");
+  const r=run(root,"--path","src/sample.ts","--max-files","2");
+  assert.equal(r.code,0,r.stderr);
+  assert.deepEqual(r.out.files.map(f=>f.path),["src/sample.ts","tests/test-symbol.test.ts"]);
+  assert(r.out.requiredDOX.includes("tests/AGENTS.md"),JSON.stringify(r.out.requiredDOX));
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
+test("fails closed when a discovered candidate has an over-budget DOX chain",()=>{
+ const root=setup("current");
+ try{
+  write(root,"tests/AGENTS.md","# Tests owned DOX\n"+"x".repeat(140000));
+  const r=run(root,"--path","src/sample.ts","--max-files","2");
+  assert.equal(r.code,1,r.stderr);
+  assert.equal(r.out.status,"blocked");
+  assert.deepEqual(r.out.files,[]);
+  assert(r.out.warnings.some(x=>/Candidate DOX scope failed|Cannot verify candidate DOX chains/.test(x)));
+ }finally{rmSync(root,{recursive:true,force:true});}
+});

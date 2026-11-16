@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {mkdtempSync,writeFileSync,rmSync} from "node:fs";
+import {mkdtempSync,mkdirSync,copyFileSync,readFileSync,writeFileSync,rmSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {spawnSync} from "node:child_process";
@@ -47,6 +47,36 @@ test("accepts pnpm-forwarded separator",()=>{
  try{
   const a=sample(root,"baseline","same-model",100,3),b=sample(root,"guided","same-model",80,4);
   const p=spawnSync(process.execPath,[cli,"--","--baseline",a,"--guided",b,"--json"],{encoding:"utf8"});
+  assert.equal(p.status,0,p.stderr);
+  assert.equal(JSON.parse(p.stdout).status,"paired_observation");
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
+
+test("rejects mixed-model cumulative sessions even if the final model matches",()=>{
+ const root=mkdtempSync(join(tmpdir(),"alix-paired-"));
+ try{
+  const a=sample(root,"baseline","model-b",100,5),b=sample(root,"guided","model-b",80,4);
+  const original=readFileSync(a,"utf8").trim().split("\n").map(JSON.parse);
+  const lines=[
+   {type:"session_meta",payload:{id:"baseline"}},
+   {type:"turn_context",payload:{model:"model-a"}},
+   {type:"token_usage_record",payload:{thread_token_usage:{input_tokens:30,output_tokens:1,total_tokens:31}}},
+   ...original.slice(1),
+  ];
+  writeFileSync(a,lines.map(x=>JSON.stringify(x)).join("\n")+"\n");
+  const p=spawnSync(process.execPath,[cli,"--baseline",a,"--guided",b,"--json"],{encoding:"utf8"});
+  assert.equal(p.status,1,p.stderr);
+  assert.equal(JSON.parse(p.stdout).checks.sameModel,false);
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
+test("works when comparator and auditor live in a directory containing spaces",()=>{
+ const root=mkdtempSync(join(tmpdir(),"alix path with spaces "));
+ try{
+  const scripts=join(root,"scripts");mkdirSync(scripts);
+  copyFileSync(cli,join(scripts,"compare-codex-context.mjs"));
+  copyFileSync(new URL("../../scripts/audit-codex-tokens.mjs",import.meta.url),join(scripts,"audit-codex-tokens.mjs"));
+  const a=sample(root,"baseline","same-model",100,5),b=sample(root,"guided","same-model",80,4);
+  const p=spawnSync(process.execPath,[join(scripts,"compare-codex-context.mjs"),"--baseline",a,"--guided",b,"--json"],{encoding:"utf8"});
   assert.equal(p.status,0,p.stderr);
   assert.equal(JSON.parse(p.stdout).status,"paired_observation");
  }finally{rmSync(root,{recursive:true,force:true});}

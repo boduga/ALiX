@@ -35,10 +35,25 @@ function tokenize(s) {
   .filter(w=>!new Set(["must","should","when","with","from","that","this","only","never","which","their","there","file","files","agent","agents","contract","contracts"]).has(w)));
 }
 function bullets(file) {
- return readFileSync(file,"utf8").split(/\r?\n/).flatMap((line,i)=>{
-  if(!/^\s*[-*] \*\*/.test(line) || line.trim().length < 100) return [];
-  return [{line:i+1,text:line.trim(),tokens:tokenize(line)}];
- });
+ const lines=readFileSync(file,"utf8").split(/\r?\n/);
+ const found=[];
+ for(let i=0;i<lines.length;i++){
+  const line=lines[i];
+  if(!/^\s*[-*] \*\*/.test(line))continue;
+  const start=i+1;
+  const parts=[line.trim()];
+  // Continue wrapped Markdown text, but stop at a new list, heading, table,
+  // thematic break, or blank paragraph. Do not conflate separate contracts.
+  while(i+1<lines.length){
+   const next=lines[i+1];
+   if(!next.trim()||/^\s*(?:[-*+] |\d+[.)] |#{1,6} |\||>|---)/.test(next))break;
+   if(!/^\s+\S/.test(next))break;
+   parts.push(next.trim());i++;
+  }
+  const text=parts.join(" ");
+  if(text.length>=100)found.push({line:start,text,tokens:tokenize(text)});
+ }
+ return found;
 }
 const lookup=new Map(docs.map(file=>[file,bullets(file)]));
 const exact=[],possible=[];

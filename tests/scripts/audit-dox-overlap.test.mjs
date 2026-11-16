@@ -50,3 +50,16 @@ test("invalid thresholds produce invocation error",()=>{
  try {const p=spawnSync(process.execPath,[script,"--root",root,"--threshold","2"],{encoding:"utf8"});assert.equal(p.status,2);}
  finally{rmSync(root,{recursive:true,force:true});}
 });
+
+test("compares wrapped Markdown contract bullets as complete logical bullets",()=>{
+ const wrapped="- **Owned-path authorization.** Enforce containment through canonical owned\n  path matching and explicit authorization checks before mutating the workspace, including symlink targets and protected paths.";
+ const root=fixture({"AGENTS.md":wrapped+"\n","src/AGENTS.md":wrapped+"\n"});
+ try{const r=run(root);assert.equal(r.status,0,r.stderr);assert.equal(r.data.exactAncestorBullets,1);}
+ finally{rmSync(root,{recursive:true,force:true});}
+});
+test("does not merge adjacent separate bullets into a single contract",()=>{
+ const root=fixture({"AGENTS.md":long+"\n- **Other.** Another unrelated long contract that should not be merged into the first.\n",
+ "src/AGENTS.md":long+"\n"});
+ try{const r=run(root);assert.equal(r.status,0);assert.equal(r.data.exactAncestorBullets,1);}
+ finally{rmSync(root,{recursive:true,force:true});}
+});
