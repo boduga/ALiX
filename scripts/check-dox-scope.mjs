@@ -33,17 +33,27 @@ if (all && values.length) usage("choose either --all or --path");
 root = realpathSync(root);
 const inside = (p) => p === root || p.startsWith(root + sep);
 if (!existsSync(join(root, "AGENTS.md"))) usage("root AGENTS.md does not exist");
+// Use lstat, not existsSync: a dangling or external instruction symlink must
+// block the chain, never disappear or silently fall back to shadowed AGENTS.md.
+const entryPresent = (file) => {
+  try { lstatSync(file); return true; }
+  catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+};
 const instructionFor = (dir) => {
   const override = join(dir, "AGENTS.override.md");
-  if (existsSync(override)) return override;
+  if (entryPresent(override)) return override;
   const standard = join(dir, "AGENTS.md");
-  return existsSync(standard) ? standard : null;
+  return entryPresent(standard) ? standard : null;
 };
 function tomlInteger(value) {
   // TOML integers permit digit separators and base-prefixed values. Reject
   // malformed configured values; a silent default can approve excess DOX.
-  let sign=1;
+  let sign=1, signed=false;
   if(value.startsWith("+")||value.startsWith("-")){
+    signed=true;
     sign=value[0]==="-"?-1:1;
     value=value.slice(1);
   }
@@ -55,6 +65,8 @@ function tomlInteger(value) {
   ];
   for(const [pattern,radix] of forms){
     if(pattern.test(value)){
+      // TOML signs apply only to decimal integers, not 0x/0o/0b forms.
+      if (signed && radix !== 10) return null;
       const clean=value.replaceAll("_","");
       const parsed=Number.parseInt(radix===10?clean:clean.slice(2),radix)*sign;
       return Number.isSafeInteger(parsed)?parsed:null;
@@ -90,7 +102,12 @@ const addTarget = (path) => { if(!targetSet.has(path)){targetSet.add(path);targe
 if (!values.length) {
   function walk(dir) {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
-      if (e.isSymbolicLink()) continue;
+      if (e.isSymbolicLink()) {
+        // Do not traverse directory aliases, but inspect symlinked DOX entries
+        // so --all reports their invalid instruction source rather than skipping it.
+        if (e.name === "AGENTS.md" || e.name === "AGENTS.override.md") addTarget(dir);
+        continue;
+      }
       if (e.isDirectory()) {
         if (new Set([".git", "node_modules", "dist", "coverage", ".alix", ".gitnexus", ".opensrc"]).has(e.name)) continue;
         walk(join(dir, e.name));
@@ -136,7 +153,22 @@ function chainFor(target) {
 }
 const records = targets.map((target) => {
   const chain = chainFor(target);
-  const bytes = chain.reduce((n, file) => n + statSync(file).size + 2, 0);
+  // Validate the effective instruction files themselves. Target-path checks
+  // cannot validate an override symlink, and statSync would dereference it.
+  let bytes = 0;
+  for (const file of chain) {
+    const name = relative(root, file);
+    try {
+      const st = lstatSync(file);
+      if (!st.isFile()) {
+        findings.push({ type: "unverified_instruction", path: name });
+        continue;
+      }
+      bytes += st.size + 2;
+    } catch {
+      findings.push({ type: "unverified_instruction", path: name });
+    }
+  }
   const path = relative(root, target) || ".";
   if (bytes > budget) findings.push({ type: "budget_overflow", path, bytes, budget });
   if (!chain.some((f) => f === instructionFor(root))) findings.push({ type: "missing_root", path });

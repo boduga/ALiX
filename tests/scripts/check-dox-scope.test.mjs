@@ -130,3 +130,43 @@ test("malformed configured budget does not fall back to a larger default",()=>{
   assert.equal(p.status,2);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
+
+test("rejects effective AGENTS.override.md symlink instead of dereferencing outside content", { skip: process.platform === "win32" }, () => {
+  const root = fixture({ "AGENTS.md": "root", "src/AGENTS.md": "fallback" });
+  const outside = fixture({ "secret.md": "x".repeat(2500) });
+  try {
+    symlinkSync(join(outside, "secret.md"), join(root, "src/AGENTS.override.md"));
+    for (const args of [["--path", "src/future.ts"], ["--all"]]) {
+      const r = run(root, "--budget", "1024", ...args);
+      assert.equal(r.status, 1);
+      assert.equal(r.data.ok, false);
+      assert(r.data.findings.some((f) => f.type === "unverified_instruction" && f.path === "src/AGENTS.override.md"));
+      assert(r.data.records.some((record) => record.chain.includes("src/AGENTS.override.md")));
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); }
+});
+
+test("does not hide a broken effective override behind a valid AGENTS.md", { skip: process.platform === "win32" }, () => {
+  const root = fixture({ "AGENTS.md": "root", "src/AGENTS.md": "fallback" });
+  try {
+    symlinkSync("missing.md", join(root, "src/AGENTS.override.md"));
+    for (const args of [["--path", "src/future.ts"], ["--all"]]) {
+      const r = run(root, "--budget", "1024", ...args);
+      assert.equal(r.status, 1);
+      assert(r.data.findings.some((f) => f.type === "unverified_instruction" && f.path === "src/AGENTS.override.md"));
+      assert(r.data.records.some((record) => record.chain.includes("src/AGENTS.override.md")));
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("rejects signed base-prefixed TOML budgets rather than accepting invalid integers", () => {
+  const root = fixture({ "AGENTS.md": "root" });
+  try {
+    for (const invalid of ["+0x400", "-0x400", "+0o2000", "-0b100"] ) {
+      writeFileSync(join(root, "codex.toml"), `project_doc_max_bytes = ${invalid}\n`);
+      const p = spawnSync(process.execPath, [script, "--root", root, "--config", join(root, "codex.toml"), "--path", "future.ts"], { encoding: "utf8" });
+      assert.equal(p.status, 2, `invalid TOML integer ${invalid} should be rejected`);
+      assert.match(p.stderr, /invalid project_doc_max_bytes/);
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
