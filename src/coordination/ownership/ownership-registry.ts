@@ -50,6 +50,8 @@ export type AcquireRequest = {
   scope: OwnershipScope;
   mode: OwnershipMode;
   taskId?: string;
+  /** Request a distinct lease identity instead of renewing same-agent coverage. */
+  freshLease?: boolean;
   sessionId?: string;
   ttlMs?: number;
   reason?: string;
@@ -329,7 +331,7 @@ export class OwnershipRegistry {
 
     // Same agent, same scope+mode → renew
     const existing = this.findOwnExact(req.agentId, req.scope, req.mode);
-    if (existing) {
+    if (existing && !req.freshLease) {
       existing.acquiredAt = new Date().toISOString();
       existing.expiresAt = new Date(Date.now() + (req.ttlMs ?? DEFAULT_TTL_MS)).toISOString();
       this.markChanged();
@@ -339,8 +341,13 @@ export class OwnershipRegistry {
 
     const now = new Date().toISOString();
     const ttl = req.ttlMs ?? DEFAULT_TTL_MS;
+    // Preserve the public short ID format while guaranteeing no ID reuse,
+    // including against historic released records.
+    let leaseId: string;
+    do { leaseId = `own_${randomUUID().slice(0, 8)}`; }
+    while (this.records.some(record => record.id === leaseId));
     const record: OwnershipRecord = {
-      id: `own_${randomUUID().slice(0, 8)}`,
+      id: leaseId,
       agentId: req.agentId,
       taskId: req.taskId,
       sessionId: req.sessionId ?? this.sessionId,

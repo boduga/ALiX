@@ -493,6 +493,66 @@ export class CoordinationStore {
     });
   }
 
+  /**
+   * CAS terminal transition for a worker execution attempt. A delayed
+   * executor must never overwrite an operator cancellation or a newer attempt.
+   * Rejection writes no authoritative fact and sends no completion signal.
+   */
+  async commitRunningWorkerTerminal(
+    runId: string, workerId: string, expectedAttempt: number,
+    patch: Record<string, unknown>,
+  ): Promise<boolean> {
+    if (patch.status !== "completed" && patch.status !== "failed") {
+      throw new Error("commitRunningWorkerTerminal only accepts terminal status");
+    }
+    return this.serializeRunMutation<boolean>(runId, false, async () => {
+      const lock = new CoordinationRunLock(this.cwd, runId);
+      if (!(await lock.acquire())) return false;
+      try {
+        const run = await this.loadWithRetry(runId);
+        if (!run || run.status === "cancelled") return false;
+        const worker = run.workers.find(w => w.id === workerId);
+        if (!worker || worker.status !== "running" || worker.attempt !== expectedAttempt) return false;
+        Object.assign(worker, patch);
+        run.status = recomputeRunStatus(run);
+        run.updatedAt = new Date().toISOString();
+        this.commitToLedger(runId, "snapshot", runLedgerPayload(run), run.updatedAt);
+        await this.projectJson(runId, run);
+        return true;
+      } finally {
+        lock.release();
+      }
+    });
+  }
+
+  /**
+   * Record the outcome of releasing one execution attempt's captured leases.
+   * Never clear a successor attempt's lease IDs after stale cleanup.
+   */
+  async reconcileWorkerLeasesForAttempt(
+    runId: string, workerId: string, expectedAttempt: number,
+    observedLeaseIds: string[], failedLeaseIds: string[],
+  ): Promise<boolean> {
+    return this.serializeRunMutation<boolean>(runId, false, async () => {
+      const lock = new CoordinationRunLock(this.cwd, runId);
+      if (!(await lock.acquire())) return false;
+      try {
+        const run = await this.loadWithRetry(runId);
+        if (!run) return false;
+        const worker = run.workers.find(w => w.id === workerId);
+        if (!worker || worker.attempt !== expectedAttempt ||
+            JSON.stringify(worker.leaseIds ?? []) !== JSON.stringify(observedLeaseIds)) return false;
+        worker.leaseIds = failedLeaseIds;
+        run.updatedAt = new Date().toISOString();
+        this.commitToLedger(runId, "snapshot", runLedgerPayload(run), run.updatedAt);
+        await this.projectJson(runId, run);
+        return true;
+      } finally {
+        lock.release();
+      }
+    });
+  }
+
   /** Update specific fields on a worker within a run. Uses lock-safe updateRun. */
   async patchWorker(
     runId: string,

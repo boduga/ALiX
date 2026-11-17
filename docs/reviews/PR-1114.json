@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "pr": 1114,
+  "reviewedHeadSha": "4952ac4797b5d0176cf34a2fa4de146f45358b59",
+  "diffSha256": "f06886461088a7af57a5f809676e403f3b60d28ff0f07e9fdc2a447ebe9922d1",
+  "author": {
+    "agentId": "github:boduga",
+    "attribution": "All five implementation commits from origin/main to reviewed head identify Babasola as Git author. Git author is verifiable operator attribution; changes were ChatGPT-assisted, no author agent UUID claimed."
+  },
+  "reviewer": {
+    "kind": "agent",
+    "context": "fresh",
+    "agentId": "01a1e69e-ecfb-75c1-a7c8-e07cee0711f0",
+    "model": "gpt-6.1-sol",
+    "cliVersion": "0.169.0",
+    "reviewedHeads": [
+      "e9e40dd6",
+      "dc2a3a1c",
+      "a81d7aa2",
+      "4952ac47"
+    ],
+    "modelProvenance": "Independent read-only Codex review session with initial REQUEST_CHANGES and subsequent reviews of revised heads. Final explicit APPROVE for 4952ac4797b5d0176cf34a2fa4de146f45358b59, no open findings. Runtime model confirmed in Codex rollout turn_context. Review logs: ALiX/tmp/alix-authority-audit-20261116/pr1114-final-approval-review.jsonl and earlier pr1114-*-review.jsonl. Reviewer did not modify files or run tests."
+  },
+  "humanSecurityAcceptance": false,
+  "verdict": "approve",
+  "findings": [
+    {
+      "id": "R084-ACK-01",
+      "title": "Terminal lifecycle event emitted after worker status persistence failed",
+      "severity": "high",
+      "status": "fixed",
+      "resolution": "Emit terminal worker success/failure only after durable status committed, including exception path; fault-injection regression cases.",
+      "location": "src/coordination/kernel/coordination-scheduler.ts",
+      "fixedIn": "558d8182"
+    },
+    {
+      "id": "R084-ACK-02",
+      "title": "Failed terminal persistence could trigger replanning and cancellation overwrite",
+      "severity": "high",
+      "status": "fixed",
+      "resolution": "Guard replanning on committed terminal transition and lock-protected attempt-specific CAS rejects late success after cancellation.",
+      "location": "src/coordination/kernel/coordination-scheduler.ts",
+      "fixedIn": "e9e40dd6"
+    },
+    {
+      "id": "R084-LEASE-01",
+      "title": "Stale attempt cleanup could release or clear successor lease IDs",
+      "severity": "high",
+      "status": "fixed",
+      "resolution": "Cleanup captures executing attempt's leases; guarded ledger reconciliation prevents stale attempt overwriting successor ownership; regression tests.",
+      "location": "src/coordination/kernel/coordination-store.ts",
+      "fixedIn": "dc2a3a1c"
+    },
+    {
+      "id": "R084-LEASE-02",
+      "title": "Same-agent registry renewal reused lease ID across worker attempts",
+      "severity": "high",
+      "status": "fixed",
+      "resolution": "Scheduler freshLease acquisition requests a distinct record identity, preserving standard renewal for ordinary callers; real registry supersession tests pass.",
+      "location": "src/coordination/ownership/ownership-registry.ts",
+      "fixedIn": "a81d7aa2"
+    },
+    {
+      "id": "R084-CLI-01",
+      "title": "Hyphenated full UUID lease IDs broke CLI ownership release parser",
+      "severity": "medium",
+      "status": "fixed",
+      "resolution": "Retain existing short own_XXXXXXXX format with lock-protected collision avoidance against all retained ownership records; CLI tests pass.",
+      "location": "src/coordination/ownership/ownership-registry.ts",
+      "fixedIn": "4952ac47"
+    }
+  ]
+}

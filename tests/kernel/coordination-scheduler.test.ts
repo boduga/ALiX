@@ -951,7 +951,13 @@ describe("CoordinationScheduler", () => {
         // worker 2 stays pending
 
         await sched.tick(run.id);
-        for (let i = 0; i < 200 && executed.length < 1; i++) await new Promise(r => setTimeout(r, 10));
+        // Executor invocation can precede the durable completion CAS; wait for
+        // the authoritative worker status, not merely the executor-side signal.
+        for (let i = 0; i < 200; i++) {
+          const candidate = await store.load(run.id);
+          if (candidate?.workers.find(x => x.id === workers[0]!.id)?.status === "completed") break;
+          await new Promise(r => setTimeout(r, 10));
+        }
         const loaded = await store.load(run.id);
         const approvedWorker = loaded!.workers.find(x => x.id === workers[0]!.id)!;
         const stillPending = loaded!.workers.find(x => x.id === workers[1]!.id)!;
@@ -1171,17 +1177,16 @@ describe("CoordinationScheduler", () => {
     });
     await store.addWorker(run.id, worker);
 
-    // Simulate a transient store-read failure on the first completed-status
-    // patch (Windows Defender EBUSY shape): patchWorker returns null once,
-    // then the real implementation runs on retry.
-    const originalPatchWorker = store.patchWorker.bind(store);
+    // Simulate one transient failure at the new CAS terminal-commit boundary.
+    // The next attempt must use the real lock-protected implementation.
+    const originalTerminal = store.commitRunningWorkerTerminal.bind(store);
     let flakyCalls = 0;
-    store.patchWorker = async (runId: string, workerId: string, patch: Record<string, unknown>) => {
+    store.commitRunningWorkerTerminal = async (runId, workerId, expectedAttempt, patch) => {
       if (patch.status === "completed" && flakyCalls === 0) {
         flakyCalls++;
-        return null;
+        return false;
       }
-      return originalPatchWorker(runId, workerId, patch);
+      return originalTerminal(runId, workerId, expectedAttempt, patch);
     };
 
     try {
@@ -1195,7 +1200,7 @@ describe("CoordinationScheduler", () => {
       const storedWorker = stored!.workers.find(w => w.id === worker.id)!;
       assert.equal(storedWorker.status, "completed");
     } finally {
-      store.patchWorker = originalPatchWorker;
+      store.commitRunningWorkerTerminal = originalTerminal;
     }
   });
 
